@@ -1,5 +1,5 @@
 import { notifyDomainChanged } from '../api/domainChanges.js';
-import type { DirectoryHandle } from '../capabilities/directoryHandle.js';
+import { isDirectoryHandle } from '../capabilities/directoryHandle.js';
 import { getSettings, isLiveSaveEffective } from '../../application/settings/index.js';
 import { refreshConversation } from '../../application/conversations/refreshConversation.js';
 import { runExport } from '../../application/export/runExport.js';
@@ -14,9 +14,9 @@ async function exportLiveSave(key: ConversationKey, refreshDetail: boolean): Pro
         if (refreshDetail) await refreshConversation(key);
         return null;
     }
-    const handle = await getDirectoryHandle() as DirectoryHandle | null;
+    const handle = await getDirectoryHandle();
     if (!handle) throw new Error('Choose a Live Save directory in Options');
-    if (await handle.queryPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Reauthorize the Live Save directory in Options');
+    if (!isDirectoryHandle(handle) || await handle.queryPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Reauthorize the Live Save directory in Options');
     // The Worker has no durable task resume. Best-effort Chrome API activity
     // during this one execution cannot be confused with a delivery receipt.
     const stopKeepAlive = startKeepAlive();

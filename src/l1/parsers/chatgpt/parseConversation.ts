@@ -1,4 +1,4 @@
-import { chatGPTInteractiveSnapshot } from './interactiveSnapshot.js';
+import type { chatGPTInteractiveSnapshot } from './interactiveSnapshot.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { ResourceAcquisitionHint } from '../../resources/resourceAcquisition.js';
 import { contentQuality } from '../qualityEvidence.js';
@@ -41,7 +41,6 @@ import {
     extractChatGPTModelSlug,
     processChatGPTMapping,
 } from './conversationTree.js';
-import { chatGPTTimestamp } from './timestamp.js';
 import { preprocessChatGPTMarkdown } from './markdownCompatibility.js';
 
 /** Image bytes resolved by the provider for one sediment pointer. */
@@ -177,7 +176,7 @@ function messageOfNode(
         role: chatGPTNodeRole(node),
         model,
         content,
-        timestamp: chatGPTTimestamp(node.message?.create_time),
+        timestamp: node.message?.createdAtMs,
         ...(() => {
             const reasoning = thinking ? reasoningOfThinking(thinking, node.id, ctx) : [];
             return reasoning.length > 0 ? { reasoning } : {};
@@ -190,7 +189,7 @@ function messageOfNode(
  * parents, cycles and absent current_node must never claim full body coverage. */
 function branchCoverage(conversation: ChatGPTApiConversationWithId): 'complete' | 'partial' | 'unknown' {
     if (!conversation.current_node) return 'unknown';
-    const leaf = conversation.mapping[conversation.current_node]?.message;
+    const leaf = conversation.mapping.get(conversation.current_node)?.message;
     if (leaf?.author.role === 'assistant' && (leaf.end_turn === false
         || leaf.status !== undefined && leaf.status !== 'finished_successfully')) return 'partial';
     let id: string | undefined = conversation.current_node;
@@ -198,7 +197,7 @@ function branchCoverage(conversation: ChatGPTApiConversationWithId): 'complete' 
     while (id) {
         if (seen.has(id)) return 'partial';
         seen.add(id);
-        const node: ChatGPTConversationNode | undefined = conversation.mapping[id];
+        const node: ChatGPTConversationNode | undefined = conversation.mapping.get(id);
         if (!node) return 'partial';
         if (node.parent == null) return 'complete';
         id = node.parent;
@@ -214,12 +213,14 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
         diagnostics: contentDiagnostics,
         sourceRef: { providerId: 'chatgpt', locator: `conversation:${conversation.id}` },
     };
-    const nodes = processChatGPTMapping(conversation);
+    // Preserve the source snapshot produced during branch projection; do not reparse its rendered text.
+    const snapshots = new Map<string, ReturnType<typeof chatGPTInteractiveSnapshot>>();
+    const nodes = processChatGPTMapping(conversation, snapshots);
     const interactiveSnapshots = nodes.flatMap(node => {
-        const raw = conversation.mapping[node.id]?.message;
-        return raw?.metadata?.model_dil_v2 && raw.content.content_type === 'text'
-            ? [{ messageId: raw.id, snapshot: chatGPTInteractiveSnapshot(
-                (raw.content.parts ?? []).join(''), raw.metadata.model_dil_v2.fallbackMarkdown) }] : [];
+        const raw = conversation.mapping.get(node.id)?.message;
+        const snapshot = snapshots.get(node.id);
+        return snapshot && raw?.metadata?.model_dil_v2 && raw.content.content_type === 'text'
+            ? [{ messageId: raw.id, snapshot }] : [];
     });
     const interactiveIncomplete = interactiveSnapshots.some(({ snapshot }) => snapshot.incomplete);
     for (const { messageId, snapshot } of interactiveSnapshots) {
@@ -259,14 +260,14 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
         ),
     );
     // Source activity versions travel beside Detail; Index owns updatedAt.
-    const sourceVersion = chatGPTTimestamp(conversation.update_time);
+    const sourceVersion = conversation.updatedAtMs;
     return {
         ...(sourceVersion !== undefined ? { sourceVersion } : {}),
         conversationId: conversation.id,
         conversation: {
             index: parseIndexMetadata({ providerId: 'chatgpt', id: conversation.id,
                 title: conversation.title?.trim() || '', titleSource: 'provider',
-                createdAt: chatGPTTimestamp(conversation.create_time), updatedAt: sourceVersion,
+                createdAt: conversation.createdAtMs, updatedAt: sourceVersion,
                 messageCount: messages.length, url: `https://chatgpt.com/c/${conversation.id}` }),
             detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), quality: contentQuality({ status: interactiveIncomplete ? 'partial' : branchCoverage(conversation) }), assets, messages },
         },

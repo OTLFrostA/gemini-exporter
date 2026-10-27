@@ -108,6 +108,24 @@ test('P1-9e: flat.length > 500 直接跳过', () => {
     assert.strictEqual(out.length, 0, '超大 flat 数组应被跳过');
 });
 
+test('P1-9e2: strict document time uses canonical finite safe milliseconds', () => {
+    const cases: Array<{ wireTime: unknown; expected: number | undefined }> = [
+        { wireTime: [1700000000, 500000000], expected: 1700000000000 },
+        { wireTime: [1700000000000], expected: 1700000000000 },
+        { wireTime: [Number.POSITIVE_INFINITY], expected: undefined },
+        { wireTime: [-123], expected: undefined },
+        { wireTime: ['1700000000'], expected: undefined },
+        { wireTime: [Number.MAX_VALUE], expected: undefined },
+    ];
+    for (const { wireTime, expected } of cases) {
+        const entry = strictDocItem();
+        entry[5] = wireTime;
+        const result = attachments.extractDocumentsMeta([entry]);
+        assert.equal(result.length, 1, 'invalid timestamps must not discard otherwise valid document metadata');
+        assert.equal(result[0].createdAt, expected);
+    }
+});
+
 test('P1-9f: findDocContentById 全等路径不标 contentMatch', () => {
     const real = ["docExact1", "## 真实标题\n\n" + "正文".repeat(100)];
     const found = attachments.createDocumentReader([real]).byId("docExact1");

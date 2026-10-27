@@ -1,4 +1,4 @@
-import type { DirectoryHandle } from './directoryHandle.js';
+import { isDirectoryHandle, type DirectoryHandle } from './directoryHandle.js';
 import { ensureV2Ready } from '../api/runtimeReady.js';
 import { getDirectoryHandle, setDirectoryHandle } from '../../l3a/storageService.js';
 
@@ -6,7 +6,9 @@ let current: DirectoryHandle | null = null;
 let pending: DirectoryHandle | null = null;
 async function getStoredDirHandle(): Promise<DirectoryHandle | null> {
     await ensureV2Ready();
-    return await getDirectoryHandle() as DirectoryHandle | null;
+    const handle = await getDirectoryHandle();
+    if (handle && !isDirectoryHandle(handle)) throw new TypeError('Stored directory handle has no permission API');
+    return handle;
 }
 async function saveStoredDirHandle(handle: DirectoryHandle): Promise<boolean> {
     await ensureV2Ready();

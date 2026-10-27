@@ -58,8 +58,8 @@ export interface GeminiProtocolModule {
     BL_FALLBACK: string;
     LIMITS: ProtocolLimits;
     createReqidGenerator: () => () => string;
-    isConfirmedDeletedError: (errOrText: unknown, status?: number) => boolean;
-    classifyDetailError: (rawTextOrErr: unknown, status?: number) => DetailErrorCategory;
+    isConfirmedDeletedError: (text: string, status?: number) => boolean;
+    classifyDetailError: (text: string, status?: number) => DetailErrorCategory;
 }
 
 const PROTOCOL_VERSION = '2026-09-07';
@@ -123,32 +123,21 @@ function createReqidGenerator(): () => string {
     };
 }
 
-function extractErrorText(errOrText: unknown): string {
-    if (typeof errOrText === 'string') return errOrText;
-    if (errOrText instanceof Error) return errOrText.message;
-    if (typeof errOrText === 'object' && errOrText !== null && 'message' in errOrText) {
-        return String(errOrText.message || '');
-    }
-    return String(errOrText || '');
-}
-
 /**
  * Canonical decider for whether an RPC response / error text proves that a
  * conversation was deleted on the server.
  * Gemini's shared batchexecute HTTP 404 can mean a bad route or auth, so it is not proof.
  * Only the characterized target-Detail BardErrorInfo 1167 may be promoted by L1.
  */
-export function isConfirmedDeletedError(errOrText: unknown, status?: number): boolean {
+export function isConfirmedDeletedError(text: string, status?: number): boolean {
     if (status !== undefined && status !== 200) return false;
-    const text = extractErrorText(errOrText);
     return /(?:\[\s*["']BardErrorInfo["']\s*,\s*1167\b|BardErrorInfo\b[^\d]{0,30}\b1167\b)/i.test(text);
 }
 
-export function classifyDetailError(rawTextOrErr: unknown, status?: number): DetailErrorCategory {
-    if (isConfirmedDeletedError(rawTextOrErr, status)) {
+export function classifyDetailError(text: string, status?: number): DetailErrorCategory {
+    if (isConfirmedDeletedError(text, status)) {
         return 'confirmed_deleted';
     }
-    const text = extractErrorText(rawTextOrErr);
     if (status === 429) {
         return 'rate_limited';
     }
@@ -175,17 +164,6 @@ export const GeminiProtocol: GeminiProtocolModule = {
     isConfirmedDeletedError,
     classifyDetailError
 };
-
-interface GeminiProtocolModuleExports extends GeminiProtocolModule {
-    GeminiProtocol: GeminiProtocolModule;
-    CrossWorldEvents: typeof CrossWorldEvents;
-    default: GeminiProtocolModule;
-}
-const protocolExports = GeminiProtocol as GeminiProtocolModuleExports;
-protocolExports.GeminiProtocol = GeminiProtocol;
-protocolExports.CrossWorldEvents = CrossWorldEvents;
-protocolExports.default = GeminiProtocol;
-
 
 export default GeminiProtocol;
 

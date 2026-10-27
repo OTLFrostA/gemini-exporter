@@ -5,6 +5,7 @@ import { useStorageUnitEnvironment as useIndexStorage } from './helpers/l3aStora
 import { fixtureKey } from './helpers/domainFixture.js';
 
 import { openStorageDB } from '../src/l3a/idb.js';
+import { isDirectoryHandle } from '../src/runtime/capabilities/directoryHandle.js';
 useIndexStorage();
 test('directory selection uses the single default key in the shared v2 DB', async () => {
     assert.equal(await storage.getDirectoryHandle(), null);
@@ -28,4 +29,13 @@ test('directory IO fails visibly when IndexedDB is unavailable, without memory f
         await assert.rejects(storage.getDirectoryHandle());
         await assert.rejects(storage.setDirectoryHandle({ name: 'Fake' } as FileSystemDirectoryHandle));
     } finally { globalThis.indexedDB = previous; }
+});
+
+test('restored directory permission methods must be present before use', () => {
+    const legacy = { name: 'Legacy', kind: 'directory' } as FileSystemDirectoryHandle;
+    assert.equal(isDirectoryHandle(legacy), false);
+    const missingRequest = { ...legacy, queryPermission: async () => 'granted' };
+    assert.equal(isDirectoryHandle(missingRequest), false);
+    const ready = { ...missingRequest, requestPermission: async () => 'granted' };
+    assert.equal(isDirectoryHandle(ready), true);
 });

@@ -81,4 +81,4 @@ export function installChatGPTHook(): void {
     };
 }
 
-if (typeof window !== 'undefined') installChatGPTHook();
+installChatGPTHook();

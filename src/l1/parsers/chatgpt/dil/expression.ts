@@ -2,6 +2,12 @@
 export type Value = string | number | boolean | null | Value[] | { [key: string]: Value };
 export type Scope = Map<string, Value>;
 const forbidden = new Set(['__proto__', 'prototype', 'constructor']);
+const escapes: ReadonlyMap<string, string> = new Map([['n', '\n'], ['r', '\r'], ['t', '\t'], ['b', '\b'], ['f', '\f']]);
+// Long operators precede their prefixes; each token carries its own precedence.
+const operators: readonly (readonly [string, number])[] = [
+    ['||', 1], ['&&', 2], ['===', 3], ['!==', 3], ['==', 3], ['!=', 3],
+    ['<=', 4], ['>=', 4], ['<', 4], ['>', 4], ['+', 5], ['-', 5], ['*', 6], ['/', 6], ['%', 6],
+];
 
 export function expression(source: string, scope: Scope): Value {
     let at = 0, budget = 4000, depth = 0;
@@ -25,7 +31,8 @@ export function expression(source: string, scope: Scope): Value {
         else if (take('[')) {
             value = []; if (!take(']')) { do { value.push(read()); } while (take(',')); requireToken(']'); }
         } else if (take('{')) {
-            const object: Record<string, Value> = Object.create(null) as Record<string, Value>;
+            const object: Record<string, Value> = {};
+            Object.setPrototypeOf(object, null);
             if (!take('}')) {
                 do {
                     space(); let key: string;
@@ -50,7 +57,11 @@ export function expression(source: string, scope: Scope): Value {
                     const arg = read(); requireToken(')');
                     if (arg !== null && typeof arg === 'object') throw new Error('Expected scalar');
                     value = name === 'String' ? String(arg) : Number(arg);
-                } else { if (!scope.has(name)) throw new Error('Unbound expression'); value = scope.get(name)!; }
+                } else {
+                    const bound = scope.get(name);
+                    if (bound === undefined) throw new Error('Unbound expression');
+                    value = bound;
+                }
             }
         }
         for (;;) {
@@ -66,11 +77,11 @@ export function expression(source: string, scope: Scope): Value {
             } else if (take('[')) { const key = read(); requireToken(']'); value = member(value, key); }
             else break;
         }
-        const ops: Record<string, number> = { '||': 1, '&&': 2, '===': 3, '!==': 3, '==': 3, '!=': 3, '<=': 4, '>=': 4, '<': 4, '>': 4, '+': 5, '-': 5, '*': 6, '/': 6, '%': 6 };
         for (;;) {
-            space(); const op = /^(?:===|!==|==|!=|<=|>=|&&|\|\||[<>+*/%\-])/.exec(source.slice(at))?.[0];
-            if (!op || ops[op] < minimum) break;
-            at += op.length; const right = read(ops[op] + 1);
+            space(); const operator = operators.find(([token]) => source.startsWith(token, at));
+            if (!operator || operator[1] < minimum) break;
+            const [op, precedence] = operator;
+            at += op.length; const right = read(precedence + 1);
             if (op === '==') value = value === right;
             else if (op === '===') value = value === right;
             else if (op === '!==' || op === '!=') value = value !== right;
@@ -99,7 +110,7 @@ export function expression(source: string, scope: Scope): Value {
             if (c !== '\\') { result += c; continue; }
             const escaped = source[at++];
             if (escaped === 'u') { const hex = source.slice(at, at + 4); if (!/^[\da-f]{4}$/i.test(hex)) throw new Error('Invalid escape'); result += String.fromCharCode(parseInt(hex, 16)); at += 4; }
-            else result += ({ n: '\n', r: '\r', t: '\t', b: '\b', f: '\f' } as Record<string, string>)[escaped] ?? escaped;
+            else result += escapes.get(escaped) ?? escaped;
         }
         throw new Error('Unterminated string');
     }

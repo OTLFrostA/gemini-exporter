@@ -128,7 +128,7 @@ export interface TitleResult {
  * stays private to Gemini resource decoders. */
 export interface DecodedGeminiCandidate {
     /** Selected wire context; only the resource decoder interprets these remaining slots. */
-    source: unknown;
+    source: unknown[];
     body: unknown;
     turnDocument: unknown;
     index: number;
@@ -163,7 +163,7 @@ interface GeminiParserExtractorsModule {
     extractCandidateText: (cand: unknown) => string;
     safeStructureClean: (str?: string | null) => string;
     robustFirstPayload: (text?: string | null) => unknown[] | null;
-    deepWalk: (root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth?: number) => void;
+    deepWalk: (root: unknown, visitor: (node: object, depth: number) => boolean | void, maxDepth?: number) => void;
     extractThoughts: (candidateBlock: unknown) => string | null;
     extractCitations: (candidateBlock: unknown) => Citation[];
     extractGroundingCitationMarkers?: (candidate: unknown) => string[];
@@ -262,7 +262,7 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
         return Array.isArray(value);
     }
 
-    function deepWalk(root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth: number = 50): void {
+    function deepWalk(root: unknown, visitor: (node: object, depth: number) => boolean | void, maxDepth: number = 50): void {
         function walk(node: unknown, depth: number) {
             if (!node || !isObjectRecord(node) || depth > maxDepth) return;
             const shouldDescend = visitor(node, depth);
@@ -356,8 +356,7 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
         }
 
         if (warnings.length > 0) {
-            const isDev = (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog)
-                || (typeof window !== "undefined" && (window.__gemExporterDevMode || window.__gemExporterVerboseLog));
+            const isDev = globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog;
             if (isDev) {
                 console.warn("[Gemini Exporter][Schema Drift Warning] Detected %d schema drift(s) in conv %s:", warnings.length, convId || "unknown", warnings);
             }
@@ -799,9 +798,9 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
         const rawId = slots?.[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
         const body = slots?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY];
         const candidateBlock = body || selected;
-        const candidate: DecodedGeminiCandidate | null = candidateIndex < candidates.length
+        const candidate: DecodedGeminiCandidate | null = slots !== null
             ? {
-                source: selected, body, index: candidateIndex,
+                source: slots, body, index: candidateIndex,
                 turnDocument: isUnknownArray(modelPayload) ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined,
                 id: typeof rawId === "string" ? rawId : "",
                 text: extractModelResponseText(selected),
@@ -866,6 +865,4 @@ const GeminiParserExtractors: GeminiParserExtractorsModule = {
     cleanTitle,
     isRealTitle
 };
-if (typeof module === 'object' && module.exports) module.exports = GeminiParserExtractors;
-
 export default GeminiParserExtractors;

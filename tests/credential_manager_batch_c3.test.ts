@@ -1,4 +1,5 @@
 export {};
+import type { TestContext } from 'node:test';
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -36,8 +37,14 @@ function makeMockStorage(initialData: Record<string, unknown> = {}) {
     };
 }
 
-test('1. BL extraction precedence and cache: blCfb2hFromHtml -> blAssistantFromHtml -> __gemExporterBl', () => {
+test('1. BL extraction precedence and cache: HTML sources only', (t: TestContext) => {
     const credManager = getFreshCredManager();
+    const globals = globalThis as Record<string, unknown>;
+    const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    t.after(() => {
+        if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+        else delete globals.document;
+    });
 
     // Both blCfb2hFromHtml and blAssistantFromHtml present: blCfb2hFromHtml wins
     const docBoth = {
@@ -45,7 +52,8 @@ test('1. BL extraction precedence and cache: blCfb2hFromHtml -> blAssistantFromH
             innerHTML: 'start "cfb2h":"bl_primary" middle "bl":"boq_assistant-secondary" end'
         }
     };
-    assert.strictEqual(credManager.getBlFromPage(docBoth), 'bl_primary', 'blCfb2hFromHtml should take highest precedence');
+    globals.document = docBoth;
+    assert.strictEqual(credManager.getBlFromPage(), 'bl_primary', 'blCfb2hFromHtml should take highest precedence');
 
     // Only blAssistantFromHtml present ("bl":"boq_assistant...")
     const docAssistant = {
@@ -53,27 +61,23 @@ test('1. BL extraction precedence and cache: blCfb2hFromHtml -> blAssistantFromH
             innerHTML: 'prefix "bl":"boq_assistant-bard-web-server_2026" suffix'
         }
     };
-    assert.strictEqual(credManager.getBlFromPage(docAssistant), 'boq_assistant-bard-web-server_2026', 'blAssistantFromHtml should be used when primary pattern absent');
+    globals.document = docAssistant;
+    assert.strictEqual(credManager.getBlFromPage(), 'boq_assistant-bard-web-server_2026', 'blAssistantFromHtml should be used when primary pattern absent');
 
-    // Neither present in doc, but glob.__gemExporterBl present
-    const origWindow = (globalThis as Record<string, unknown>).window;
-    try {
-        (globalThis as Record<string, unknown>).__gemExporterBl = 'bl_from_glob';
-        const docEmpty = {
-            documentElement: {
-                innerHTML: '<div>no bl tokens here</div>'
-            }
-        };
-        assert.strictEqual(credManager.getBlFromPage(docEmpty), 'bl_from_glob', '__gemExporterBl should be fallback when patterns absent');
-    } finally {
-        delete (globalThis as Record<string, unknown>).__gemExporterBl;
-        if (origWindow !== undefined) (globalThis as Record<string, unknown>).window = origWindow;
-    }
+    // A writerless legacy global must not supply BL credentials.
+    globals.document = { documentElement: { innerHTML: '<div>no bl tokens here</div>' } };
+    assert.strictEqual(credManager.getBlFromPage(), null, 'unmatched HTML must not supply a BL token');
 });
 
-test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_global_data -> WIZ_global_data -> script scan -> full HTML -> empty', () => {
+test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_global_data -> WIZ_global_data -> script scan -> full HTML -> empty', (t: TestContext) => {
     const credManager = getFreshCredManager();
     const P = require('../src/l1/protocol/gemini/protocol.js').default;
+    const globals = globalThis as Record<string, unknown>;
+    const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    t.after(() => {
+        if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+        else delete globals.document;
+    });
 
     // A. __gemExporterExtractAt wins over everything
     const origExtractAt = (globalThis as Record<string, unknown>).__gemExporterExtractAt;
@@ -93,7 +97,8 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
         const doc = {
             documentElement: { innerHTML: '<html>"SNlM0e":"at_in_html"</html>' }
         };
-        assert.strictEqual(credManager.getAtFromPage(doc), 'at_wiz_1', '_WIZ_global_data wins over WIZ_global_data');
+        globals.document = doc;
+        assert.strictEqual(credManager.getAtFromPage(), 'at_wiz_1', '_WIZ_global_data wins over WIZ_global_data');
     } finally {
         delete (globalThis as Record<string, unknown>)._WIZ_global_data;
         delete (globalThis as Record<string, unknown>).WIZ_global_data;
@@ -106,7 +111,8 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
             documentElement: { innerHTML: '<html>"SNlM0e":"at_in_html_script"</html>' },
             querySelectorAll: () => [{ textContent: '"SNlM0e":"at_in_script_query"' }]
         };
-        assert.strictEqual(credManager.getAtFromPage(doc), 'at_wiz_plain', 'WIZ_global_data wins over scripts');
+        globals.document = doc;
+        assert.strictEqual(credManager.getAtFromPage(), 'at_wiz_plain', 'WIZ_global_data wins over scripts');
     } finally {
         delete (globalThis as Record<string, unknown>).WIZ_global_data;
     }
@@ -116,21 +122,45 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
         documentElement: { innerHTML: '<html>"SNlM0e":"at_in_html_tail"</html>' },
         querySelectorAll: () => [{ textContent: 'var a = 1; "SNlM0e":"at_from_query_script";' }]
     };
-    assert.strictEqual(credManager.getAtFromPage(docScript), 'at_from_query_script', 'querySelectorAll scripts wins over HTML regex');
+    globals.document = docScript;
+    assert.strictEqual(credManager.getAtFromPage(), 'at_from_query_script', 'querySelectorAll scripts wins over HTML regex');
 
     // E. full HTML scan when no scripts matched
     const docHtml = {
         documentElement: { innerHTML: '<div>content with "SNlM0e":"at_full_html" in body</div>' },
         querySelectorAll: () => []
     };
-    assert.strictEqual(credManager.getAtFromPage(docHtml), 'at_full_html', 'full HTML scan fallback');
+    globals.document = docHtml;
+    assert.strictEqual(credManager.getAtFromPage(), 'at_full_html', 'full HTML scan fallback');
 
     // F. empty fallback
     const docNone = {
         documentElement: { innerHTML: '<div>plain text</div>' },
         querySelectorAll: () => []
     };
-    assert.strictEqual(credManager.getAtFromPage(docNone), '', 'returns empty string when no AT tokens found');
+    globals.document = docNone;
+    assert.strictEqual(credManager.getAtFromPage(), '', 'returns empty string when no AT tokens found');
+});
+
+test('External Wiz globals reject malformed token values before cache admission', (t: TestContext) => {
+    const globals = globalThis as Record<string, unknown>;
+    const names = ['document', '__gemExporterExtractAt', '_WIZ_global_data', 'WIZ_global_data'];
+    const previous = names.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
+    t.after(() => names.forEach((name, i) => {
+        if (previous[i]) Object.defineProperty(globalThis, name, previous[i]);
+        else delete globals[name];
+    }));
+
+    const P = require('../src/l1/protocol/gemini/protocol.js').default;
+    const manager = getFreshCredManager();
+    delete globals.__gemExporterExtractAt;
+    globals.document = { documentElement: { innerHTML: '<div>no AT token</div>' }, querySelectorAll: () => [] };
+    globals._WIZ_global_data = { [P.TOKENS.AT]: 123 };
+    globals.WIZ_global_data = { [P.TOKENS.AT]: ['invalid'] };
+    assert.equal(manager.getAtFromPage(), '', 'malformed external Wiz values must not be cached as credentials');
+
+    globals.WIZ_global_data = { [P.TOKENS.AT]: 'validated-at' };
+    assert.equal(manager.getAtFromPage(), 'validated-at', 'the first valid fallback token is still accepted');
 });
 
 test('3. Slot detection: explicit path -> pathname -> u0 to default -> catch to default', () => {
@@ -163,15 +193,39 @@ test('4. Valid map load from storage', async () => {
     (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
     try {
         const credManager = getFreshCredManager();
-        const map = await credManager.loadCredMap();
-        assert.strictEqual(Object.keys(map).length, 2);
-        assert.strictEqual(map.s1.sid, 's1');
-        assert.strictEqual(map.s1.at, 'at1');
-        assert.strictEqual(map.s2.accountSlot, 'u1');
-        assert.strictEqual(map.s2.lastUsed, 2000);
+        const first = await credManager.resolveCred('s1');
+        const second = await credManager.resolveCred('s2');
+        assert.strictEqual(first.sid, 's1');
+        assert.strictEqual(first.at, 'at1');
+        assert.strictEqual(second.accountSlot, 'u1');
+        assert.strictEqual(second.lastUsed, 2000);
+        assert.strictEqual(Object.keys(mock.data.gemini_credentials_map as object).length, 2);
     } finally {
         (globalThis as Record<string, unknown>).chrome = origChrome;
     }
+});
+
+test('C3 review: array-shaped credential map is rejected, never selected or rewritten', async (t: TestContext) => {
+    const globals = globalThis as Record<string, unknown>;
+    const previousChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    t.after(() => {
+        if (previousChrome) Object.defineProperty(globalThis, 'chrome', previousChrome);
+        else delete globals.chrome;
+        if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+        else delete globals.document;
+    });
+
+    const malformed = [{ sid: 'array_sid', at: 'array_at', bl: 'array_bl', accountSlot: 'default' }];
+    const mock = makeMockStorage({ gemini_credentials_map: malformed });
+    globals.chrome = { storage: { session: mock, local: mock } };
+    delete globals.document;
+
+    const manager = getFreshCredManager();
+    const resolved = await manager.resolveCred('default');
+    assert.notStrictEqual(resolved.sid, 'array_sid', 'positional credentials are not selected');
+    assert.strictEqual(resolved.at, '', 'tokens from malformed array map are never reused');
+    assert.deepStrictEqual(mock.data.gemini_credentials_map, malformed, 'invalid stored data is not rewritten');
 });
 
 test('8. Newest same-slot credential selected by lastUsed ordering', async () => {
@@ -348,13 +402,13 @@ test('14. Missing historical fields remain missing during load and credential re
     (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
     try {
         const credManager = getFreshCredManager();
-        const map = await credManager.loadCredMap();
-        assert.ok(map.hist_1, 'entry must exist');
-        assert.strictEqual(map.hist_1.sid, 'hist_1');
-        assert.strictEqual(map.hist_1.at, 'tok_1');
-        assert.strictEqual(map.hist_1.bl, undefined, 'bl must not be synthesized');
-        assert.strictEqual(map.hist_1.accountSlot, undefined, 'accountSlot must not be synthesized');
-        assert.strictEqual(map.hist_1.lastUsed, undefined, 'lastUsed must not be synthesized');
+        const stored = (mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>).hist_1;
+        assert.ok(stored, 'entry must exist');
+        assert.strictEqual(stored.sid, 'hist_1');
+        assert.strictEqual(stored.at, 'tok_1');
+        assert.strictEqual(stored.bl, undefined, 'bl must not be synthesized');
+        assert.strictEqual(stored.accountSlot, undefined, 'accountSlot must not be synthesized');
+        assert.strictEqual(stored.lastUsed, undefined, 'lastUsed must not be synthesized');
 
         // Reading a credential map must not write back invented metadata.
         const storedMap = mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>;
@@ -409,8 +463,6 @@ test('16. Numeric SID is preserved when resolving stored credentials', async () 
     (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
     try {
         const credManager = getFreshCredManager();
-        const loadedMap = await credManager.loadCredMap();
-        assert.strictEqual(loadedMap['987654321'].sid, 987654321);
         const bySid = await credManager.resolveCred('987654321');
         assert.strictEqual(bySid.sid, 987654321);
         assert.strictEqual(bySid.at, 'numeric_at');

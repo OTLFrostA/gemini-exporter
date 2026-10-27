@@ -46,7 +46,6 @@ export function matchesCurrentAccount(observation: Omit<Account, 'id'>): boolean
 
 /** The isolated world cannot infer the current Gaia from arbitrary DOM emails. */
 function requestObservation(slot: string): Promise<Omit<Account, 'id'> | null> {
-    if (typeof window === 'undefined') return Promise.resolve(null);
     if (providerNow() === 'grok') return observeGrokAccount();
     if (providerNow() === 'claude') return observeClaudeAccount();
     if (providerNow() === 'chatgpt') return fetch('/api/auth/session', { credentials: 'include' })

@@ -30,11 +30,10 @@ function isStoredCredential(value: unknown): value is StoredCredential {
 }
 
 export interface GeminiClientCredentialManagerModule {
-    getBlFromPage: (doc?: unknown) => string | null;
-    getAtFromPage: (doc?: unknown) => string;
+    getBlFromPage: () => string | null;
+    getAtFromPage: () => string;
     detectSlot: (urlOrPath?: string | null) => string | null;
-    getCredStorage: () => chrome.storage.StorageArea | null;
-    loadCredMap: () => Promise<RawCredentialMap>;
+    updateCredential: (sid: string | number, decide: () => { patch: { at?: string; bl?: string } | null; clearLocal?: boolean }) => Promise<void>;
     resolveCred: (targetSidOrSlot?: string | null, overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null) => Promise<GeminiCredentials>;
     generateFallbackSid: () => string;
 }
@@ -46,56 +45,20 @@ let _atCache: { v: string; ts: number; len: number } | null = null;
 const CRED_CACHE_TTL = 30000;
 
 function isRecord(val: unknown): val is Record<string, unknown> {
-    return typeof val === "object" && val !== null;
+    return typeof val === "object" && val !== null && !Array.isArray(val);
 }
 
-function getGlobalObject(): Record<string, unknown> | null {
-    const candidate: unknown = typeof window !== "undefined"
-        ? window
-        : globalThis;
-    if (isRecord(candidate)) {
-        return candidate;
-    }
-    return null;
-}
-
-function getTargetDocument(doc?: unknown): Record<string, unknown> | null {
-    if (isRecord(doc)) {
-        return doc;
-    }
-    const glob = getGlobalObject();
-    if (glob && isRecord(glob.document)) {
-        return glob.document;
-    }
-    return null;
-}
-
-function getDocumentHtml(targetDoc: Record<string, unknown>): string {
-    const docEl = targetDoc.documentElement;
-    if (isRecord(docEl) && typeof docEl.innerHTML === "string") {
-        return docEl.innerHTML;
-    }
-    return "";
-}
-
-function getBlFromPage(doc?: unknown): string | null {
+function getBlFromPage(): string | null {
     try {
-        const glob = getGlobalObject();
-        const targetDoc = getTargetDocument(doc);
-        if (!targetDoc) return null;
-        const html = getDocumentHtml(targetDoc);
+        if (typeof document === "undefined") return null;
+        const html = document.documentElement?.innerHTML ?? "";
         const htmlLen = html.length;
         if (_blCache && Date.now() - _blCache.ts < CRED_CACHE_TTL && _blCache.len === htmlLen) {
             return _blCache.v;
         }
         const P = GeminiProtocol;
         const m = html.match(P.TOKEN_PATTERNS.blCfb2hFromHtml) || html.match(P.TOKEN_PATTERNS.blAssistantFromHtml);
-        let res: string | null = null;
-        if (m && typeof m[1] === "string") {
-            res = m[1];
-        } else if (glob && typeof glob.__gemExporterBl === "string" && glob.__gemExporterBl) {
-            res = glob.__gemExporterBl;
-        }
+        const res = m?.[1] ?? null;
         _blCache = { v: res, ts: Date.now(), len: htmlLen };
         if (res) return res;
     } catch (e) {
@@ -104,66 +67,46 @@ function getBlFromPage(doc?: unknown): string | null {
     return null;
 }
 
-function getAtFromPage(doc?: unknown): string {
+function getAtFromPage(): string {
     try {
-        const glob = getGlobalObject();
-        if (glob) {
-            const extractAtFn = glob.__gemExporterExtractAt;
-            if (typeof extractAtFn === "function") {
-                const a: unknown = Reflect.apply(extractAtFn, glob, []);
-                if (typeof a === "string" && a) return a;
-            }
+        const glob = globalThis;
+        const extractAtFn = glob.__gemExporterExtractAt;
+        if (extractAtFn) {
+            const at = extractAtFn();
+            if (at) return at;
         }
-        const targetDoc = getTargetDocument(doc);
-        if (!targetDoc) return "";
-        const html = getDocumentHtml(targetDoc);
+        if (typeof document === "undefined") return "";
+        const html = document.documentElement?.innerHTML ?? "";
         const htmlLen = html.length;
         if (_atCache && Date.now() - _atCache.ts < CRED_CACHE_TTL && _atCache.len === htmlLen) {
             return _atCache.v;
         }
         const P = GeminiProtocol;
-        if (glob && isRecord(glob._WIZ_global_data)) {
+        if (isRecord(glob._WIZ_global_data)) {
             const v = glob._WIZ_global_data[P.TOKENS.AT];
             if (typeof v === "string" && v) {
                 _atCache = { v, ts: Date.now(), len: htmlLen };
                 return v;
             }
         }
-        if (glob && isRecord(glob.WIZ_global_data)) {
+        if (isRecord(glob.WIZ_global_data)) {
             const v = glob.WIZ_global_data[P.TOKENS.AT];
             if (typeof v === "string" && v) {
                 _atCache = { v, ts: Date.now(), len: htmlLen };
                 return v;
             }
         }
-        if (typeof targetDoc.querySelectorAll === "function") {
-            const rawScripts: unknown = Reflect.apply(targetDoc.querySelectorAll, targetDoc, ["script"]);
-            if (Array.isArray(rawScripts)) {
-                for (const s of rawScripts) {
-                    if (isRecord(s) && typeof s.textContent === "string") {
-                        const m = s.textContent.match(P.TOKEN_PATTERNS.atFromScript);
-                        if (m && typeof m[1] === "string") {
-                            _atCache = { v: m[1], ts: Date.now(), len: htmlLen };
-                            return m[1];
-                        }
-                    }
-                }
-            } else if (isRecord(rawScripts) && typeof rawScripts.length === "number") {
-                const len = rawScripts.length;
-                for (let i = 0; i < len; i++) {
-                    const s = rawScripts[i];
-                    if (isRecord(s) && typeof s.textContent === "string") {
-                        const m = s.textContent.match(P.TOKEN_PATTERNS.atFromScript);
-                        if (m && typeof m[1] === "string") {
-                            _atCache = { v: m[1], ts: Date.now(), len: htmlLen };
-                            return m[1];
-                        }
-                    }
-                }
+        for (const script of document.querySelectorAll("script")) {
+            const text = script.textContent;
+            if (!text) continue;
+            const m = text.match(P.TOKEN_PATTERNS.atFromScript);
+            if (m) {
+                _atCache = { v: m[1], ts: Date.now(), len: htmlLen };
+                return m[1];
             }
         }
         const mHtml = html.match(P.TOKEN_PATTERNS.atFromScript);
-        if (mHtml && typeof mHtml[1] === "string") {
+        if (mHtml) {
             _atCache = { v: mHtml[1], ts: Date.now(), len: htmlLen };
             return mHtml[1];
         }
@@ -177,10 +120,7 @@ function detectSlot(urlOrPath?: string | null): string | null {
     try {
         let path = urlOrPath ?? "";
         if (!path) {
-            const glob = getGlobalObject();
-            if (glob && isRecord(glob.location) && typeof glob.location.pathname === "string") {
-                path = glob.location.pathname;
-            }
+            path = globalThis.location?.pathname ?? "";
         }
         const slot = detectSlotFromUrl(path);
         return slot === "u0" ? "default" : slot;
@@ -190,22 +130,52 @@ function detectSlot(urlOrPath?: string | null): string | null {
     return "default";
 }
 
-function toRawCredentialMap(raw: unknown): RawCredentialMap {
-    return isRecord(raw) ? raw : {};
-}
-
-async function loadCredMap(): Promise<RawCredentialMap> {
+async function loadRawCredMap(): Promise<RawCredentialMap> {
     const storage = getCredStorage();
     if (!storage) return {};
     try {
-        const s: unknown = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP]);
-        if (isRecord(s)) {
-            return toRawCredentialMap(s[STORAGE_KEYS.CREDENTIALS_MAP]);
-        }
-        return {};
+        const result: unknown = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP]);
+        const raw = isRecord(result) ? result[STORAGE_KEYS.CREDENTIALS_MAP] : undefined;
+        return isRecord(raw) ? raw : {};
     } catch {
         return {};
     }
+}
+
+// Keep the untouched storage snapshot only for writeback; selection sees validated entries.
+async function loadCredMap() {
+    const raw = await loadRawCredMap();
+    const entries = new Map<string, StoredCredential>();
+    for (const [sid, value] of Object.entries(raw)) {
+        if (isStoredCredential(value)) entries.set(sid, value);
+    }
+    return { raw, entries };
+}
+
+async function updateCredential(
+    sid: string | number,
+    decide: Parameters<GeminiClientCredentialManagerModule['updateCredential']>[1]
+): Promise<void> {
+    await withCredMapLock(async () => {
+        const { patch, clearLocal = true } = decide();
+        const map = await loadRawCredMap();
+        const key = String(sid);
+        if (!Object.hasOwn(map, key)) return;
+        const entry = map[key];
+        if (patch === null) {
+            if (!entry) return;
+            delete map[key];
+        } else {
+            if (!isRecord(entry)) return;
+            map[key] = { ...entry, ...patch };
+        }
+        const storage = getCredStorage();
+        if (!storage) return;
+        await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
+        if (clearLocal && typeof chrome !== 'undefined' && chrome.storage.local && storage !== chrome.storage.local) {
+            await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+        }
+    });
 }
 
 async function resolveCred(
@@ -220,8 +190,8 @@ async function resolveCredInner(
     overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null
 ): Promise<GeminiCredentials> {
     if (targetSidOrSlot?.includes('@')) throw new TypeError('Email is not a credential routing identity');
-    const map = await loadCredMap();
-    let vals = Object.values(map).filter(isStoredCredential);
+    const { raw: map, entries } = await loadCredMap();
+    let vals = [...entries.values()];
     const pageAt = getAtFromPage();
     const pageBl = getBlFromPage();
 
@@ -231,7 +201,7 @@ async function resolveCredInner(
         /^u\d+$/i.test(targetSidOrSlot) ||
         targetSidOrSlot === 'default'
     );
-    const targetSid = (!isSlotParam && targetSidOrSlot && map[targetSidOrSlot]) ? targetSidOrSlot : null;
+    const targetSid = !isSlotParam && targetSidOrSlot ? targetSidOrSlot : null;
     const requestedSlot = overrides?.accountSlot || (isSlotParam ? targetSidOrSlot : null);
 
     const firstAt = vals[0]?.at;
@@ -251,6 +221,7 @@ async function resolveCredInner(
             const storage = getCredStorage();
             if (storage) {
                 map[String(sid)] = entry;
+                entries.set(String(sid), entry);
                 await storage.set({
                     [STORAGE_KEYS.CREDENTIALS_MAP]: map,
                     [STORAGE_KEYS.CREDENTIALS]: {
@@ -278,8 +249,8 @@ async function resolveCredInner(
     }
 
     let result: GeminiCredentials;
-    if (targetSid && isStoredCredential(map[targetSid])) {
-        const stored = map[targetSid];
+    const stored = targetSid ? entries.get(targetSid) : undefined;
+    if (stored) {
         result = {
             ...stored,
             bl: stored.bl || pageBl || GeminiProtocol.BL_FALLBACK,
@@ -316,14 +287,13 @@ async function resolveCredInner(
     return result;
 }
 
-export { getBlFromPage, getAtFromPage, detectSlot, loadCredMap, resolveCred, generateFallbackSid };
+export { getBlFromPage, getAtFromPage, detectSlot, updateCredential, resolveCred, generateFallbackSid };
 
 export const GeminiClientCredentialManager: GeminiClientCredentialManagerModule = {
     getBlFromPage,
     getAtFromPage,
     detectSlot,
-    getCredStorage,
-    loadCredMap,
+    updateCredential,
     resolveCred,
     generateFallbackSid
 };

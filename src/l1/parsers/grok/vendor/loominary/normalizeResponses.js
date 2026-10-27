@@ -44,7 +44,7 @@ const nodeMap = new Map();
                                         citations.push({
                                             id: card.id,
                                             url: card.url,
-                                            title: searchResult?.title || 'Source'
+                                            title: typeof searchResult?.title === 'string' && searchResult.title ? searchResult.title : 'Source'
                                         });
                                     }
                                 });

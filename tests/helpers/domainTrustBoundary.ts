@@ -10,14 +10,15 @@ const geminiDecoders = /^l1\/(?:(?:parsers|sniffer|client)\/gemini\/|imports\/ta
 const validator = 'l2/runtimeValidation.ts';
 const parserOwners = new Set(['l1/parsers/gemini/rpc/parseConversation.ts',
     'l1/parsers/gemini/takeout/parseConversation.ts', 'l1/parsers/gemini/rpc/mergePages.ts', 'l1/parsers/chatgpt/parseConversation.ts']);
-// Source builders finalize new graphs; only the repository restores disk/write snapshots.
+// Source builders finalize new graphs; persistence and the authenticated IPC ingress restore detached snapshots.
+const detailIpcIngress = 'runtime/background/domainStorageHandler.ts';
 const entries = new Map<string, Set<string>>([
     ['parseGeminiCapturedSource', new Set(['l1/sniffer/gemini/messageBridge.ts'])],
     ['parseGeminiResponse', new Set(['l1/client/gemini/geminiClient.ts', 'l1/parsers/gemini/capturedSource.ts'])],
     ['parseGeminiRpcConversation', new Set(['l1/parsers/gemini/rpc/parseResponse.ts'])],
     ['assertSchema', new Set([validator])], ['assertDomainClosure', new Set([validator])],
     ['validateParserDomain', new Set([...parserOwners, 'l2/ingestion.ts'])], ['restoreDomainSnapshot', new Set(['l2/readConversation.ts'])],
-    ['restoreDomainDetail', new Set(['l2/ingestion.ts'])],
+    ['restoreDomainDetail', new Set(['l2/ingestion.ts', detailIpcIngress])],
     ['requestNativeDetail', new Set()],
     ['requestNativeBatch', new Set()],
     ['callDomainBroker', new Set()],
@@ -96,7 +97,9 @@ export function trustBoundaryViolations(source: SourceFile, owner: string, check
             || node.kind === SyntaxKind.ObjectKeyword || isTypeOfExpression(node) || isTypeParameterDeclaration(node))) {
             report(node, 'parsed Gemini adapters consume concrete source facts without re-probing raw input');
         }
-        if ((/^(?:l2|l3a|l3b|application|l4)\//.test(owner) || parsedGeminiAdapters.has(owner) || geminiDecoders.test(owner))
+        if ((/^(?:l2|l3a|l3b|application|l4)\//.test(owner) || parsedGeminiAdapters.has(owner) || geminiDecoders.test(owner) || owner === detailIpcIngress
+            || owner === 'l1/client/chatgpt/imageAssets.ts' || owner === 'l1/parsers/chatgpt/parseList.ts'
+            || owner === 'l1/client/chatgpt/accountObservation.ts' || owner === 'l1/parsers/chatgpt/dil/expression.ts')
             && (isAsExpression(node) || isTypeAssertion(node) || isNonNullExpression(node))) {
             report(node, 'typed business layers must narrow or construct values without assertions');
         }

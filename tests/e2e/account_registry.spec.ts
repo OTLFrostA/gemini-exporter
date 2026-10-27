@@ -18,6 +18,15 @@ async function tabContext(page: Page, url: string) {
     }, url);
 }
 
+
+async function setWizField(page: Page, key: 'qDCSke' | 'oPEP7c', value: string): Promise<void> {
+    await page.evaluate(({ key, value }) => {
+        const wiz = window._WIZ_global_data;
+        if (!wiz || typeof wiz !== 'object' || !Reflect.set(wiz, key, value))
+            throw new Error('Wiz fixture missing or immutable');
+    }, { key, value });
+}
+
 test('same-tab SPA Gaia switching survives a wrong DOM email, same-email identities and loss of Gaia', async ({ context, extensionId }) => {
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
@@ -35,23 +44,23 @@ test('same-tab SPA Gaia switching survives a wrong DOM email, same-email identit
 
     // Change only MAIN-world bootstrap data: no reload, no synthetic extension
     // observation and no credential request. Queries must obtain fresh Gaia.
-    await page.evaluate(() => { window._WIZ_global_data!.qDCSke = '10000000002'; });
+    await setWizField(page, 'qDCSke', '10000000002');
     const secondContext = await tabContext(options, url);
     expect(secondContext.accountId).not.toBe(first.id);
     expect((await accounts(options)).find(a => a.id === secondContext.accountId)).toMatchObject({
         providerAccountId: '10000000002', email: 'shared@example.com',
     });
-    await page.evaluate(() => { window._WIZ_global_data!.qDCSke = '10000000001'; });
+    await setWizField(page, 'qDCSke', '10000000001');
     expect(await tabContext(options, url)).toMatchObject({ accountId: first.id });
     await expect.poll(async () => (await accounts(options)).length).toBe(2);
     expect(await page.evaluate(() => performance.timeOrigin)).toBe(origin);
 
     // Unsolicited periodic observation must discover a profile change too.
-    await page.evaluate(() => { window._WIZ_global_data!.oPEP7c = 'renamed@example.com'; });
+    await setWizField(page, 'oPEP7c', 'renamed@example.com');
     await expect.poll(async () => (await accounts(options)).find(a => a.id === first.id)?.email).toBe('renamed@example.com');
     const repeated = await Promise.all(Array.from({ length: 12 }, () => tabContext(options, url)));
     expect(repeated.every(result => result?.accountId === first.id)).toBe(true);
-    await page.evaluate(() => { window._WIZ_global_data!.qDCSke = ''; });
+    await setWizField(page, 'qDCSke', '');
     const fallback = await tabContext(options, url);
     expect(fallback).toBeNull();
     expect(await accounts(options)).toHaveLength(2);

@@ -22,7 +22,20 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
         'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
-        'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]), ...stubs };
+        'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]),
+        // Runtime unit mocks L2 decoders; real schema/closure validation is covered by L2 and integration suites.
+        'src/l2/runtimeValidation.js': { restoreDomainDetail: (value: unknown) => value },
+        'src/l2/conversationIndex.js': { restoreConversationIndex: (value: unknown) => {
+            if (!value || typeof value !== 'object' || Array.isArray(value) || !('key' in value)) throw new TypeError('Invalid Index');
+            const key = mockConversationKey([uuid, otherUuid]).readConversationKey(value.key);
+            const title = 'title' in value ? value.title : undefined;
+            const titleSource = 'titleSource' in value ? value.titleSource : undefined;
+            const updatedAt = 'updatedAt' in value ? value.updatedAt : undefined;
+            if (title !== undefined && (typeof title !== 'string' || typeof titleSource !== 'string')) throw new TypeError('Invalid Index title');
+            if (updatedAt !== undefined && (typeof updatedAt !== 'number' || !Number.isSafeInteger(updatedAt))) throw new TypeError('Invalid Index timestamp');
+            const { key: _rawKey, ...fields } = value;
+            return { key, ...fields };
+        } }, ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
         const key = Object.keys(ports).find(key => resolved === path.resolve(root, key).replace(/\.ts$/, '.js'));
@@ -85,8 +98,23 @@ test('ingestion preserves Detail and Index facts; reports L2 errors', async () =
     const detail = { ...detailFact, quality: { status: 'partial' as const } };
     const indexFields = { title: 'a', titleSource: 'provider' as const };
     assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'detail', accountId: uuid, conversationId: 'abc', detail, indexFields }), { ok: false, error: 'commit failed' });
-    assert.deepEqual(seen, [uuid, 'abc', detail, indexFields]);
+    const key = { accountId: uuid, conversationId: 'abc' };
+    assert.deepEqual(seen, [uuid, 'abc', { ...detail, key }, { ...indexFields, key }]);
     assert.equal(handle({ action: 'domainStorage' }, sender, () => assert.fail()), false);
+});
+
+test('Detail IPC validates Index fields before invoking L2', async () => {
+    global.chrome = chromeBase() as any;
+    let calls = 0;
+    const handle = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l2/ingestion.js': { ingestDetail: async () => { calls++; return { accepted: true, changed: true }; } },
+    }).handleDomainIngestionMessage;
+    const invalidIndex = await invoke(handle, { action: 'domainIngest', operation: 'detail',
+        accountId: uuid, conversationId: 'abc', detail: detailFact, indexFields: { title: 'needs authority' } });
+    assert.equal(invalidIndex.ok, false);
+    assert.match(invalidIndex.error, /Invalid Index title|Invalid conversation index schema/);
+    assert.equal(calls, 0, 'invalid Index IPC fields cannot reach L2 ingestion');
 });
 
 test('Background returns the full Detail admission result only after L2 commits', async () => {
@@ -142,10 +170,39 @@ test('ingestion rejects foreign, unsupported, subframe and malformed requests', 
     for (const origin of [{ ...sender, id: 'other' }, { ...sender, tab: undefined }, { ...sender, url: 'https://chatgpt.com/' }, { ...sender, frameId: 1 }]) {
         assert.equal((await invoke(handle, message, origin)).ok, false);
     }
-    for (const patch of [{ accountId: 'u0' }, { items: {} }, { items: [{ conversationId: '', fields: {} }] }, { operation: 'write' }]) {
+    const page = { streamId: 'recent', requestCursor: null, nextCursor: null,
+        requestedAt: 1, requestKnown: true, valid: true, ordered: true, keys: [] };
+    for (const patch of [
+        { accountId: 'u0' }, { items: {} }, { items: [{ conversationId: '', fields: {} }] },
+        { items: [{ conversationId: ' a ', fields: {} }] },
+        { items: [null] }, { items: [{ conversationId: 'abc', fields: null }] },
+        { items: [{ conversationId: 'abc', fields: { title: 'Incomplete title' } }] },
+        { items: [{ conversationId: 'abc', fields: { updatedAt: 1.5 } }] },
+        { items: new Array(1) },
+        { page: { ...page, requestKnown: 'true' } },
+        { page: { ...page, valid: 'true' } },
+        { page: { ...page, requestedAt: 'not-a-time' } },
+        { page: { ...page, keys: [{ id: 'abc', time: 'not-a-time' }] } },
+        { page: { ...page, keys: new Array(1) } },
+        { operation: 'write' },
+    ]) {
         assert.equal((await invoke(handle, { ...message, ...patch })).ok, false);
     }
     assert.equal(calls, 0);
+});
+
+test('Index IPC decodes canonical facts before sending them to L2', async () => {
+    global.chrome = chromeBase() as any;
+    let admitted: unknown[] | null = null;
+    const handle = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l2/ingestion.js': { ingestIndexes: async (...args: unknown[]) => { admitted = args; } },
+    }).handleDomainIngestionMessage;
+    const items = [{ conversationId: 'abc', fields: { title: 'A', titleSource: 'provider', updatedAt: 10 } }];
+    const page = { streamId: 'recent', requestCursor: null, nextCursor: null,
+        requestedAt: 20, requestKnown: true, valid: true, ordered: true, keys: [{ id: 'abc', time: 10 }] };
+    assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'indexes', accountId: uuid, items, page }), { ok: true });
+    assert.deepEqual(admitted, [uuid, items, page]);
 });
 
 test('provider mismatch is rejected before L2 admission', async () => {
@@ -228,7 +285,7 @@ test('Extension ingestion calls the same L2 function after readiness', async () 
 function live(settings: object, permission = 'granted', handleExists = true, exporter?: Function) {
     return load('src/runtime/background/liveSaveHandler.ts', {
         'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }), isLiveSaveEffective: mockLiveSaveEffective },
-        'src/l3a/storageService.js': { getDirectoryHandle: async () => handleExists ? { queryPermission: async (options: unknown) => { assert.deepEqual(options, { mode: 'readwrite' }); return permission; } } : null },
+        'src/l3a/storageService.js': { getDirectoryHandle: async () => handleExists ? { queryPermission: async (options: unknown) => { assert.deepEqual(options, { mode: 'readwrite' }); return permission; }, requestPermission: () => assert.fail('Worker must not request permission') } : null },
         'src/application/export/runExport.js': { runExport: exporter || (() => assert.fail('Unexpected Export')) },
     }).runLiveSave;
 }
@@ -259,7 +316,7 @@ test('Worker Live Save scopes KeepAlive to the active export and releases it on 
     const trace: string[] = [];
     const save = load('src/runtime/background/liveSaveHandler.ts', {
         'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, enabledDisk: true }), isLiveSaveEffective: mockLiveSaveEffective },
-        'src/l3a/storageService.js': { getDirectoryHandle: async () => ({ queryPermission: async () => 'granted' }) },
+        'src/l3a/storageService.js': { getDirectoryHandle: async () => ({ queryPermission: async () => 'granted', requestPermission: () => assert.fail('Worker must not request permission') }) },
         'src/application/export/runExport.js': { runExport: async () => { trace.push('export'); throw new Error('Delivery failed'); } },
         'src/runtime/background/keepAlive.js': { startKeepAlive: () => { trace.push('start'); return () => trace.push('stop'); } },
     }).runLiveSave;
@@ -373,7 +430,7 @@ test('Live Save Content sends only the changed key and suppresses stale reinject
     assert.equal(feedback, 0);
     const committed = { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false };
     global.chrome.runtime.sendMessage = (async () => ({ ok: true, result: committed })) as any;
-    assert.strictEqual(await coordinator.executeLiveSave({ accountId: uuid, conversationId: 'abc' }), committed);
+    assert.deepEqual(await coordinator.executeLiveSave({ accountId: uuid, conversationId: 'abc' }), committed);
     assert.equal(feedback, 1, 'the live v2 Badge callback receives committed ExportResult');
     coordinator.cleanup();
 });
@@ -803,4 +860,57 @@ test('Live Save serializes same-Key writes and coalesces trailing events without
     assert.deepEqual(calls, [false, true]);
     await save(key);
     assert.deepEqual(calls, [false, true, false], 'settled task is removed');
+});
+
+test('Claude discovery admits normalized organizations, not raw remote JSON records', async () => {
+    const first = '11111111-1111-4111-8111-111111111111';
+    const second = '22222222-2222-4222-8222-222222222222';
+    let raw: unknown = [
+        null, 'invalid', { uuid: 'bad', name: 'foreign', capabilities: ['chat'] },
+        { uuid: first, name: '  First team  ', capabilities: ['chat'] },
+        { uuid: second, name: 42, capabilities: ['files'] },
+    ];
+    const registered: Array<{ id: string; name: unknown }> = [];
+    const { discoverClaudeAccounts } = load('src/runtime/capabilities/claudeDiscovery.ts', {
+        'src/l1/client/claude/claudeAccess.js': {
+            hasClaudeAccess: async () => true,
+            readClaudeSource: async (path: string) => { assert.equal(path, '/api/organizations'); return raw; },
+            ensureClaudeRegistered: async () => undefined,
+        },
+        'src/runtime/capabilities/platformInjection.js': { syncPlatformContentScripts: async () => undefined },
+        'src/runtime/api/accountRegistry.js': {
+            getOrCreateAccount: async (_provider: string, id: string, _email: unknown, name: unknown) => {
+                registered.push({ id, name });
+                return { id, providerId: 'claude', providerAccountId: id };
+            },
+        },
+    });
+    const found = await discoverClaudeAccounts();
+    assert.deepEqual(found.map((a: { id: string }) => a.id), [first]);
+    assert.deepEqual(registered, [{ id: first, name: 'First team' }]);
+
+    raw = [{ uuid: second, name: 42, capabilities: { chat: true } }];
+    await discoverClaudeAccounts();
+    assert.deepEqual(registered.at(-1), { id: second, name: undefined },
+        'the single-org fallback must not pass unvalidated names');
+
+    raw = [{ uuid: 'invalid', name: 'wrong', capabilities: ['chat'] }];
+    assert.deepEqual(await discoverClaudeAccounts(), []);
+});
+
+
+test('Detail IPC decoder rejection prevents L2 admission and view invalidation', async () => {
+    global.chrome = chromeBase() as any;
+    let calls = 0;
+    const notifications: unknown[] = [];
+    Reflect.set(chrome.runtime, 'sendMessage', async (message: unknown) => { notifications.push(message); });
+    const handle = load('src/runtime/background/domainStorageHandler.ts', {
+        'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
+        'src/l2/runtimeValidation.js': { restoreDomainDetail: () => { throw new TypeError('schema rejected'); } },
+        'src/l2/ingestion.js': { ingestDetail: async () => { calls++; return { accepted: true, changed: true }; } },
+    }).handleDomainIngestionMessage;
+    assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'detail',
+        accountId: uuid, conversationId: 'abc', detail: detailFact }), { ok: false, error: 'schema rejected' });
+    assert.equal(calls, 0);
+    assert.deepEqual(notifications, []);
 });

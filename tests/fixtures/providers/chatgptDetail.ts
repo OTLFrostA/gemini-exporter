@@ -1,4 +1,4 @@
-import type { ChatGPTApiConversationWithId, ChatGPTConversationNode } from '../../../src/l1/parsers/chatgpt/chatgptTypes.js';
+import type { ChatGPTConversationNode } from '../../../src/l1/parsers/chatgpt/chatgptTypes.js';
 
 /** Native JSON returned by GET /backend-api/conversation/:id (one payload per key). */
 function textNode(id: string, parent: string, role: 'assistant' | 'user', content: string): ChatGPTConversationNode {
@@ -11,7 +11,7 @@ function textNode(id: string, parent: string, role: 'assistant' | 'user', conten
     };
 }
 
-function nativeDetail(mapping: Record<string, ChatGPTConversationNode>, current_node = 'answer'): ChatGPTApiConversationWithId {
+function nativeDetail(mapping: Record<string, ChatGPTConversationNode>, current_node = 'answer') {
     return {
         id: 'source-chatgpt-1', title: 'Authored title', create_time: 1700000000,
         update_time: 1700000010, current_node, mapping, is_archived: false,

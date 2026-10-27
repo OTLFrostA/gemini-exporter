@@ -1,3 +1,4 @@
+import { decodeChatGPTDetail } from '../src/l1/parsers/chatgpt/decodeDetail.js';
 import { chatGPTInteractiveSnapshot } from '../src/l1/parsers/chatgpt/interactiveSnapshot.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { listIndexes as getConversations } from '../src/l3a/storageService.js';
@@ -81,7 +82,7 @@ test('system and empty assistant turns are skipped, user turns kept in order', (
     mapping.b.children = ['c'];
     mapping.c.children = ['d'];
     mapping.d.children = [];
-    const linear = extractChatGPTLinearNodes(mapping, 'd');
+    const linear = extractChatGPTLinearNodes(new Map(Object.entries(mapping)), 'd');
     assert.deepEqual(linear.map((n) => n.id), ['b', 'd']);
     assert.equal(shouldSkipChatGPTMessage(mapping.c.message), true);
 });
@@ -97,8 +98,8 @@ test('missing ChatGPT ancestors and cyclic mappings never claim complete Detail 
     };
     for (const mapping of [broken, cyclic]) {
         const parsed = parseChatGPTConversation({
-            conversation: { id: 'conv-partial', title: 'Partial', create_time: 1, update_time: 2,
-                current_node: 'a', mapping, is_archived: false },
+            conversation: { id: 'conv-partial', title: 'Partial', createdAtMs: 1000, updatedAtMs: 2000,
+                current_node: 'a', mapping: new Map(Object.entries(mapping)), is_archived: false },
             assetsByNode: new Map(),
         });
         assert.equal(parsed.conversation.detail.quality.status, 'partial');
@@ -110,8 +111,8 @@ test('a linked but streaming or interrupted ChatGPT reply never claims complete 
         const leaf = textNode('a', 'root', 'assistant', 'unfinished body');
         Object.assign(leaf.message!, patch);
         const parsed = parseChatGPTConversation({ conversation: { id: 'streaming', current_node: 'a',
-            mapping: { root: { id: 'root', parent: null, children: ['a'] } as unknown as ChatGPTConversationNode, a: leaf },
-            title: 'Streaming', create_time: 1, update_time: 2, is_archived: false }, assetsByNode: new Map() });
+            mapping: new Map(Object.entries<ChatGPTConversationNode>({ root: { id: 'root', parent: null, children: ['a'] } as unknown as ChatGPTConversationNode, a: leaf })),
+            title: 'Streaming', createdAtMs: 1000, updatedAtMs: 2000, is_archived: false }, assetsByNode: new Map() });
         assert.equal(parsed.conversation.detail.quality.status, 'partial');
     }
 });
@@ -120,20 +121,17 @@ test('processChatGPTMapping walks from current_node to root', () => {
     const conversation: ChatGPTApiConversationWithId = {
         id: 'conv-1',
         title: 'demo',
-        create_time: 1700000000,
-        update_time: 1700000600,
+        createdAtMs: 1700000000000,
+        updatedAtMs: 1700000600000,
         current_node: 'e',
         is_archived: false,
-        mapping: {
+        mapping: new Map(Object.entries<ChatGPTConversationNode>({
             root: { id: 'root', children: ['b'] },
-            b: textNode('b', 'root', 'user', 'hi'),
-            d: textNode('d', 'b', 'assistant', 'hello there'),
+            b: textNode('b', 'root', 'user', 'hi', { children: ['d'] }),
+            d: textNode('d', 'b', 'assistant', 'hello there', { children: ['e'] }),
             e: textNode('e', 'd', 'assistant', 'follow up'),
-        },
+        })),
     };
-    conversation.mapping.b.children = ['d'];
-    conversation.mapping.d.children = ['e'];
-    conversation.mapping.e.children = [];
     const nodes = processChatGPTMapping(conversation);
     assert.deepEqual(nodes.map((n) => n.id), ['b', 'd', 'e']);
 });
@@ -307,7 +305,7 @@ test('thinking walk attaches hidden reasoning to the following assistant node', 
         },
     };
     const ids = new Set(['u1', 'a1']);
-    const got = collectChatGPTThinking(mapping, ids, 'a1');
+    const got = collectChatGPTThinking(new Map(Object.entries(mapping)), ids, 'a1');
     const thinking = got.get('a1');
     assert.ok(thinking);
     assert.equal(thinking?.thoughts.length, 1);
@@ -315,8 +313,8 @@ test('thinking walk attaches hidden reasoning to the following assistant node', 
     // Reasoning blocks render through the full parser (markdown included).
     const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'),
         conversation: {
-            id: 'conv-think', title: 't', create_time: 1, update_time: 2,
-            current_node: 'a1', mapping, is_archived: false,
+            id: 'conv-think', title: 't', createdAtMs: 1000, updatedAtMs: 2000,
+            current_node: 'a1', mapping: new Map(Object.entries(mapping)), is_archived: false,
         },
         assetsByNode: new Map(),
     });
@@ -366,8 +364,8 @@ test('bodies parse to structured blocks and models stay per-message', () => {
     };
     const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'),
         conversation: {
-            id: 'conv-md', title: 't', create_time: 1, update_time: 2,
-            current_node: 'a1', mapping, is_archived: false,
+            id: 'conv-md', title: 't', createdAtMs: 1000, updatedAtMs: 2000,
+            current_node: 'a1', mapping: new Map(Object.entries(mapping)), is_archived: false,
         },
         assetsByNode: new Map(),
     });
@@ -410,8 +408,8 @@ test('repeated image pointers reuse one asset instead of breaking closure', () =
     const img = { pointer: 'sediment://file_dup', assetId: 'img-file_dup', dataBase64: 'aGk=' };
     const parsed = parseChatGPTConversation({ account: fixtureAccount('chatgpt'),
         conversation: {
-            id: 'conv-dup', title: 't', create_time: 1, update_time: 2,
-            current_node: 't2', mapping, is_archived: false,
+            id: 'conv-dup', title: 't', createdAtMs: 1000, updatedAtMs: 2000,
+            current_node: 't2', mapping: new Map(Object.entries(mapping)), is_archived: false,
         },
         assetsByNode: new Map([
             ['t1', { nodeId: 't1', images: [img], files: [] }],
@@ -626,13 +624,13 @@ test('Intelligent UI questionnaires use the provider fallback without executing 
     const assistant = textNode('answer', 'question', 'assistant', raw);
     assistant.message!.metadata = { model_dil_v2: { fallbackMarkdown: fallback } };
     const conversation: ChatGPTApiConversationWithId = {
-        id: 'questionnaire', title: 'Questionnaire', create_time: 1, update_time: 2,
+        id: 'questionnaire', title: 'Questionnaire', createdAtMs: 1000, updatedAtMs: 2000,
         current_node: 'answer', is_archived: false,
-        mapping: {
+        mapping: new Map(Object.entries<ChatGPTConversationNode>({
             root: { id: 'root', children: ['question'] },
             question: textNode('question', 'root', 'user', 'Help me diagnose'),
             answer: assistant,
-        },
+        })),
     };
     const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
     const body = JSON.stringify(parsed.conversation.detail.messages[1].content);
@@ -644,6 +642,29 @@ test('Intelligent UI questionnaires use the provider fallback without executing 
     assert.equal((assistant.message!.content as { parts: string[] }).parts[0], raw, 'raw source remains unchanged');
 });
 
+
+test('DIL static-source diagnostics reuse the same snapshot as the rendered branch', () => {
+    const source = '<radio-group><radio>First choice</radio><radio>Second choice</radio></radio-group>';
+    const answer = textNode('answer', 'question', 'assistant', source);
+    answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: 'First choice\nSecond choice' } };
+    const conversation: ChatGPTApiConversationWithId = {
+        id: 'dil-once', current_node: 'answer', title: '', is_archived: false,
+        mapping: new Map(Object.entries<ChatGPTConversationNode>({ root: { id: 'root', children: ['question'] },
+            question: textNode('question', 'root', 'user', 'Choose'),
+            answer })),
+    };
+    const expected = chatGPTInteractiveSnapshot(source, 'First choice\nSecond choice');
+    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+    const diagnostic = parsed.diagnostics.find(item => item.code === 'CHATGPT_INTERACTIVE_STATIC_SNAPSHOT');
+    assert.ok(diagnostic, 'source DIL modules must be diagnosed, not reparsed from the rendered body');
+    const details = diagnostic.details;
+    assert.ok(details && typeof details === 'object' && !Array.isArray(details));
+    assert.equal('representation' in details ? details.representation : undefined, expected.representation);
+    assert.equal(parsed.conversation.detail.quality.status, expected.incomplete ? 'partial' : 'complete');
+    const body = JSON.stringify(parsed.conversation.detail.messages[1].content);
+    for (const choice of ['First choice', 'Second choice']) assert.ok(body.includes(choice));
+    assert.equal((answer.message!.content as { parts: string[] }).parts[0], source, 'do not mutate input mapping');
+});
 
 test('Captured live DIL quiz parses nested questions/options before buttons, without fallback', () => {
     const fixture = JSON.parse(readFileSync(join(__dirname, 'fixtures/chatgpt_dynamic_questionnaire.json'), 'utf8')) as {
@@ -664,8 +685,8 @@ test('Captured live DIL quiz parses nested questions/options before buttons, wit
     const answer = textNode('answer', 'question', 'assistant', fixture.raw);
     answer.message!.metadata = { model_dil_v2: {} };
     const conversation: ChatGPTApiConversationWithId = {
-        id: 'captured-quiz', title: 'Quiz', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
-        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Quiz me'), answer },
+        id: 'captured-quiz', title: 'Quiz', createdAtMs: 1000, updatedAtMs: 2000, current_node: 'answer', is_archived: false,
+        mapping: new Map(Object.entries<ChatGPTConversationNode>({ root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Quiz me'), answer })),
     };
     const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
@@ -680,27 +701,27 @@ test('Captured live DIL quiz parses nested questions/options before buttons, wit
 test('DIL AsyncImage gallery becomes one ordered image resource instead of leaked control JSON', () => {
     const url = 'https://images.openai.com/static-rsc-4/' + 'a'.repeat(300) + '?purpose=fullsize';
     const answer = textNode('answer', 'question', 'assistant', '<AsyncImage query="flow network"/>');
-    answer.message!.metadata = { model_dil_v2: {
+    const metadata = { model_dil_v2: {
         fallbackMarkdown: 'Before\n\n\uE200image_group\uE202{"query":["flow network"]}\uE201\n\nAfter',
         appData: { opGenui: { componentResults: { image: { componentName: 'AsyncImage', status: 'resolved',
             safe_urls: [url], state: { images: [{ content_url: url }, { content_url: url }] } } } } },
     } };
     const conversation = { id: 'gallery', title: 'Gallery', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
-        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Show diagram'), answer } };
-    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Show diagram'), answer: { ...answer, message: { ...answer.message!, metadata } } } };
+    const parsed = parseChatGPTConversation({ conversation: decodeChatGPTDetail(conversation, conversation.id), assetsByNode: new Map() });
     const message = parsed.conversation.detail.messages.at(-1)!;
     assert.deepEqual(message.content.map(b => b.type), ['paragraph', 'image', 'paragraph']);
     assert.equal(parsed.conversation.detail.assets.length, 1);
     assert.equal(parsed.conversation.detail.assets[0].sourceUri, url);
     assert.ok(parsed.conversation.detail.assets[0].id.length < 64);
     assert.ok(!JSON.stringify(message.content).includes('image_group'));
-    assert.ok(answer.message!.metadata!.model_dil_v2!.fallbackMarkdown!.includes('image_group'), 'source stays unchanged');
-    const imageResult = answer.message!.metadata!.model_dil_v2!.appData!.opGenui!.componentResults!.image;
+    assert.ok(metadata.model_dil_v2.fallbackMarkdown.includes('image_group'), 'source stays unchanged');
+    const imageResult = metadata.model_dil_v2.appData.opGenui.componentResults.image;
     imageResult.safe_urls = [];
-    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.assets.length, 0,
+    assert.equal(parseChatGPTConversation({ conversation: decodeChatGPTDetail(conversation, conversation.id), assetsByNode: new Map() }).conversation.detail.assets.length, 0,
         'unapproved source URLs are never promoted into image resources');
-    imageResult.safe_urls = ['https://invalid.example/x']; imageResult.state!.images = [{content_url:'https://invalid.example/x'}];
-    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.assets.length, 0);
+    imageResult.safe_urls = ['https://invalid.example/x']; imageResult.state.images = [{content_url:'https://invalid.example/x'}];
+    assert.equal(parseChatGPTConversation({ conversation: decodeChatGPTDetail(conversation, conversation.id), assetsByNode: new Map() }).conversation.detail.assets.length, 0);
 });
 
 
@@ -708,22 +729,22 @@ test('DIL galleries bind each query to its resolution ID despite reordered resul
     const answer = textNode('answer', 'question', 'assistant', '<AsyncImage/>');
     const urlA = 'https://images.openai.com/static-rsc-4/winding';
     const urlB = 'https://images.openai.com/static-rsc-4/ray';
-    answer.message!.metadata = { model_dil_v2: {
+    const metadata = { model_dil_v2: {
         fallbackMarkdown: 'Before\n\uE200image_group\uE202{"query":["winding"]}\uE201\nMiddle\n\uE200image_group\uE202{"query":["ray"]}\uE201\nAfter',
         code: '__dil.jsx(AsyncImage,{"query":"winding","__resolutionId":__dilConstants["4"]});__dil.jsx(AsyncImage,{"query":"ray","__resolutionId":__dilConstants["8"]})',
-        constants: { '4': 'id-a', '8': 'id-b' },
+        constants: Object.fromEntries([['4', 'id-a'], ['8', 'id-b']]),
         appData: { opGenui: { componentResults: {
             'id-b': { componentName: 'AsyncImage', status: 'resolved', safe_urls: [urlB], state: { images: [{ content_url: urlB }] } },
             'id-a': { componentName: 'AsyncImage', status: 'resolved', safe_urls: [urlA], state: { images: [{ content_url: urlA }] } },
         } } },
     } };
     const conversation = { id: 'galleries', title: 'Gallery', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
-        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Show diagrams'), answer } };
-    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Show diagrams'), answer: { ...answer, message: { ...answer.message!, metadata } } } };
+    const parsed = parseChatGPTConversation({ conversation: decodeChatGPTDetail(conversation, conversation.id), assetsByNode: new Map() });
     assert.deepEqual(parsed.conversation.detail.assets.map(asset => asset.sourceUri), [urlA, urlB]);
     assert.deepEqual(parsed.conversation.detail.messages.at(-1)!.content.map(block => block.type), ['paragraph', 'image', 'paragraph', 'image', 'paragraph']);
-    answer.message!.metadata!.model_dil_v2!.constants = {};
-    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.assets.length, 0, 'ambiguous multi-gallery ordering is never guessed');
+    conversation.mapping.answer.message.metadata = { model_dil_v2: { ...metadata.model_dil_v2, constants: {} } };
+    assert.equal(parseChatGPTConversation({ conversation: decodeChatGPTDetail(conversation, conversation.id), assetsByNode: new Map() }).conversation.detail.assets.length, 0, 'ambiguous multi-gallery ordering is never guessed');
 });
 
 test('DIL fallback norm escapes preserve all table cells and math', () => {
@@ -731,8 +752,8 @@ test('DIL fallback norm escapes preserve all table cells and math', () => {
     answer.message!.metadata = { model_dil_v2: { fallbackMarkdown: String.raw`| Check | Assertion | Purpose |
 |---|---|---|
 | Optimality | \(\\|x-\Pi(x)\\|_\infty<10^{-9}\) | Checks residual |` } };
-    const conversation = { id: 'norm', title: 'Norm', create_time: 1, update_time: 2, current_node: 'answer', is_archived: false,
-        mapping: { root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Verify'), answer } };
+    const conversation = { id: 'norm', title: 'Norm', createdAtMs: 1000, updatedAtMs: 2000, current_node: 'answer', is_archived: false,
+        mapping: new Map(Object.entries<ChatGPTConversationNode>({ root: { id: 'root', children: ['question'] }, question: textNode('question', 'root', 'user', 'Verify'), answer })) };
     const blocks = parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.messages.at(-1)!.content;
     const serialized = JSON.stringify(blocks);
     assert.ok(serialized.includes('Checks residual'));

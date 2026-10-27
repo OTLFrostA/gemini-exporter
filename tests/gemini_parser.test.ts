@@ -141,16 +141,15 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     // 1. deepWalk unified tree walker
     const visited: string[] = [];
     const tree = { a: [1, { b: 2, c: [3, 4] }], d: 5 };
-    extractors.deepWalk(tree, (node: any) => {
-        if (typeof node === 'object' && !Array.isArray(node)) {
-            visited.push(Object.keys(node).join(','));
-        }
+    extractors.deepWalk(tree, (node: object) => {
+        assert.equal(typeof node, 'object', 'the walker only visits non-null object nodes');
+        if (!Array.isArray(node)) visited.push(Object.keys(node).join(','));
     });
     assert.deepStrictEqual(visited, ['a,d', 'b,c']);
 
     // Early termination in deepWalk
     let earlyCount = 0;
-    extractors.deepWalk([1, 2, [3, 4, [5, 6]]], (node: any) => {
+    extractors.deepWalk([1, 2, [3, 4, [5, 6]]], (node: object) => {
         earlyCount++;
         if (Array.isArray(node) && node.length === 3) {
             return false; // Stop descending

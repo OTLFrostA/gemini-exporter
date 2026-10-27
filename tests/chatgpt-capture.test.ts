@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chatGPTRequest, confirmedChatGPTDeletion, chatGPTStreamEvent } from '../src/l1/sniffer/chatgpt/observation.js';
-import { installChatGPTHook } from '../src/l1/sniffer/chatgpt/hook.js';
+// The MAIN-world entry installs on import; load it only after installing the browser fixture.
+function installChatGPTHook(): void {
+    const entry = require.resolve('../src/l1/sniffer/chatgpt/hook.js');
+    delete require.cache[entry];
+    require(entry);
+}
 import { streamGen } from './fixtures/providers/chatgptStream.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';

@@ -30,7 +30,7 @@ export function observeSettings(refresh: () => void): () => void {
     return () => chrome.storage.onChanged.removeListener(listener);
 }
 /** Runtime errors are diagnostic facts; only UI translates their user-facing presentation. */
-const ERROR_ZH: Readonly<Record<string, string>> = {
+const ERROR_ZH: ReadonlyMap<string, string> = new Map(Object.entries({
     'Open Gemini, log in and refresh the page before scanning.': '请先打开 Gemini 并登录，刷新 Gemini 页面后再同步会话。',
     'Multiple Gemini accounts are open. Select the account to scan.': '当前打开了多个 Gemini 账号，请选择要同步的账号。',
     'Multiple Gemini accounts or ChatGPT accounts are open. Select the account to scan.': '当前打开了多个 Gemini 或 ChatGPT 账号，请选择要同步的账号。',
@@ -49,12 +49,12 @@ const ERROR_ZH: Readonly<Record<string, string>> = {
     'Takeout requires an account UUID': '导入 Takeout 时缺少账号信息。',
     'Takeout requires an existing Gemini account': '导入 Takeout 前，需要选择已有的 Gemini 账号。',
     'Unsupported Takeout structure': '不支持此 Takeout 压缩包的结构。'
-};
+}));
 export function errorText(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
     if (message === 'JSZip 库未加载，无法解析 ZIP')
         return text('ZIP reader unavailable; cannot parse the archive.', message);
-    const translation = ERROR_ZH[message];
+    const translation = ERROR_ZH.get(message);
     if (translation) return text(message, translation);
     // Unexpected diagnostics remain available in the logs, not leaked as untranslated UI.
     return text(message || 'Operation failed', '操作失败，请重试；详情请查看日志或诊断报告。');
@@ -64,22 +64,22 @@ export function labelPage(): void {
     document.querySelectorAll<HTMLElement>('[data-en][data-zh], [data-ui-en][data-ui-zh]').forEach(el => {
         el.textContent = text(el.dataset.en ?? el.dataset.uiEn ?? '', el.dataset.zh ?? el.dataset.uiZh ?? '');
     });
-    const copy = UI_COPY[language === 'zh' ? 'zh' : 'en'];
+    const copy = new Map(Object.entries(UI_COPY[language === 'zh' ? 'zh' : 'en']));
     for (const el of document.querySelectorAll<HTMLElement>('[data-i18n]')) {
         if (el.id === 'currentChatTitle' || el.id === 'chatTurnBadge' || el.id === 'dirLabel' || el.id === 'log') continue;
-        const label = copy[el.dataset.i18n ?? ''];
+        const label = copy.get(el.dataset.i18n ?? '');
         if (label) el.textContent = label;
     }
     for (const el of document.querySelectorAll<HTMLElement>('[data-i18n-title]')) {
-        const label = copy[el.dataset.i18nTitle ?? ''];
+        const label = copy.get(el.dataset.i18nTitle ?? '');
         if (label) el.title = label;
     }
     for (const el of document.querySelectorAll<HTMLInputElement>('[data-i18n-placeholder]')) {
-        const label = copy[el.dataset.i18nPlaceholder ?? ''];
+        const label = copy.get(el.dataset.i18nPlaceholder ?? '');
         if (label) el.placeholder = label;
     }
     for (const el of document.querySelectorAll<HTMLElement>('[data-i18n-aria-label]')) {
-        const label = copy[el.dataset.i18nAriaLabel ?? ''];
+        const label = copy.get(el.dataset.i18nAriaLabel ?? '');
         if (label) el.setAttribute('aria-label', label);
     }
 }

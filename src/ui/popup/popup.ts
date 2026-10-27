@@ -6,7 +6,7 @@ import { PLATFORM_HOSTS, SOURCE_PLATFORMS, type SourcePlatform } from '../../sha
 import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
 import { STEPS } from '../guidance/tourSteps.js';
-import type { ConversationKey } from '../../l2/conversationKey.js';
+import { conversationKey, type ConversationKey } from '../../l2/conversationKey.js';
 import { getIndex } from '../../l3a/storageService.js';
 import { updateSettings, type GlobalSettings } from '../../application/settings/index.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
@@ -25,7 +25,7 @@ export function platformForTabUrl(url: string | undefined): SourcePlatform | nul
 }
 
 /** Current source identity comes only from trusted Content; never infer Account from a tab URL. */
-async function readActiveSource(activeTab?: chrome.tabs.Tab): Promise<{ accountId: string; conversationId: string | null } | null> {
+async function readActiveSource(activeTab?: chrome.tabs.Tab): Promise<{ accountId: string; key: ConversationKey | null } | null> {
     const tab = activeTab ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
     if (tab?.id === undefined) return null;
     const expectedProvider = platformForTabUrl(tab.url);
@@ -37,14 +37,17 @@ async function readActiveSource(activeTab?: chrome.tabs.Tab): Promise<{ accountI
     const context = response.accountContext;
     if (!('accountId' in context) || !isAccountId(context.accountId)
         || !('providerId' in context) || context.providerId !== expectedProvider) return null;
-    const conversationId = 'conversationId' in response && typeof response.conversationId === 'string'
-        ? response.conversationId : null;
-    return { accountId: context.accountId, conversationId };
+    const rawId = 'conversationId' in response ? response.conversationId : null;
+    let key: ConversationKey | null = null;
+    if (typeof rawId === 'string') {
+        try { key = conversationKey(context.accountId, rawId); }
+        catch { /* A malformed conversation ID must not discard the verified Account. */ }
+    }
+    return { accountId: context.accountId, key };
 }
 
 export async function readActiveKey(activeTab?: chrome.tabs.Tab): Promise<ConversationKey | null> {
-    const source = await readActiveSource(activeTab);
-    return source?.conversationId ? { accountId: source.accountId, conversationId: source.conversationId } : null;
+    return (await readActiveSource(activeTab))?.key ?? null;
 }
 
 export async function initPopup(): Promise<void> {

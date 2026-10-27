@@ -67,8 +67,9 @@ test('mixed candidate[30] packets classify generated files and native documents 
     }]);
 });
 
-test('missing candidate or packet list yields empty classified artifacts', () => {
-    for (const candidate of [null, {}, [], [null], Object.assign(Array(31).fill(null), { 30: 'wrong' })]) {
+test('missing or malformed candidate packet list yields empty classified artifacts', () => {
+    const candidates: unknown[][] = [[], [null], Object.assign(Array(31).fill(null), { 30: 'wrong' })];
+    for (const candidate of candidates) {
         assert.deepEqual(decodeCandidateArtifacts(candidate, 'native_chat'), {
             generatedFiles: [], nativeDocuments: []
         });

@@ -229,3 +229,72 @@ for (const transport of ['fetch', 'xhr']) test(`${transport}: identical stream f
     }
     assert.equal(harness.messages.filter(message => message.type === 'GEMINI_NETWORK_BATCHEXECUTE').length, 0);
 });
+
+test('Fetch: normalized URL is reused for routing, account ownership and credentials', async () => {
+    const harness = hookHarness(async () => new Response(geminiStreamGen('G_STREAM_EMPTY_HTTP_01')));
+    const url = new URL('https://gemini.google.com/u/1/_/BardChatUi/data/batchexecute?f.sid=session&at=token');
+    let conversions = 0;
+    url.toString = () => { conversions++; return url.href; };
+    await harness.win.fetch(url);
+    await settleHook();
+    const credentials = harness.messages.filter(message => message.type === 'GEMINI_CREDENTIALS');
+    assert.equal(credentials.length, 1);
+    assert.equal(credentials[0].payload.accountSlot, 'u1');
+    assert.equal(conversions, 1);
+});
+
+test('XHR: credential ownership uses the URL snapshot captured at open', () => {
+    const harness = hookHarness(async () => new Response(geminiStreamGen('G_STREAM_EMPTY_HTTP_01')));
+    const xhr = new harness.Xhr();
+    const url = new URL('https://gemini.google.com/u/1/_/BardChatUi/data/batchexecute?f.sid=session&at=token');
+    (xhr.open as Function)('POST', url);
+    url.pathname = url.pathname.replace('/u/1/', '/u/2/');
+    url.searchParams.set('at', 'later-token');
+    xhr.send();
+    const credentials = harness.messages.filter(message => message.type === 'GEMINI_CREDENTIALS');
+    assert.equal(credentials.length, 1);
+    assert.equal(credentials[0].payload.accountSlot, 'u1');
+    assert.equal(credentials[0].payload.at, 'token');
+});
+
+test('Account requests: only same-window, same-origin messages with bounded string ids are answered', () => {
+    const harness = hookHarness(async () => new Response(geminiStreamGen('G_STREAM_EMPTY_HTTP_01')));
+    const origin = 'https://gemini.google.com';
+    const before = harness.messages.length;
+    const dispatch = (data: unknown, source: unknown = harness.win, messageOrigin = origin) => {
+        const event = new Event('message');
+        Object.defineProperties(event, { data: { value: data }, source: { value: source }, origin: { value: messageOrigin } });
+        harness.win.dispatchEvent(event);
+    };
+    const valid = { type: 'GEMINI_ACCOUNT_REQUESTED', payload: { requestId: 'request-1' } };
+    dispatch(valid, {});
+    dispatch(valid, harness.win, 'https://example.com');
+    for (const data of [null, false, 7, 'message', [], {}, { type: 'other', payload: valid.payload },
+        { type: valid.type }, { type: valid.type, payload: null }, { type: valid.type, payload: 'payload' },
+        { type: valid.type, payload: {} }]) dispatch(data);
+    for (const requestId of [null, false, 7, {}, [], '', 'x'.repeat(129)]) {
+        dispatch({ type: valid.type, payload: { requestId } });
+    }
+    assert.equal(harness.messages.length, before);
+    for (const requestId of ['request-1', 'x'.repeat(128)]) {
+        dispatch({ type: valid.type, payload: { requestId } });
+        assert.equal(harness.messages.at(-1).type, 'GEMINI_ACCOUNT_OBSERVED');
+        assert.equal(harness.messages.at(-1).payload.requestId, requestId);
+    }
+    assert.equal(harness.messages.length, before + 2);
+});
+
+test('Fetch: borrowed receiver, native response and non-Error rejection retain their identity', async () => {
+    const receiver = { owner: 'page-wrapper' };
+    const response = new Response(geminiStreamGen('G_STREAM_EMPTY_HTTP_01'));
+    const harness = hookHarness(function(this: unknown) {
+        assert.equal(this, receiver);
+        return Promise.resolve(response);
+    });
+    assert.equal(await harness.win.fetch.call(receiver, 'https://gemini.google.com/telemetry'), response);
+    const rejection = { reason: 'native rejection' };
+    const failed = hookHarness(async () => { throw rejection; });
+    await assert.rejects(failed.win.fetch(failed.url), error => error === rejection);
+    assert.equal(failed.complete().length, 0);
+    assert.equal((failed.win as any).__geminiIsStreaming, false);
+});

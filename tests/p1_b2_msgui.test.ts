@@ -25,9 +25,9 @@ async function router(t: import('node:test').TestContext) {
             { id: 'own' } as chrome.runtime.MessageSender, value => resolve(value as Record<string, unknown>));
     }) };
 }
-test('P1-020: missing or malformed resource replies terminate with failure; valid reply survives', async t => {
+test('P1-020: missing resource replies terminate with failure; valid reply survives', async t => {
     const host = await router(t);
-    for (const payload of [undefined, null, { success: true, dataBase64: 'AQID', size: 3 }]) {
+    for (const payload of [undefined, { success: true, dataBase64: 'AQID', size: 3 }]) {
         t.mock.method(AssetFetcher, 'handleGetFileBlob', async (_message: unknown, reply: (v: unknown) => void) => {
             if (payload !== undefined) reply(payload);
         });

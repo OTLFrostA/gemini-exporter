@@ -26,6 +26,8 @@ export interface GeminiRpcParseResult extends SourceConversationParseResult {
     /** Pagination and wire/debug evidence are acquisition context, never Domain fields. */
     transport: {
         nextPageToken: string | null;
+        bodyShape?: GeminiDetailEvidence['bodyShape'];
+        /** Opaque replay evidence for offline differential audits only. */
         decodedPayload?: unknown;
         debug?: GeminiDetailDebugEvidence | null;
     };
@@ -155,6 +157,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
         diagnostics,
         transport: {
             nextPageToken: evidence.nextPageToken,
+            bodyShape: evidence.bodyShape,
             ...(evidence._raw !== undefined ? { decodedPayload: evidence._raw } : {}),
             ...(evidence._debug !== undefined ? { debug: evidence._debug } : {}),
         },

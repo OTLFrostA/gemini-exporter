@@ -1,5 +1,5 @@
 /**
- * ChatGPT raw backend-api shapes, ported from pionxzh/chatgpt-exporter (MIT).
+ * ChatGPT decoded Detail shapes, ported from pionxzh/chatgpt-exporter (MIT).
  * Session, list and mapping payloads verified against the logged-in 9222 test profile.
  */
 
@@ -16,11 +16,18 @@ export type ChatGPTMessageContent =
     | { content_type: 'reasoning_recap'; content: string }
     | { content_type: string; parts?: string[]; text?: string; content?: string };
 
+/** Gallery URLs approved once by the Detail decoder, before message assembly. */
+export interface ChatGPTGalleryResult {
+    componentName?: string;
+    status?: string;
+    imageUrls: string[];
+}
+
 export interface ChatGPTNodeMessage {
     author: { role: ChatGPTAuthorRole; name?: string };
     content: ChatGPTMessageContent;
-    create_time?: number | string;
-    update_time?: number | string;
+    /** Validated Unix milliseconds; raw seconds/strings are decoded at ingress. */
+    createdAtMs?: number;
     id: string;
     metadata?: {
         model_slug?: string;
@@ -35,12 +42,8 @@ export interface ChatGPTNodeMessage {
         model_dil_v2?: {
             fallbackMarkdown?: string;
             code?: string;
-            constants?: Record<string, string>;
-            appData?: { opGenui?: { componentResults?: Record<string, {
-                componentName?: string; status?: string;
-                state?: { images?: Array<{ content_url?: string; thumbnail_url?: string; title?: string }> };
-                safe_urls?: string[];
-            }> } };
+            constants?: ReadonlyMap<string, string>;
+            appData?: { opGenui?: { componentResults?: ReadonlyMap<string, ChatGPTGalleryResult> } };
         };
         /** Tether web citations: each entry carries its source in metadata. */
         citations?: Array<{ metadata?: { title?: string; url?: string; text?: string } }>;
@@ -68,11 +71,12 @@ export interface ChatGPTConversationNode {
 }
 
 export interface ChatGPTApiConversation {
-    create_time?: number | string;
-    update_time?: number | string;
+    /** Validated Unix milliseconds; raw seconds/strings are decoded at ingress. */
+    createdAtMs?: number;
+    updatedAtMs?: number;
     conversation_id?: string;
     current_node: string;
-    mapping: Record<string, ChatGPTConversationNode>;
+    mapping: ReadonlyMap<string, ChatGPTConversationNode>;
     title: string;
     is_archived: boolean;
 }

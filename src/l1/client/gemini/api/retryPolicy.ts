@@ -1,7 +1,5 @@
 import { GeminiClientCredentialManager, type GeminiCredentials, type GeminiClientCredentialManagerModule } from "./credentialManager.js";
 import { calculateBackoff, abortableSleep } from "../../../../shared/utils/retryUtils.js";
-import { STORAGE_KEYS } from "../../../../shared/utils/constants.js";
-import { withCredMapLock } from './credStorage.js';
 
 interface Http400Params {
     resp: { status: number };
@@ -10,8 +8,7 @@ interface Http400Params {
     isRetried?: boolean;
     getAtFromPage?: () => string;
     getBlFromPage?: () => string | null;
-    loadCredMap?: GeminiClientCredentialManagerModule['loadCredMap'];
-    getCredStorage?: GeminiClientCredentialManagerModule['getCredStorage'];
+    updateCredential?: GeminiClientCredentialManagerModule['updateCredential'];
 }
 
 interface Http400Result {
@@ -22,8 +19,7 @@ interface Http400Result {
 
 interface Http401Params {
     cred?: Partial<GeminiCredentials> | null;
-    loadCredMap?: GeminiClientCredentialManagerModule['loadCredMap'];
-    getCredStorage?: GeminiClientCredentialManagerModule['getCredStorage'];
+    updateCredential?: GeminiClientCredentialManagerModule['updateCredential'];
     refreshAtFromPage?: () => string | null;
 }
 
@@ -51,42 +47,23 @@ interface GeminiClientRetryPolicyModule {
     parseRetryAfterMs: (value: string | null | undefined) => number | undefined;
 }
 
-    function getCredentialManager(): GeminiClientCredentialManagerModule | null {
-        return GeminiClientCredentialManager;
-    }
-
     async function handleHttp400(params: Http400Params): Promise<Http400Result> {
-        const { resp, snippet, cred, isRetried, getAtFromPage, getBlFromPage, loadCredMap, getCredStorage } = params;
+        const { resp, snippet, cred, isRetried, getAtFromPage, getBlFromPage, updateCredential } = params;
         if (resp.status !== 400 || isRetried) return { shouldRetry: false };
 
         const mXsrf = snippet && snippet.includes("xsrf") ? snippet.match(/"xsrf"\s*,\s*"([^"]+)"/) : null;
-        const atFn = getAtFromPage || getCredentialManager()?.getAtFromPage;
-        const blFn = getBlFromPage || getCredentialManager()?.getBlFromPage;
+        const atFn = getAtFromPage || GeminiClientCredentialManager.getAtFromPage;
+        const blFn = getBlFromPage || GeminiClientCredentialManager.getBlFromPage;
 
         const freshAt = (mXsrf && mXsrf[1]) ? mXsrf[1] : (atFn ? atFn() : null);
         const freshBl = blFn ? blFn() : null;
 
         if ((freshAt && freshAt !== cred?.at) || (freshBl && freshBl !== cred?.bl)) {
             try {
-                await withCredMapLock(async () => {
-                    const loadMapFn = loadCredMap || getCredentialManager()?.loadCredMap;
-                    const getStorageFn = getCredStorage || getCredentialManager()?.getCredStorage;
-
-                    if (loadMapFn && getStorageFn) {
-                        let map = await loadMapFn();
-                        const entry = cred?.sid && map[cred.sid];
-                        if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-                            map[String(cred?.sid)] = { ...entry, ...(freshAt ? { at: freshAt } : {}), ...(freshBl ? { bl: freshBl } : {}) };
-                            const storage = getStorageFn();
-                            if (storage) {
-                                await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
-                                if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
-                                    await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-                                }
-                            }
-                        }
-                    }
-                });
+                if (cred?.sid) {
+                    const update = updateCredential ?? GeminiClientCredentialManager.updateCredential;
+                    await update(cred.sid, () => ({ patch: { ...(freshAt ? { at: freshAt } : {}), ...(freshBl ? { bl: freshBl } : {}) } }));
+                }
             } catch (e) {
                 console.warn("[GemExporter:storage] Storage operation failed:", e);
             }
@@ -100,49 +77,24 @@ interface GeminiClientRetryPolicyModule {
     }
 
     async function handleHttp401(params: Http401Params): Promise<void> {
-        const { cred, loadCredMap, getCredStorage, refreshAtFromPage } = params;
-        const sidTag = cred?.sid ? String(cred.sid).slice(0, 6) + '…' : '(no-sid)';
+        const { cred, updateCredential, refreshAtFromPage } = params;
+        if (!cred?.sid) return;
+        const sidTag = String(cred.sid).slice(0, 6) + '…';
+        const update = updateCredential ?? GeminiClientCredentialManager.updateCredential;
         try {
-            await withCredMapLock(async () => {
-                const loadMapFn = loadCredMap || getCredentialManager()?.loadCredMap;
-                const getStorageFn = getCredStorage || getCredentialManager()?.getCredStorage;
-
-                if (loadMapFn && getStorageFn && cred?.sid) {
-                    // P2-3: 401 不等于凭证已死——页面可能已轮换出新的 at。
-                    // 先尝试从页面刷新，刷新成功则更新 at 并保留凭证。
-                    const atFn = refreshAtFromPage || getCredentialManager()?.getAtFromPage;
-                    let freshAt: string | null = null;
-                    try {
-                        freshAt = atFn ? atFn() : null;
-                    } catch (_) { /* intentional: page extraction is best-effort */ }
-                    if (freshAt && freshAt !== cred.at) {
-                        console.warn(`[Gemini Exporter] 401 for ${sidTag}: 页面 at 已轮换，刷新凭证后保留（不删除）`);
-                        const map = await loadMapFn();
-                        const entry = map[cred.sid];
-                        if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-                            map[String(cred.sid)] = { ...entry, at: freshAt };
-                            const storage = getStorageFn();
-                            if (storage) {
-                                await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
-                            }
-                        }
-                        return;
-                    }
-                    console.warn(`[Gemini Exporter] 401 for ${sidTag}: 页面无更新的 at，删除过期凭证`);
-                    let map = await loadMapFn();
-                    if (map[cred.sid]) {
-                        delete map[cred.sid];
-                        const storage = getStorageFn();
-                        if (storage) {
-                            await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
-                            if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
-                                await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-                            }
-                        }
-                    }
+            // Observe rotation inside the same lock as the storage update.
+            await update(cred.sid, () => {
+                const atFn = refreshAtFromPage ?? GeminiClientCredentialManager.getAtFromPage;
+                let freshAt: string | null = null;
+                try { freshAt = atFn(); } catch { /* page extraction is best-effort */ }
+                if (freshAt && freshAt !== cred.at) {
+                    console.warn(`[Gemini Exporter] 401 for ${sidTag}: 页面 at 已轮换，刷新凭证后保留（不删除）`);
+                    return { patch: { at: freshAt }, clearLocal: false };
                 }
+                console.warn(`[Gemini Exporter] 401 for ${sidTag}: 页面无更新的 at，删除过期凭证`);
+                return { patch: null };
             });
-        } catch (_) { /* intentional: best-effort 401 cleanup */ }
+        } catch { /* best-effort 401 cleanup */ }
     }
 
     const MAX_RETRY_AFTER_MS = 30000;
@@ -224,7 +176,5 @@ const GeminiClientRetryPolicy: GeminiClientRetryPolicyModule = {
     interruptibleSleep,
     parseRetryAfterMs
 };
-
-if (typeof module === 'object' && module.exports) module.exports = GeminiClientRetryPolicy;
 
 export default GeminiClientRetryPolicy;

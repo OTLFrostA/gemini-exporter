@@ -66,6 +66,33 @@ test('Grok rejects duplicate, foreign and misbound response bodies', () => {
     assert.throws(() => parseGrokConversation(g.metadata, g.tree, g.bodies, g.id), /binding/);
 });
 
+test('Grok tree binding preserves null and missing root parents without widening validated node state', () => {
+    for (const parent of [null, undefined]) {
+        const f = fixture();
+        if (parent === undefined) {
+            Reflect.deleteProperty(f.tree.responseNodes[0], 'parentResponseId');
+            Reflect.deleteProperty(f.bodies.responses[0], 'parentResponseId');
+        } else {
+            Object.assign(f.tree.responseNodes[0], { parentResponseId: parent });
+            Object.assign(f.bodies.responses[0], { parentResponseId: parent });
+        }
+        const parsed = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);
+        assert.equal(parsed.conversation.detail.quality.status, 'complete');
+        assert.deepEqual(parsed.conversation.detail.messages.map(m => m.role), ['user', 'assistant']);
+    }
+
+    const mismatched = fixture();
+    Object.assign(mismatched.tree.responseNodes[0], { parentResponseId: null });
+    Reflect.deleteProperty(mismatched.bodies.responses[0], 'parentResponseId');
+    assert.throws(() => parseGrokConversation(mismatched.metadata, mismatched.tree, mismatched.bodies, mismatched.id), /binding mismatch/);
+
+    for (const parentResponseId of [42, {}, 'not-a-uuid']) {
+        const f = fixture();
+        Object.assign(f.tree.responseNodes[0], { parentResponseId });
+        assert.throws(() => parseGrokConversation(f.metadata, f.tree, f.bodies, f.id), /Invalid Grok response tree/);
+    }
+});
+
 test('Grok rejects malformed selected message text before Loominary receives it', () => {
     for (const message of [42, 0, null, false, { text: 'not a string' }]) {
         const f = fixture();
@@ -281,6 +308,70 @@ test('upstream citation titles preserve literal backslashes and brackets without
     assert.deepEqual(content, [{ type: 'paragraph', children: [{ type: 'link',
         href: 'https://example.com/source', children: [{ type: 'text', text: title }] }] }]);
     assert.equal(parsed.conversation.detail.messages[1].citations?.[0].title, title);
+    for (const invalidTitle of [42, {}, []]) {
+        Object.assign(f.bodies.responses[1], {
+            webSearchResults: [{ url: 'https://example.com/source', title: invalidTitle }],
+        });
+        const recovered = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);
+        assert.equal(recovered.conversation.detail.messages[1].citations?.[0].title, 'Source');
+    }
+});
+
+
+test('Grok ignores non-finite image ordinals at source and vendor boundaries', () => {
+    const uuid = '11111111-1111-4111-8111-111111111111';
+    const url = 'https://assets.grok.com/generated.png';
+    for (const [imageIndex, expectedOrdinal] of [
+        [0, 0], [1.5, 1.5], [Infinity, undefined], [-Infinity, undefined], [NaN, undefined], ['2', undefined],
+    ] as const) {
+        const converted = compatibleGrokBodies({ responses: [{
+            responseId: uuid, message: '',
+            cardAttachmentsJson: [{ cardType: 'generated_image_card',
+                image_chunk: { imageUrl: url, progress: 100, imageIndex } }],
+        }] }, () => {});
+        assert.deepEqual(converted.responses[0].imageAttachments, [{
+            url, fileName: 'generated-image', mimeType: undefined,
+            generation: expectedOrdinal === undefined ? {} : { imageOrdinal: expectedOrdinal },
+        }]);
+    }
+
+    // The distinct third-party JS boundary can also surface raw generation values.
+    for (const imageOrdinal of [Infinity, -Infinity, NaN, '2']) {
+        const f = fixture();
+        Object.assign(f.bodies.responses[1], { imageAttachments: [
+            { url, fileName: 'generated.png', mimeType: 'image/png', generation: { imageOrdinal } },
+        ] });
+        const parsed = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);
+        assert.equal(parsed.conversation.detail.assets.length, 1);
+        assert.equal(parsed.conversation.detail.assets[0].generation, undefined);
+    }
+});
+
+test('Grok normalizes both file MIME sources before the Loominary parser', () => {
+    const direct = fixture(), directUrl = 'https://assets.grok.com/direct.pdf';
+    Object.assign(direct.bodies.responses[1], { fileAttachments: [
+        { fileName: 'direct.pdf', mimeType: 42, size: 10, url: directUrl },
+    ] });
+    const directResult = parseGrokConversation(direct.metadata, direct.tree, direct.bodies, direct.id);
+    assert.equal(directResult.conversation.detail.assets.length, 1);
+    assert.equal(directResult.conversation.detail.assets[0].name, 'direct.pdf');
+    assert.equal(directResult.conversation.detail.assets[0].mediaType, undefined);
+    assert.equal(directResult.conversation.detail.assets[0].sourceUri, directUrl);
+
+    for (const [fallbackMime, expectedMime] of [
+        ['application/pdf', 'application/pdf'], [42, undefined],
+    ] as const) {
+        const f = fixture();
+        Object.assign(f.bodies.responses[1], { fileAttachmentAssetMetadata: [
+            { assetId: 'asset-mime', key: 'users/example/metadata.pdf', fileName: 'metadata.pdf',
+                fileMimeType: 42, mimeType: fallbackMime },
+        ] });
+        const parsed = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);
+        assert.equal(parsed.conversation.detail.assets.length, 1);
+        assert.equal(parsed.conversation.detail.assets[0].name, 'metadata.pdf');
+        assert.equal(parsed.conversation.detail.assets[0].mediaType, expectedMime);
+        assert.equal(parsed.conversation.detail.assets[0].sourceUri, 'https://assets.grok.com/users/example/metadata.pdf');
+    }
 });
 
 test('Grok image metadata reuses verified identity and preserves captured-image deduplication', () => {
@@ -295,7 +386,7 @@ test('Grok image metadata reuses verified identity and preserves captured-image 
     ];
     const warnings: string[] = [];
     const converted = compatibleGrokBodies({ responses: [{
-        message: '',
+        responseId: uuid, message: '',
         cardAttachmentsJson: [JSON.stringify({
             cardType: 'generated_image_card',
             image_chunk: { imageUrl: url, progress: 100, imageUuid: uuid, imageModel: 'imagine_x_1' },

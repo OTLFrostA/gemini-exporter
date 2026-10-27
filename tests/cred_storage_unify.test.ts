@@ -67,11 +67,11 @@ function makeChromeMock(sessionFailure: 'get' | 'set' | null) {
 test('unified: every surface prefers a healthy session and reads its credentials', async () => {
     const { mock, stores } = makeChromeMock(null);
     await withCredentialModules(mock, async ({ credStorage, credManager, bootstrap }) => {
-        assert.strictEqual(credManager.getCredStorage(), mock.storage.session);
         assert.strictEqual(bootstrap.getCredStorage(), mock.storage.session);
         assert.strictEqual(credStorage.getCredStorage(), mock.storage.session);
-        await bootstrap.saveCredentials({ u0: { at: 'fake-token' } });
-        assert.deepStrictEqual(await bootstrap.loadCredentialsMap(), { u0: { at: 'fake-token' } });
+        await bootstrap.saveCredentials(new Map([['u0', { at: 'fake-token' }]]));
+        assert.deepStrictEqual(await bootstrap.loadCredentialsMap(), new Map([['u0', { at: 'fake-token' }]]));
+        assert.strictEqual((await credManager.resolveCred('default')).at, 'fake-token');
         assert.equal(Object.keys(stores.session).length > 0, true, 'healthy session must hold the saved map');
     });
 });
@@ -79,15 +79,16 @@ test('unified: every surface prefers a healthy session and reads its credentials
 test('unified: session read denial downgrades all surfaces and subsequent I/O to local', async () => {
     const { mock, stores, sessionCalls } = makeChromeMock('get');
     await withCredentialModules(mock, async ({ credStorage, credManager, bootstrap }) => {
-        assert.deepStrictEqual(await bootstrap.loadCredentialsMap(), {});
+        assert.deepStrictEqual(await bootstrap.loadCredentialsMap(), new Map());
         assert.deepStrictEqual(sessionCalls, ['get'], 'initial session denial must be exercised');
-        for (const surface of [credStorage, credManager, bootstrap]) {
+        for (const surface of [credStorage, bootstrap]) {
             assert.strictEqual(surface.getCredStorage(), mock.storage.local, 'every surface must share the downgrade');
         }
         sessionCalls.length = 0;
         const map = { u0: { at: 'read-fallback' } };
-        await bootstrap.saveCredentials(map);
-        assert.deepStrictEqual(await bootstrap.loadCredentialsMap(), map);
+        await bootstrap.saveCredentials(new Map(Object.entries(map)));
+        assert.deepStrictEqual(await bootstrap.loadCredentialsMap(), new Map(Object.entries(map)));
+        assert.strictEqual((await credManager.resolveCred('default')).at, 'read-fallback');
         assert.deepStrictEqual(sessionCalls, [], 'no session I/O after the shared downgrade');
         assert.ok(Object.values(stores.local).some(value => JSON.stringify(value) === JSON.stringify(map)),
             'fallback must persist credentials in local storage');
@@ -98,10 +99,11 @@ test('unified: session write denial also downgrades all surfaces and retains the
     const { mock, stores, sessionCalls } = makeChromeMock('set');
     await withCredentialModules(mock, async ({ credStorage, credManager, bootstrap }) => {
         const map = { u1: { at: 'write-fallback' } };
-        await bootstrap.saveCredentials(map);
+        await bootstrap.saveCredentials(new Map(Object.entries(map)));
         assert.deepStrictEqual(sessionCalls, ['set'], 'actual session write rejection must be exercised');
-        assert.deepStrictEqual(await bootstrap.loadCredentialsMap(), map);
-        for (const surface of [credStorage, credManager, bootstrap]) {
+        assert.deepStrictEqual(await bootstrap.loadCredentialsMap(), new Map(Object.entries(map)));
+        assert.strictEqual((await credManager.resolveCred('default')).at, 'write-fallback');
+        for (const surface of [credStorage, bootstrap]) {
             assert.strictEqual(surface.getCredStorage(), mock.storage.local);
         }
         assert.ok(Object.values(stores.local).some(value => JSON.stringify(value) === JSON.stringify(map)));

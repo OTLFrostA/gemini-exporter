@@ -7,16 +7,13 @@ import type {
     ChatGPTApiConversationWithId,
     ChatGPTConversationNode,
     ChatGPTMessageContent,
+    ChatGPTGalleryResult,
     ChatGPTNodeMessage,
 } from './chatgptTypes.js';
 
+import { chatGPTTimestamp } from './timestamp.js';
+
 type Metadata = NonNullable<ChatGPTNodeMessage['metadata']>;
-type GalleryResult = {
-    componentName?: string;
-    status?: string;
-    state?: { images?: Array<{ content_url?: string; thumbnail_url?: string; title?: string }> };
-    safe_urls?: string[];
-};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -39,10 +36,6 @@ function strings(value: unknown): string[] | null {
     return value;
 }
 
-function timestamp(value: unknown): number | string | undefined {
-    return typeof value === 'number' && Number.isFinite(value) || typeof value === 'string' ? value : undefined;
-}
-
 function links(value: unknown): Array<{ title?: string; url?: string }> | undefined {
     if (!unknownArray(value)) return undefined;
     return value.flatMap(item => {
@@ -52,29 +45,29 @@ function links(value: unknown): Array<{ title?: string; url?: string }> | undefi
     });
 }
 
-function galleryResults(value: unknown): Record<string, GalleryResult> | undefined {
+function galleryResults(value: unknown): ReadonlyMap<string, ChatGPTGalleryResult> | undefined {
     const source = record(value);
     if (!source) return undefined;
-    const results: Record<string, GalleryResult> = {};
+    const results = new Map<string, ChatGPTGalleryResult>();
     for (const [key, raw] of Object.entries(source)) {
         const entry = record(raw);
         if (!entry) continue;
         const state = record(entry.state);
-        const images = unknownArray(state?.images) ? state.images.flatMap(rawImage => {
-            const image = record(rawImage);
-            return image ? [{
-                ...(text(image.content_url) !== undefined ? { content_url: text(image.content_url) } : {}),
-                ...(text(image.thumbnail_url) !== undefined ? { thumbnail_url: text(image.thumbnail_url) } : {}),
-                ...(text(image.title) !== undefined ? { title: text(image.title) } : {}),
-            }] : [];
-        }) : undefined;
         const urls = strings(entry.safe_urls);
-        Object.defineProperty(results, key, { value: {
+        const imageUrls = unknownArray(state?.images) ? state.images.flatMap(rawImage => {
+            const image = record(rawImage);
+            const url = text(image?.content_url) ?? text(image?.thumbnail_url);
+            if (url === undefined || !urls?.includes(url)) return [];
+            try {
+                const parsed = new URL(url);
+                return parsed.protocol === 'https:' && parsed.hostname === 'images.openai.com' ? [url] : [];
+            } catch { return []; }
+        }) : [];
+        results.set(key, {
             ...(text(entry.componentName) !== undefined ? { componentName: text(entry.componentName) } : {}),
             ...(text(entry.status) !== undefined ? { status: text(entry.status) } : {}),
-            ...(images ? { state: { images } } : {}),
-            ...(urls ? { safe_urls: urls } : {}),
-        }, enumerable: true, configurable: true, writable: true });
+            imageUrls,
+        });
     }
     return results;
 }
@@ -83,12 +76,10 @@ function dilMetadata(value: unknown): Metadata['model_dil_v2'] {
     const source = record(value);
     if (!source) return undefined;
     const rawConstants = record(source.constants);
-    const constants: Record<string, string> = {};
+    const constants = new Map<string, string>();
     if (rawConstants) {
         for (const [key, value] of Object.entries(rawConstants)) {
-            if (typeof value === 'string') Object.defineProperty(constants, key, {
-                value, enumerable: true, configurable: true, writable: true,
-            });
+            if (typeof value === 'string') constants.set(key, value);
         }
     }
     const appData = record(source.appData);
@@ -213,7 +204,7 @@ function decodeMessage(value: unknown): ChatGPTNodeMessage {
         || role !== 'user' && role !== 'assistant' && role !== 'system' && role !== 'tool')
         throw new TypeError('Invalid ChatGPT Detail message');
     const metadata = decodeMetadata(source.metadata);
-    const time = timestamp(source.create_time), updated = timestamp(source.update_time);
+    const time = chatGPTTimestamp(source.create_time);
     return {
         id: source.id,
         author: { role, ...(text(author.name) !== undefined ? { name: text(author.name) } : {}) },
@@ -224,8 +215,7 @@ function decodeMessage(value: unknown): ChatGPTNodeMessage {
         ...(typeof source.end_turn === 'boolean' ? { end_turn: source.end_turn } : {}),
         ...(text(source.channel) !== undefined || source.channel === null
             ? { channel: text(source.channel) ?? null } : {}),
-        ...(time !== undefined ? { create_time: time } : {}),
-        ...(updated !== undefined ? { update_time: updated } : {}),
+        ...(time !== undefined ? { createdAtMs: time } : {}),
         ...(metadata ? { metadata } : {}),
     };
 }
@@ -255,22 +245,20 @@ export function decodeChatGPTDetail(value: unknown, requestedId: string): ChatGP
     }
     const rawMapping = record(source.mapping);
     if (!rawMapping) throw new TypeError('Invalid ChatGPT Detail payload');
-    const mapping: Record<string, ChatGPTConversationNode> = {};
+    const mapping = new Map<string, ChatGPTConversationNode>();
     for (const [key, raw] of Object.entries(rawMapping)) {
-        Object.defineProperty(mapping, key, {
-            value: decodeNode(raw, key), enumerable: true, configurable: true, writable: true,
-        });
+        mapping.set(key, decodeNode(raw, key));
     }
     if (source.current_node != null && typeof source.current_node !== 'string')
         throw new TypeError('Invalid ChatGPT Detail current_node');
-    const created = timestamp(source.create_time), updated = timestamp(source.update_time);
+    const created = chatGPTTimestamp(source.create_time), updated = chatGPTTimestamp(source.update_time);
     return {
         id: requestedId, mapping,
         title: text(source.title) ?? '',
         current_node: text(source.current_node) ?? '',
         is_archived: typeof source.is_archived === 'boolean' ? source.is_archived : false,
-        ...(created !== undefined ? { create_time: created } : {}),
-        ...(updated !== undefined ? { update_time: updated } : {}),
+        ...(created !== undefined ? { createdAtMs: created } : {}),
+        ...(updated !== undefined ? { updatedAtMs: updated } : {}),
         ...(source.conversation_id === requestedId ? { conversation_id: requestedId } : {}),
     };
 }

@@ -15,6 +15,7 @@ import {
     parseProtocolMessage,
     sandboxExpectedHostOrigin,
     type ProtocolMessageBody,
+    type SandboxToHostMessage,
 } from '../typst/sandboxProtocol.js';
 
 import themeTyp from '../../typst/templates/theme.typ';
@@ -54,18 +55,14 @@ const jobs = new Map<string, CompileJob>();
 // WASM module), even if the host resends fonts before seeing FONTS_INSTALLED.
 let sandboxFontsInstalled = false;
 
-function postToHost(message: Record<string, unknown>, transfer?: Transferable[]): void {
+function postToHost(message: SandboxToHostMessage, transfer?: Transferable[]): void {
     window.parent.postMessage(message, '*', transfer ?? []);
-}
-
-function reply(jobId: string, payload: Record<string, unknown>, transfer?: Transferable[]): void {
-    postToHost({ jobId, ...payload }, transfer);
 }
 
 function replyError(jobId: string, error: unknown): void {
     const name = error instanceof Error || error instanceof DOMException ? error.name : 'Error';
     const message = error instanceof Error ? error.message : String(error);
-    reply(jobId, { type: SANDBOX_TO_HOST.ERROR, error: { name, message } });
+    postToHost({ jobId, type: SANDBOX_TO_HOST.ERROR, error: { name, message } });
 }
 
 function throwIfCancelled(job: CompileJob, jobId: string): void {
@@ -86,7 +83,7 @@ async function handleInit(jobId: string, body: ProtocolMessageBody): Promise<voi
     fontBuilder = createTypstFontBuilder();
     await fontBuilder.init(createOfflineInitOptions(() => wasmBytes));
     sandboxFontsInstalled = false;
-    reply(jobId, {
+    postToHost({ jobId,
         type: SANDBOX_TO_HOST.INITED,
         ok: true,
         initMs: Math.round(performance.now() - t0),
@@ -122,7 +119,7 @@ async function handleCompile(jobId: string, body: ProtocolMessageBody): Promise<
             }
             activeCompiler.addSource(file.path, file.text);
         }
-        reply(jobId, { type: SANDBOX_TO_HOST.PROGRESS, stage: 'sources', current: 1, total: 3 });
+        postToHost({ jobId, type: SANDBOX_TO_HOST.PROGRESS, stage: 'sources', current: 1, total: 3 });
 
         for (const binary of binaries) {
             throwIfCancelled(job, jobId);
@@ -149,12 +146,12 @@ async function handleCompile(jobId: string, body: ProtocolMessageBody): Promise<
             });
             sandboxFontsInstalled = true;
             fontMs = Math.round(performance.now() - tF);
-            reply(jobId, { type: SANDBOX_TO_HOST.FONTS_INSTALLED });
+            postToHost({ jobId, type: SANDBOX_TO_HOST.FONTS_INSTALLED });
         } else if (fonts.length > 0) {
-            reply(jobId, { type: SANDBOX_TO_HOST.FONTS_INSTALLED });
+            postToHost({ jobId, type: SANDBOX_TO_HOST.FONTS_INSTALLED });
         }
         if (fonts.length > 0) {
-            reply(jobId, {
+            postToHost({ jobId,
                 type: SANDBOX_TO_HOST.PROGRESS,
                 stage: 'fonts',
                 current: 2,
@@ -177,9 +174,9 @@ async function handleCompile(jobId: string, body: ProtocolMessageBody): Promise<
             // Copy out of WASM memory before transferring.
             pdf = new Uint8Array(result).buffer;
         }
-        reply(
-            jobId,
+        postToHost(
             {
+                jobId,
                 type: SANDBOX_TO_HOST.COMPILED,
                 ok: pdf !== null,
                 pdf,

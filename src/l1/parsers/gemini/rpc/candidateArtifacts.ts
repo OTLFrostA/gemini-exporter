@@ -11,10 +11,9 @@ interface DecodedCandidateArtifacts {
 
 /** Interpret candidate[30] once. Packet kinds are exclusive; no flattened
  * metadata may become document prose, and native IDs must belong to this chat. */
-export function decodeCandidateArtifacts(candidate: unknown, conversationId?: string): DecodedCandidateArtifacts {
+export function decodeCandidateArtifacts(candidate: unknown[], conversationId?: string): DecodedCandidateArtifacts {
     const generatedFiles: GeminiAttachmentEvidence[] = [];
     const nativeDocuments: GeminiDocumentEvidence[] = [];
-    if (!isUnknownArray(candidate)) return { generatedFiles, nativeDocuments };
 
     const rawPackets: unknown = candidate[30];
     if (!isUnknownArray(rawPackets)) return { generatedFiles, nativeDocuments };

@@ -1,7 +1,7 @@
 import test, { before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from 'playwright';
-import { mount, read } from './helpers/uiPortHarness.js';
+import { A, mount, read } from './helpers/uiPortHarness.js';
 
 let browser: Browser;
 let page: Page;
@@ -99,4 +99,26 @@ test('A grant for a different provider does not bypass authorization for the cur
     assert.equal(await page.locator('#popupPermission').isVisible(), true);
     assert.equal(await page.locator('#popupMain').isVisible(), false);
     assert.deepEqual(await read(page, 'connectionRequests'), [[['grok'], true]]);
+});
+
+test('Popup admits only valid L2 conversation keys from Content IPC', async () => {
+    for (const [conversationId, canExport] of [
+        ['a', true],
+        ['', false],
+        ['   ', false],
+        [' a ', false],
+        [123, false],
+        [null, false],
+    ] as const) {
+        page = await browser.newPage();
+        await mount(page, 'popup', {
+            contextReply: { ok: true, accountContext: { accountId: A, providerId: 'gemini' }, conversationId },
+        });
+        await page.locator('#popupMain').waitFor({ state: 'visible' });
+        assert.equal(await page.locator('#btnCurrent').isEnabled(), canExport, JSON.stringify(conversationId));
+        if (!canExport) {
+            assert.equal(await page.locator('#status').textContent(), 'Open a supported conversation first');
+        }
+        await page.close();
+    }
 });

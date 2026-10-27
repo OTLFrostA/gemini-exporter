@@ -1,4 +1,3 @@
-import { installClaudeHook } from '../src/l1/sniffer/claude/hook.js';
 import { claudeRequest, activeClaudeOrganization } from '../src/l1/sniffer/claude/observation.js';
 import { claudeFileId } from '../src/l1/client/claude/fileAssets.js';
 import { contentComposer } from '../src/l3b/compose/composeContent.js';
@@ -8,6 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseClaudeList } from '../src/l1/parsers/claude/parseList.js';
 import { parseClaudeConversation } from '../src/l1/parsers/claude/parseConversation.js';
+import { decodeClaudeDetail } from '../src/l1/parsers/claude/decodeDetail.js';
 import { parseNativeTool } from '../src/l1/parsers/claude/parseNativeTools.js';
 import { parseToolUse } from '../src/l1/parsers/claude/parseTools.js';
 import { readClaudeSource } from '../src/l1/client/claude/claudeSource.js';
@@ -71,6 +71,46 @@ test('Claude detail follows the current leaf, excluding regenerated branches', (
     assert.equal(parsed.conversation.detail.savedAt, Date.parse('2026-10-02T00:00:00Z'));
     assert.equal('key' in parsed.conversation.detail, false);
     assert.deepEqual(source, clone);
+});
+
+test('Claude Detail ingress normalizes selected branch, content and files once', () => {
+    const raw = claudeDetailGen('CL_L1_SOURCE_MARKDOWN_ARTIFACTS_01');
+    const original = structuredClone(raw);
+    const evidence = decodeClaudeDetail(raw, c1);
+    assert.equal(evidence.currentLeafId, leaf);
+    assert.equal(evidence.updatedAt, Date.parse('2026-10-02T00:00:00Z'));
+    const model = evidence.messages.find(message => message.uuid === leaf);
+    assert.ok(model);
+    assert.equal(model.parentId, root);
+    assert.deepEqual(model.content?.map(block => block.kind), ['thinking', 'text', 'tool_use']);
+    assert.equal(model.attachments[0]?.name, 'notes.txt');
+    assert.equal(model.attachments[0]?.extractedContent, 'document text');
+    assert.equal('parent_message_uuid' in model, false);
+    assert.equal('extracted_content' in (model.attachments[0] ?? {}), false);
+    assert.deepEqual(raw, original, 'wire payload remains untouched');
+});
+
+test('Claude Detail ingress preserves malformed block diagnostics and invalid parents', () => {
+    const raw = claudeDetailGen('CL_L1_SOURCE_SELECTED_BRANCH_01');
+    if (!('chat_messages' in raw) || !Array.isArray(raw.chat_messages)) throw new Error('Missing fixture messages');
+    raw.chat_messages = raw.chat_messages.map((value: unknown) => value && typeof value === 'object'
+        && 'uuid' in value && value.uuid === leaf ? {
+            ...value, content: [null, { type: 'text', text: 42 }, { type: 'thinking', thinking: 'still readable' }],
+            files: [null, { name: 'missing.pdf' }],
+        } : value);
+    const parsed = parseClaudeConversation(raw, c1);
+    assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    for (const code of ['claude.content.invalid', 'claude.content.unsupported',
+        'claude.attachment.invalid', 'claude.attachment.unavailable']) {
+        assert.ok(parsed.diagnostics.some(d => d.code === code), code);
+    }
+    const badParent = claudeDetailGen('CL_L1_SOURCE_SELECTED_BRANCH_01');
+    if (!('chat_messages' in badParent) || !Array.isArray(badParent.chat_messages)) throw new Error('Missing fixture messages');
+    badParent.chat_messages = badParent.chat_messages.map((value: unknown) => value && typeof value === 'object'
+        && 'uuid' in value && value.uuid === leaf ? { ...value, parent_message_uuid: { invalid: true } } : value);
+    const branch = parseClaudeConversation(badParent, c1);
+    assert.equal(branch.conversation.detail.quality.status, 'partial');
+    assert.ok(branch.diagnostics.some(d => d.code === 'claude.branch.partial'));
 });
 
 test('Claude missing parent and missing leaf never claim complete source coverage', () => {
@@ -270,7 +310,10 @@ test('Claude passive hook uses only native traffic and suppresses cross-organiza
     Object.defineProperty(globalThis, 'location', { configurable: true, value: { origin: 'https://claude.ai', href: 'https://claude.ai/new' } });
     const flush = async () => { for (let i = 0; i < 4; i++) await new Promise(resolve => setImmediate(resolve)); };
     try {
-        installClaudeHook();
+        // The browser entry auto-installs when loaded, after the mocked Window exists.
+        const entry = require.resolve('../src/l1/sniffer/claude/hook.js');
+        delete require.cache[entry];
+        require(entry);
         const base = `https://claude.ai/api/organizations/${c1}/chat_conversations/${c2}`;
         await host.fetch(base + '/completion2', { method: 'POST' });
         await flush();

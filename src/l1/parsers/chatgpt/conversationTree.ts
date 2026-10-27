@@ -64,7 +64,7 @@ function dilGalleryParts(text: string, message: ChatGPTNodeMessage): Array<strin
     const markers = [...text.matchAll(/\uE200image_group\uE202([^\uE201]*)\uE201/g)];
     if (!markers.length) return null;
     const dil = message.metadata?.model_dil_v2;
-    const results = dil?.appData?.opGenui?.componentResults ?? {};
+    const results = dil?.appData?.opGenui?.componentResults;
     const bindings = new Map<string, string[]>();
     // This deliberately accepts only observed, literal AsyncImage props. Dynamic
     // expressions remain fallback text instead of being guessed or evaluated.
@@ -72,33 +72,30 @@ function dilGalleryParts(text: string, message: ChatGPTNodeMessage): Array<strin
         const query = /"query":("(?:\\.|[^"\\])*")/.exec(match[1]);
         const resolution = /"__resolutionId":__dilConstants\["([^"\]]+)"\]/.exec(match[1]);
         if (!query || !resolution) continue;
-        const id = dil?.constants?.[resolution[1]];
-        if (typeof id !== 'string') continue;
+        const id = dil?.constants?.get(resolution[1]);
+        if (id === undefined) continue;
         try {
             const key: unknown = JSON.parse(query[1]);
             if (typeof key === 'string') bindings.set(key, [...(bindings.get(key) ?? []), id]);
         } catch { /* Nonliteral props are not eligible. */ }
     }
-    const resolved = Object.values(results).filter(item => item?.componentName === 'AsyncImage' && item.status === 'resolved');
+    const resolved = [...(results?.values() ?? [])].filter(item => item?.componentName === 'AsyncImage' && item.status === 'resolved');
     const parts: Array<string | { content_type: string; asset_pointer: string }> = [];
     let cursor = 0, converted = false;
     for (const marker of markers) {
         let result: typeof resolved[number] | undefined;
         try {
             const payload: unknown = JSON.parse(marker[1]);
-            if (payload && typeof payload === 'object' && 'query' in payload && Array.isArray(payload.query) && payload.query.length === 1) {
+            if (payload && typeof payload === 'object' && 'query' in payload && Array.isArray(payload.query) && payload.query.length === 1
+                && typeof payload.query[0] === 'string') {
                 const ids = bindings.get(payload.query[0]);
-                if (ids?.length === 1) result = results[ids[0]];
+                if (ids?.length === 1) result = results?.get(ids[0]);
             }
         } catch { /* Preserve malformed markers. */ }
         if (!result && markers.length === 1 && resolved.length === 1) result = resolved[0];
         const selected = result;
         const pointers = selected?.componentName === 'AsyncImage' && selected.status === 'resolved'
-            ? (selected.state?.images ?? []).map(image => image.content_url ?? image.thumbnail_url).filter((url): url is string => {
-                if (typeof url !== 'string' || !selected.safe_urls?.includes(url)) return false;
-                try { const parsed = new URL(url); return parsed.protocol === 'https:' && parsed.hostname === 'images.openai.com'; }
-                catch { return false; }
-            }) : [];
+            ? selected.imageUrls : [];
         parts.push(text.slice(cursor, marker.index));
         if (pointers.length) {
             parts.push(...[...new Set(pointers)].map(pointer => ({ content_type: 'image_asset_pointer', asset_pointer: pointer })));
@@ -111,13 +108,14 @@ function dilGalleryParts(text: string, message: ChatGPTNodeMessage): Array<strin
 }
 
 /** Copy a node so repeat exports never mutate the cached raw mapping. */
-function copyChatGPTNode(node: ChatGPTConversationNode): ChatGPTConversationNode {
+function copyChatGPTNode(node: ChatGPTConversationNode, snapshots?: Map<string, ReturnType<typeof chatGPTInteractiveSnapshot>>): ChatGPTConversationNode {
     const message = node.message;
     if (!message) return { ...node };
     if (isTextContent(message)) {
         const snapshot = message.metadata?.model_dil_v2
             ? chatGPTInteractiveSnapshot(message.content.parts.join(''), message.metadata.model_dil_v2.fallbackMarkdown)
             : undefined;
+        if (snapshot) snapshots?.set(node.id, snapshot);
         // Normalize the provider fallback dialect only after source selection.
         // Rewriting fallback first can invent a disagreement with correct source
         // and replace exact code bodies with provider-reformatted code.
@@ -142,15 +140,16 @@ function copyChatGPTNode(node: ChatGPTConversationNode): ChatGPTConversationNode
  * hidden/tool messages. Returns oldest-first linear history.
  */
 export function extractChatGPTLinearNodes(
-    mapping: Record<string, ChatGPTConversationNode>,
+    mapping: ReadonlyMap<string, ChatGPTConversationNode>,
     startNodeId: string,
+    snapshots?: Map<string, ReturnType<typeof chatGPTInteractiveSnapshot>>,
 ): ChatGPTConversationNode[] {
     const result: ChatGPTConversationNode[] = [];
     let currentId: string | undefined = startNodeId;
     const visited = new Set<string>();
     while (currentId && !visited.has(currentId)) {
         visited.add(currentId);
-        const node: ChatGPTConversationNode | undefined = mapping[currentId];
+        const node: ChatGPTConversationNode | undefined = mapping.get(currentId);
         if (!node || node.parent === undefined) break;
         const role = node.message?.author.role;
         const ct = node.message?.content.content_type;
@@ -160,7 +159,7 @@ export function extractChatGPTLinearNodes(
             && ct !== 'user_editable_context'
             && !shouldSkipChatGPTMessage(node.message)
         ) {
-            result.unshift(copyChatGPTNode(node));
+            result.unshift(copyChatGPTNode(node, snapshots));
         }
         currentId = node.parent;
     }
@@ -169,14 +168,14 @@ export function extractChatGPTLinearNodes(
 
 /** Latest model_slug on the current branch wins (model can change mid-chat). */
 export function extractChatGPTModelSlug(
-    mapping: Record<string, ChatGPTConversationNode>,
+    mapping: ReadonlyMap<string, ChatGPTConversationNode>,
     linearNodes: ChatGPTConversationNode[],
 ): string {
     for (let i = linearNodes.length - 1; i >= 0; i -= 1) {
         const slug = linearNodes[i]?.message?.metadata?.model_slug;
         if (slug) return slug;
     }
-    for (const node of Object.values(mapping)) {
+    for (const node of mapping.values()) {
         const slug = node.message?.metadata?.model_slug;
         if (slug) return slug;
     }
@@ -189,14 +188,15 @@ export function extractChatGPTModelSlug(
  */
 export function processChatGPTMapping(
     conversation: ChatGPTApiConversationWithId,
+    snapshots?: Map<string, ReturnType<typeof chatGPTInteractiveSnapshot>>,
 ): ChatGPTConversationNode[] {
     const startId =
         conversation.current_node
-        || Object.values(conversation.mapping).find((n) => !n.children || n.children.length === 0)?.id;
+        || [...conversation.mapping.values()].find((n) => !n.children || n.children.length === 0)?.id;
     // An empty/unattributable mapping is incomplete source evidence, not a parser crash.
     // The L1 caller will return zero messages and L2 quality remains 'unknown'.
     if (!startId) return [];
-    return extractChatGPTLinearNodes(conversation.mapping, startId);
+    return extractChatGPTLinearNodes(conversation.mapping, startId, snapshots);
 }
 
 /** Text of a node for Domain conversion; non-text parts become empty. */

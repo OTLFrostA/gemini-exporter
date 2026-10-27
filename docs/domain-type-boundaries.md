@@ -12,7 +12,11 @@ walks those dependencies and rejects paths back into L1.
 ## Validation and evidence
 
 Persistence and IPC are separate trust boundaries. They cannot preserve an
-in-memory proof, so their L2 decoders deliberately accept `unknown`. Removing those
+in-memory proof, so their L2 decoders deliberately accept `unknown`. The authenticated
+Background Detail IPC adapter calls the shared `restoreDomainDetail` decoder and
+checks the request identity before calling typed L2 admission. The decoder and
+reference-closure schema remain owned by L2. Architecture checks authorize this
+specific ingress and prohibit type assertions there. Removing those
 checks or asserting a raw transport value to a Domain type would weaken the
 contract. Semantic variants named `unknown` also remain valid content facts.
 
@@ -38,6 +42,22 @@ Compiler-based architecture tests reject their reintroduction, including ordinar
 casts unrelated to the Domain brand. Type-aware lint rejects implicit `any` flow
 through all five owners as well as explicit `any`.
 
+ChatGPT, Claude and Grok content listeners receive `MessageEvent<unknown>` and
+validate the source, origin and capture envelope before queuing its payload.
+Provider payloads remain unknown until their existing source decoders run; the
+same strict type-aware lint gate covers these three listener owners.
+
+Badge IPC replies are unknown at receipt. Count replies must prove `ok: true`
+and a nonnegative integer before updating account-scoped state. Position replies
+must prove `ok: true`; only string errors reach presentation. The same strict
+type-aware lint gate covers the Badge owner.
+
+Live Save also decodes its Chrome reply before returning an `ExportResult` or
+notifying Badge. The Runtime ingress checks counts, cancellation, failed
+ConversationKeys and attachment issue fields, reconstructing only the validated
+result. Application remains independent of IPC decoding; the coordinator is
+covered by the same strict type-aware lint gate.
+
 L2 coverage and detail selection operate on concrete Domain shapes (`PageObservation`
 cursor evidence and `DomainConversationDetail`) rather than generic wrappers. L3a maps
 each IndexedDB store name to its fixed row type via `StoreValueMap`, eliminating
@@ -54,3 +74,27 @@ memory views only when required by its native write contract.
 Compile-time `typeof`, native capability detection, and validation of actual
 external input are not interchangeable with unchecked casts. Generated third-party
 WASM declarations under `vendor/` are excluded from the owned-source zero-any gate.
+
+The ChatGPT file-download decoder narrows known wire fields directly at ingress,
+without a dictionary assertion. Its owner is covered by the existing compiler
+assertion/non-null gate and strict type-aware lint.
+
+Claude list decoding likewise narrows each raw member directly, without a
+dictionary-returning helper. UUID uniqueness, timestamp admission and wire-order
+coverage keys remain at this ingress; strict type-aware lint covers the owner.
+
+ChatGPT list decoding reads its fixed page and item fields once at ingress.
+Validated optional metadata feeds pagination directly, including false and nullish
+cursor semantics. This decoder uses no record assertion and is covered by both
+the compiler assertion/non-null gate and strict type-aware lint.
+
+The ChatGPT Session ingress reads user/workspace/token fields once and returns
+precise identity and provider facts. Account-only callers reuse its decoded
+observation; no open dictionary or raw Session is cached. The same compiler and
+strict lint gates cover this decoder.
+
+DIL object literals start as statically typed empty dictionaries and acquire a
+null prototype before any property is written. Operator recognition selects the
+validated token and precedence from one readonly table; escape lookup returns an
+optional value from a readonly Map. No type assertion is needed in the expression
+owner, which is covered by the compiler and strict lint gates.

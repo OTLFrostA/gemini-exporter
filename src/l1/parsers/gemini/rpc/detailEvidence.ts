@@ -3,6 +3,7 @@ import type { ImageAttachment, DocLink } from './sourceAttachments.js';
 import type { Citation, TitleResult } from './extractors.js';
 import type { GeminiStructuredDocument, GeminiStructuredExtraction } from './structuredContent.js';
 import type { SourceGeneratedMediaIdentity } from '../../shared/resources/generationEvent.js';
+import type { classifyDetailBody } from './emptyDetail.js';
 
 /** Source extraction evidence, not the persisted Conversation/Message contract. */
 export interface GeminiAttachmentEvidence {
@@ -86,6 +87,8 @@ export interface GeminiDetailEvidence {
     attachmentCount: number;
     schemaDrift?: string[];
     turnsRejected?: number;
+    bodyShape?: ReturnType<typeof classifyDetailBody>;
+    /** Opaque replay evidence for offline differential audits, never acquisition decisions. */
     _raw?: unknown;
     _debug?: GeminiDetailDebugEvidence | null;
 }

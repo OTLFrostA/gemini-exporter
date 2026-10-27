@@ -17,15 +17,14 @@ export function eventSecond(value: number | undefined): number | null {
     return Math.floor(value / 1000);
 }
 
-export function normalizeRequestId(id: unknown): string | null {
-    if (typeof id !== 'string' || !id.trim()) return null;
+export function normalizeRequestId(id: string | undefined): string | null {
+    if (id === undefined || !id.trim()) return null;
     const clean = id.trim().toLowerCase().replace(/^r_/, '');
     return /^[0-9a-f]{16}$/.test(clean) ? clean : (clean.length >= 8 ? clean : null);
 }
 
-export function normalizeChatId(id: unknown): string {
-    if (typeof id !== 'string' && typeof id !== 'number') return '';
-    return String(id).trim().replace(/^c_/, '');
+export function normalizeChatId(id: string): string {
+    return id.trim().replace(/^c_/, '');
 }
 
 export function sameGenerationEvent(a: SourceGeneratedMediaIdentity, b: SourceGeneratedMediaIdentity): boolean {

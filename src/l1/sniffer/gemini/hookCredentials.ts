@@ -1,14 +1,12 @@
 import type { Account } from '../../../l2/accountRegistry.js';
 import { sniffUserProfileFromDom } from '../../parsers/gemini/dom/accountSniffer.js';
 import { geminiAccountObservation } from '../../client/gemini/accountObservation.js';
-import { GeminiProtocol, CrossWorldEvents } from '../../protocol/gemini/protocol.js';
-import type { GeminiProtocolModule } from '../../protocol/gemini/protocol.js';
+import { CrossWorldEvents } from '../../protocol/gemini/protocol.js';
 import type { GeminiCredentialsPayload } from '../../protocol/gemini/events.js';
 import { createGeminiResponseRouter } from './responses/router.js';
 
 declare global {
     interface Window {
-        GeminiProtocol?: GeminiProtocolModule;
         __geminiIsStreaming?: boolean;
         __geminiLastStreamStart?: number;
         __geminiActiveStreamConvId?: string;
@@ -16,21 +14,15 @@ declare global {
         __gemExporterHookInstalled?: boolean;
     }
     interface XMLHttpRequest {
-        __hookUrl?: string | URL;
+        __hookUrl?: string;
     }
 }
 
 (() => {
-    if (typeof window === 'undefined' || window.__gemExporterHookInstalled) return;
+    if (window.__gemExporterHookInstalled) return;
 
-    const rawProto: GeminiProtocolModule | undefined = GeminiProtocol || window.GeminiProtocol;
-    if (!rawProto) {
-        console.error('[HookCred] GeminiProtocol missing — check manifest content_scripts load order');
-        return;
-    }
     window.__gemExporterHookInstalled = true;
-    const Proto: GeminiProtocolModule = rawProto;
-    const Events = Proto.EVENTS || CrossWorldEvents;
+    const Events = CrossWorldEvents;
 
     // MAIN-world discovery can read Wiz globals; the isolated content script cannot.
     // Discovery is independent of whether Gemini has sent a credential-bearing RPC.
@@ -63,47 +55,32 @@ declare global {
 
     const routeResponse = createGeminiResponseRouter();
     const origFetch = window.fetch;
-    const origOpen = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.open : null;
-    const origSend = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.send : null;
+    const origOpen = XMLHttpRequest.prototype.open;
+    const origSend = XMLHttpRequest.prototype.send;
 
     function isDev(): boolean {
         return Boolean(window.__gemExporterDevMode);
     }
 
-    function toUrlString(url: string | URL | Request | null | undefined): string {
+    function toUrlString(url: string | URL | Request): string {
         if (!url) return '';
         const raw = typeof url === 'string' ? url
-            : typeof Request !== 'undefined' && url instanceof Request ? url.url : url.toString();
+            : url instanceof Request ? url.url : url.toString();
         try { return new URL(raw, location.href).href; } catch { return raw; }
     }
 
-    function captureFromUrl(url: string | URL | Request | null | undefined, body?: unknown): void {
+    function captureFromUrl(u: string, body: string): void {
         try {
-            if (!url) return;
-            const u = toUrlString(url);
             if (!u.includes('batchexecute')) return;
             publishAccount();
-            let atMatch: RegExpMatchArray | [unknown, string] | null = u.match(/[?&]at=([^&]+)/);
-            if (!atMatch && typeof body === 'string') {
-                atMatch = body.match(/at=([^&]+)/);
-            }
+            const rawAt = /[?&]at=(?<token>[^&]+)/.exec(u)?.groups?.token;
+            const at = rawAt ? decodeURIComponent(rawAt) : new URLSearchParams(body).get('at') ?? '';
             const sidMatch = u.match(/[?&]f\.sid=([^&]+)/) || u.match(/f\.sid=([^&]+)/);
             const blMatch = u.match(/[?&]bl=([^&]+)/);
-            if (typeof body === 'string') {
-                try {
-                    const params = new URLSearchParams(body);
-                    if (!atMatch) {
-                        const a = params.get('at');
-                        if (a) atMatch = [null, a];
-                    }
-                } catch (e) {
-                    if (isDev()) console.debug('[GemExporter:hook]', e);
-                }
-            }
-            if (atMatch || sidMatch) {
+            if (at || sidMatch) {
                 const slot = getSlotFromUrl(u);
                 const payload: GeminiCredentialsPayload = {
-                    at: atMatch ? decodeURIComponent(atMatch[1]) : '',
+                    at,
                     sid: sidMatch ? decodeURIComponent(sidMatch[1]) : '',
                     bl: blMatch ? decodeURIComponent(blMatch[1]) : '',
                     accountSlot: slot,
@@ -122,10 +99,9 @@ declare global {
         }
     }
 
-    function getSlotFromUrl(url: string | URL | Request | null | undefined): string {
+    function getSlotFromUrl(url: string): string {
         let slot = 'u0';
-        const uStr = toUrlString(url);
-        const m = uStr.match(/\/u\/(\d+)\//);
+        const m = url.match(/\/u\/(\d+)\//);
         if (m && m[1]) slot = 'u' + m[1];
         else {
             const m2 = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
@@ -142,7 +118,7 @@ declare global {
 
     async function readCappedText(response: Response, cap: number): Promise<{ text: string; truncated: boolean }> {
         const body = response.body;
-        if (body && typeof body.getReader === 'function') {
+        if (body) {
             const reader = body.getReader();
             const chunks: Uint8Array[] = [];
             let received = 0;
@@ -180,119 +156,106 @@ declare global {
         return txt.length > cap ? { text: txt.slice(0, cap), truncated: true } : { text: txt, truncated: false };
     }
 
-    if (origFetch) {
-        const nativeFetch = origFetch;
-        window.fetch = async function(
-            this: unknown,
-            input: RequestInfo | URL,
-            init?: RequestInit
-        ): Promise<Response> {
-            const requestedAt = Date.now();
-            const url = toUrlString(input);
-            const endpoint = routeResponse(url);
-            const handler = endpoint?.({ url, slot: getSlotFromUrl(input), pagePath: location.pathname,
-                requestedAt, requestAccountObservation: captureRequestAccount(url) });
-            let requestBody: unknown;
-            if (typeof Request !== 'undefined' && input instanceof Request) {
-                requestBody = input.body;
-            } else if (typeof input === 'object' && input !== null && 'body' in input) {
-                requestBody = input.body;
-            }
-            const body: unknown = (init && init.body) || requestBody;
-            let capturedBody = Promise.resolve(typeof body === 'string' ? body
-                : body instanceof URLSearchParams ? body.toString() : '');
-            if (typeof body !== 'string' && typeof Request !== 'undefined' && input instanceof Request
-                && handler) {
-                try { capturedBody = input.clone().text().catch(() => ''); } catch { /* metadata unavailable */ }
-            }
+    window.fetch = async function(
+        this: unknown,
+        input: RequestInfo | URL,
+        init?: RequestInit
+    ): Promise<Response> {
+        const requestedAt = Date.now();
+        const url = toUrlString(input);
+        const endpoint = routeResponse(url);
+        const handler = endpoint?.({ url, slot: getSlotFromUrl(url), pagePath: location.pathname,
+            requestedAt, requestAccountObservation: captureRequestAccount(url) });
+        const request = input instanceof Request ? input : undefined;
+        const body = (init && init.body) || request?.body;
+        const requestBody = typeof body === 'string' ? body
+            : body instanceof URLSearchParams ? body.toString() : '';
+        let capturedBody = Promise.resolve(requestBody);
+        if (typeof body !== 'string' && request && handler) {
+            try { capturedBody = request.clone().text().catch(() => ''); } catch { /* metadata unavailable */ }
+        }
 
+        try {
+            captureFromUrl(url, requestBody);
+            handler?.start(requestBody);
+        } catch (e) {
+            if (isDev()) console.debug('[GemExporter:hook]', e);
+        }
+
+        let response: Response;
+        try { response = await origFetch.call(this, input, init); }
+        catch (error) {
+            handler?.end();
+            throw error;
+        }
+
+        if (handler) {
+            const selected = handler;
             try {
-                captureFromUrl(input, body);
-                handler?.start(typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '');
-            } catch (e) {
-                if (isDev()) console.debug('[GemExporter:hook]', e);
-            }
+                void readCappedText(response.clone(), selected.captureLimit).then(async ({ text, truncated }) => {
+                    const aborted = init?.signal?.aborted
+                        || request?.signal.aborted;
+                    selected.complete(await capturedBody, text, truncated || !!aborted, response.ok);
+                }).catch((error: unknown) => {
+                    if (isDev()) console.debug('[GemExporter:hook]', error);
+                }).finally(() => selected.end());
+            } catch { selected.end(); }
+        }
 
-            let response: Response;
-            try { response = await nativeFetch.call(this, input, init); }
-            catch (error) {
-                handler?.end();
-                throw error;
-            }
+        return response;
+    };
 
+
+    type XhrOpenArgs =
+        | [method: string, url: string | URL]
+        | [method: string, url: string | URL, async: boolean, username?: string | null, password?: string | null];
+    const hookedOpen = function(this: XMLHttpRequest, ...args: XhrOpenArgs): void {
+        try {
+            this.__hookUrl = toUrlString(args[1]);
+        } catch (e) {
+            if (isDev()) console.debug('[GemExporter:hook]', e);
+        }
+        Reflect.apply(origOpen, this, args);
+    };
+    XMLHttpRequest.prototype.open = hookedOpen;
+
+    XMLHttpRequest.prototype.send = function(this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['send']>): void {
+        let cancelStream = () => {};
+        try {
+            const sourceUrl = this.__hookUrl ?? '';
+            const body = args[0];
+            const requestedAt = Date.now();
+            const endpoint = routeResponse(sourceUrl);
+            const handler = endpoint?.({ url: sourceUrl, slot: getSlotFromUrl(sourceUrl), pagePath: location.pathname,
+                requestedAt, requestAccountObservation: captureRequestAccount(sourceUrl) });
+            const requestBody = typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '';
+            captureFromUrl(sourceUrl, requestBody);
             if (handler) {
                 const selected = handler;
-                try {
-                    void readCappedText(response.clone(), selected.captureLimit).then(async ({ text, truncated }) => {
-                        const aborted = init?.signal?.aborted
-                            || (typeof Request !== 'undefined' && input instanceof Request && input.signal.aborted);
-                        selected.complete(await capturedBody, text, truncated || !!aborted, response.ok);
-                    }).catch((error: unknown) => {
-                        if (isDev()) console.debug('[GemExporter:hook]', error);
-                    }).finally(() => selected.end());
-                } catch { selected.end(); }
+                selected.start(requestBody);
+                let ended = false;
+                const handleEnd = (event: Event) => {
+                    if (ended) return;
+                    ended = true;
+                    for (const name of ['load', 'loadend', 'abort', 'error', 'timeout']) this.removeEventListener(name, handleEnd);
+                    try {
+                        if (event.type === 'load') {
+                            const text = this.responseText;
+                            selected.complete(requestBody, text.slice(0, selected.captureLimit), text.length > selected.captureLimit,
+                                this.status >= 200 && this.status < 300);
+                        }
+                    } catch (error) { if (isDev()) console.debug('[GemExporter:hook]', error); }
+                    finally { selected.end(); }
+                };
+                for (const name of ['load', 'loadend', 'abort', 'error', 'timeout']) this.addEventListener(name, handleEnd);
+                cancelStream = () => handleEnd(new Event('error'));
             }
-
-            return response;
-        };
-    }
-
-    if (origOpen && origSend) {
-        const nativeOpen = origOpen;
-        const nativeSend = origSend;
-
-        type XhrOpenArgs =
-            | [method: string, url: string | URL]
-            | [method: string, url: string | URL, async: boolean, username?: string | null, password?: string | null];
-        const hookedOpen = function(this: XMLHttpRequest, ...args: XhrOpenArgs): void {
-            try {
-                this.__hookUrl = args[1];
-            } catch (e) {
-                if (isDev()) console.debug('[GemExporter:hook]', e);
-            }
-            Reflect.apply(nativeOpen, this, args);
-        };
-        XMLHttpRequest.prototype.open = hookedOpen;
-
-        XMLHttpRequest.prototype.send = function(this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['send']>): void {
-            let cancelStream = () => {};
-            try {
-                const url = this.__hookUrl;
-                const body = args[0];
-                const requestedAt = Date.now();
-                const sourceUrl = toUrlString(url);
-                const endpoint = routeResponse(sourceUrl);
-                const handler = endpoint?.({ url: sourceUrl, slot: getSlotFromUrl(url), pagePath: location.pathname,
-                    requestedAt, requestAccountObservation: captureRequestAccount(sourceUrl) });
-                captureFromUrl(url, body);
-                if (handler) {
-                    const selected = handler;
-                    const requestBody = typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '';
-                    selected.start(requestBody);
-                    let ended = false;
-                    const handleEnd = (event: Event) => {
-                        if (ended) return;
-                        ended = true;
-                        for (const name of ['load', 'loadend', 'abort', 'error', 'timeout']) this.removeEventListener(name, handleEnd);
-                        try {
-                            if (event.type === 'load') {
-                                const text = this.responseText;
-                                selected.complete(requestBody, text.slice(0, selected.captureLimit), text.length > selected.captureLimit,
-                                    this.status >= 200 && this.status < 300);
-                            }
-                        } catch (error) { if (isDev()) console.debug('[GemExporter:hook]', error); }
-                        finally { selected.end(); }
-                    };
-                    for (const name of ['load', 'loadend', 'abort', 'error', 'timeout']) this.addEventListener(name, handleEnd);
-                    cancelStream = () => handleEnd(new Event('error'));
-                }
-            } catch (e) {
-                if (isDev()) console.debug('[GemExporter:hook]', e);
-            }
-            try { nativeSend.apply(this, args); }
-            catch (error) { cancelStream(); throw error; }
-        };
-    }
+        } catch (e) {
+            if (isDev()) console.debug('[GemExporter:hook]', e);
+        }
+        try { origSend.apply(this, args); }
+        catch (error) { cancelStream(); throw error; }
+    };
 
     if (isDev()) console.log('[Gemini Exporter] MAIN world credentials hook initialized');
 
