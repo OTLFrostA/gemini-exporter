@@ -1,37 +1,36 @@
 import { parseNativeTool, isNativeSetupResult, nativeReceipt } from './parseNativeTools.js';
 import type { BlockNode } from '../../../l2/content/blocks.js';
+import type { ClaudeSourceMessage, ClaudeSourceFile, ClaudeToolUse, ClaudeToolResult } from './decodeDetail.js';
 
 import { record, plain } from './toolValues.js';
 interface ToolContent { blocks: BlockNode[]; issues: string[] }
-const toolName = (value: unknown) => typeof value === 'string' ? value.replace(/_/g, '').toLowerCase() : '';
+const toolName = (value: string) => value.replace(/_/g, '').toLowerCase();
 export interface ToolState { files: Map<string, string>; artifactPaths: Set<string> }
-export function createToolState(messages: Record<string, unknown>[]): ToolState {
+export function createToolState(messages: ClaudeSourceMessage[]): ToolState {
     const artifactPaths = new Set<string>();
-    for (const message of messages) for (const raw of Array.isArray(message.content) ? message.content : []) {
-        const block = record(raw), input = record(block?.input);
-        if (block?.type === 'tool_use' && toolName(block.name) === 'artifact'
-            && typeof input?.file_path === 'string') artifactPaths.add(input.file_path);
+    for (const message of messages) for (const block of message.content ?? []) {
+        if (block.kind === 'tool_use' && toolName(block.name) === 'artifact'
+            && typeof block.input?.file_path === 'string') artifactPaths.add(block.input.file_path);
     }
     return { files: new Map(), artifactPaths };
 }
 /** A generated file card is already covered only by one exact captured publish.
  * A matching filename alone is insufficient evidence for attachment bytes. */
-export function isCapturedArtifactFile(message: Record<string, unknown>, file: Record<string, unknown>,
+export function isCapturedArtifactFile(message: ClaudeSourceMessage, file: ClaudeSourceFile,
     state: ToolState): boolean {
-    if (file.success !== true || file.file_kind !== 'blob' || file.download_source !== 'files-api'
-        || typeof file.file_name !== 'string' || typeof file.size_bytes !== 'number') return false;
+    if (!file.success || file.fileKind !== 'blob' || file.downloadSource !== 'files-api'
+        || file.fileName === undefined || file.sizeBytes === undefined) return false;
     const paths = new Set<string>();
-    for (const raw of Array.isArray(message.content) ? message.content : []) {
-        const block = record(raw), input = record(block?.input);
-        if (block?.type === 'tool_use' && toolName(block.name) === 'artifact'
-            && typeof input?.file_path === 'string' && input.edits === undefined
-            && input.file_path.split('/').at(-1) === file.file_name) paths.add(input.file_path);
+    for (const block of message.content ?? []) {
+        if (block.kind === 'tool_use' && toolName(block.name) === 'artifact'
+            && typeof block.input?.file_path === 'string' && block.input.edits === undefined
+            && block.input.file_path.split('/').at(-1) === file.fileName) paths.add(block.input.file_path);
     }
     if (paths.size !== 1) return false;
     const content = state.files.get([...paths][0]);
-    return content !== undefined && new TextEncoder().encode(content).byteLength === file.size_bytes;
+    return content !== undefined && new TextEncoder().encode(content).byteLength === file.sizeBytes;
 }
-function memoryOperation(value: unknown): string | undefined {
+function memoryOperation(value: string): string | undefined {
     const name = toolName(value).replace(/^mcpmemory/, '');
     return ['memoryread', 'memorywrite', 'memoryappend'].includes(name) ? name.slice(6) : undefined;
 }
@@ -50,9 +49,9 @@ function link(label: string, url: unknown): BlockNode {
 }
 
 /** Native widgets are projected into shared semantic blocks, without exporting internal tool inputs. */
-export function parseToolUse(block: Record<string, unknown>, state: ToolState,
+export function parseToolUse(block: ClaudeToolUse, state: ToolState,
     markdown: (text: string) => BlockNode[] = text => [plain(text)]): ToolContent {
-    const input = record(block.input);
+    const input = block.input;
     const name = toolName(block.name);
     const blocks: BlockNode[] = [], issues: string[] = [];
     // Shell execution may mutate any retained file; only a subsequent explicit
@@ -147,38 +146,35 @@ function connectorCards(text: string): ToolContent {
     return { blocks, issues };
 }
 
-export function parseToolResult(block: Record<string, unknown>,
+export function parseToolResult(block: ClaudeToolResult,
     parseMarkdown: (text: string) => BlockNode[]): ToolContent {
     const name = toolName(block.name);
     const blocks: BlockNode[] = [], issues: string[] = [];
     // Keep execution outcome, but omit internal version tokens and stored profile bodies.
     const operation = memoryOperation(block.name);
-    if (operation && block.is_error !== true) {
+    if (operation && !block.isError) {
         blocks.push(plain('Memory ' + operation + ' completed'));
         return { blocks, issues };
     }
-    if ((['skill', 'write'].includes(name) || isNativeSetupResult(name)) && block.is_error !== true) {
+    if ((['skill', 'write'].includes(name) || isNativeSetupResult(name)) && !block.isError) {
         // Skill setup text is orchestration metadata, not authored output.
         return { blocks, issues };
     }
-    if (name === 'senduserfile' && block.is_error !== true) return { blocks: [plain('Files delivered')], issues };
-    const references = record(block.meta)?.tool_references;
-    if (name === 'toolsearch' && Array.isArray(references)) {
-        for (const ref of references) if (typeof ref === 'string') blocks.push(plain('Available tool: ' + ref));
+    if (name === 'senduserfile' && !block.isError) return { blocks: [plain('Files delivered')], issues };
+    if (name === 'toolsearch') {
+        for (const ref of block.references) blocks.push(plain('Available tool: ' + ref));
     }
-    const content = typeof block.content === 'string' ? [{ type: 'text', text: block.content }] : block.content;
-    if (!Array.isArray(content)) issues.push('Missing tool result content');
-    else for (const raw of content) {
-        const part = record(raw);
-        if (part?.type === 'text' && typeof part.text === 'string') {
+    if (!block.parts) issues.push('Missing tool result content');
+    else for (const part of block.parts) {
+        if (part.kind === 'text') {
             if (!part.text.trim()) continue;
-            if (name === 'artifact' && block.is_error !== true) {
+            if (name === 'artifact' && !block.isError) {
                 const url = part.text.match(/https:\/\/claude\.ai\/artifact\/[A-Za-z0-9_-]+/)?.[0];
                 if (url) blocks.push(link('Published artifact', url));
                 else issues.push('Missing published artifact link');
             } else if (name === 'bash') {
                 blocks.push({ type: 'code', code: part.text, language: 'text' });
-            } else if (name.startsWith('mcpclaudedocs') && block.is_error !== true) {
+            } else if (name.startsWith('mcpclaudedocs') && !block.isError) {
                 try {
                     const result = nativeReceipt(part.text);
                     if (result?.verdict !== 'allow') issues.push('Docs operation did not succeed');
@@ -188,17 +184,17 @@ export function parseToolResult(block: Record<string, unknown>,
                 const parsed = connectorCards(part.text);
                 blocks.push(...parsed.blocks); issues.push(...parsed.issues);
             } else blocks.push(...parseMarkdown(part.text));
-        } else if (part?.type === 'knowledge' && typeof part.title === 'string') {
+        } else if (part.kind === 'knowledge') {
             blocks.push(link(part.title, part.url));
-            if (typeof part.url !== 'string' || !/^https?:\/\//i.test(part.url))
+            if (part.url === undefined || !/^https?:\/\//i.test(part.url))
                 issues.push('Missing or unsafe search result URL');
-            if (typeof part.text === 'string') blocks.push(...parseMarkdown(part.text));
-            if (part.is_missing === true) issues.push('Missing search result content');
+            if (part.text !== undefined) blocks.push(...parseMarkdown(part.text));
+            if (part.isMissing) issues.push('Missing search result content');
         } else {
-            issues.push('Unsupported tool result content: ' + String(part?.type ?? 'unknown'));
+            issues.push('Unsupported tool result content: ' + part.sourceType);
             blocks.push({ type: 'unknown', sourceType: 'claude.tool_result', text: 'Unsupported tool result content' });
         }
     }
-    if (block.is_error === true) blocks.unshift(plain('Tool execution failed'));
+    if (block.isError) blocks.unshift(plain('Tool execution failed'));
     return { blocks, issues };
 }
