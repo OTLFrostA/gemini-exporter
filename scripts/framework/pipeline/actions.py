@@ -1,4 +1,3 @@
-# scripts/framework/pipeline/actions.py
 """
 Atomic Action Primitives for Gemini Interaction Pipeline.
 Each action encapsulates exactly one single-responsibility step with state invariants,
@@ -194,7 +193,6 @@ class UniversalInputAction:
         px_x = point[0] if point and len(point) >= 2 else None
         px_y = point[1] if point and len(point) >= 2 else None
 
-        # 1. 物理寻址并上焦
         cdp.eval(f"""
         (() => {{
             let target = null;
@@ -242,12 +240,10 @@ class UniversalInputAction:
         """)
         time.sleep(0.05)
 
-        # 2. 原生底层 CDP Input.insertText 插入文本（完全遵循物理级真实键盘事件，杜绝 execCommand 脱节）
         if text:
             cdp.call("Input.insertText", {"text": text})
             time.sleep(0.05)
 
-        # 3. 派发 input 与 change 事件保证框架数据绑定感知与 Quill delta 刷新
         target_selector_json = json.dumps(selector or "")
         cdp.eval(f"""
         (() => {{
@@ -293,15 +289,12 @@ class StagePromptAction(AtomicAction):
         return PipelineStage.STAGED
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
-        # 1. 彻底清空目标编辑器
         UniversalInputAction.clear_target(cdp, selector=self.editor_selector)
         time.sleep(0.2)
 
-        # 2. 原生输入文本并派发事件
         UniversalInputAction.insert_text(cdp, self.prompt_text, selector=self.editor_selector)
         time.sleep(0.2)
 
-        # 3. 校验注入结果
         editor_sel_json = json.dumps(self.editor_selector)
         staged_len = cdp.eval(f"""
         (() => {{
@@ -395,7 +388,6 @@ class SingleClickSendAction(AtomicAction):
 
             time.sleep(0.5)
 
-        # 超时后收集 DOM 诊断详情，便于精准定位原因
         diag = cdp.eval(f"""
         (() => {{
             const btns = Array.from(document.querySelectorAll({selector_json})).map(b => ({{

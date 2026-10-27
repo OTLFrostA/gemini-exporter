@@ -55,7 +55,6 @@ class GeminiChatSession:
             self.driver.upload_file(file_attachment)
             time.sleep(1.0)
 
-        # 通过 Driver 单飞原子流水线发帖 (受网关速率控制与主动熔断保护)
         ok, msg = self.driver.execute_turn_pipeline(prompt_text, max_wait=max_wait)
         duration = time.time() - t0
 
@@ -658,7 +657,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         return session
 
 
-# 保持 100% 向后兼容别名
+        # Retain historical aliases for existing Tier 2 callers.
 GeminiDriver = GeminiPlatformDriver
 
 PlatformRegistry.register("gemini", GeminiPlatformDriver)

@@ -23,7 +23,7 @@ from typing import Set, List, Dict, Tuple, Optional
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# 全局核心文件：任一文件变更均触发全量测试
+# Global build/config changes invalidate the full dependency graph and require a full test run.
 GLOBAL_FILES = {
     "package.json",
     "package-lock.json",
@@ -36,21 +36,17 @@ GLOBAL_FILES = {
     "scripts/test_impact_analyzer.py"
 }
 
-# 忽略扫描的目录
 IGNORE_DIRS = {".git", "node_modules", "dist", "store_assets", ".gemini"}
 
-# 纯静态/文档文件正则
 STATIC_DOCS_PATTERN = re.compile(
     r"^(.*\.(md|png|jpg|jpeg|svg|ico)|docs/.*|icons/.*|store_assets/.*|scripts/test_scenario_(pool|archive)\.json)$",
     re.IGNORECASE
 )
 
-# Import/Require/Dynamic-Import 语句正则 (严格忽略仅类型导入 import type / export type)
 IMPORT_PATTERN = re.compile(
     r"""(?:import|export)\s+(?!type\s)(?:[\s\w{},*]+\s+from\s+)?[\x27\x22]([^\x27\x22]+)[\x27\x22]|(?:require|import)\s*\(\s*[\x27\x22]([^\x27\x22]+)[\x27\x22]\s*\)"""
 )
 
-# 组件与 E2E Spec 映射表
 COMPONENT_E2E_MAP = {
     "src/ui": ["tests/e2e/ui_v2.spec.ts", "tests/e2e/production_v2.spec.ts", "tests/e2e/tier2_v2_probes.spec.ts"],
     "scripts/framework": ["tests/e2e/tier2_v2_probes.spec.ts"],
@@ -128,15 +124,12 @@ class DependencyGraph:
     """仓库全量 TypeScript / JavaScript 模块依赖图"""
     def __init__(self, base_dir: str = REPO_DIR):
         self.base_dir = base_dir
-        # target_file -> set(files that import target_file)
         self.dependents: Dict[str, Set[str]] = defaultdict(set)
-        # source_file -> set(files that source_file imports)
         self.dependencies: Dict[str, Set[str]] = defaultdict(set)
         self._build_graph()
 
     def _build_graph(self):
         for root, dirs, files in os.walk(self.base_dir):
-            # 过滤不需要的目录
             dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
             for f in files:
                 if f.endswith((".ts", ".js")):
@@ -185,21 +178,16 @@ def get_git_changed_files(base_ref: Optional[str] = None, base_dir: str = REPO_D
             pass
         return []
 
-    # 1. 未跟踪文件
     for f in run_cmd(["git", "ls-files", "--others", "--exclude-standard"]):
         changed.add(normalize_repo_path(f, base_dir))
 
-    # 2. 未暂存的修改
     for f in run_cmd(["git", "diff", "--name-only"]):
         changed.add(normalize_repo_path(f, base_dir))
 
-    # 3. 暂存区的修改
     for f in run_cmd(["git", "diff", "--name-only", "--cached"]):
         changed.add(normalize_repo_path(f, base_dir))
 
-    # 4. 相对于基准分支的修改
     if not base_ref:
-        # 尝试自动检测 base_ref (origin/main 或 main)
         refs_to_try = ["origin/main", "main", "origin/dev", "dev"]
         for r in refs_to_try:
             check = subprocess.run(["git", "rev-parse", "--verify", r], cwd=base_dir, capture_output=True)
@@ -208,11 +196,9 @@ def get_git_changed_files(base_ref: Optional[str] = None, base_dir: str = REPO_D
                 break
 
     if base_ref:
-        # 使用三点 diff 获取从分叉点以来的改动
         for f in run_cmd(["git", "diff", "--name-only", f"{base_ref}...HEAD"]):
             changed.add(normalize_repo_path(f, base_dir))
 
-    # 过滤空值与不存在的文件（已删除的文件保留其相对路径以追溯影响）
     return {f for f in changed if f}
 
 
@@ -233,7 +219,6 @@ class ImpactAnalysisResult:
         self.all_unit_tests = sorted(all_unit_tests)
         self.all_e2e_specs = sorted(all_e2e_specs)
 
-        # 筛选计算出最终执行的测试集合
         if self.is_all_affected:
             self.target_unit_tests = self.all_unit_tests
             self.target_e2e_specs = self.all_e2e_specs
@@ -241,7 +226,6 @@ class ImpactAnalysisResult:
             self.target_unit_tests = []
             self.target_e2e_specs = []
         else:
-            # 1. 传递闭包直接命中测试文件
             unit_set = set()
             for f in self.affected_files:
                 if f.startswith("tests/") and (f.endswith(".test.ts") or f.endswith((".test.js", ".test.cjs"))):
@@ -251,18 +235,15 @@ class ImpactAnalysisResult:
                     unit_set.update(suite for suite in suites if suite in self.all_unit_tests)
             self.target_unit_tests = sorted(unit_set)
 
-            # 2. E2E 规格测试判定
             e2e_set = set()
-            # 如果 spec 文件自身被修改或依赖
             for f in self.affected_files:
                 if f.startswith("tests/e2e/") and f.endswith(".spec.ts"):
                     e2e_set.add(f)
 
-            # 如果影响到 core 模块，则所有 E2E 均可能受影响
+        # A shared core change can affect any browser entrypoint, including implicit bundle imports.
             if any(f.startswith(_CORE_PREFIXES) and not f.startswith((*_CONTENT_PREFIXES, "src/l4/format/pdf/sandbox/")) for f in self.affected_files):
                 e2e_set.update(self.all_e2e_specs)
             else:
-                # 检查特定组件映射
                 for prefix, specs in COMPONENT_E2E_MAP.items():
                     if any(f.startswith(prefix) for f in self.affected_files):
                         e2e_set.update(specs)
@@ -292,7 +273,6 @@ def analyze_impact(
     if graph is None:
         graph = DependencyGraph(base_dir=base_dir)
 
-    # 扫描收集仓库中的全量测试清单
     all_unit_tests = []
     all_e2e_specs = []
     for root, _, files in os.walk(os.path.join(base_dir, "tests")):
@@ -308,15 +288,12 @@ def analyze_impact(
     if not norm_changed:
         return ImpactAnalysisResult([], set(), False, True, all_unit_tests, all_e2e_specs)
 
-    # 1. 检查是否命中全局核心文件
     if any(f in GLOBAL_FILES for f in norm_changed):
         return ImpactAnalysisResult(list(norm_changed), norm_changed, True, False, all_unit_tests, all_e2e_specs)
 
-    # 2. 检查是否全部为文档/静态文件
     if all(STATIC_DOCS_PATTERN.match(f) for f in norm_changed):
         return ImpactAnalysisResult(list(norm_changed), norm_changed, False, True, all_unit_tests, all_e2e_specs)
 
-    # 3. 计算传递闭包
     affected = graph.get_transitive_dependents(norm_changed)
 
     return ImpactAnalysisResult(
@@ -359,7 +336,6 @@ def main():
         print(" ".join(result.target_e2e_specs))
         return
 
-    # 默认或 --summary 格式输出
     sep = "=" * 70
     print(sep)
     print("🔍 Gemini Exporter — 依赖感知测试影响分析报告 (Test Impact Analysis)")
