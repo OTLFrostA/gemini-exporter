@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic } from './provenance.js';
 /** Native acknowledgement bodies from ChatGPT conversation visibility PATCH and DELETE. */
 const fixtureMap = {
     'C_CAPTURE_PATCH_CONFIRMED_01': () => ({ success: true }),
@@ -15,3 +16,5 @@ const fixtureMap = {
 export function deleteGen(key: keyof typeof fixtureMap): { success?: boolean | string } | null {
     return fixtureMap[key]();
 }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored ChatGPT protocol, content or state counterexample; no saved capture is used."));

@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic } from './provenance.js';
 /** Raw GET /backend-api/files/download/:id JSON responses. */
 interface FileDownloadResponse {
     status?: string;
@@ -21,3 +22,5 @@ const fixtureMap = {
 export function fileDownloadGen(key: keyof typeof fixtureMap): FileDownloadResponse {
     return fixtureMap[key]();
 }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored ChatGPT protocol, content or state counterexample; no saved capture is used."));

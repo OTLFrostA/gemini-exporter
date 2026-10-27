@@ -19,7 +19,7 @@ by their existing capture and consumer suites and are not included in this table
 | --- | ---: | --- |
 | Gemini | 474 | Reuse captured normal traffic; retain explicit protocol/content/state counterexamples. |
 | ChatGPT | 111 | Session, List, Detail, Stream, Delete, download URL and signed bytes already use their matching generators. |
-| Claude | 56 | Move six Organizations responses into its generator; correct a List request that received Organizations data. |
+| Claude | 60 | Move six Organizations responses into its generator; correct a List request that received Organizations data. |
 | Grok | 19 | Add keyed captured Detail/metadata/tree/response loaders and explicit List/account variants. |
 
 There are no unresolved keys or unreferenced fixture definitions after removing
@@ -108,3 +108,61 @@ launcher incorrectly treated every nonzero result as a free target port.
 both listening and bound-but-not-listening sockets, does not allocate an outbound
 port, and preserves non-occupancy OS errors. Regression tests cover these cases.
 No extension source or shipping manifest is changed.
+
+## Fixture structure and provenance
+
+The current registry contains **664 fixed keys**: 530 synthetic, 126 derived and
+8 returning captured units. These are source classifications, not test quality
+scores. A synthetic malformed input can establish a boundary that a successful
+capture cannot. Saved decoded fragments, timestamp measurements and reconstructed
+wire envelopes do not count as original captured HTTP exchanges.
+
+The endpoint entrypoints and all existing keys remain compatible:
+
+- `geminiDetail.ts` aggregates fixed case maps under `gemini/detail/`. Small
+  builders are grouped into protocol, structured content, resources, integration
+  and version modules. Saved structured fragments live in `detail/sources.ts`;
+  shared timestamp/file inputs live in `gemini/sources.ts`. Builders do not call
+  production parsers.
+- `gemini.ts` delegates to `gemini/list/cases.ts`, shared List builders and the
+  bounded pagination module. Existing capture loaders remain the source of normal
+  List transport and rows. `paginationOrigin` documents the six constructed key
+  families separately from the fixed-key inventory.
+- Grok has distinct Detail, metadata, responses, tree, List and User modules.
+  `grok/sources.ts` owns fresh-copy loaders shared by endpoint cases. The former
+  Detail module reexports metadata/responses/tree generators for existing callers.
+- ChatGPT and Claude retain their small endpoint modules and now expose the same
+  metadata contract. Their authored endpoint samples remain synthetic.
+
+`provenance.ts` defines a small discriminated union:
+
+| kind | Required information | Meaning |
+| --- | --- | --- |
+| `synthetic` | purpose | Authored protocol/content/state sample without saved capture input. |
+| `captured` | source path, unit | Returns the saved unit directly; the unit may be a sanitized body or a saved endpoint bundle, not necessarily an entire HTTP exchange. |
+| `derived` | source paths, changes | Saved input rewrapped, combined, or changed to establish a specific condition. |
+
+Each fixed case map exports `fixtureOrigins`, built from its own keys with an
+explicit synthetic default and typed overrides for saved inputs. Repeated source
+annotations are shared locally. `catalog.ts` gathers these records without calling
+factories or materializing large stress payloads. To inspect the structured data:
+
+```sh
+node -r ./tests/ts_register.js -e 'console.log(JSON.stringify(require("./tests/fixtures/providers/catalog.ts").fixtureCatalog, null, 2))'
+```
+
+When adding a key, place its factory in the matching endpoint/content map. Use an
+existing small builder when it expresses that wire layout; add a focused builder
+when needed. If saved input is used, add a `captured` or `derived` override beside
+that map. A new map must also be added to the catalog. The contract test rejects
+missing/duplicate metadata, nonexistent evidence paths and unresolved fixed keys;
+its production-parser independence check now traverses nested fixture modules.
+It verifies project declarations and file existence, not external authenticity.
+The metadata is maintained explicitly; no runtime heuristic infers provenance
+from key names or output shapes.
+
+During this refactor all 664 fixed factories were evaluated before and after,
+and their string/JSON SHA-256 hashes matched. Temporary comparison data stays
+outside version control. The existing parser, source, mutation and browser tests
+remain the behavioral oracles. Full HTTP response wrappers and AST-based fixture
+guards are deferred.

@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic } from './provenance.js';
 import type { ChatGPTConversationNode } from '../../../src/l1/parsers/chatgpt/chatgptTypes.js';
 
 /** Native JSON returned by GET /backend-api/conversation/:id (one payload per key). */
@@ -111,3 +112,5 @@ const fixtureMap = {
 export function detailGen<K extends keyof typeof fixtureMap>(key: K): ReturnType<(typeof fixtureMap)[K]> {
     return fixtureMap[key]() as ReturnType<(typeof fixtureMap)[K]>;
 }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored ChatGPT protocol, content or state counterexample; no saved capture is used."));

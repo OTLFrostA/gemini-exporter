@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic } from './provenance.js';
 /** Native GET /api/organizations response bodies, including deliberate malformed variants. */
 const id = '11111111-1111-4111-8111-111111111111';
 const fixtureMap = {
@@ -12,3 +13,5 @@ const fixtureMap = {
 export function organizationsGen<K extends keyof typeof fixtureMap>(key: K): ReturnType<(typeof fixtureMap)[K]> {
     return fixtureMap[key]() as ReturnType<(typeof fixtureMap)[K]>;
 }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored Claude protocol, content or state counterexample; no saved capture is used."));

@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic } from './provenance.js';
 /** Native ChatGPT /api/auth/session JSON mock data. */
 const indexSession = () => ({ accessToken: 'test-token', user: { id: 'u-index' }, account: { id: 'w-index' } });
 const listSession = () => ({ accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } });
@@ -81,3 +82,5 @@ const fixtureMap = {
 export function sessionGen(key: keyof typeof fixtureMap): Record<string, unknown> {
     return fixtureMap[key]();
 }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored ChatGPT protocol, content or state counterexample; no saved capture is used."));

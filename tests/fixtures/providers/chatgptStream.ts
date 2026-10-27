@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic } from './provenance.js';
 /** Raw SSE text from POST /backend-api/f/conversation. One key per source event/chunk. */
 const fixtureMap = {
     'C_STREAM_EVENT_01': () => 'data: [DONE]',
@@ -19,3 +20,5 @@ const fixtureMap = {
 export function streamGen(key: keyof typeof fixtureMap): string {
     return fixtureMap[key]();
 }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored ChatGPT protocol, content or state counterexample; no saved capture is used."));

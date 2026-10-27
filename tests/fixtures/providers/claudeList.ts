@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic } from './provenance.js';
 /** Raw GET /api/organizations/:org/chat_conversations_v2 paginated JSON responses. */
 const parseRows = () => [
     { uuid: '11111111-1111-4111-8111-111111111111', name: 'Older', updated_at: '2026-10-02T00:00:00Z' },
@@ -36,3 +37,5 @@ const fixtureMap = {
 export function listGen(key: keyof typeof fixtureMap) {
     return fixtureMap[key]();
 }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored Claude protocol, content or state counterexample; no saved capture is used."));

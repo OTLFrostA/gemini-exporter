@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic } from './provenance.js';
 /** Native request bodies for the Gemini MaZiqc List RPC. */
 const fixtureMap = {
     'G_E2E_PAGE_SYNC_LIST_REQUEST_01': () => new URLSearchParams({
@@ -39,3 +40,5 @@ function requestBody(filter: unknown): string {
     return new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([31, null, filter]), null, 'generic']]]) }).toString();
 }
 export function requestGen(key: keyof typeof fixtureMap): string { return fixtureMap[key](); }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored Gemini protocol, content or state counterexample; no saved capture is used."));

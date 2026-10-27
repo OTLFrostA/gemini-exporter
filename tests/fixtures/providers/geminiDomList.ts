@@ -1,3 +1,4 @@
+import { describeFixtures, synthetic } from './provenance.js';
 /** DOM-facing Gemini List data (separate from the network RPC). */
 const fixtureMap = {
     'G_LIST_SOURCE_BOUNDARY_11': () => {
@@ -16,3 +17,5 @@ const fixtureMap = {
 export function domListGen<K extends keyof typeof fixtureMap>(key: K): ReturnType<(typeof fixtureMap)[K]> {
     return fixtureMap[key]() as ReturnType<(typeof fixtureMap)[K]>;
 }
+
+export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored Gemini protocol, content or state counterexample; no saved capture is used."));

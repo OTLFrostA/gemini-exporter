@@ -2981,8 +2981,8 @@
       "classification": "P2",
       "provenanceSource": "Project fixture ownership, source independence and fresh captured input contracts; synthetic transport variants are not claimed as raw source evidence.",
       "policy": "PRESERVE_PROJECT_CONTRACT",
-      "notes": "Inventory includes Python-embedded Node probes. Generator guards and mutation isolation preserve independent parser inputs.",
-      "testCount": 2,
+      "notes": "Recursive generator independence guard, endpoint mutation isolation and complete per-key source metadata. Source paths and origin categories are project contracts, not proof of external capture authenticity.",
+      "testCount": 3,
       "tests": [
         {
           "name": "provider fixture references resolve and generators never execute a production parser",
@@ -2991,6 +2991,11 @@
         },
         {
           "name": "Grok endpoint fixtures isolate provider mutations from subsequent reads",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "fixture provenance covers every fixed key with existing evidence and honest source units",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -3015,11 +3020,11 @@
   ],
   "summary": {
     "totalSuites": 51,
-    "totalTests": 507,
+    "totalTests": 508,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 487,
+      "P2": 488,
       "P3": 2,
       "P4": 0
     }
