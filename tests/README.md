@@ -9,6 +9,12 @@
 
 本项目构建了严密、分层的**三层测试体系 (Three-Tier Testing Architecture)**，兼顾了 CI 自动化门禁的极致速度与生产环境真实链路的绝对可靠性。无论是人类开发者还是 AI 编程助手，在进行功能开发、Bug 修复或重构时，均须严格遵守本规范。
 
+普通业务测试构造 canonical ConversationIndex 时，使用
+`tests/helpers/conversationIndexFixture.ts` 的 `makeConversationIndex(overrides)`。
+默认值为独立 Gemini Key、派生标题，时间仅在场景明确提供时存在；每次调用返回独立对象。
+`key` 支持局部覆盖，标题与来源仍须成对合法。不要把原始 RPC、迁移、Schema 校验、类型负例或
+测试无效数据的输入改成该工厂；这些测试需要保留显式原始输入。工厂不代替 Detail 摄入或模块隔离 mock。
+
 ---
 
 ## 一、三层测试体系架构总览

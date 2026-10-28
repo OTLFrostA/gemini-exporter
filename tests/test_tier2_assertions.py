@@ -293,8 +293,8 @@ class SettledEvidenceTests(unittest.TestCase):
             record = {'chat_id': CID}
             ctx.record_turn(record, TurnResult(True, 'First prompt', 'Stream capture', chat_id=CID))
             driver = MagicMock()
-            first = {'prompt': 'First prompt', 'response': 'Final first answer', 'has_images': False, 'code_blocks': [], 'execution_blocks': []}
-            last = {'prompt': 'Append prompt', 'response': 'Final appended answer', 'has_images': False, 'code_blocks': [], 'execution_blocks': []}
+            first = {'prompt': 'First prompt', 'response': 'Final first answer', 'has_images': False, 'code_blocks': [], 'execution_blocks': [], 'pdf_segments': [{'kind': 'text', 'text': 'Final first answer'}]}
+            last = {'prompt': 'Append prompt', 'response': 'Final appended answer', 'has_images': False, 'code_blocks': [], 'execution_blocks': [], 'pdf_segments': [{'kind': 'text', 'text': 'Final appended answer'}]}
             driver.settled_conversation_evidence.side_effect = [[first], [first, last]]
             ctx.freeze_turn_evidence(driver, record)
             ctx.record_turn(record, TurnResult(True, 'Append prompt', 'Transient append', chat_id=CID))
@@ -304,6 +304,22 @@ class SettledEvidenceTests(unittest.TestCase):
             driver.settled_conversation_evidence.assert_called_with(CID, ['First prompt', 'Append prompt'])
             saved = json.loads((Path(directory)/f'{CID}_turn_evidence.json').read_text())
             self.assertEqual(saved, record)
+
+    def test_invalid_freeze_does_not_replace_stream_or_write_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ctx = TestContext(output_dir=directory)
+            stream = {'prompt': 'Actual attachment prompt', 'response': 'Stream'}
+            record = {'chat_id': CID, 'turn_evidence': [stream]}
+            driver = MagicMock()
+            driver.settled_conversation_evidence.return_value = [{
+                'prompt': stream['prompt'], 'response': 'Complete answer',
+                'has_images': False, 'code_blocks': [], 'execution_blocks': [],
+                'pdf_segments': [{'kind': 'text', 'text': 'Truncated'}],
+            }]
+            with self.assertRaisesRegex(ValueError, 'segments'):
+                ctx.freeze_turn_evidence(driver, record)
+            self.assertEqual(record['turn_evidence'], [stream])
+            self.assertFalse((Path(directory) / f'{CID}_turn_evidence.json').exists())
 
     def state(self):
         return {'chat_id': CID, 'streaming': False, 'turns': [
