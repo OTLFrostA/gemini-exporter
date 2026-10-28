@@ -26,9 +26,9 @@ test('Claude discovery injection omits absent optional arguments for Chrome seri
         scripting: { executeScript: async (injection: { args: unknown[] }) => {
             assert.ok(injection.args.every(value => value !== undefined), 'Chrome rejects undefined arguments');
             calls.push(injection.args);
-            return [{ result: injection.args[0] === '/api/organizations'
+            return [{ result: { ok: true, value: injection.args[0] === '/api/organizations'
                 ? claudeOrganizationsGen('CL_SOURCE_DISCOVERY_ORGANIZATIONS_01')
-                : claudeListGen('CL_L1_SOURCE_PARSE_SORTED_01') }];
+                : claudeListGen('CL_L1_SOURCE_PARSE_SORTED_01') } }];
         } },
     } });
     try {

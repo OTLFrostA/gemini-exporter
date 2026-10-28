@@ -1,3 +1,4 @@
+import { OperationError } from '../../../../shared/errors/operationError.js';
 import { repairUnicodeMaps } from './repairUnicodeMaps.js';
 import { PdfResourceError, isAbortError } from '../errors.js';
 import { missingResource, type ResourceFailure } from '../../../../shared/resources/resourceResult.js';
@@ -429,9 +430,8 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 }
             }
             if (resourceFailures.length) throw new PdfResourceError(resourceFailures);
-            throw new Error(
-                `Typst compile failed for ${doc.title}: sandbox returned no PDF bytes`,
-            );
+            throw new OperationError('PDF_COMPILE_FAILED',
+                `Typst compile failed for ${doc.title}: sandbox returned no PDF bytes; ${result.diagnostics.map(d => d.message).join('; ')}`);
         }
         const pdfBytes = new Uint8Array(result.pdf);
         const magic = String.fromCharCode(...pdfBytes.slice(0, 5));
@@ -494,7 +494,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 const jobId = `__ready__`;
                 const timer = setTimeout(() => {
                     this.pending.delete(jobId);
-                    reject(new Error(`sandbox page did not signal ready within ${this.initTimeoutMs}ms`));
+                    reject(new OperationError('PDF_INIT_FAILED', `sandbox page did not signal ready within ${this.initTimeoutMs}ms`));
                 }, this.initTimeoutMs);
                 const onAbort = () => {
                     clearTimeout(timer);
@@ -541,7 +541,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         return new Promise<PendingResult>((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pending.delete(jobId);
-                reject(new Error(`sandbox job ${jobId} timed out after ${timeoutMs}ms`));
+                reject(new OperationError('PDF_TIMEOUT', `sandbox job ${jobId} timed out after ${timeoutMs}ms`));
             }, timeoutMs);
             const cleanup = () => {
                 clearTimeout(timer);

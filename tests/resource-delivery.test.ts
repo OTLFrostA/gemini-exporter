@@ -133,7 +133,7 @@ for (const format of ['markdown', 'html', 'json'] as const) for (const failure o
             assert.equal(archive.resources.bad, undefined, 'only confirmed assets have destination bindings');
         } else {
             assert.ok(body.includes(sidecars[0].name), 'body references an actually packaged image');
-            assert.match(body, {throw:/Attachment download failed/,empty:/Attachment could not be processed/,http:/Source attachment unavailable.*HTTP 404/}[failure]);
+            assert.match(body, {throw:/Attachment failed: Unknown error/,empty:/Attachment could not be processed/,http:/Source attachment unavailable.*HTTP 404/}[failure]);
             assert.match(body, /https:\/\/source\.example\.test\/bad\.png/, 'retain a source link for inspection');
             assert.doesNotMatch(body, /src="https:\/\/source\.example\.test\/bad\.png|!\[[^\]]*\]\(https:\/\/source\.example\.test\/bad\.png/, 'never embed a broken remote image');
         }

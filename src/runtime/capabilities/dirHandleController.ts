@@ -1,3 +1,4 @@
+import { OperationError } from '../../shared/errors/operationError.js';
 import { isDirectoryHandle, type DirectoryHandle } from './directoryHandle.js';
 import { ensureV2Ready } from '../api/runtimeReady.js';
 import { getDirectoryHandle, setDirectoryHandle } from '../../l3a/storageService.js';
@@ -38,9 +39,9 @@ export async function reauthorizeDirHandle(): Promise<boolean> {
 }
 export async function requestDirHandle(): Promise<DirectoryHandle> {
     // The picker must be the first async operation in the user's click.
-    if (!window.showDirectoryPicker) throw new Error('Directory picker unavailable');
+    if (!window.showDirectoryPicker) throw new OperationError('DIRECTORY_UNAVAILABLE', 'Directory picker unavailable');
     const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
-    if (await handle.queryPermission({ mode: 'readwrite' }) !== 'granted') throw new Error('Directory permission not granted');
+    if (await handle.queryPermission({ mode: 'readwrite' }) !== 'granted') throw new OperationError('DIRECTORY_PERMISSION_REQUIRED', 'Directory permission not granted');
     await saveStoredDirHandle(handle);
     current = handle; pending = null;
     return handle;

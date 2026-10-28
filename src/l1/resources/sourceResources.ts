@@ -1,3 +1,4 @@
+import { OperationError } from '../../shared/errors/operationError.js';
 import { ResourceHttpError, ResourceProcessingError } from '../../shared/resources/resourceResult.js';
 import type { DomainAsset } from '../../l2/conversationDetail.js';
 import { readConversationKey, type ConversationKey } from '../../l2/conversationKey.js';
@@ -79,7 +80,7 @@ export type SourceResourceContext = ReturnType<typeof createSourceResourceContex
 /** Bytes remain acquisition output, never a second Detail field. */
 export async function acquireSourceResource(asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
     signal?.throwIfAborted();
-    if (!asset.sourceUri || !/^(https:\/\/|data:)/i.test(asset.sourceUri)) throw new Error('No supported source locator');
+    if (!asset.sourceUri || !/^(https:\/\/|data:)/i.test(asset.sourceUri)) throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'No supported source locator');
     const response = await fetch(asset.sourceUri, { credentials: 'include', signal });
     if (!response.ok) throw new ResourceHttpError(response.status);
     const bytes = new Uint8Array(await response.arrayBuffer());

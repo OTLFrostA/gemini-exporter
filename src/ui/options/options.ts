@@ -15,7 +15,7 @@ import { handleTakeoutImport } from './controllers/takeoutController.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
 import { renderList } from './views/listView.js';
-import { groupExportFailures, renderExportFailures, copyExportFailures } from './views/exportFailures.js';
+import { ExportIssueCollector, renderExportFailures, copyExportFailures } from './views/exportFailures.js';
 import { EXPORT_FORMATS, readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
 import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
 import { getLatestEligibleFeature } from '../guidance/featureReleases.js';
@@ -37,6 +37,7 @@ interface ExportRunDiagnostic {
     items: (ExportItemUpdate & { at: number; title?: string })[];
     diagnostics: (ExportDiagnostic & { at: number; title?: string })[];
     droppedDiagnostics: number;
+    issues: ExportIssueCollector;
     result?: ExportResult;
     error?: string;
 }
@@ -55,6 +56,7 @@ export async function initWorkbench(): Promise<void> {
     let lastRequest: UIExportRequest | null = null;
     let failed: UIExportRequest['keys'] = [];
     let dismissedFailures = false;
+    let currentIssues = new ExportIssueCollector();
     let folderSuggestionPending = false;
     let connectionError: string | null = null;
     // Browser batches are only staged until their final download is initiated.
@@ -110,14 +112,15 @@ export async function initWorkbench(): Promise<void> {
             el('bar').style.width = `${Math.max(0, Math.min(100, percent))}%`;
         }
     };
-    const failureGroups = () => groupExportFailures(failed, exportRuns.at(-1)?.items ?? []);
+    const failureGroups = () => currentIssues.groups();
     const showFailures = () => {
         const card = el('exportFailureCard');
-        card.style.display = failed.length && !dismissedFailures ? 'block' : 'none';
+        card.style.display = failureGroups().length && !dismissedFailures ? 'block' : 'none';
         const groups = failureGroups();
         el('exportFailureTitle').textContent = text(
-            `${failed.length} conversations failed · Error groups: ${groups.length}`,
-            `${failed.length} 条会话导出失败 · ${groups.length} 组错误`);
+            `${failed.length} conversations failed · Issue groups: ${groups.length}`,
+            `${failed.length} 条会话导出失败 · ${groups.length} 组问题`);
+        control('button', 'btnRetryFailed').hidden = !failed.length;
         renderExportFailures(el('exportFailureList'), groups);
     };
     const renderConversations = () => renderList(state, busy,
@@ -255,7 +258,7 @@ export async function initWorkbench(): Promise<void> {
         } catch { /* Keep actionable guidance until a verified Content source is available. */ }
     };
     const select = async (id: string) => {
-        if (id !== state.accountId) { lastRequest = null; failed = []; dismissedFailures = false; }
+        if (id !== state.accountId) { lastRequest = null; failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false; }
         state.selectAccount(id); render(); await refresh();
     };
     const perform = async (kind: Action, task: (signal: AbortSignal) => Promise<void>, cancellable = false) => {
@@ -288,7 +291,8 @@ export async function initWorkbench(): Promise<void> {
     const exportRequest = (request: UIExportRequest, fonts: Promise<void>) => perform('export', async (signal) => {
         lastRequest = { ...request, keys: request.keys.map(key => ({ ...key })) };
         const run: ExportRunDiagnostic = { startedAt: Date.now(), request: lastRequest,
-            items: [], diagnostics: [], droppedDiagnostics: 0 };
+            items: [], diagnostics: [], issues: new ExportIssueCollector(), droppedDiagnostics: 0 };
+        currentIssues = run.issues;
         exportRuns.push(run);
         if (exportRuns.length > 10) { exportRuns.shift(); droppedExportRuns++; }
         const titleFor = (key: UIExportRequest['keys'][number] | undefined) => key
@@ -304,11 +308,14 @@ export async function initWorkbench(): Promise<void> {
             let saved = 0;
             const result = await runExport(request, { signal, importedResources,
                 onDiagnostic: diagnostic => {
+                    // Failed items carry their own diagnostic; count each failure once via onItemUpdate.
+                    if (diagnostic.code !== 'EXPORT_FAILED') run.issues.add(diagnostic, titleFor(diagnostic.key));
                     if (run.diagnostics.length >= 10000) { run.droppedDiagnostics++; return; }
                     run.diagnostics.push({ ...diagnostic, at: Date.now(), title: titleFor(diagnostic.key) });
                 },
                 onProgress: p => progress(() => text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`)),
                 onItemUpdate: update => {
+                    if (update.status === 'failed') run.issues.add(update.diagnostic, titleFor(update.key));
                     run.items.push({ ...update, at: Date.now(), title: titleFor(update.key) });
                     processed.add(`${update.key.accountId}/${update.key.conversationId}`);
                     if (update.status === 'failed' && !failed.some(key =>
@@ -552,7 +559,7 @@ export async function initWorkbench(): Promise<void> {
                     for (const key of keys) importedResources.releaseConversation(key);
                 }
                 else await Cleanup.clearLocalExportRecords(accountId);
-                failed = []; dismissedFailures = false;
+                failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false;
                 status(() => text('Records cleared', '记录已清除'));
             });
         });

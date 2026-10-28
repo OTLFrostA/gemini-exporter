@@ -109,7 +109,7 @@ test('failed export temporarily overrides an old success badge and retry clears 
         await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishExport === 'function');
         await page.evaluate(() => {
             const h = Reflect.get(window, 'harness');
-            h.exportOptions.onItemUpdate({ key: h.indexes[0].key, status: 'failed' });
+            h.exportOptions.onItemUpdate({ key: h.indexes[0].key, status: 'failed', diagnostic: { stage: 'export', code: 'EXPORT_FAILED', message: 'Injected failure' } });
         });
         assert.equal(await page.locator('[data-chat-id="one"] .status-failed').textContent(), 'Export failed');
         assert.equal(await page.locator('[data-chat-id="one"] .status-exported').count(), 0);

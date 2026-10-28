@@ -1,3 +1,4 @@
+import { OperationError } from '../../../shared/errors/operationError.js';
 import type { DocumentAst, DisplayBlock, DisplayInline } from '../../../l3b/ast/ast.js';
 import type { ResourceBindings } from '../../packaging/resourceBindings.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
@@ -127,7 +128,7 @@ export async function compileDocumentPdf(
     context.signal.throwIfAborted();
     const bytes = result.pdfBytes;
     if (!(bytes instanceof Uint8Array) || bytes.length < 64 || String.fromCharCode(...bytes.subarray(0, 5)) !== '%PDF-') {
-        throw new Error('Compiler returned empty, truncated or invalid PDF bytes');
+        throw new OperationError('PDF_INVALID_OUTPUT', 'Compiler returned empty, truncated or invalid PDF bytes');
     }
     return { pdfBytes: bytes, diagnostics: [...diagnostics, ...result.diagnostics] };
 }

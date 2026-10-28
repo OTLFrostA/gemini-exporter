@@ -1,3 +1,4 @@
+import { OperationError } from '../../../shared/errors/operationError.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
@@ -39,9 +40,9 @@ async function resolveRoute(accountId: string): Promise<string> {
                 failures.push(`tab ${tab.id}: ${context === null ? 'unknown account' : 'account or slot mismatch'}`);
             } catch (error) { failures.push(`tab ${tab.id}: ${error instanceof Error ? error.message : String(error)}`); }
         }
-        throw new Error('No verified Gemini account route: ' + (failures.join('; ') || 'no Gemini tabs'));
+        throw new OperationError('SOURCE_PAGE_UNAVAILABLE', 'No verified Gemini account route: ' + (failures.join('; ') || 'no Gemini tabs'));
     }
-    throw new Error('No verified Gemini account route');
+    throw new OperationError('SOURCE_PAGE_UNAVAILABLE', 'No verified Gemini account route');
 }
 
 export class GeminiProvider implements GeminiProviderContract {
@@ -53,7 +54,7 @@ export class GeminiProvider implements GeminiProviderContract {
     private getClient(): GeminiProviderClient { return this.client ??= new GeminiAPIClient(); }
     private async context(accountId: string) {
         const account = await getAccount(accountId);
-        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
+        if (!account || account.providerId !== this.id) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Provider account mismatch');
         const slot = await this.route(accountId);
         return { account, slot };
     }
@@ -79,12 +80,12 @@ export class GeminiProvider implements GeminiProviderContract {
         let cursor: string | null = null, totalObserved = 0, sentHead = false;
         for (let page = 1; page <= 2000; page++) {
             options.signal?.throwIfAborted();
-            if (await this.route(account.id) !== slot) throw new Error('Gemini account route changed');
+            if (await this.route(account.id) !== slot) throw new OperationError('ACCOUNT_CHANGED', 'Gemini account route changed');
             const requestedAt = Date.now();
             const result = await client.getConversationList(cursor, slot,
                 options.streamId === 'pinned' ? [1, null, 1] : undefined, { signal: options.signal });
             options.signal?.throwIfAborted();
-            if (await this.route(account.id) !== slot) throw new Error('Gemini account route changed');
+            if (await this.route(account.id) !== slot) throw new OperationError('ACCOUNT_CHANGED', 'Gemini account route changed');
             const observation = geminiListObservation(result, { streamId: options.streamId, requestCursor: cursor }, account.id, false, requestedAt);
             if (result.failure && observation.terminal !== 'provider_limit') throw new ProviderListError(`Gemini list failed: ${result.failure}`, {
                 providerId: this.id, streamId: options.streamId, page, requestCursor: cursor, failure: result.failure,
@@ -141,13 +142,13 @@ export class GeminiProvider implements GeminiProviderContract {
             if (!(error instanceof ConfirmedGeminiConversationNotFound)) throw error;
             signal?.throwIfAborted();
             if (error.sourceConversationId !== `c_${conversationId.replace(/^c_/, '')}`) throw error;
-            if (await this.route(accountId) !== slot) throw new Error('Gemini account route changed');
+            if (await this.route(accountId) !== slot) throw new OperationError('ACCOUNT_CHANGED', 'Gemini account route changed');
             await ingestDeletedConversation(accountId, conversationId.replace(/^c_/, ''));
-            throw new Error('conversation_not_found');
+            throw new OperationError('CONVERSATION_NOT_FOUND', 'conversation_not_found');
         }
         signal?.throwIfAborted();
-        if (await this.route(accountId) !== slot) throw new Error('Gemini account route changed');
-        if (parsed.conversationId !== conversationId.replace(/^c_/, '')) throw new TypeError('Detail identity mismatch');
+        if (await this.route(accountId) !== slot) throw new OperationError('ACCOUNT_CHANGED', 'Gemini account route changed');
+        if (parsed.conversationId !== conversationId.replace(/^c_/, '')) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Detail identity mismatch');
         // Diagnostics are task observations, never persisted quality facts or ingestion inputs.
         const report = (diagnostic: Diagnostic) => {
             try { onDiagnostic?.(diagnostic); }
@@ -172,7 +173,7 @@ export class GeminiProvider implements GeminiProviderContract {
         signal?.throwIfAborted();
         readConversationKey(key);
         const account = await getAccount(key.accountId);
-        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
+        if (!account || account.providerId !== this.id) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Provider account mismatch');
         const remote = async () => {
             if (!/^https:\/\//i.test(asset.sourceUri ?? '') && asset.document?.contentMarkdown) return { bytes: new TextEncoder().encode(asset.document.contentMarkdown),
                 mediaType: asset.mediaType ?? 'text/markdown', ...(asset.name ? { name: asset.name } : {}) };

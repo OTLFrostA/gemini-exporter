@@ -1,3 +1,4 @@
+import { OperationError, operationIssue, type OperationIssue } from '../errors/operationError.js';
 /** Transport encodings are normalized once; successful acquisition always contains bytes. */
 export interface ResourceBytes { bytes: Uint8Array; mediaType?: string; name?: string }
 /** Only a successful write/mount produces a delivery receipt. */
@@ -5,7 +6,7 @@ export interface ResourceDelivery { path: string }
 /** A recoverable resource failure is separate from conversation/source facts. */
 export type ResourceResult<T extends ResourceBytes | ResourceDelivery = ResourceBytes> =
     | { ok: true; resourceId: string; value: T }
-    | { ok: false; resourceId: string; reason: string; code: string; httpStatus?: number; sourceUrl?: string };
+    | { ok: false; resourceId: string; reason: string; code: string; issue?: OperationIssue; httpStatus?: number; sourceUrl?: string };
 export type ResourceFailure = Extract<ResourceResult<never>, { ok: false }>;
 export type PreparedResources = ReadonlyMap<string, ResourceResult>;
 
@@ -22,13 +23,16 @@ export async function attemptResource(resourceId: string, work: () => Promise<Re
     } catch (error) {
         signal?.throwIfAborted();
         if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') throw error;
-        if (error instanceof ResourceProcessingError) return missingResource(resourceId, error.message, 'RESOURCE_PROCESSING_FAILED');
+        if (error instanceof ResourceProcessingError) return { ...missingResource(resourceId, error.message, 'RESOURCE_PROCESSING_FAILED'),
+            issue: { code: 'RESOURCE_PROCESSING_FAILED', message: error.message } };
         if (error instanceof ResourceHttpError) {
             const status = error.httpStatus;
-            return { ...missingResource(resourceId, error.message,
-                status === 404 || status === 410 ? 'RESOURCE_SOURCE_EXPIRED'
-                    : status === 401 || status === 403 ? 'RESOURCE_ACCESS_RESTRICTED' : 'RESOURCE_DOWNLOAD_FAILED'), httpStatus: status };
+            const code = status === 404 || status === 410 ? 'RESOURCE_SOURCE_EXPIRED'
+                : status === 401 || status === 403 ? 'RESOURCE_ACCESS_RESTRICTED' : 'RESOURCE_DOWNLOAD_FAILED';
+            return { ...missingResource(resourceId, error.message, code), httpStatus: status,
+                issue: { code, message: error.message, httpStatus: status } };
         }
+        if (error instanceof OperationError) return { ...missingResource(resourceId, error.message, error.code), issue: operationIssue(error) };
         return missingResource(resourceId, error instanceof Error ? error.message : String(error));
     }
 }
@@ -36,18 +40,20 @@ export async function attemptResource(resourceId: string, work: () => Promise<Re
 export class ResourceHttpError extends Error {
     constructor(readonly httpStatus: number) { super(`Resource request failed: HTTP ${httpStatus}`); }
 }
-type ResourceIssueKind = 'expired' | 'restricted' | 'download' | 'processing';
+type ResourceIssueKind = 'expired' | 'restricted' | 'download' | 'processing' | 'unknown';
 export function resourceIssueKind(failure: ResourceFailure): ResourceIssueKind {
     if (failure.code === 'RESOURCE_SOURCE_EXPIRED') return 'expired';
     if (failure.code === 'RESOURCE_ACCESS_RESTRICTED') return 'restricted';
-    if (/PROCESSING|DECODE|EMPTY|ZERO_BYTES|TOO_LARGE/.test(failure.code)) return 'processing';
-    return 'download';
+    if (['RESOURCE_PROCESSING_FAILED', 'RESOURCE_SIZE_LIMIT', 'RESOURCE_SIZE_MISMATCH',
+        'TYPST_ASSET_DECODE_FAILED', 'TYPST_ASSET_EMPTY'].includes(failure.code)) return 'processing';
+    if (failure.code === 'RESOURCE_DOWNLOAD_FAILED') return 'download';
+    return 'unknown';
 }
 export function resourceFailureText(failure: ResourceFailure, locale: 'zh' | 'en'): string {
     const kind = resourceIssueKind(failure);
     const labels = locale === 'zh'
-        ? { expired: '来源附件已失效，来源文件已不存在或链接已失效', restricted: '附件访问受限，可能需要重新登录', download: '附件下载失败，请稍后重试', processing: '附件无法处理' }
-        : { expired: 'Source attachment unavailable: the file no longer exists or its link is invalid', restricted: 'Attachment access restricted; you may need to sign in again', download: 'Attachment download failed; please retry later', processing: 'Attachment could not be processed' };
+        ? { expired: '来源附件无法获取', restricted: '附件访问受限', download: '附件下载失败，请稍后重试', processing: '附件无法处理', unknown: '附件失败：未知错误' }
+        : { expired: 'Source attachment unavailable', restricted: 'Attachment access restricted', download: 'Attachment download failed; please retry later', processing: 'Attachment could not be processed', unknown: 'Attachment failed: Unknown error' };
     return labels[kind] + (failure.httpStatus ? ` (HTTP ${failure.httpStatus})` : '');
 }
 

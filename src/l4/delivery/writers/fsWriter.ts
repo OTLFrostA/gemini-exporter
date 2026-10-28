@@ -1,3 +1,4 @@
+import { OperationError, operationError } from '../../../shared/errors/operationError.js';
 import type { DirectoryHandle } from '../../../runtime/capabilities/directoryHandle.js';
 
 import type { IExportWriter, WriteFileContent, WriteFileOptions } from './writerInterface.js';
@@ -27,7 +28,7 @@ class FsWriter implements IExportWriter {
     __writeChains: Map<string, Promise<void>>;
 
     constructor(dirHandle: (FileSystemDirectoryHandle & Partial<Pick<DirectoryHandle, 'queryPermission' | 'requestPermission'>>) | null | undefined) {
-        if (!dirHandle) throw new Error('Directory handle is required for FsWriter');
+        if (!dirHandle) throw new OperationError('DIRECTORY_UNAVAILABLE', 'Directory handle is required for FsWriter');
         this.rootDirHandle = dirHandle;
         this.batchDirHandle = null;
         this.__writeChains = new Map();
@@ -37,7 +38,7 @@ class FsWriter implements IExportWriter {
         if (this.rootDirHandle.queryPermission) {
             const perm = await this.rootDirHandle.queryPermission({ mode: 'readwrite' });
             if (perm !== 'granted') {
-                throw new Error('Directory permission not granted: ' + perm);
+                throw new OperationError('DIRECTORY_PERMISSION_REQUIRED', 'Directory permission not granted: ' + perm);
             }
         }
         this.batchDirHandle = this.rootDirHandle;
@@ -65,7 +66,6 @@ class FsWriter implements IExportWriter {
         }
 
         const batchDir = this.batchDirHandle ?? await this.init();
-        const targetDir = actualSubDir ? await ensureSubDir(batchDir, actualSubDir) : batchDir;
         const cleanName = actualFileName;
 
         if (actualContent === null || actualContent === undefined) {
@@ -85,6 +85,7 @@ class FsWriter implements IExportWriter {
         this.__writeChains.set(chainKey, gate);
         await prev;
         try {
+            const targetDir = actualSubDir ? await ensureSubDir(batchDir, actualSubDir) : batchDir;
             const fileHandle = await targetDir.getFileHandle(cleanName, { create: true });
             const writable = await fileHandle.createWritable();
             try {
@@ -98,6 +99,9 @@ class FsWriter implements IExportWriter {
                 }
                 throw writeErr;
             }
+        } catch (error) {
+            throw operationError(error, error instanceof DOMException && error.name === 'NotAllowedError'
+                ? 'DIRECTORY_PERMISSION_REQUIRED' : 'FILE_WRITE_FAILED');
         } finally {
             releaseGate();
             if (this.__writeChains.get(chainKey) === gate) {

@@ -108,7 +108,7 @@ test('specific attachment failures retain details beneath one concise badge', as
         'legacy-partial':{exportedAt:200,format:'pdf',status:'partial',chatTime:100},
     });
     const row = page.locator('[data-chat-id="expired-only"]');
-    await expect(row.locator('.status-unavailable')).toHaveText('Some attachments expired');
+    await expect(row.locator('.status-unavailable')).toHaveText('Some source attachments unavailable');
     await row.locator('summary').click();
     await expect(row.locator('input')).not.toBeChecked();
     await expect(row.locator('details')).toContainText('photo.png: Source attachment unavailable');
@@ -120,10 +120,10 @@ test('specific attachment failures retain details beneath one concise badge', as
     await expect(page.locator('[data-chat-id="legacy-partial"] .status-partial')).toHaveText('Incomplete export');
     await page.locator('#langToggle').uncheck();
     await row.locator('summary').click();
-    await expect(row.locator('details')).toContainText('来源附件已失效');
+    await expect(row.locator('details')).toContainText('来源附件无法获取');
     await expect(page.locator('[data-chat-id="mixed"] .status-unavailable')).toHaveText('部分附件获取失败');
     await expect(page.locator('[data-chat-id="text-incomplete"] .status-partial')).toHaveText('导出不完整');
     await page.screenshot({path:testInfo.outputPath('attachment-expiry.png'),fullPage:true});
     await page.reload();
-    await expect(row.locator('.status-unavailable')).toHaveText('部分附件过期');
+    await expect(row.locator('.status-unavailable')).toHaveText('部分来源附件无法获取');
 });

@@ -1,11 +1,12 @@
 import { account, key, address, seed, request, reset, records, events, deliveries, state, provider, indexes, details, contexts, references } from './helpers/applicationHarness.js';
 import { ResourceHttpError } from '../src/shared/resources/resourceResult.js';
+import { OperationError } from '../src/shared/errors/operationError.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runExport, shouldSkipExport } from '../src/application/export/runExport.js';
 import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
 import { updateSettings } from '../src/application/settings/index.js';
-import type { ExportRecord } from '../src/application/export/types.js';
+import type { ExportRecord, ExportDiagnostic } from '../src/application/export/types.js';
 
 test.beforeEach(reset);
 test('folder basename survives title updates and intervening browser exports without crossing keys', async () => {
@@ -397,6 +398,23 @@ test('completed reply refresh failure cannot claim the cached matching version i
     assert.equal(result.exported, 1); assert.equal(result.partial, 1);
     assert.equal(records.get(address(key()))?.status, 'partial');
 });
+
+for (const cached of [true, false]) {
+    test(`source HTTP failure retains its cause with ${cached ? 'a cached body' : 'no local body'}`, async () => {
+        seed();
+        if (!cached) details.delete(address(key()));
+        provider.fetchConversationDetail = async () => { throw new OperationError('SOURCE_HTTP_ERROR', 'API request rejected', 403); };
+        const diagnostics: ExportDiagnostic[] = [];
+        const result = await runExport(request(), { refreshDetail: true, onDiagnostic: diagnostic => diagnostics.push(diagnostic) });
+        const issues = diagnostics.filter(diagnostic => diagnostic.issue);
+        assert.equal(issues.length, 1, 'one source failure must not also produce a missing-body symptom');
+        assert.equal(issues[0].issue?.code, 'SOURCE_HTTP_ERROR');
+        assert.equal(issues[0].issue?.httpStatus, 403);
+        assert.equal(issues[0].severity, cached ? 'warning' : 'error');
+        assert.equal(result.exported, cached ? 1 : 0);
+        assert.equal(result.failed.length, cached ? 0 : 1);
+    });
+}
 
 
 test('a fresh cached Detail rehydrates task-owned generated file bytes on each asset export', async () => {

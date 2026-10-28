@@ -78,7 +78,8 @@ test('restored Domain detects heuristic reports and unavailable images without p
         assert.equal(result.ok, false);
         if (result.ok) throw new Error('expected a resource failure');
         assert.equal(result.resourceId, 'image');
-        assert.equal(result.code, 'RESOURCE_UNAVAILABLE');
+        assert.equal(result.code, 'RESOURCE_LOCATOR_UNAVAILABLE');
+        assert.equal(result.issue?.code, 'RESOURCE_LOCATOR_UNAVAILABLE');
         assert.equal(Object.hasOwn(restored.conversation.detail.assets[1], 'failureReason'), false);
     } finally { /* useIndexStorage owns the IndexedDB lifetime. */ }
 });

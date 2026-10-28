@@ -27,11 +27,11 @@ async function grokBoundary(page: import('@playwright/test').Page, allow: boolea
         Object.defineProperty(chrome.scripting, 'executeScript', { configurable: true,
             value: async (request: { args?: unknown[] }) => {
                 const apiPath = String(request.args?.[0]); calls.push(apiPath);
-                if (apiPath === '/rest/auth/get-user') return [{ result: replies.user }];
-                if (apiPath.includes('pageSize=60')) return [{ result: replies.list }];
-                if (apiPath.includes('conversations_v2')) return [{ result: replies.metadata }];
-                if (apiPath.includes('response-node')) return [{ result: replies.tree }];
-                if (apiPath.includes('load-responses')) return [{ result: replies.bodies }];
+                if (apiPath === '/rest/auth/get-user') return [{ result: { ok: true, value: replies.user } }];
+                if (apiPath.includes('pageSize=60')) return [{ result: { ok: true, value: replies.list } }];
+                if (apiPath.includes('conversations_v2')) return [{ result: { ok: true, value: replies.metadata } }];
+                if (apiPath.includes('response-node')) return [{ result: { ok: true, value: replies.tree } }];
+                if (apiPath.includes('load-responses')) return [{ result: { ok: true, value: replies.bodies } }];
                 throw new Error('Unexpected Grok fixture endpoint: ' + apiPath);
             } });
     }, { allow, replies: { user: grokUserGen('GR_USER_E2E_01'), list: grokListGen('GR_LIST_TERMINAL_01'),

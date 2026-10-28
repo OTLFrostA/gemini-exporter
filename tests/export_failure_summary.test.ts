@@ -1,40 +1,51 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { groupExportFailures, copyExportFailures } from '../src/ui/options/views/exportFailures.js';
-import type { ExportItemUpdate } from '../src/application/export/types.js';
+import { ExportIssueCollector, copyExportFailures, failureGroupLabel } from '../src/ui/options/views/exportFailures.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 
 const accountId = fixtureAccount('gemini').id;
 const key = (conversationId: string) => ({ accountId, conversationId });
-const failed = (conversationId: string, message: string, stage = 'export'): ExportItemUpdate => ({
-    key: key(conversationId), status: 'failed', diagnostic: { stage, code: 'EXPORT_FAILED', message },
-});
 
-test('100 identical reported errors form one group with all affected keys and one copied reason', () => {
-    const keys = Array.from({ length: 100 }, (_, i) => key(String(i)));
-    const groups = groupExportFailures(keys, keys.map(k => failed(k.conversationId, 'Download rejected')));
+test('100 HTTP failures with different IDs and messages aggregate by actual cause and status', () => {
+    const collector = new ExportIssueCollector();
+    for (let i = 0; i < 100; i++) collector.add({ key: key(String(i)), stage: 'export', code: 'EXPORT_FAILED',
+        severity: 'error', message: `HTTP 403 conversation ${i}`, issue: { code: 'SOURCE_HTTP_ERROR', httpStatus: 403, message: `HTTP 403 conversation ${i}` } });
+    const groups = collector.groups();
     assert.equal(groups.length, 1);
     assert.equal(groups[0].conversations.length, 100);
+    assert.equal(groups[0].occurrences, 100);
+    assert.match(failureGroupLabel(groups[0]), /Platform access restricted.*403/);
     const copied = copyExportFailures(groups);
-    assert.equal(copied.split('Download rejected').length - 1, 1);
+    assert.equal(copied.split('HTTP 403 conversation 0').length - 1, 1);
     assert.match(copied, new RegExp(`${accountId}/99`));
 });
 
-test('exact messages and stages stay separate; unrelated diagnostics never supply a guessed reason', () => {
-    const groups = groupExportFailures([key('a'), key('b'), key('c'), key('d')], [
-        failed('a', 'HTTP 403'), failed('b', 'HTTP 404'), failed('c', 'HTTP 403', 'delivery'),
-        failed('unrelated', 'HTTP 403'),
-    ]);
-    assert.equal(groups.length, 4);
-    assert.equal(groups[3].diagnostic, undefined);
-    assert.match(copyExportFailures([groups[3]]), /Unknown error/);
+test('different HTTP statuses remain separate, without guessing from message text', () => {
+    const collector = new ExportIssueCollector();
+    for (const status of [401, 403, 404, 429, 500]) collector.add({ key: key(String(status)), stage: 'source_refresh',
+        code: 'SOURCE_REFRESH_FAILED', severity: 'warning', message: 'request failed',
+        issue: { code: 'SOURCE_HTTP_ERROR', message: 'request failed', httpStatus: status } });
+    collector.add({ key: key('unknown'), stage: 'export', code: 'EXPORT_FAILED', message: 'HTTP 429 login expired CORS offline disk full' });
+    assert.equal(collector.groups().length, 6);
+    assert.equal(collector.groups()[5].category, 'UNKNOWN_ERROR');
+    assert.equal(collector.groups()[5].httpStatus, undefined);
+    assert.match(failureGroupLabel(collector.groups()[5]), /Unknown error/);
 });
 
-test('grouping deduplicates keys, uses the latest failure, and excludes recovered keys', () => {
-    const groups = groupExportFailures([key('a'), key('a')], [
-        failed('a', 'Old reason'), failed('b', 'Recovered'), failed('a', 'Current reason'),
-    ]);
-    assert.equal(groups.length, 1);
-    assert.equal(groups[0].conversations.length, 1);
-    assert.equal(groups[0].diagnostic?.message, 'Current reason');
+test('partial export warnings count occurrences and distinct account-scoped conversations', () => {
+    const collector = new ExportIssueCollector();
+    for (let i = 0; i < 2; i++) collector.add({ key: key('a'), stage: 'resource', code: 'RESOURCE_PROCESSING_FAILED', severity: 'warning', message: `asset ${i}` });
+    collector.add({ key: { ...key('a'), accountId: fixtureAccount('claude').id }, stage: 'resource', code: 'RESOURCE_PROCESSING_FAILED', severity: 'warning', message: 'asset 3' });
+    assert.equal(collector.groups().length, 1);
+    assert.equal(collector.groups()[0].conversations.length, 2);
+    assert.equal(collector.groups()[0].occurrences, 3);
+    assert.equal(collector.groups()[0].severity, 'warning');
+    assert.equal(JSON.parse(JSON.stringify(collector))[0].occurrences, 3);
+});
+
+test('cancellation, confirmed empty source and ordinary informational diagnostics do not become errors', () => {
+    const collector = new ExportIssueCollector();
+    for (const code of ['EXPORT_CANCELLED', 'SOURCE_CONVERSATION_EMPTY']) collector.add({ stage: 'run', code, message: code });
+    collector.add({ stage: 'pdf', code: 'TYPST_LOCAL_FONTS_RESOLVED', severity: 'info', message: 'resolved' });
+    assert.deepEqual(collector.groups(), []);
 });

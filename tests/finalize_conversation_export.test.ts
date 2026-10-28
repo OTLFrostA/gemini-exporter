@@ -268,7 +268,8 @@ test('batch delivery failure carries the same diagnostic to every affected item'
     const failures = updates.filter(update => update.status === 'failed');
     assert.equal(failures.length, 2);
     for (const update of failures) {
-        assert.deepEqual(update.diagnostic, { key: update.key, stage: 'export', code: 'EXPORT_FAILED', message: 'Browser download failed' });
+        assert.equal(update.diagnostic.issue?.code, 'FILE_WRITE_FAILED');
+        assert.equal(update.diagnostic.message, 'Browser download failed');
         assert.equal(await getExportRecord(update.key), null);
     }
 });
