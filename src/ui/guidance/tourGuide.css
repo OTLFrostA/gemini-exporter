@@ -23,13 +23,9 @@
   position: fixed;
   border-radius: 8px;
   box-shadow: 0 0 0 9999px rgba(5, 6, 10, 0.78);
-  outline: 2px solid rgba(99, 102, 241, 0.85);
-  outline-offset: 4px;
-  transition: top 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              height 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              opacity 0.25s ease;
+  border: 2px solid rgba(99, 102, 241, 0.85);
+  box-sizing: border-box;
+  transition: opacity 0.25s ease;
   pointer-events: none;
   z-index: 100001;
 }
@@ -205,6 +201,7 @@
 
 .tour-nav-btns {
   display: flex;
+  margin-left: auto;
   gap: 8px;
   align-items: center;
 }
