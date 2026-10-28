@@ -16,7 +16,7 @@ export async function prepareExportResources(
             const value = await acquire(asset, signal);
             if (!value.bytes.byteLength) throw new ResourceProcessingError('Empty resource');
             return { ...value, mediaType: value.mediaType ?? asset.mediaType, name: value.name ?? asset.name };
-        }, signal) : missingResource(id, 'Asset metadata unavailable');
+        }, signal) : missingResource(id, 'Asset metadata unavailable', 'RESOURCE_METADATA_UNAVAILABLE');
         const sourceUri = asset?.sourceUri;
         prepared.set(id, !result.ok && sourceUri && /^https:\/\//i.test(sourceUri)
             ? { ...result, sourceUrl: sourceUri } : result);

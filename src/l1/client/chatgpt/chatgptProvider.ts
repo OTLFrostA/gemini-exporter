@@ -1,3 +1,5 @@
+import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
+import { OperationError, operationError } from '../../../shared/errors/operationError.js';
 import { abortableSleep, calculateBackoff } from '../../../shared/utils/retryUtils.js';
 import { ResourceHttpError, ResourceProcessingError } from '../../../shared/resources/resourceResult.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
@@ -68,7 +70,7 @@ export class ChatGPTProvider implements AIProvider {
 
     private async context(accountId: string): Promise<Account> {
         const account = await getAccount(accountId);
-        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
+        if (!account || account.providerId !== this.id) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Provider account mismatch');
         return account;
     }
     private async authedGet(path: string, account: Account, signal?: AbortSignal): Promise<unknown> {
@@ -84,11 +86,11 @@ export class ChatGPTProvider implements AIProvider {
             // Re-observe identity after every cooldown; a browser account can
             // change while the export is waiting.
             const sessionResponse = await this.fetchFn(`${this.origin}/api/auth/session`, { credentials: 'include', signal });
-            if (!sessionResponse.ok) throw new Error(`ChatGPT session failed: ${sessionResponse.status}`);
+            if (!sessionResponse.ok) throw new OperationError('SOURCE_HTTP_ERROR', `ChatGPT session failed: ${sessionResponse.status}`, sessionResponse.status);
             const rawSession: unknown = await sessionResponse.json();
             const { accessToken: token, observation: observed } = readChatGPTSession(rawSession);
-            if (observed ? observed.providerAccountId !== account.providerAccountId : account.providerAccountId !== 'default') throw new TypeError('ChatGPT request account mismatch');
-            if (!token) throw new Error('ChatGPT session has no accessToken');
+            if (observed ? observed.providerAccountId !== account.providerAccountId : account.providerAccountId !== 'default') throw new OperationError('ACCOUNT_CHANGED', 'ChatGPT request account mismatch');
+            if (!token) throw new OperationError('SOURCE_AUTH_UNAVAILABLE', 'ChatGPT session has no accessToken');
             const res = await this.fetchFn(`${chatGPTApiBase(this.origin)}${path}`, {
                 credentials: 'include', signal,
                 headers: { Authorization: `Bearer ${token}`, 'X-Authorization': `Bearer ${token}` },
@@ -102,7 +104,7 @@ export class ChatGPTProvider implements AIProvider {
                 this.cooldowns.set(account.id, Math.max(this.cooldowns.get(account.id) ?? 0, Date.now() + delay));
                 if (attempt < 3) continue;
             }
-            if (!res.ok) throw new Error(`HTTP ${res.status}: ChatGPT API ${path} failed`);
+            if (!res.ok) throw new OperationError('SOURCE_HTTP_ERROR', `HTTP ${res.status}: ChatGPT API ${path} failed`, res.status);
             const raw: unknown = await res.json();
             return raw;
         }
@@ -186,19 +188,26 @@ export class ChatGPTProvider implements AIProvider {
             const stop = await options.onPageCommitted?.({ page, totalObserved,
                 ...(trustedHead ? { scanHead: evidence } : {}) });
             if (!valid || !ordered || account.providerAccountId === 'default')
-                throw new Error('Unverified ChatGPT list page');
+                throw new OperationError('SOURCE_RESPONSE_INVALID', 'Unverified ChatGPT list page');
             if (sourceEnd) return 'source_end';
             if (stop) return 'stopped';
         }
         return 'max_pages';
     }
-    async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal): Promise<void> {
+    async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<void> {
         const account = await this.context(accountId);
         const raw = await this.authedGet(`/conversation/${encodeURIComponent(conversationId)}`, account, signal);
-        const conversation = decodeChatGPTDetail(raw, conversationId);
-        const parsed = parseChatGPTConversation({ account, conversation, assetsByNode: new Map() });
+        let parsed: ReturnType<typeof parseChatGPTConversation>;
+        try {
+            const conversation = decodeChatGPTDetail(raw, conversationId);
+            parsed = parseChatGPTConversation({ account, conversation, assetsByNode: new Map() });
+        } catch (error) { throw operationError(error, 'SOURCE_RESPONSE_INVALID'); }
         signal?.throwIfAborted();
         const index = parsed.conversation.index;
+        for (const diagnostic of parsed.diagnostics) {
+            try { onDiagnostic?.(diagnostic); }
+            catch (error) { console.warn('[Gemini Exporter] Source diagnostic listener failed', error); }
+        }
         const admission = await ingestDetail(account.id, conversationId, parsed.conversation.detail, index);
         if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId }, parsed);
     }
@@ -213,7 +222,7 @@ export class ChatGPTProvider implements AIProvider {
             const fileId = asset.sourceUri?.startsWith('file-download:') ? asset.sourceUri.slice(14) : fileIdFromPointer(asset.sourceUri ?? '');
             if (!fileId) return acquireSourceResource(asset, signal);
             const exchange = parseFileDownloadPayload(await this.authedGet(buildFileDownloadPath(fileId), account, signal));
-            if (!exchange) throw new Error('ChatGPT resource locator unavailable');
+            if (!exchange) throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'ChatGPT resource locator unavailable');
             const response = await this.fetchFn(exchange.downloadUrl, { signal });
             if (!response.ok) throw new ResourceHttpError(response.status);
             const bytes = new Uint8Array(await response.arrayBuffer());

@@ -20,7 +20,7 @@ for (const [provider, read] of [
         scripting: { executeScript: async ({ target }: { target: { tabId: number } }) => {
             calls.push(target.tabId);
             if (target.tabId === 2) throw new Error('Tab closed');
-            return [{ result: { source: provider } }];
+            return [{ result: { ok: true, value: { source: provider } } }];
         } },
     } });
     assert.deepEqual(await read(), { source: provider });

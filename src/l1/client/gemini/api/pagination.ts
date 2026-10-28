@@ -1,3 +1,4 @@
+import { OperationError } from '../../../../shared/errors/operationError.js';
 import { ConfirmedSourceEmptyError } from '../../sourceErrors.js';
 import type { Account } from '../../../../l2/accountRegistry.js';
 import { mergeConversationPages } from '../../../parsers/gemini/rpc/mergePages.js';
@@ -96,7 +97,7 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
         }
     }
     const expectedId = normId(conversationId);
-    if (pages.some(page => page.conversationId !== expectedId)) throw new TypeError('Detail response identity mismatch');
+    if (pages.some(page => page.conversationId !== expectedId)) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Detail response identity mismatch');
     const hasMessages = pages.some(page => page.conversation.detail.messages.length > 0);
     // An explicitly empty Detail turn array is different from a metadata-only or
     // unrecognized response. Without positive source evidence, do not admit an
@@ -109,7 +110,7 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
             && !first.diagnostics.some(d => d.code === 'GEMINI_SCHEMA_DRIFT')) {
             throw new ConfirmedSourceEmptyError();
         }
-        throw new Error('GEMINI_DETAIL_EMPTY_UNVERIFIED: Detail returned no verifiable messages');
+        throw new OperationError('SOURCE_RESPONSE_INVALID', 'GEMINI_DETAIL_EMPTY_UNVERIFIED: Detail returned no verifiable messages');
     }
     const result = mergeConversationPages(pages, truncateReason, !token && hasMessages);
     return { ...result, transport: { ...first.transport, nextPageToken: token } };

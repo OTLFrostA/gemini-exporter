@@ -1,3 +1,5 @@
+import type { OperationIssue } from '../../shared/errors/operationError.js';
+import type { DiagnosticSeverity } from '../../shared/diagnostics/diagnostic.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
 export type { ExportFormat, ExportDelivery } from '../../l4/packaging/index.js';
 import type { ExportFormat, ExportDelivery } from '../../l4/packaging/index.js';
@@ -7,6 +9,8 @@ import type { JsonValue } from '../../shared/utils/jsonTypes.js';
 export interface ExportDiagnostic {
     key?: ConversationKey;
     stage: string;
+    severity?: DiagnosticSeverity;
+    issue?: OperationIssue;
     code: string;
     message: string;
     details?: JsonValue;

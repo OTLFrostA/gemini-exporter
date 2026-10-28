@@ -69,7 +69,7 @@ export const runExport = async (request,options={}) => {h.exports.push(request);
  if(h.holdExport) await new Promise(resolve=>h.finishExport=resolve);
  const aborted = !!options.signal?.aborted;
  const failed = aborted ? [] : h.failExport ? request.keys.slice(h.partial ? 1 : 0) : [];
- for(const key of failed) options.onItemUpdate?.({key,status:'failed',diagnostic:{key,stage:'export',code:'EXPORT_FAILED',message:h.exportError ?? 'Injected export failure'}});
+ for(const key of failed) options.onItemUpdate?.({key,status:'failed',diagnostic:{key,stage:'export',code:'EXPORT_FAILED',severity:'error',issue:{code:'FILE_WRITE_FAILED',message:h.exportError ?? 'Injected export failure'},message:h.exportError ?? 'Injected export failure'}});
  const exported = aborted ? 0 : request.keys.length - failed.length;
  return {exported,partial:h.partial && exported > 0 ? 1 : 0,skipped:0,failed,aborted};};
 export const resolveScanTarget = async () => h.source;

@@ -18,7 +18,7 @@ function viewStatus(index: DomainConversationIndex, record: ExportRecord | undef
         const onlyExpired = record.attachmentIssues.every(issue =>
             resourceIssueKind(attachmentFailure(issue)) === 'expired');
         return onlyExpired
-            ? { label: text('Some attachments expired', '部分附件过期'), className: 'status-unavailable' }
+            ? { label: text('Some source attachments unavailable', '部分来源附件无法获取'), className: 'status-unavailable' }
             : { label: text('Some attachments failed', '部分附件获取失败'), className: 'status-unavailable' };
     }
     if (record.chatTime !== undefined && index.updatedAt !== undefined

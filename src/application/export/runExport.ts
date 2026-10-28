@@ -1,3 +1,4 @@
+import { OperationError, operationIssue, operationError } from '../../shared/errors/operationError.js';
 import { ConfirmedSourceEmptyError } from '../../l1/client/sourceErrors.js';
 import { readConversation } from '../../l2/readConversation.js';
 import { getSettings } from '../settings/index.js';
@@ -75,6 +76,7 @@ export async function runExport(request: ExportRequest, options: {
     const providers = new Map<string, AIProvider>();
     let compiler: import('../../l4/format/pdf/typst/typstSandboxCompiler.js').TypstSandboxCompiler | undefined;
     let locale: 'zh' | 'en' = 'en';
+    let fontDiagnostics: readonly import('../../shared/diagnostics/diagnostic.js').Diagnostic[] = [];
     const cancelled = (error: unknown): boolean => signal.aborted || (error instanceof Error && error.name === 'AbortError');
     const report = (update: ExportItemUpdate): void => {
         try { options.onItemUpdate?.(update); }
@@ -85,10 +87,10 @@ export async function runExport(request: ExportRequest, options: {
         catch (error) { console.warn('[Gemini Exporter] Export diagnostic listener failed', error); }
     };
     const fail = (keys: readonly ConversationKey[], _error?: unknown): void => {
-        const message = _error instanceof Error ? _error.message : typeof _error === 'string' ? _error : '';
+        const issue = operationIssue(_error);
         for (const key of keys) {
-            const diagnostic: ExportDiagnostic = { key, stage: 'export', code: 'EXPORT_FAILED',
-                message: message.trim() ? message : 'Unknown error' };
+            const diagnostic: ExportDiagnostic = { key, stage: 'export', code: 'EXPORT_FAILED', severity: 'error', issue,
+                message: issue.message };
             diagnose(diagnostic);
             if (!failed.some(item => item.accountId === key.accountId && item.conversationId === key.conversationId)) {
                 failed.push(key);
@@ -121,7 +123,7 @@ export async function runExport(request: ExportRequest, options: {
                 report({ key: group.key, status: 'exported', record });
             } catch (error) {
                 console.warn('[Gemini Exporter] ExportRecord write failed', group.key, error);
-                fail([group.key], error);
+                fail([group.key], operationError(error, 'RECORD_WRITE_FAILED'));
             }
         }
     };
@@ -131,13 +133,16 @@ export async function runExport(request: ExportRequest, options: {
             || (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
                 && conversation.detail.savedAt < conversation.index.updatedAt);
         if (conversation.detail.quality.status !== 'complete') diagnose({ key, stage: 'detail',
-            code: 'DETAIL_NOT_COMPLETE', message: 'Persisted source detail is not complete',
+            severity: 'warning', code: 'DETAIL_NOT_COMPLETE', message: 'Persisted source detail is not complete',
             details: { quality: conversation.detail.quality.status, messageCount: conversation.detail.messages.length } });
         if (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
             && conversation.detail.savedAt < conversation.index.updatedAt) diagnose({ key, stage: 'detail',
-            code: 'DETAIL_STALE', message: 'Detail source timestamp is older than Index',
+            severity: 'warning', code: 'DETAIL_STALE', message: 'Detail source timestamp is older than Index',
             details: { savedAt: conversation.detail.savedAt, updatedAt: conversation.index.updatedAt } });
         const failures = Object.fromEntries([...prepared].filter((entry): entry is [string, ResourceFailure] => !entry[1].ok));
+        for (const failure of Object.values(failures)) diagnose({ key, stage: 'resource', severity: 'warning',
+            code: failure.code, message: failure.reason, issue: failure.issue,
+            details: { resourceId: failure.resourceId, httpStatus: failure.httpStatus ?? null } });
         const renderOptions = { locale, resourceFailures: failures };
         let partial = otherContentMissing || Object.keys(failures).length > 0;
         let content: string | Uint8Array;
@@ -159,8 +164,9 @@ export async function runExport(request: ExportRequest, options: {
             case 'pdf': {
                 if (!compiler) {
                     compiler = new TypstSandboxCompiler();
-                    await mountRuntimeFonts(await resolveLocalFonts(), compiler);
+                    fontDiagnostics = (await mountRuntimeFonts(await resolveLocalFonts(), compiler)).effectiveFonts.diagnostics;
                 }
+                for (const diagnostic of fontDiagnostics) diagnose({ key, stage: 'pdf', ...diagnostic });
                 const pdf = await compileDocumentPdf(document, plan.resources, prepared, compiler,
                     { signal, reportProgress() {} }, renderOptions);
                 content = pdf.pdfBytes;
@@ -200,7 +206,7 @@ export async function runExport(request: ExportRequest, options: {
         const language = request.format === 'json' ? undefined : (await getSettings()).language;
         locale = language ?? (navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en');
         const directory = request.delivery === 'folderWriter' ? await getDirectoryHandle() : null;
-        if (request.delivery === 'folderWriter' && !directory) throw new Error('Export directory unavailable');
+        if (request.delivery === 'folderWriter' && !directory) throw new OperationError('DIRECTORY_UNAVAILABLE', 'Export directory unavailable');
         const folderPlanner = directory ? createExportPathPlanner(request.format) : undefined;
         const pending: PendingExport[] = [];
         for (const [index, key] of request.keys.entries()) {
@@ -212,7 +218,7 @@ export async function runExport(request: ExportRequest, options: {
                     getAccount(key.accountId), getIndex(key),
                     getExportRecord(key),
                 ]);
-                if (!account) throw new Error('Account unavailable');
+                if (!account) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Account unavailable');
                 if (!options.refreshDetail && localIndex && shouldSkipExport(record, localIndex.updatedAt, request)) {
                     result.skipped++;
                     report({ key, status: 'skipped' });
@@ -220,6 +226,7 @@ export async function runExport(request: ExportRequest, options: {
                 }
                 let conversation = await readLocal(key);
                 let refreshFailed = false;
+                let refreshFailure: { error: unknown } | undefined;
                 // Inline packets and expiring locators are task-owned, never cached bytes.
                 // A fresh Detail alone cannot rehydrate these resources in a later export.
                 const needsSourceReaders = request.includeAssets && conversation?.detail.assets.some(asset =>
@@ -239,14 +246,20 @@ export async function runExport(request: ExportRequest, options: {
                             continue;
                         }
                         refreshFailed = true;
-                        diagnose({ key, stage: 'source_refresh', code: 'SOURCE_REFRESH_FAILED',
-                            message: error instanceof Error ? error.message : String(error) });
+                        refreshFailure = { error };
                     }
                     // Even a failed refresh may have committed useful facts. Never export a response DTO.
                     conversation = await readLocal(key);
+                    if (conversation && refreshFailure) {
+                        const issue = operationIssue(refreshFailure.error);
+                        diagnose({ key, stage: 'source_refresh', severity: 'warning', code: 'SOURCE_REFRESH_FAILED', issue, message: issue.message });
+                    }
                 }
                 signal.throwIfAborted();
-                if (!conversation) throw new Error('No usable local Detail');
+                if (!conversation) {
+                    if (refreshFailure) throw refreshFailure.error;
+                    throw new OperationError('DETAIL_UNAVAILABLE', 'No usable local Detail');
+                }
                 const prepare = async (snapshot: ReadonlyDomain): Promise<PendingExport> => {
                     const view: PendingContent = request.format === 'json' ? { format: 'json' }
                         : { format: request.format, document: composeDomainDocument(snapshot, account) };
@@ -277,14 +290,14 @@ export async function runExport(request: ExportRequest, options: {
                         refreshed = true;
                     } catch (error) {
                         if (cancelled(error) || (error instanceof Error && error.message === 'conversation_not_found')) throw error;
-                        diagnose({ key, stage: 'resource_refresh', code: 'RESOURCE_REFRESH_FAILED',
+                        diagnose({ key, stage: 'resource_refresh', severity: 'warning', code: 'RESOURCE_REFRESH_FAILED', issue: operationIssue(error),
                             message: error instanceof Error ? error.message : String(error) });
                         // Cached body freshness is unchanged; retain the original attachment failures.
                     }
                     signal.throwIfAborted();
                     if (refreshed) {
                         conversation = await readLocal(key);
-                        if (!conversation) throw new Error('No usable local Detail after resource refresh');
+                        if (!conversation) throw new OperationError('DETAIL_UNAVAILABLE', 'No usable local Detail after resource refresh');
                         refreshFailed = false;
                         item = await prepare(conversation);
                     }
@@ -311,7 +324,7 @@ export async function runExport(request: ExportRequest, options: {
         } catch (error) {
             if (cancelled(error)) throw error;
             console.warn('[Gemini Exporter] Export path planning failed', error);
-            fail(pending.map(item => item.key), error);
+            fail(pending.map(item => item.key), operationError(error, 'PACKAGING_FAILED'));
             return result;
         }
         const groups: ExportGroup[] = [];
@@ -331,13 +344,15 @@ export async function runExport(request: ExportRequest, options: {
         signal.throwIfAborted();
         if (groups.length) {
             try {
-                const files = await packageExportFiles(groups.map(group => group.files), request.delivery);
+                let files: ExportArtifact[];
+                try { files = await packageExportFiles(groups.map(group => group.files), request.delivery); }
+                catch (error) { throw operationError(error, 'PACKAGING_FAILED'); }
                 signal.throwIfAborted();
                 if (request.delivery === 'browserDownload') {
                     if (files.length !== 1) throw new Error('Browser delivery requires one final file');
                     await startBrowserDownload(files[0]);
                 } else {
-                    if (!directory) throw new Error('Export directory unavailable');
+                    if (!directory) throw new OperationError('DIRECTORY_UNAVAILABLE', 'Export directory unavailable');
                     await writeToFolder(files, directory);
                 }
                 await finalize(groups);
@@ -351,6 +366,7 @@ export async function runExport(request: ExportRequest, options: {
         return result;
     } catch (error) {
         diagnose({ stage: 'run', code: cancelled(error) ? 'EXPORT_CANCELLED' : 'EXPORT_RUN_FAILED',
+            severity: cancelled(error) ? 'info' : 'error', issue: operationIssue(error),
             message: error instanceof Error ? error.message : String(error) });
         if (!cancelled(error)) throw error;
         result.aborted = true;

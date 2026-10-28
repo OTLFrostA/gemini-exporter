@@ -1,3 +1,4 @@
+import { OperationError } from '../../../shared/errors/operationError.js';
 
 import type { IExportWriter, WriteFileContent, WriteFileOptions } from '../../delivery/writers/writerInterface.js';
 import { assertExportPath } from '../exportPath.js';
@@ -44,7 +45,7 @@ class ZipWriter implements IExportWriter {
     constructor() {
         const JSZipLib = __getZipConstructor() ?? (typeof self !== 'undefined' ? self.JSZip : undefined);
         if (!JSZipLib) {
-            throw new Error('JSZip library is not available');
+            throw new OperationError('PACKAGING_UNAVAILABLE', 'JSZip library is not available');
         }
         this.zip = new JSZipLib();
         this.folder = this.zip;
@@ -75,7 +76,7 @@ class ZipWriter implements IExportWriter {
             }
         }
         if (this.totalBytes > this.MAX_SAFE_ZIP_BYTES) {
-            throw new Error(`[ZipWriter] 未压缩内容超过 ${(this.MAX_SAFE_ZIP_BYTES / 1024 / 1024).toFixed(0)}MB 上限，已中止导出以防内存溢出。请减少所选会话数量后重试，或在设置中选择保存到本地目录。`);
+            throw new OperationError('PACKAGING_SIZE_LIMIT', `[ZipWriter] 未压缩内容超过 ${(this.MAX_SAFE_ZIP_BYTES / 1024 / 1024).toFixed(0)}MB 上限，已中止导出以防内存溢出。请减少所选会话数量后重试，或在设置中选择保存到本地目录。`);
         }
 
         // Selective compression: bypass DEFLATE on already-compressed media (png, jpg, webp, etc.)

@@ -177,7 +177,7 @@ test('Grok source allowlist rejects writes and extension injection serializes di
         permissions: { contains: async () => true }, tabs: { query: async () => [{ id: 1 }] },
         scripting: { executeScript: async (injection: { args: unknown[] }) => {
             assert.ok(injection.args.every(v => v !== undefined));
-            return [{ result: grokUserGen('GR_USER_PROVIDER_01') }];
+            return [{ result: { ok: true, value: grokUserGen('GR_USER_PROVIDER_01') } }];
         } },
     } });
     try { await readGrokSource('/rest/auth/get-user'); }

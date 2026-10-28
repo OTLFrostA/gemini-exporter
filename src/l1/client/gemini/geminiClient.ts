@@ -1,3 +1,4 @@
+import { OperationError } from '../../../shared/errors/operationError.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import { parseGeminiResponse } from '../../parsers/gemini/rpc/parseResponse.js';
 import { isConfirmedGeminiDetailNotFound } from '../../parsers/gemini/rpc/parseDeletion.js';
@@ -26,9 +27,9 @@ import type { ListParseResult } from "../../parsers/gemini/rpc/parseList.js";
 import type { DetailParseResult } from "./api/detailTypes.js";
 
 /** Raised only for a characterized Detail RPC not-found business response. */
-export class ConfirmedGeminiConversationNotFound extends Error {
+export class ConfirmedGeminiConversationNotFound extends OperationError {
     constructor(readonly sourceConversationId: string) {
-        super('Confirmed Gemini Detail not found');
+        super('CONVERSATION_NOT_FOUND', 'Confirmed Gemini Detail not found');
         this.name = 'ConfirmedGeminiConversationNotFound';
     }
 }
@@ -149,7 +150,7 @@ const pagination = GeminiClientPagination;
                 }
                 if (retry429.aborted) throw new DOMException("用户取消：429 退避等待被中断 (getConversationList)", "AbortError");
 
-                throw new Error(`HTTP ${resp.status} :: ${snippet} sidLen:${String(cred.sid ?? '').length} atLen:${cred.at?.length ?? 0} hasBl:${cred.bl ? 'yes' : 'no'}`);
+                throw new OperationError('SOURCE_HTTP_ERROR', `HTTP ${resp.status} :: ${snippet} sidLen:${String(cred.sid ?? '').length} atLen:${cred.at?.length ?? 0} hasBl:${cred.bl ? 'yes' : 'no'}`, resp.status);
             }
             let txt = await resp.text();
             return parseGeminiResponse(txt).list();
@@ -239,7 +240,7 @@ const pagination = GeminiClientPagination;
                 if (retry429.aborted) throw new DOMException("用户取消：429 退避等待被中断 (fetchConversationPage)", "AbortError");
 
                 console.error(`[Gemini Exporter Client] fetchConversationPage HTTP error ${resp.status} for ${id}:`, snippet);
-                throw new Error(`HTTP ${resp.status} ${resp.statusText} :: ${snippet}`);
+                throw new OperationError('SOURCE_HTTP_ERROR', `HTTP ${resp.status} ${resp.statusText} :: ${snippet}`, resp.status);
             }
 
             let text = await resp.text();
@@ -261,13 +262,13 @@ const pagination = GeminiClientPagination;
                     throw new ConfirmedGeminiConversationNotFound(id);
                 }
                 if (errCategory === 'confirmed_deleted') {
-                    throw new Error(`Unverified Gemini Detail not found (${id})`);
+                    throw new OperationError('SOURCE_RESPONSE_INVALID', `Unverified Gemini Detail not found (${id})`);
                 }
                 if (errCategory === 'inaccessible') {
                     throw new Error(`会话暂时不可访问或服务端异常 (${id}) [BardErrorInfo]`);
                 }
                 console.error(`[Gemini Exporter Client] parseDetail failed for ${id}:`, errMsg, "raw text snippet:", text.slice(0, 400));
-                throw new Error(`解析详情失败 (${errMsg}): ${text.slice(0, 100)}`);
+                throw new OperationError('SOURCE_RESPONSE_INVALID', `解析详情失败 (${errMsg}): ${text.slice(0, 100)}`, undefined, { cause: err });
             }
         }
 

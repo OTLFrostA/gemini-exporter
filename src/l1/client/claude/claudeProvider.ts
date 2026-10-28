@@ -1,3 +1,5 @@
+import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
+import { OperationError, operationError } from '../../../shared/errors/operationError.js';
 import { claudeFileId, readClaudeFile } from './fileAssets.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { DomainAsset } from '../../../l2/conversationDetail.js';
@@ -35,7 +37,7 @@ export class ClaudeProvider implements AIProvider {
     private async account(accountId: string): Promise<Account> {
         const account = await getAccount(accountId);
         if (!account || account.providerId !== this.id || !claudeUuid(account.providerAccountId))
-            throw new TypeError('Claude account mismatch');
+            throw new OperationError('ACCOUNT_UNAVAILABLE', 'Claude account mismatch');
         return account;
     }
     private async get(path: string, account: Account, signal?: AbortSignal): Promise<unknown> {
@@ -68,7 +70,7 @@ export class ClaudeProvider implements AIProvider {
             if (!raw || typeof raw !== 'object' || !('data' in raw) || !('has_more' in raw)
                 || typeof raw.has_more !== 'boolean'
                 || ('search_incomplete' in raw && typeof raw.search_incomplete !== 'boolean'))
-                throw new TypeError('Invalid Claude paginated list');
+                throw new OperationError('SOURCE_RESPONSE_INVALID', 'Invalid Claude paginated list');
             const parsed = parseClaudeList(raw.data);
             const count = parsed.conversations.length;
             const sourceEnd = raw.has_more === false;
@@ -86,7 +88,7 @@ export class ClaudeProvider implements AIProvider {
                 ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}), updatedAt: item.updatedAt,
             } })), evidence);
             options.signal?.throwIfAborted();
-            if (!valid || !ordered) throw new Error('Unverified Claude list page');
+            if (!valid || !ordered) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Unverified Claude list page');
             times.forEach(key => seen.add(key.id));
             if (times.length) lastTime = times[times.length - 1].time;
             totalObserved += count;
@@ -97,13 +99,20 @@ export class ClaudeProvider implements AIProvider {
         return 'max_pages';
     }
 
-    async fetchConversationDetail(accountId: string, conversationId: string, signal?: AbortSignal): Promise<void> {
+    async fetchConversationDetail(accountId: string, conversationId: string, signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<void> {
         const account = await this.account(accountId);
         if (!claudeUuid(conversationId)) throw new TypeError('Invalid Claude conversation UUID');
         const path = '/api/organizations/' + account.providerAccountId + '/chat_conversations/'
             + conversationId + '?tree=true&rendering_mode=messages&render_all_tools=true';
-        const parsed = parseClaudeConversation(await this.get(path, account, signal), conversationId);
+        const raw = await this.get(path, account, signal);
+        let parsed: ReturnType<typeof parseClaudeConversation>;
+        try { parsed = parseClaudeConversation(raw, conversationId); }
+        catch (error) { throw operationError(error, 'SOURCE_RESPONSE_INVALID'); }
         signal?.throwIfAborted();
+        for (const diagnostic of parsed.diagnostics) {
+            try { onDiagnostic?.(diagnostic); }
+            catch (error) { console.warn('[Gemini Exporter] Source diagnostic listener failed', error); }
+        }
         const admission = await ingestDetail(account.id, conversationId, parsed.conversation.detail, parsed.conversation.index);
         if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId }, parsed);
     }
@@ -114,7 +123,7 @@ export class ClaudeProvider implements AIProvider {
         const id = claudeFileId(asset.sourceUri);
         const remote = async () => {
             const result = id ? await readClaudeFile(account.providerAccountId, id, signal) : await acquireSourceResource(asset, signal);
-            if (asset.byteLength !== undefined && result.bytes.byteLength !== asset.byteLength) throw new Error('Claude attachment byte count mismatch');
+            if (asset.byteLength !== undefined && result.bytes.byteLength !== asset.byteLength) throw new OperationError('RESOURCE_SIZE_MISMATCH', 'Claude attachment byte count mismatch');
             return result;
         };
         return this.resources ? this.resources.acquire(key, asset, signal, remote) : remote();

@@ -1,3 +1,4 @@
+import { operationError } from '../../shared/errors/operationError.js';
 import type { ExportArtifact } from '../artifacts.js';
 import { FsWriter } from './writers/fsWriter.js';
 import { assertExportPath } from '../packaging/exportPath.js';
@@ -15,6 +16,8 @@ export async function startBrowserDownload(file: ExportArtifact): Promise<void> 
         anchor.download = file.fileName;
         document.body.appendChild(anchor);
         anchor.click();
+    } catch (error) {
+        throw operationError(error, 'FILE_WRITE_FAILED');
     } finally {
         anchor?.remove();
         // Keep the URL alive through the browser's navigation task.

@@ -156,7 +156,7 @@ test('actual attachment response status distinguishes unavailable, restricted an
     for (const error of [new TypeError('Failed to fetch'), new Error('HTTP 404 mentioned in unrelated text')]) {
         const failure = await attemptResource('asset', async () => { throw error; });
         assert.ok(!failure.ok);
-        assert.equal(resourceIssueKind(failure), 'download', 'never infer expiry from an error message');
+        assert.equal(resourceIssueKind(failure), 'unknown', 'never infer expiry or download cause from an error message');
     }
     const abort = new AbortController(); abort.abort();
     await assert.rejects(attemptResource('asset', async () => { throw new ResourceHttpError(404); }, abort.signal), {name:'AbortError'});
@@ -173,7 +173,7 @@ test('Markdown, HTML and PDF payload preserve the actual missing attachment reas
     const html = renderDocumentHtml(document, {}, options).html;
     const typst = JSON.stringify(renderDocumentTypstCore(document, {}, options));
     for (const output of [markdown, html, typst]) {
-        assert.match(output, /来源附件已失效/);
+        assert.match(output, /来源附件无法获取/);
         assert.match(output, /HTTP 404/);
         assert.match(output, /same\.png/);
         assert.doesNotMatch(output, /<img[^>]+src="https:\/\/example\.test\/shared-image|!\[[^\]]*\]\(https:\/\/example\.test\/shared-image/);

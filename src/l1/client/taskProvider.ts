@@ -1,3 +1,4 @@
+import { OperationError } from '../../shared/errors/operationError.js';
 import type { AIProvider } from './aiProvider.js';
 import type { SourceResourceContext } from '../resources/sourceResources.js';
 import { ProviderRegistry } from './providerRegistry.js';
@@ -15,7 +16,7 @@ export function createTaskProvider(providerId: string, resources: SourceResource
         case 'claude': return new ClaudeProvider({ resources });
         default: {
             const provider = ProviderRegistry.get(providerId);
-            if (!provider) throw new Error('Account provider unavailable');
+            if (!provider) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Account provider unavailable');
             return provider;
         }
     }
