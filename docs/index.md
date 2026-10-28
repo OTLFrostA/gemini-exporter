@@ -24,3 +24,11 @@ Gemini Exporter runs locally in your browser and supports exporting conversation
 Gemini Exporter is designed around local processing and does not use telemetry or tracking inside the extension.
 
 The separate Gemini Exporter Stats automation reads aggregate Google Analytics data associated with the project's Chrome Web Store listing solely to maintain public project growth statistics.
+
+## Development documentation
+
+- [Source module map](https://github.com/OTLFrostA/gemini-exporter/blob/main/src/README.md)
+- [Account identity](./account-registry.html) · [Domain type boundaries](./domain-type-boundaries.html)
+- [Document AST](./architecture/document-ast.html) · [DOCX rendering](./architecture/docx-export.html)
+- [Module-unit isolation](./v2-unit-isolation.html) · [Provider fixtures](./provider-fixture-audit.html)
+- [Tier 2 platform plugins](./tier2-platform-plugins.html) · [Tier 3 exploration checklist](./tier3-exploration-checklist.html)

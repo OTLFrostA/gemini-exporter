@@ -4,7 +4,7 @@
 > multi-provider 相关代码是 near-term planned architecture，**不是 dead code**，
 > 不得以"当前只有一个 production 实现"为由删除其中任何部分。
 
-完整架构细节见 [docs/architecture.md](docs/architecture.md)。
+当前模块布局和接口入口见 [Source architecture](src/README.md)。
 
 ## 平台状态表（2026-09-27）
 

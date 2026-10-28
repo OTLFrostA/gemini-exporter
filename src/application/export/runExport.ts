@@ -16,6 +16,7 @@ import { missingResource, type ResourceFailure } from '../../shared/resources/re
 import type { PreparedResources } from '../../shared/resources/resourceResult.js';
 import { renderDocumentMarkdown } from '../../l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../../l4/format/html/renderHtml.js';
+import { renderDocumentDocx } from '../../l4/format/docx/renderDocx.js';
 import { serializeDomainJson } from '../../l4/format/json/serializeDomainJson.js';
 import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExportFiles, type ExportPathPlan } from '../../l4/packaging/index.js';
 import type { ExportArtifact } from '../../l4/artifacts.js';
@@ -141,6 +142,10 @@ export async function runExport(request: ExportRequest, options: {
         switch (format) {
             case 'json': content = serializeDomainJson(conversation, item.account, plan.resources); break;
             case 'markdown': content = renderDocumentMarkdown(document, plan.resources, renderOptions); break;
+            case 'docx': {
+                content = await renderDocumentDocx(document, plan.resources, prepared, renderOptions);
+                break;
+            }
             case 'html': {
                 const html = renderDocumentHtml(document, plan.resources, renderOptions);
                 for (const diagnostic of html.diagnostics) diagnose({ key, stage: 'html', ...diagnostic });

@@ -357,6 +357,13 @@ THE SOFTWARE.
 
 
 
+### 8. docx.js (local Word export)
+
+- **Component**: `docx` v9.14.0, bundled into the extension's local export UI.
+- **Source**: <https://github.com/dolanmiu/docx>
+- **License**: MIT; copyright (c) 2016 Dolan.
+- **License text**: The standard MIT permission/warranty terms are reproduced above in Section 1. Upstream license: <https://github.com/dolanmiu/docx/blob/9.14.0/LICENSE>.
+- **Bundled dependencies**: `hash.js` (MIT), `jszip` (MIT/GPLv3 dual license; MIT option), `nanoid` (MIT), and their MIT-licensed transitive dependencies. Exact versions are locked in `package-lock.json`. JSZip and Pako license notices also appear above.
 
 ---
 
@@ -395,3 +402,23 @@ SOFTWARE.
 
 - **pdf-lib 1.17.1**: Copyright (c) 2019 Andrew Dillon; MIT License. The complete license is shipped in `src/l4/format/pdf/typst/LICENSE-pdf-lib.txt`. Used to decode and rewrite ToUnicode dictionaries while preserving the page drawing and source ActualText.
 - **DejaVu Sans Mono**: unmodified font from matplotlib commit `39b27ddaafe636f06776a2044b5df05d07648dc4`; Bitstream Vera / DejaVu license. Font provenance and hashes are in `src/l4/format/pdf/sandbox/fonts/README.md`, and the complete original license is shipped as `LICENSE-DejaVu.txt` in that directory.
+
+
+### @xmldom/xmldom
+
+- **Component**: @xmldom/xmldom v0.9.12
+- **Homepage**: <https://github.com/xmldom/xmldom>
+- **License**: MIT
+- **Use**: Parse locally generated KaTeX MathML for native Word equation export.
+
+```text
+Copyright 2019 - present Christopher J. Brody and other contributors, as listed in: https://github.com/xmldom/xmldom/graphs/contributors
+Copyright 2012 - 2017 @jindw <jindw@xidea.org> and other contributors, as listed in: https://github.com/jindw/xmldom/graphs/contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+```

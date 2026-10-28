@@ -3016,15 +3016,66 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/document-docx.test.ts",
+      "domain": "document_ast",
+      "classification": "P2",
+      "provenanceSource": "Synthetic v2 Document AST and Domain fixtures exercising local DOCX rendering and L4 export packaging; not independently verified provider evidence.",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Tests actual zipped OOXML and safe links, resource embedding/companion packaging, and missing-image fallback. These are project-defined DOCX behavior contracts, not P0 provider captures.",
+      "testCount": 10,
+      "tests": [
+        {
+          "name": "DOCX renders actual OOXML, editable text, safe links, a merged table and embedded image",
+          "classification": "P2"
+        },
+        {
+          "name": "DOCX planner embeds supported images but preserves files and unsupported image formats alongside Word",
+          "classification": "P2"
+        },
+        {
+          "name": "DOCX handles empty conversation and unavailable images without losing the text",
+          "classification": "P2"
+        },
+        {
+          "name": "DOCX preserves portrait, landscape and progressive JPEG proportions in the actual OOXML",
+          "classification": "P2"
+        },
+        {
+          "name": "DOCX unreadable image dimensions preserve companion bytes and readable fallback text",
+          "classification": "P2"
+        },
+        {
+          "name": "DOCX image headers use byte-view offsets and reject zero dimensions",
+          "classification": "P2"
+        },
+        {
+          "name": "DOCX native lists preserve starts, nesting, restarts and unnumbered continuation paragraphs",
+          "classification": "P2"
+        },
+        {
+          "name": "DOCX converts common inline and display LaTeX structures to native Word math",
+          "classification": "P2"
+        },
+        {
+          "name": "DOCX unsupported and malformed formulas retain the entire original source without partial math",
+          "classification": "P2"
+        },
+        {
+          "name": "DOCX native math escapes XML text and never creates links from untrusted math commands",
+          "classification": "P2"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 51,
-    "totalTests": 508,
+    "totalSuites": 52,
+    "totalTests": 518,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 488,
+      "P2": 498,
       "P3": 2,
       "P4": 0
     }

@@ -65,7 +65,7 @@ export async function initPopup(): Promise<void> {
     let permissionPlatform: SourcePlatform | null = null;
     let stopPermission: (() => void) | null = null;
     const buttons = [...document.getElementsByTagName('button')].filter(button => button.dataset.format !== undefined);
-    const formatName: Record<GlobalSettings['defaultFormat'], string> = { markdown: 'Markdown', html: 'HTML', pdf: 'PDF', json: 'JSON' };
+    const formatName: Record<GlobalSettings['defaultFormat'], string> = { markdown: 'Markdown', html: 'HTML', pdf: 'PDF', docx: 'Word', json: 'JSON' };
     const render = () => {
         labelPage();
         if (permissionPlatform) {
