@@ -271,6 +271,7 @@ async function resolveCredInner(
     if (stored) {
         result = {
             ...stored,
+            ...(stored.accountSlot ? { accountSlot: normSlot(stored.accountSlot) } : {}),
             bl: stored.bl || pageBl || GeminiProtocol.BL_FALLBACK,
             at: stored.at || pageAt || ""
         };
@@ -284,8 +285,9 @@ async function resolveCredInner(
             const best = f[0];
             result = {
                 ...best,
+                ...(best.accountSlot ? { accountSlot: normSlot(best.accountSlot) } : {}),
                 bl: best.bl || pageBl || GeminiProtocol.BL_FALLBACK,
-                at: best.at || (cur === normSlot(detectSlot()) ? pageAt : "") || ""
+                at: best.at || (cur === pageSlot ? pageAt : "") || ""
             };
         } else {
             const isCurrentPageMatch = cur === normSlot(detectSlot());
