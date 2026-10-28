@@ -15,6 +15,7 @@ import { handleTakeoutImport } from './controllers/takeoutController.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
 import { renderList } from './views/listView.js';
+import { groupExportFailures, renderExportFailures, copyExportFailures } from './views/exportFailures.js';
 import { EXPORT_FORMATS, readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
 import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
 import { getLatestEligibleFeature } from '../guidance/featureReleases.js';
@@ -109,16 +110,15 @@ export async function initWorkbench(): Promise<void> {
             el('bar').style.width = `${Math.max(0, Math.min(100, percent))}%`;
         }
     };
+    const failureGroups = () => groupExportFailures(failed, exportRuns.at(-1)?.items ?? []);
     const showFailures = () => {
         const card = el('exportFailureCard');
         card.style.display = failed.length && !dismissedFailures ? 'block' : 'none';
-        const container = el('exportFailureList');
-        container.replaceChildren();
-        for (const key of failed) {
-            const line = document.createElement('div');
-            line.textContent = `${key.conversationId}: ${text('Export failed', '导出失败')}`;
-            container.append(line);
-        }
+        const groups = failureGroups();
+        el('exportFailureTitle').textContent = text(
+            `${failed.length} conversations failed · Error groups: ${groups.length}`,
+            `${failed.length} 条会话导出失败 · ${groups.length} 组错误`);
+        renderExportFailures(el('exportFailureList'), groups);
     };
     const renderConversations = () => renderList(state, busy,
         action === 'export' ? preparedExportKeys : undefined,
@@ -469,8 +469,7 @@ export async function initWorkbench(): Promise<void> {
     });
     el('btnDismissFailure').addEventListener('click', () => { dismissedFailures = true; showFailures(); });
     el('btnCopyFailedLog').addEventListener('click', () => {
-        void navigator.clipboard.writeText(failed.map(key =>
-            `${key.conversationId}: Export failed`).join('\n'))
+        void navigator.clipboard.writeText(copyExportFailures(failureGroups()))
             .catch(e => statusError(e));
     });
     el('btnSetDir').addEventListener('click', () => {

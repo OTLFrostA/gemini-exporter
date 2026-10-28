@@ -16,7 +16,7 @@ import { getIndex, getExportRecord, putExportRecord } from '../src/l3a/storageSe
 import { readConversation } from '../src/l2/readConversation.js';
 import { ProviderRegistry } from '../src/l1/client/providerRegistry.js';
 import type { AIProvider } from '../src/l1/client/aiProvider.js';
-import type { ExportDiagnostic, ExportRecord } from '../src/application/export/types.js';
+import type { ExportDiagnostic, ExportRecord, ExportItemUpdate } from '../src/application/export/types.js';
 import { __getZipConstructor, __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 
 const account = fixtureAccount('gemini');
@@ -252,4 +252,23 @@ test('unchanged exports with only attachment 404s skip before refreshing or acqu
     assert.equal(result.exported, 0);
     assert.equal(host.blobs.length, 0);
     assert.deepEqual(await getExportRecord(key), record);
+});
+
+
+test('batch delivery failure carries the same diagnostic to every affected item', async t => {
+    v2ExportHost(t, () => { throw new Error('Browser download failed'); });
+    const previousZip = __getZipConstructor();
+    __setZipConstructor(require('../lib/jszip.min.js'));
+    t.after(() => __setZipConstructor(previousZip));
+    const ids = ['batch-failed-one', 'batch-failed-two'];
+    for (const id of ids) await seedExportConversation(id);
+    const updates: ExportItemUpdate[] = [];
+    const result = await runExport(exportRequest(ids), { onItemUpdate: update => updates.push(update) });
+    assert.deepEqual(result.failed, ids.map(exportKey));
+    const failures = updates.filter(update => update.status === 'failed');
+    assert.equal(failures.length, 2);
+    for (const update of failures) {
+        assert.deepEqual(update.diagnostic, { key: update.key, stage: 'export', code: 'EXPORT_FAILED', message: 'Browser download failed' });
+        assert.equal(await getExportRecord(update.key), null);
+    }
 });
