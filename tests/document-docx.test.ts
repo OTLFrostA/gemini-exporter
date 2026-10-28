@@ -261,3 +261,59 @@ test('DOCX native math escapes XML text and never creates links from untrusted m
     const rels = await zip.file('word/_rels/document.xml.rels').async('string');
     assert.ok(!rels.includes('evil.example'));
 });
+
+test('DOCX handles KaTeX function subscripts and macron accents found in real exports', async () => {
+    const sources = [String.raw`2 f_{\max}`, String.raw`\lambda_{\min}(P)`,
+        String.raw`\sigma_{\max}(A)`, String.raw`\bar{x}+\bar{M}`,
+        String.raw`\lim_{k\to\infty}\|A^k\|^{1/k}=\rho(A)`];
+    const zip = await JSZip.loadAsync(await renderDocumentDocx(v2Document(
+        sources.map(source => ({ type: 'paragraph' as const, children: [{ type: 'inlineMath' as const, source }] })),
+    ), {}, new Map()));
+    const xml = new DOMParser().parseFromString(await zip.file('word/document.xml').async('string'), 'application/xml');
+    assert.equal(xml.getElementsByTagName('m:oMath').length, sources.length);
+    assert.equal(xml.getElementsByTagName('m:bar').length, 2);
+    const fn = xml.getElementsByTagName('m:func').item(0);
+    assert.ok(fn);
+    assert.equal(fn.getElementsByTagName('m:limLow').length, 1);
+    assert.ok(fn.getElementsByTagName('m:e').item(1)?.textContent?.includes('ρ'), 'function argument is not an isolated norm delimiter');
+    assert.ok(!xml.documentElement?.textContent?.includes('\\'));
+});
+
+test('DOCX expands oversized formula tables without losing headers, row order, merged labels or trailing content', async () => {
+    const formula = String.raw`\begin{pmatrix}x_1&y_1&1&0&0&0&-u_1x_1&-u_1y_1&-u_1\end{pmatrix}`;
+    const document = v2Document([
+        { type: 'table', columnAlignments: ['left','left','left','left','left'],
+            caption: [{ type: 'text', text: 'Constraints' }],
+            headerRows: [[{ column: 0, colSpan: 5, rowSpan: 1, children: [{ type: 'text', text: 'All columns' }] }]],
+            rows: [1,2].map(row => Array.from({ length: 5 }, (_, column) => ({
+                column, colSpan: 1, rowSpan: 1, children: [
+                    { type: 'text' as const, text: `row${row}-col${column} ` },
+                    { type: 'inlineMath' as const, source: formula },
+                ],
+            }))),
+        },
+        { type: 'paragraph', children: [{ type: 'text', text: 'after-table' }] },
+    ]);
+    const before = structuredClone(document);
+    const zip = await JSZip.loadAsync(await renderDocumentDocx(document, {}, new Map()));
+    const xml = new DOMParser().parseFromString(await zip.file('word/document.xml').async('string'), 'application/xml');
+    assert.equal(xml.getElementsByTagName('w:tbl').length, 0, 'unbreakable formulas use the full page width');
+    assert.equal(xml.getElementsByTagName('m:m').length, 10);
+    const text = xml.documentElement?.textContent ?? '';
+    assert.ok(text.includes('Constraints') && text.includes('Column 1–5'));
+    assert.ok(text.indexOf('row1-col4') < text.indexOf('row2-col0'));
+    assert.ok(text.indexOf('row2-col4') < text.indexOf('after-table'));
+    assert.equal(text.split('All columns').length - 1, 11, 'each expanded cell retains its merged header association');
+    assert.deepEqual(document, before);
+});
+
+test('DOCX aligned derivations preserve empty alignment cells and scripts on complete bracketed operands', async () => {
+    const source = String.raw`\begin{aligned}\Delta V&=x[k+1]^\top P x[k+1]\\&=(Ax[k])^\top P(Ax[k])-x[k]^\top P x[k]\\&=x[k]^\top(A^\top PA-P)x[k]\end{aligned}`;
+    const zip = await JSZip.loadAsync(await renderDocumentDocx(v2Document([{ type: 'math', source }]), {}, new Map()));
+    const xml = new DOMParser().parseFromString(await zip.file('word/document.xml').async('string'), 'application/xml');
+    assert.equal(xml.getElementsByTagName('m:mr').length, 3);
+    assert.ok(Array.from(xml.getElementsByTagName('m:e')).every(e => e.childNodes.length > 0), 'empty aligned cells use an invisible run rather than a missing operand');
+    const scripts = Array.from(xml.getElementsByTagName('m:sSup'));
+    assert.ok(scripts.some(script => script.getElementsByTagName('m:d').length > 0), 'transposes attach to a bracketed operand');
+    assert.ok(!scripts.some(script => /^\)|^\]/.test(script.getElementsByTagName('m:e').item(0)?.textContent ?? '')), 'no isolated closing delimiter as script base');
+});

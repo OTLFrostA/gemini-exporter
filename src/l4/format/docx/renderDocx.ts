@@ -1,5 +1,5 @@
 import {
-    BuilderElement, Document, ExternalHyperlink, HeadingLevel, ImageRun, LevelFormat, Packer, Paragraph, Table, TableCell, TableRow, TextRun,
+    BuilderElement, Document, ExternalHyperlink, HeadingLevel, ImageRun, LevelFormat, Packer, Paragraph, Table, TableCell, TableRow, TextRun, TableLayoutType, WidthType,
     type FileChild, type ParagraphChild, type NumberingDefinition,
 } from 'docx';
 import type { DisplayBlock, DisplayInline, DocumentAst } from '../../../l3b/ast/ast.js';
@@ -11,16 +11,33 @@ import { getRendererStrings } from '../shared/renderStrings.js';
 import { safeExternalHref } from '../shared/safeLinks.js';
 import { docxImageInfo } from '../../shared/docxImageType.js';
 
-import { renderDocxMath } from './math.js';
+import { docxMathWidth, renderDocxMath } from './math.js';
 
-interface InlineStyle { bold?: boolean; italics?: boolean; strike?: boolean; code?: boolean; link?: boolean }
+interface InlineStyle { bold?: boolean; italics?: boolean; strike?: boolean; code?: boolean; link?: boolean; size?: number }
 
 function textRun(text: string, style: InlineStyle = {}): TextRun {
     return new TextRun({
         text, bold: style.bold, italics: style.italics, strike: style.strike,
-        ...(style.code ? { font: 'Consolas', size: 19 } : {}),
+        ...(style.code ? { font: 'Courier New', size: style.size ?? 19 } : {}),
         ...(style.link ? { color: '2563EB', underline: {} } : {}),
     });
+}
+
+const PAGE_WIDTH = 9360; // Letter, 1in margins, in twips.
+
+function inlineWidth(nodes: readonly DisplayInline[]): number {
+    return Math.max(0, ...nodes.map(node => {
+        switch (node.type) {
+            case 'inlineMath': return docxMathWidth(node.source) * 20;
+            case 'strong': case 'emphasis': case 'strikethrough': case 'link': return inlineWidth(node.children);
+            case 'text': case 'citation': case 'inlineCode': {
+                const text = node.type === 'text' ? node.text : node.type === 'citation' ? node.label : node.code;
+                return Math.max(0, ...text.split(/\s+/u).map(word => [...word].length * 120));
+            }
+            case 'image': return 2400;
+            case 'lineBreak': return 0;
+        }
+    }));
 }
 
 /** Pure format projection from trusted Document AST + prepared L4 bytes; no source reinterpretation. */
@@ -81,19 +98,54 @@ export async function renderDocumentDocx(
     const table = (node: Extract<DisplayBlock, { type: 'table' }>): FileChild[] => {
         const rows = [...node.headerRows, ...node.rows];
         if (!rows.length) return [p([textRun('')])];
-        return [
-            ...(node.caption ? [p(inlines(node.caption), 'Caption')] : []),
-            new Table({
-                rows: rows.map((cells, index) => new TableRow({
-                    tableHeader: index < node.headerRows.length,
-                    children: cells.map(cell => new TableCell({
-                        children: [p(inlines(cell.children, index < node.headerRows.length ? { bold: true } : {}))],
-                        ...(cell.colSpan > 1 ? { columnSpan: cell.colSpan } : {}),
-                        ...(cell.rowSpan > 1 ? { rowSpan: cell.rowSpan } : {}),
-                    })),
+        const columns = Math.max(...rows.flatMap(row => row.map(cell => cell.column + cell.colSpan)));
+        const minimums = Array.from({ length: columns }, () => 600);
+        for (const row of rows) for (const cell of row) {
+            const width = (inlineWidth(cell.children) + 320) / cell.colSpan;
+            for (let c = cell.column; c < cell.column + cell.colSpan; c++) minimums[c] = Math.max(minimums[c], width);
+        }
+        const total = minimums.reduce((a, b) => a + b, 0);
+        const caption = node.caption ? [p(inlines(node.caption), 'Caption')] : [];
+        if (total > PAGE_WIDTH) {
+            // A formula cannot wrap like prose inside a narrow Word cell.
+            // Expand the grid into labelled records rather than hiding its tail.
+            return [...caption, ...rows.flatMap((cells, index) => [
+                new Paragraph({
+                    text: index < node.headerRows.length
+                        ? (locale === 'zh' ? '表头 ' : 'Header ') + (index + 1)
+                        : (locale === 'zh' ? '行 ' : 'Row ') + (index - node.headerRows.length + 1),
+                    keepNext: true, spacing: { before: 120 },
+                }),
+                ...cells.flatMap(cell => {
+                    const labels = node.headerRows.flatMap(row => row.filter(header =>
+                        header.column < cell.column + cell.colSpan && header.column + header.colSpan > cell.column));
+                    return [
+                        new Paragraph({
+                            children: labels.length && index >= node.headerRows.length
+                                ? labels.flatMap((label, i) => [...(i ? [textRun(' / ')] : []), ...inlines(label.children, { bold: true })])
+                                : [textRun((locale === 'zh' ? '列 ' : 'Column ') + (cell.column + 1)
+                                    + (cell.colSpan > 1 ? '–' + (cell.column + cell.colSpan) : ''), { bold: true })],
+                            keepNext: true,
+                        }),
+                        p(inlines(cell.children)),
+                        ...(cell.rowSpan > 1 ? [p([textRun((locale === 'zh' ? '跨行：' : 'Row span: ') + cell.rowSpan)])] : []),
+                    ];
+                }),
+            ])];
+        }
+        const widths = minimums.map(width => Math.floor(width * PAGE_WIDTH / total));
+        return [...caption, new Table({
+            width: { size: PAGE_WIDTH, type: WidthType.DXA }, columnWidths: widths, layout: TableLayoutType.FIXED,
+            rows: rows.map((cells, index) => new TableRow({
+                tableHeader: index < node.headerRows.length, cantSplit: true,
+                children: cells.map(cell => new TableCell({
+                    width: { size: widths.slice(cell.column, cell.column + cell.colSpan).reduce((a, b) => a + b, 0), type: WidthType.DXA },
+                    children: [p(inlines(cell.children, index < node.headerRows.length ? { bold: true } : {}))],
+                    ...(cell.colSpan > 1 ? { columnSpan: cell.colSpan } : {}),
+                    ...(cell.rowSpan > 1 ? { rowSpan: cell.rowSpan } : {}),
                 })),
-            }),
-        ];
+            })),
+        })];
     };
     const blocks = (nodes: readonly DisplayBlock[], depth = 0, quote = false): FileChild[] =>
         nodes.flatMap(node => {
@@ -107,7 +159,7 @@ export async function renderDocumentDocx(
                         HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3,
                         HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6,
                     ][node.level - 1];
-                    return [new Paragraph({ children: inlines(node.children), heading })];
+                    return [new Paragraph({ children: inlines(node.children), heading, keepNext: true })];
                 }
                 case 'list': {
                     const level = Math.min(depth, 8); // OOXML allows nine numbering levels.
@@ -130,12 +182,18 @@ export async function renderDocumentDocx(
                     });
                 }
                 case 'quote': return blocks(node.blocks, depth, true);
-                case 'code': return node.code.replace(/\r\n?/g, '\n').split('\n')
-                    .map(line => new Paragraph({
-                        children: [textRun(line, { code: true })],
+                case 'code': {
+                    const lines = node.code.replace(/\r\n?/g, '\n').split('\n');
+                    const indent = depth > 0 ? 540 + Math.min(depth - 1, 8) * 360 : 200;
+                    const longest = Math.max(1, ...lines.map(line => [...line.replace(/\t/g, '    ')].length));
+                    const size = Math.max(14, Math.min(19, Math.floor((PAGE_WIDTH - indent) / (longest * 6))));
+                    return lines.map((line, index) => new Paragraph({
+                        children: [textRun(line.replace(/\t/g, '    '), { code: true, size })],
                         shading: { fill: 'F3F6FA' }, spacing: { after: 0 },
-                        indent: { left: depth > 0 ? 540 + Math.min(depth - 1, 8) * 360 : 200 },
+                        keepNext: lines.length <= 35 && index < lines.length - 1,
+                        indent: { left: indent },
                     }));
+                }
                 case 'math': {
                     const math = renderDocxMath(node.source, true);
                     if (math) {
@@ -159,7 +217,7 @@ export async function renderDocumentDocx(
                     ...(node.description ? [p(inlines(node.description), 'Caption')] : []),
                 ];
                 case 'disclosure': return [
-                    new Paragraph({ text: node.title, heading: HeadingLevel.HEADING_3 }),
+                    new Paragraph({ text: node.title, heading: HeadingLevel.HEADING_3, keepNext: true }),
                     ...blocks(node.blocks, depth, quote),
                 ];
                 case 'thematicBreak': return [p([textRun('________________________________________')], 'Caption')];
@@ -173,7 +231,7 @@ export async function renderDocumentDocx(
         new Paragraph({ text: document.title, style: 'Title' }),
         new Paragraph({ text: headerMetadata(document, locale), style: 'Subtitle' }),
         ...document.messages.flatMap(message => [
-            new Paragraph({ text: messageLabel(message, locale), heading: HeadingLevel.HEADING_2 }),
+            new Paragraph({ text: messageLabel(message, locale), heading: HeadingLevel.HEADING_2, keepNext: true }),
             ...(message.modelLabel ? [p([textRun(message.modelLabel, { italics: true })], 'Caption')] : []),
             ...blocks(message.blocks),
             ...(message.sources?.length ? [
@@ -185,6 +243,12 @@ export async function renderDocumentDocx(
         ]),
         ...(!document.messages.length ? [p([textRun(strings.emptyConversation)])] : []),
     ];
-    const word = new Document({ sections: [{ children }] });
+    const word = new Document({
+        styles: { default: { document: { run: { size: 22 } } } },
+        sections: [{ properties: { page: {
+            size: { width: 12240, height: 15840 },
+            margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 },
+        } }, children }],
+    });
     return new Uint8Array(await (await Packer.toBlob(word)).arrayBuffer());
 }

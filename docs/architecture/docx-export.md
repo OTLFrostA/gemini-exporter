@@ -23,3 +23,11 @@ The `docx` library's `MathComponent` TypeScript union omits some native structur
 `tests/document-docx.test.ts` reads the physical OOXML to verify numbering identities/starts, continuation paragraphs, native math structures, matrix cells, function limits, XML escaping and atomic source fallback. `tests/e2e/export_zip.spec.ts` downloads real single and batch DOCX exports from the Workbench, checks their equations/numbering and verifies committed export records.
 
 Visual QA additionally renders actual DOCX files with LibreOffice and checks every page. That verifies rendered layout in LibreOffice; it does not establish Microsoft Word's editing or pagination behavior.
+
+## Width and reader compatibility
+
+Tables budget their columns against an explicit Letter page with one-inch margins. Minimum widths account for unbreakable inline equations (estimated structurally from MathML), words, images and column spans. When the grid cannot fit, the DOCX projection expands it into row records: every cell retains its column header labels, row order and span information at full page width. Small grids retain native table cells and merged headers. This trades a compact grid for readable complete expressions; it does not rewrite the shared AST. The width estimate is conservative, not exact font measurement, and needs rendered regression checks.
+
+KaTeX's terminal function-application marker is not an extra script operand. Macron accents, named limits and scripts on bracketed expressions are represented explicitly in OMML. Blank alignment cells and intentionally empty script bases use an invisible run, avoiding missing-operand placeholders in readers. Unsupported or malformed source still falls back atomically.
+
+Code uses Courier New and a bounded width-based font size; short blocks stay together, while long blocks can paginate. Section and role headings stay with the following paragraph, and native table rows request no splitting across pages. These are reader layout hints; Word pagination still requires separate verification.
