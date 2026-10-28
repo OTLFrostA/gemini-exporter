@@ -62,8 +62,8 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
         // map 里已有两个账号：首条目是缺 at 的半成品，第二条是好的
         await (global as any).chrome.storage.session.set({
             gemini_credentials_map: {
-                bad: { sid: 'bad', at: '', bl: 'BL_X', accountSlot: '10000000-0000-4000-8000-000000000001', lastUsed: 1 },
-                good: { sid: 'good', at: 'AT_GOOD', bl: 'BL_X', accountSlot: '10000000-0000-4000-8000-000000000002', lastUsed: 2 },
+                bad: { sid: 'bad', at: '', bl: 'BL_X', accountSlot: 'default', lastUsed: 1 },
+                good: { sid: 'good', at: 'AT_GOOD', bl: 'BL_X', accountSlot: 'u1', lastUsed: 2 },
             },
         });
         const resolved = await CredManager.resolveCred();
