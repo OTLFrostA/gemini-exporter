@@ -102,3 +102,122 @@ test('queued 401 observes page rotation after acquiring the credential lock', as
     assert.deepEqual(env.data.gemini_credentials_map, { session: { sid: 'session', at: pageAt } });
     assert.equal(env.removals(), 0);
 });
+
+
+function currentGeminiPage(t: import('node:test').TestContext, pathname: string) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, '__gemExporterExtractAt');
+    t.after(() => {
+        if (previous) Object.defineProperty(globalThis, '__gemExporterExtractAt', previous);
+        else Reflect.deleteProperty(globalThis, '__gemExporterExtractAt');
+    });
+    Object.defineProperty(globalThis, 'location', { configurable: true, value: { pathname } });
+    Object.defineProperty(globalThis, '__gemExporterExtractAt', { configurable: true, value: () => 'PAGE_AT_CURRENT' });
+}
+
+test('page AT never initializes another requested slot from an empty credential map', async t => {
+    const env = storage(t, {});
+    currentGeminiPage(t, '/app');
+    const foreign = await resolveCred('u2');
+    assert.equal(foreign.accountSlot, 'u2');
+    assert.equal(foreign.at, '');
+    assert.equal(env.writes(), 0, 'page token must not be persisted under the foreign slot');
+
+    const current = await resolveCred('default');
+    assert.equal(current.accountSlot, 'default');
+    assert.equal(current.at, 'PAGE_AT_CURRENT');
+    assert.equal(env.writes(), 1, 'the same page may initialize its own slot');
+});
+
+test('explicit foreign SID with missing token never borrows the current page AT', async t => {
+    const raw = {
+        foreign: { sid: 'foreign', at: '', bl: 'BL_FOREIGN', accountSlot: 'u2' },
+        current: { sid: 'current', at: 'CURRENT_STORED', accountSlot: 'default' },
+    };
+    const env = storage(t, raw);
+    currentGeminiPage(t, '/app');
+    const resolved = await resolveCred('foreign');
+    assert.equal(resolved.sid, 'foreign');
+    assert.equal(resolved.accountSlot, 'u2');
+    assert.equal(resolved.at, '');
+    assert.equal(env.writes(), 0);
+    assert.deepEqual(env.data.gemini_credentials_map, raw);
+});
+
+test('matching-slot page AT backfill keeps exact keys, foreign accounts and extra fields', async t => {
+    const raw = {
+        foreign: { sid: 'foreign', at: '', accountSlot: 'u2', extension: { untouched: true } },
+        current: { sid: 'current', at: '', bl: 'BL_CURRENT', accountSlot: 'default',
+            extension: { kept: true } },
+        other: { sid: 'other', at: 'TOKEN_OTHER', accountSlot: 'u3' },
+    };
+    const env = storage(t, raw);
+    currentGeminiPage(t, '/app');
+    const resolved = await resolveCred('default');
+    assert.equal(resolved.sid, 'current');
+    assert.equal(resolved.at, 'PAGE_AT_CURRENT');
+    assert.equal(resolved.bl, 'BL_CURRENT');
+    assert.deepEqual(env.data.gemini_credentials_map, {
+        ...raw, current: { ...raw.current, at: 'PAGE_AT_CURRENT', lastUsed: resolved.lastUsed },
+    });
+    assert.equal(env.writes(), 1);
+    assert.equal(env.removals(), 1);
+});
+
+test('credential selection rejects invalid SID, lastUsed and slot values without erasing raw storage', async t => {
+    const healthy = { sid: 'healthy', at: 'HEALTHY_AT', accountSlot: 'default', lastUsed: 300 };
+    const invalid = {
+        sidNaN: { ...healthy, sid: NaN },
+        sidInfinity: { ...healthy, sid: Infinity },
+        sidNegative: { ...healthy, sid: -2 },
+        sidFraction: { ...healthy, sid: 2.5 },
+        timeInfinity: { ...healthy, lastUsed: Infinity },
+        timeStringInfinity: { ...healthy, lastUsed: 'Infinity' },
+        timeStringOverflow: { ...healthy, lastUsed: '1e309' },
+        timeNegative: { ...healthy, lastUsed: -1 },
+        timeUnsafe: { ...healthy, lastUsed: Number.MAX_SAFE_INTEGER + 1 },
+        slotPath: { ...healthy, accountSlot: 'u2/../../' },
+        slotUnknown: { ...healthy, accountSlot: 'foreign-account-uuid' },
+    };
+    const raw = {
+        ...invalid, healthy,
+        legacy: { sid: 12345, at: 'LEGACY_AT', accountSlot: '/u/2', lastUsed: '101' },
+        largeNumericSid: { sid: 1e19, at: 'LARGE_SID', accountSlot: 'u3' },
+    };
+    const env = storage(t, raw);
+    for (const key of Object.keys(invalid)) {
+        const result = await resolveCred(key);
+        assert.equal(result.at, 'HEALTHY_AT', key);
+        assert.equal(result.sid, 'healthy', key);
+    }
+    const latest = await resolveCred('default');
+    assert.equal(latest.sid, 'healthy');
+    const legacy = await resolveCred('u2');
+    assert.equal(legacy.at, 'LEGACY_AT');
+    assert.equal(legacy.accountSlot, '/u/2', 'historical URL-style slots remain compatible');
+    const largeSid = await resolveCred('largeNumericSid');
+    assert.equal(largeSid.sid, 1e19, 'historic large numeric SIDs must remain readable');
+    assert.equal(env.writes(), 0);
+    assert.deepEqual(env.data.gemini_credentials_map, raw);
+});
+
+test('credential mutation retains a captured local storage reference across async browser teardown', async t => {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    t.after(() => {
+        if (previous) Object.defineProperty(globalThis, 'chrome', previous);
+        else Reflect.deleteProperty(globalThis, 'chrome');
+    });
+    const data = { gemini_credentials_map: { stored: { sid: 'stored', at: 'old' } } };
+    let removed = 0;
+    const local = { remove: async () => { removed++; } };
+    const session = {
+        get: async () => structuredClone(data),
+        set: async (items: object) => {
+            Object.assign(data, structuredClone(items));
+            Reflect.deleteProperty(globalThis, 'chrome');
+        },
+    };
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { storage: { session, local } } });
+    await updateCredential('stored', () => ({ patch: { at: 'new' } }));
+    assert.equal(data.gemini_credentials_map.stored.at, 'new');
+    assert.equal(removed, 1, 'cleanup must use the acquired local reference without re-reading chrome');
+});
