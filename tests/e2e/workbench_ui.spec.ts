@@ -127,3 +127,56 @@ test('specific attachment failures retain details beneath one concise badge', as
     await page.reload();
     await expect(row.locator('.status-unavailable')).toHaveText('部分来源附件无法获取');
 });
+
+
+test('conversation row padding and gaps toggle selection without double-toggling controls', async ({context, extensionId}) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{id:'click-target', title:'Click target'}]);
+    const row = page.locator('[data-chat-id="click-target"]');
+    const checkbox = row.locator('input');
+    // The row advertises a pointer over its padding, outside the inner body.
+    await row.click({position:{x:2,y:2}});
+    await expect(checkbox).toBeChecked();
+    await expect(page.locator('#selectedStat')).toHaveText('1 of 1 selected');
+    await expect(page.locator('#btnExport')).toBeEnabled();
+    await row.click({position:{x:2,y:2}});
+    await expect(checkbox).not.toBeChecked();
+    const gap = await row.evaluate(element => {
+        const bounds = element.getBoundingClientRect();
+        const input = element.querySelector('input');
+        if (!input) throw new Error('Missing row checkbox');
+        return {x:input.getBoundingClientRect().right - bounds.left + 2,y:10};
+    });
+    await row.click({position:gap});
+    await expect(checkbox).toBeChecked();
+    await checkbox.click();
+    await expect(checkbox).not.toBeChecked();
+    await checkbox.press('Space');
+    await expect(checkbox).toBeChecked();
+    await row.locator('.chat-title').click();
+    await expect(checkbox).not.toBeChecked();
+    const popup = page.waitForEvent('popup');
+    await row.locator('.open-link').click();
+    await (await popup).close();
+    await expect(checkbox).not.toBeChecked();
+});
+
+
+for (const target of ['.chat-title', 'input']) test(`a background refresh between mouse down and up preserves a click on ${target}`, async ({context, extensionId}) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{id:'pressed',title:'Pressed conversation'}, {id:'background',title:'Background conversation'}]);
+    const row = page.locator('[data-chat-id="pressed"]');
+    await row.locator(target).hover();
+    await page.mouse.down();
+    await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        const accountId = '10000000-0000-4000-8000-000000000001';
+        const indexes = await api.listIndexes(accountId);
+        await api.putIndexes(indexes.map((index: {key:{conversationId:string};title:string}) =>
+            index.key.conversationId === 'background' ? {...index,title:'Background refreshed'} : index));
+    });
+    await context.serviceWorkers()[0].evaluate(() => chrome.runtime.sendMessage({action:'domainChanged',accountId:'10000000-0000-4000-8000-000000000001'}));
+    await expect(page.locator('[data-chat-id="background"] .chat-title')).toHaveText('Background refreshed');
+    await page.mouse.up();
+    await expect(row.locator('input')).toBeChecked();
+});
