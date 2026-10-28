@@ -20,13 +20,26 @@ interface StoredCredential {
     accountSlot?: string | null;
     lastUsed?: number | string | null;
 }
+function normalizedCredentialSlot(slot?: string | null): string | null {
+    if (!slot || slot === 'default') return 'default';
+    const match = /^(?:u|\/?u\/)(\d+)$/i.exec(slot);
+    if (!match) return null;
+    return /^0+$/.test(match[1]) ? 'default' : `u${match[1]}`;
+}
+
 function isStoredCredential(value: unknown): value is StoredCredential {
     if (!isRecord(value)) return false;
-    return (value.sid === undefined || value.sid === null || typeof value.sid === 'string' || typeof value.sid === 'number')
+    const lastUsed = value.lastUsed;
+    const sortableLastUsed = typeof lastUsed === 'string' && lastUsed.trim() ? Number(lastUsed) : lastUsed;
+    return (value.sid === undefined || value.sid === null || typeof value.sid === 'string'
+            || typeof value.sid === 'number' && Number.isFinite(value.sid) && Number.isInteger(value.sid) && value.sid > 0)
         && (value.at === undefined || value.at === null || typeof value.at === 'string')
         && (value.bl === undefined || value.bl === null || typeof value.bl === 'string')
-        && (value.accountSlot === undefined || value.accountSlot === null || typeof value.accountSlot === 'string')
-        && (value.lastUsed === undefined || value.lastUsed === null || typeof value.lastUsed === 'number' || typeof value.lastUsed === 'string');
+        && (value.accountSlot === undefined || value.accountSlot === null
+            || typeof value.accountSlot === 'string' && normalizedCredentialSlot(value.accountSlot) !== null)
+        && (lastUsed === undefined || lastUsed === null
+            || typeof sortableLastUsed === 'number'
+                && Number.isSafeInteger(sortableLastUsed) && sortableLastUsed >= 0);
 }
 
 export interface GeminiClientCredentialManagerModule {
@@ -171,9 +184,10 @@ async function updateCredential(
         }
         const storage = getCredStorage();
         if (!storage) return;
+        const localStorage = chrome.storage?.local;
         await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
-        if (clearLocal && typeof chrome !== 'undefined' && chrome.storage.local && storage !== chrome.storage.local) {
-            await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+        if (clearLocal && localStorage && storage !== localStorage) {
+            await localStorage.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
         }
     });
 }
@@ -192,36 +206,41 @@ async function resolveCredInner(
     if (targetSidOrSlot?.includes('@')) throw new TypeError('Email is not a credential routing identity');
     const { raw: map, entries } = await loadCredMap();
     let vals = [...entries.values()];
-    const pageAt = getAtFromPage();
     const pageBl = getBlFromPage();
-
-    const normSlot = (s?: string | null) => (s === "u0" || !s ? "default" : s);
-
+    const normSlot = (slot?: string | null) => normalizedCredentialSlot(slot) ?? slot ?? 'default';
     const isSlotParam = targetSidOrSlot && (
         /^u\d+$/i.test(targetSidOrSlot) ||
         targetSidOrSlot === 'default'
     );
     const targetSid = !isSlotParam && targetSidOrSlot ? targetSidOrSlot : null;
     const requestedSlot = overrides?.accountSlot || (isSlotParam ? targetSidOrSlot : null);
+    const stored = targetSid ? entries.get(targetSid) : undefined;
+    const pageSlot = normSlot(detectSlot());
+    const selectionSlot = normSlot(requestedSlot || stored?.accountSlot || pageSlot);
+    const pageAt = selectionSlot === pageSlot
+        && (!stored || !!stored.accountSlot && normSlot(stored.accountSlot) === pageSlot)
+        ? getAtFromPage() : '';
 
-    const firstAt = vals[0]?.at;
-    if ((!vals.length || !firstAt) && pageAt) {
-        const slot = requestedSlot || detectSlot() || "default";
-        const firstSid = vals[0]?.sid ?? null;
-        const sid = firstSid || ("page_" + Date.now());
+    const slotEntries = [...entries].filter(([, value]) => normSlot(value.accountSlot) === selectionSlot);
+    const partial = slotEntries.find(([, value]) => !!value.accountSlot && !value.at && !!value.sid);
+    if (pageAt && !slotEntries.some(([, value]) => value.at)) {
+        const key = partial?.[0] ?? ('page_' + Date.now());
+        const sid = partial?.[1].sid || key;
         const entry: GeminiCredentials = {
+            ...partial?.[1],
             sid,
             at: pageAt,
-            bl: pageBl || GeminiProtocol.BL_FALLBACK,
-            accountSlot: slot,
+            bl: partial?.[1].bl || pageBl || GeminiProtocol.BL_FALLBACK,
+            accountSlot: selectionSlot,
             lastUsed: Date.now()
         };
         vals = [entry];
         try {
             const storage = getCredStorage();
             if (storage) {
-                map[String(sid)] = entry;
-                entries.set(String(sid), entry);
+                const localStorage = chrome.storage?.local;
+                map[key] = entry;
+                entries.set(key, entry);
                 await storage.set({
                     [STORAGE_KEYS.CREDENTIALS_MAP]: map,
                     [STORAGE_KEYS.CREDENTIALS]: {
@@ -229,15 +248,15 @@ async function resolveCredInner(
                         sid
                     }
                 });
-                if (typeof chrome !== "undefined" && chrome.storage?.local && storage !== chrome.storage.local) {
-                    await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+                if (localStorage && storage !== localStorage) {
+                    await localStorage.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
                 }
             }
         } catch (e) {
             console.debug("[GemExporter:credentialManager.ts]", e);
         }
     } else if (pageBl) {
-        const curSlot = normSlot(requestedSlot || detectSlot());
+        const curSlot = selectionSlot;
         const target = vals.find(v => !v.bl && normSlot(v.accountSlot) === curSlot);
         if (target) {
             target.bl = pageBl;
@@ -249,7 +268,6 @@ async function resolveCredInner(
     }
 
     let result: GeminiCredentials;
-    const stored = targetSid ? entries.get(targetSid) : undefined;
     if (stored) {
         result = {
             ...stored,
@@ -257,7 +275,7 @@ async function resolveCredInner(
             at: stored.at || pageAt || ""
         };
     } else {
-        const cur = normSlot(requestedSlot || detectSlot());
+        const cur = selectionSlot;
         const f = vals.filter(v => normSlot(v.accountSlot) === cur);
         // CRITICAL SECURITY FIX: Do NOT fall back to `vals` when `f` is empty!
         // Borrowing other accounts' credentials causes silent cross-account token pollution.
