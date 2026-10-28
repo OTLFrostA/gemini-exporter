@@ -41,6 +41,7 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
     const sessionStore: Record<string, any> = {};
     const prevChrome = (global as any).chrome;
     const prevDocument = (global as any).document;
+    const prevLocation = (global as any).location;
     const prevHook = (globalThis as any).__gemExporterExtractAt;
     (global as any).chrome = {
         storage: {
@@ -57,6 +58,7 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
     };
     // 伪造"页面能抓到 at"的信号（node 下没有真实页面）
     (global as any).document = { documentElement: { innerHTML: '' }, querySelectorAll: () => [] };
+    (global as any).location = { pathname: '/app' };
     (globalThis as any).__gemExporterExtractAt = () => 'PAGE_AT_FRESH';
     try {
         // map 里已有两个账号：首条目是缺 at 的半成品，第二条是好的
@@ -79,6 +81,8 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
         (global as any).chrome = prevChrome;
         if (prevDocument === undefined) delete (global as any).document;
         else (global as any).document = prevDocument;
+        if (prevLocation === undefined) delete (global as any).location;
+        else (global as any).location = prevLocation;
         if (prevHook === undefined) delete (globalThis as any).__gemExporterExtractAt;
         else (globalThis as any).__gemExporterExtractAt = prevHook;
     }
