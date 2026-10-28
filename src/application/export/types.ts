@@ -46,5 +46,6 @@ export interface ExportResult {
 
 /** Rendering is not delivery: Browser downloads report prepared items before a final ZIP handoff. */
 export type ExportItemUpdate =
-    | { key: ConversationKey; status: 'prepared' | 'skipped' | 'failed' }
+    | { key: ConversationKey; status: 'prepared' | 'skipped' }
+    | { key: ConversationKey; status: 'failed'; diagnostic: ExportDiagnostic }
     | { key: ConversationKey; status: 'exported'; record: ExportRecord };

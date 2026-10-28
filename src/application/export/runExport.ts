@@ -85,12 +85,14 @@ export async function runExport(request: ExportRequest, options: {
         catch (error) { console.warn('[Gemini Exporter] Export diagnostic listener failed', error); }
     };
     const fail = (keys: readonly ConversationKey[], _error?: unknown): void => {
+        const message = _error instanceof Error ? _error.message : typeof _error === 'string' ? _error : '';
         for (const key of keys) {
-            diagnose({ key, stage: 'export', code: 'EXPORT_FAILED',
-                message: _error instanceof Error ? _error.message : String(_error ?? 'Export failed') });
+            const diagnostic: ExportDiagnostic = { key, stage: 'export', code: 'EXPORT_FAILED',
+                message: message.trim() ? message : 'Unknown error' };
+            diagnose(diagnostic);
             if (!failed.some(item => item.accountId === key.accountId && item.conversationId === key.conversationId)) {
                 failed.push(key);
-                report({ key, status: 'failed' });
+                report({ key, status: 'failed', diagnostic });
             }
         }
     };
