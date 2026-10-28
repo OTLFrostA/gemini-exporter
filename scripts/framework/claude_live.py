@@ -133,7 +133,8 @@ class ClaudeLiveRunner(BrowserAcceptance):
     def source(self, cid):
         if self.rate_limited:
             raise ValueError('Claude evidence HTTP 429 already observed; further reads stopped')
-        if not re.fullmatch(r'[\da-f-]{36}', cid, re.I) or not self.org:
+        uuid = r'[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}'
+        if not all(isinstance(value, str) and re.fullmatch(uuid, value, re.I) for value in (cid, self.org)):
             raise ValueError('Invalid Claude evidence identity')
         frame = self.chat.call('Page.getFrameTree')['result']['frameTree']['frame']['id']
         world = self.chat.call('Page.createIsolatedWorld', {'frameId': frame, 'worldName': 'tier2-source-evidence'})['result']['executionContextId']

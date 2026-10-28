@@ -147,6 +147,19 @@ test('Claude rejects malformed search_incomplete before trusting a list page', a
     assert.equal(await withoutFlag.listConversations({ accountId: account.id, streamId: 'recent' }), 'source_end');
 });
 
+test('Claude provider refuses malformed stored organization and conversation UUIDs before making API calls', async () => {
+    const valid = await getOrCreateAccount('claude', '11111111-1111-4111-8111-111111111111');
+    const malformed = await getOrCreateAccount('claude', '-'.repeat(36));
+    const calls: string[] = [];
+    const provider = new ClaudeProvider({ apiGet: async path => {
+        calls.push(path);
+        throw new Error('Unexpected source read');
+    } });
+    await assert.rejects(provider.listConversations({ accountId: malformed.id, streamId: 'recent' }), /Claude account mismatch/);
+    await assert.rejects(provider.fetchConversationDetail(valid.id, '-'.repeat(36)), /Invalid Claude conversation UUID/);
+    assert.deepEqual(calls, []);
+});
+
 test('Claude paginated source proves exhaustion and rejects unordered or truncated pages', async () => {
     const account = await getOrCreateAccount('claude', '11111111-1111-4111-8111-111111111111');
     const paths: string[] = [];

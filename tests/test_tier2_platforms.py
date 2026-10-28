@@ -67,6 +67,20 @@ class Plugin:
 
 
 class PlatformsTest(unittest.TestCase):
+    def test_claude_evidence_identity_uses_canonical_uuids_before_browser_calls(self):
+        from scripts.framework.claude_live import ClaudeLiveRunner
+        runner = object.__new__(ClaudeLiveRunner)
+        runner.rate_limited = False
+        runner.org = '11111111-1111-4111-8111-111111111111'
+        runner.chat = Mock()
+        for invalid in ('-' * 36, '111111111-111-4111-8111-111111111111'):
+            with self.assertRaisesRegex(ValueError, 'Invalid Claude evidence identity'):
+                runner.source(invalid)
+        runner.org = '-' * 36
+        with self.assertRaisesRegex(ValueError, 'Invalid Claude evidence identity'):
+            runner.source('22222222-2222-4222-8222-222222222222')
+        runner.chat.call.assert_not_called()
+
     def test_chatgpt_account_detail_check_follows_physical_hydration(self):
         from scripts.framework.platforms.chatgpt import build_dag
         order = [case.feature_id for case in build_dag().get_execution_order()]
