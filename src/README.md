@@ -12,7 +12,7 @@ defines the module boundaries used by this directory tree:
 | `l2` | [L2](https://app.notion.com/p/3fb5d4d759e1814aaa92ee02a21419a7): Domain schemas, account identity, Index/Detail admission and Coverage |
 | `l3a` | [L3a](https://app.notion.com/p/3fb5d4d759e1816dbc65c1cd23854e00): passive IndexedDB, Settings and directory-handle persistence |
 | `l3b/ast`, `l3b/compose` | [L3b](https://app.notion.com/p/3fb5d4d759e181ed9ea7cffc849a5769): document AST and composition |
-| `l4/format` | [L4](https://app.notion.com/p/3fb5d4d759e18131aaf0ecbe526d5ace): Markdown/HTML/JSON/Typst rendering, PDF compiler, sandbox and bundled resources |
+| `l4/format` | [L4](https://app.notion.com/p/3fb5d4d759e18131aaf0ecbe526d5ace): Markdown/HTML/JSON/DOCX/Typst rendering, PDF compiler, sandbox and bundled resources |
 | `l4/packaging`, `l4/delivery` | L4: archive paths, ZIP writer, browser downloads and filesystem writer |
 | `application` | [Application](https://app.notion.com/p/3fb5d4d759e181169ed3dfed880a093a): sync/export workflows, Settings defaults and record cleanup |
 | `ui` | [UI](https://app.notion.com/p/3fb5d4d759e181cdad0fc2f778766999): Popup, Options, badge, guidance and presentation helpers |
@@ -35,5 +35,7 @@ offline Python unit tests, production build and fixture-based Playwright tests.
 `node scripts/test-ui.cjs` limits behavioral tests to UI (type checking still checks
 the complete project). No command above uses a live Google account.
 
-See [integration cleanup](../docs/v2-integration-cleanup.md) for retired interfaces,
-replacement coverage and the test-retirement audit.
+See [Domain type boundaries](../docs/domain-type-boundaries.md),
+[Storage](l3a/README.md) and [Document AST](../docs/architecture/document-ast.md)
+for the current contracts. Test ownership and execution rules are described in
+[module-unit isolation](../docs/v2-unit-isolation.md).

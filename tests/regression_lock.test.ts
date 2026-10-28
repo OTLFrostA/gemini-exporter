@@ -8,7 +8,7 @@ import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.
 import { requestGen as geminiListRequestGen } from './fixtures/providers/geminiListRequest.js';
 import { deleteRequestGen as geminiDeleteRequestGen } from './fixtures/providers/geminiDeleteRequest.js';
 // L1 regression locks. Other-layer scenarios remain in regression_lock_other_layers.test.ts
-// and stay in ordinary repository discovery; see docs/l1-l2-freeze-repair.md.
+// and stay in ordinary repository discovery alongside this suite.
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { accountRuntime, ACCOUNT_OBSERVATION, ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { listIndexes } from '../src/l3a/storageService.js';

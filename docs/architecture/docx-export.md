@@ -22,7 +22,7 @@ The `docx` library's `MathComponent` TypeScript union omits some native structur
 
 `tests/document-docx.test.ts` reads the physical OOXML to verify numbering identities/starts, continuation paragraphs, native math structures, matrix cells, function limits, XML escaping and atomic source fallback. `tests/e2e/export_zip.spec.ts` downloads real single and batch DOCX exports from the Workbench, checks their equations/numbering and verifies committed export records.
 
-Visual QA additionally renders actual DOCX files with LibreOffice and checks every page. That verifies rendered layout in LibreOffice; it does not establish Microsoft Word's editing or pagination behavior.
+Visual QA renders actual DOCX files with LibreOffice and checks every page. LibreOffice is the current visual acceptance target. Microsoft Word editing and pagination are outside this acceptance scope.
 
 ## Width and reader compatibility
 
@@ -30,4 +30,4 @@ Tables budget their columns against an explicit Letter page with one-inch margin
 
 KaTeX's terminal function-application marker is not an extra script operand. Macron accents, named limits and scripts on bracketed expressions are represented explicitly in OMML. Blank alignment cells and intentionally empty script bases use an invisible run, avoiding missing-operand placeholders in readers. Unsupported or malformed source still falls back atomically.
 
-Code uses Courier New and a bounded width-based font size; short blocks stay together, while long blocks can paginate. Section and role headings stay with the following paragraph, and native table rows request no splitting across pages. These are reader layout hints; Word pagination still requires separate verification.
+Code uses Courier New and a bounded width-based font size; short blocks stay together, while long blocks can paginate. Section and role headings stay with the following paragraph, and native table rows request no splitting across pages. These are reader layout hints; long code and ASCII blocks may still paginate or wrap.
