@@ -116,7 +116,7 @@ class ClaudeTier2Tests(unittest.TestCase):
     def test_429_has_one_request_no_retry_or_sleep(self):
         with tempfile.TemporaryDirectory() as folder:
             runner = self.runner(folder)
-            runner.org = 'org'
+            runner.org = '11111111-1111-4111-8111-111111111111'
             runner.chat = Mock()
             runner.chat.call.side_effect = [
                 {'result': {'frameTree': {'frame': {'id': 'frame'}}}},
@@ -125,7 +125,7 @@ class ClaudeTier2Tests(unittest.TestCase):
             ]
             with patch('scripts.framework.claude_live.time.sleep') as sleep:
                 with self.assertRaisesRegex(ValueError, 'HTTP 429; no retries'):
-                    runner.source('a'*36)
+                    runner.source('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
             self.assertEqual(runner.report['sourceRequests'], 1)
             sleep.assert_not_called()
             requests = [c for c in runner.chat.call.call_args_list if c.args[0] == 'Runtime.evaluate']
