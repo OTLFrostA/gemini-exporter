@@ -110,7 +110,7 @@
 }
 :root[data-theme="light"] .tour-backdrop { background: rgba(21, 30, 48, 0.48); }
 :root[data-theme="light"] .tour-spotlight {
-  outline-color: rgba(79, 70, 229, 0.7);
+  border-color: rgba(79, 70, 229, 0.7);
 }
 :root[data-theme="light"] .tour-title { color: var(--tour-text); }
 :root[data-theme="light"] .tour-content { color: #3b4a62; }

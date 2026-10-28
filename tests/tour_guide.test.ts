@@ -336,7 +336,7 @@ test('tourGuide - a replaced list row becomes the live spotlight target after sc
     await page.waitForFunction(() => {
         const current = document.querySelector('#list .item')?.getBoundingClientRect();
         const spotlight = document.querySelector<HTMLElement>('.tour-spotlight');
-        return !!current && !!spotlight && Math.abs(parseFloat(spotlight.style.top) - (current.top - 6)) < 2;
+        return !!current && !!spotlight && Math.abs(parseFloat(spotlight.style.top) + parseFloat(spotlight.style.height) - Math.min(innerHeight, current.bottom + 6)) < 2;
     });
     await page.locator('#list .item input').check();
     await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Choose a format');
@@ -348,6 +348,11 @@ test('tourGuide - final action stays inside the viewport immediately after resiz
     await open();
     await page.setViewportSize({ width: 1280, height: 1080 });
     await start(6);
+    assert.equal(await page.locator('#tourSkipBtn').count(), 0);
+    await page.locator('#tourPrevBtn').click();
+    assert.equal(await page.locator('#tourSkipBtn').count(), 1);
+    await page.locator('#tourNextBtn').click();
+    assert.equal(await page.locator('#tourSkipBtn').count(), 0);
     await page.waitForTimeout(350);
     for (const viewport of [{ width: 1280, height: 800 }, { width: 640, height: 360 }]) {
         await page.setViewportSize(viewport);
@@ -394,3 +399,32 @@ test('Live Save format switch preserves an in-progress export format', async () 
     await page.waitForFunction(() => document.body.dataset.busy === 'false');
     assert.equal(await page.locator('#format').inputValue(), 'markdown');
 });
+
+for (const step of [{ index: 2, targets: ['#list .item', '#btnSelectAll'] }, { index: 3, targets: ['#format'] }]) {
+    test(`tourGuide - step ${step.index + 1} border and cutout share target bounds after resize`, async () => {
+        await open(); await start(step.index);
+        for (const viewport of [{ width: 1280, height: 800 }, { width: 1000, height: 720 }]) {
+            await page.setViewportSize(viewport);
+            await page.waitForFunction(targets => {
+                const spotlight = document.querySelector('.tour-spotlight')?.getBoundingClientRect();
+                const targetsBounds = targets.map(selector => document.querySelector(selector)?.getBoundingClientRect());
+                if (!spotlight || targetsBounds.some(rect => !rect)) return false;
+                const bounds = targetsBounds.filter((rect): rect is DOMRect => !!rect);
+                return Math.abs(spotlight.left - Math.max(0, Math.min(...bounds.map(rect => rect.left)) - 6)) < 1 &&
+                    Math.abs(spotlight.top - Math.max(0, Math.min(...bounds.map(rect => rect.top)) - 6)) < 1 &&
+                    Math.abs(spotlight.right - Math.min(innerWidth, Math.max(...bounds.map(rect => rect.right)) + 6)) < 1 &&
+                    Math.abs(spotlight.bottom - Math.min(innerHeight, Math.max(...bounds.map(rect => rect.bottom)) + 6)) < 1;
+            }, step.targets);
+            await page.waitForFunction(() => {
+                const spotlight = document.querySelector('.tour-spotlight')?.getBoundingClientRect();
+                const panels = [...document.querySelectorAll('.tour-backdrop')].map(panel => panel.getBoundingClientRect());
+                if (!spotlight || panels.length !== 4) return false;
+                const aligned = (a: number, b: number) => Math.abs(a - b) < 1;
+                return panels.some(panel => aligned(panel.bottom, spotlight.top) && panel.width === innerWidth) &&
+                    panels.some(panel => aligned(panel.right, spotlight.left) && aligned(panel.top, spotlight.top) && aligned(panel.bottom, spotlight.bottom)) &&
+                    panels.some(panel => aligned(panel.left, spotlight.right) && aligned(panel.top, spotlight.top) && aligned(panel.bottom, spotlight.bottom)) &&
+                    panels.some(panel => aligned(panel.top, spotlight.bottom) && panel.width === innerWidth);
+            });
+        }
+    });
+}

@@ -92,32 +92,33 @@ function overlay(
         backdrop.length = 0;
         const candidate = currentTarget();
         const visible = candidate && candidate.isConnected && candidate.getClientRects().length ? candidate : null;
-        const rect = visible?.getBoundingClientRect();
+        const w = window.innerWidth, h = window.innerHeight;
         const pad = 6;
+        const bounds = [visible, ...related].filter((item): item is HTMLElement =>
+            !!item && item.isConnected && !!item.getClientRects().length).map(item => item.getBoundingClientRect());
+        // The border and click cutout share the same padded, viewport-clipped bounds.
+        const region = bounds.length ? {
+            top: Math.max(0, Math.min(...bounds.map(item => item.top)) - pad),
+            left: Math.max(0, Math.min(...bounds.map(item => item.left)) - pad),
+            right: Math.min(w, Math.max(...bounds.map(item => item.right)) + pad),
+            bottom: Math.min(h, Math.max(...bounds.map(item => item.bottom)) + pad),
+        } : null;
+        const rect = region && region.right > region.left && region.bottom > region.top ? region : null;
         if (rect) {
             spotlight.classList.remove('tour-spotlight-hidden');
             Object.assign(spotlight.style, {
-                left: Math.max(0, rect.left - pad) + 'px',
-                top: Math.max(0, rect.top - pad) + 'px',
-                width: (rect.width + 2 * pad) + 'px',
-                height: (rect.height + 2 * pad) + 'px',
+                left: rect.left + 'px',
+                top: rect.top + 'px',
+                width: (rect.right - rect.left) + 'px',
+                height: (rect.bottom - rect.top) + 'px',
             });
         } else {
             spotlight.classList.add('tour-spotlight-hidden');
         }
 
         // Only the highlighted UI and explicit related controls are physically clickable.
-        const regions = interactive ? [visible, ...related].filter((item): item is HTMLElement =>
-            !!item && item.isConnected && !!item.getClientRects().length) : [];
-        const bounds = regions.map(item => item.getBoundingClientRect());
-        const hole = bounds.length ? {
-            top: Math.min(...bounds.map(item => item.top)),
-            left: Math.min(...bounds.map(item => item.left)),
-            right: Math.max(...bounds.map(item => item.right)),
-            bottom: Math.max(...bounds.map(item => item.bottom)),
-        } : null;
+        const hole = interactive ? rect : null;
         const holeHeight = hole ? hole.bottom - hole.top : 0;
-        const w = window.innerWidth, h = window.innerHeight;
         const boxes = hole ? [
             [0, 0, w, Math.max(0, hole.top)],
             [0, hole.top, Math.max(0, hole.left), holeHeight],
@@ -234,7 +235,8 @@ async function goToStep(index: number): Promise<void> {
     const popover = overlay(step.target, step.title(), step.description(), true,
         related, step.placement, undefined, step.hint?.());
     const navFooter = footer(popover);
-    button(navFooter, text('Skip', '跳过'), () => { destroy(); }, 'tourSkipBtn', 'tour-skip-btn');
+    if (stepIndex < STEPS.length - 1)
+        button(navFooter, text('Skip', '跳过'), () => { destroy(); }, 'tourSkipBtn', 'tour-skip-btn');
     const nav = document.createElement('div');
     nav.className = 'tour-nav-btns';
     navFooter.append(nav);
