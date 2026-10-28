@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { DOMParser } from '@xmldom/xmldom';
+import type { DisplayBlock } from '../src/l3b/ast/ast.js';
 import { docxImageInfo } from '../src/l4/shared/docxImageType.js';
 import { v2Conversation, v2Document } from './helpers/l4V2Fixtures.js';
 import { renderDocumentDocx } from '../src/l4/format/docx/renderDocx.js';
@@ -52,7 +54,7 @@ test('DOCX renders actual OOXML, editable text, safe links, a merged table and e
     assert.ok(doc.includes('First item') && doc.includes('Second item'));
     assert.ok(doc.includes('Merged heading') && doc.includes('<w:gridSpan w:val="2"/>'));
     assert.ok(doc.includes('Diagram') && doc.includes('r:embed="rId'));
-    assert.ok(doc.includes('frac{a}{b}'), 'original LaTeX is preserved for editing');
+    assert.ok(doc.includes('<m:f>') && doc.includes('<m:num>') && doc.includes('<m:den>'), 'fraction is an editable Word equation');
     assert.ok(rels.includes('https://example.com/?a=1&amp;b=2'));
     assert.ok(!rels.includes('javascript:'));
     assert.ok(doc.includes('unsafe link'), 'untrusted link label is not dropped');
@@ -149,4 +151,113 @@ test('DOCX image headers use byte-view offsets and reject zero dimensions', () =
     assert.deepEqual(docxImageInfo('image/gif', gif), { type: 'gif', width: 300, height: 900 });
     gif.fill(0, 6, 8);
     assert.equal(docxImageInfo('image/gif', gif), undefined);
+});
+
+
+test('DOCX native lists preserve starts, nesting, restarts and unnumbered continuation paragraphs', async () => {
+    const paragraph = (text: string): DisplayBlock => ({ type: 'paragraph', children: [{ type: 'text', text }] });
+    const zip = await JSZip.loadAsync(await renderDocumentDocx(v2Document([
+        { type: 'list', ordered: true, start: 3, items: [
+            { blocks: [paragraph('outer first'), paragraph('continued paragraph'),
+                { type: 'list', ordered: true, start: 7, items: [{ blocks: [paragraph('inner numbered')] }] },
+                { type: 'list', ordered: false, items: [{ blocks: [paragraph('inner bullet')] }] },
+            ] },
+            { blocks: [paragraph('outer second')] },
+        ] },
+        paragraph('between lists'),
+        { type: 'list', ordered: true, items: [{ blocks: [paragraph('restarted list')] }] },
+        { type: 'list', ordered: false, items: [{ blocks: [{ type: 'code', code: 'nonparagraph first block' }] }] },
+    ]), {}, new Map()));
+    const xml = new DOMParser().parseFromString(await zip.file('word/document.xml').async('string'), 'application/xml');
+    const paragraphs = Array.from(xml.getElementsByTagName('w:p'));
+    const find = (text: string) => {
+        const result = paragraphs.find(p => p.textContent === text);
+        assert.ok(result, text);
+        return result;
+    };
+    const numId = (text: string) => find(text).getElementsByTagName('w:numId').item(0)?.getAttribute('w:val');
+    const outer = numId('outer first');
+    assert.ok(outer);
+    assert.equal(numId('outer second'), outer, 'nested lists must not reset the parent counter');
+    assert.notEqual(numId('inner numbered'), outer);
+    assert.notEqual(numId('restarted list'), outer, 'a separate list has a separate Word numbering instance');
+    assert.equal(find('inner numbered').getElementsByTagName('w:ilvl').item(0)?.getAttribute('w:val'), '1');
+    assert.equal(find('inner bullet').getElementsByTagName('w:ilvl').item(0)?.getAttribute('w:val'), '1');
+    assert.equal(numId('continued paragraph'), undefined);
+    assert.equal(find('continued paragraph').getElementsByTagName('w:ind').item(0)?.getAttribute('w:left'), '540');
+    assert.equal(numId('nonparagraph first block'), undefined, 'code remains code after an empty native list marker');
+    const numbering = await zip.file('word/numbering.xml').async('string');
+    assert.match(numbering, /<w:start w:val="3"/);
+    assert.match(numbering, /<w:start w:val="7"/);
+    assert.match(numbering, /<w:numFmt w:val="bullet"/);
+    assert.match(numbering, /<w:lvlText w:val="%2\."/);
+    assert.match(numbering, /<w:startOverride w:val="7"/);
+});
+
+test('DOCX converts common inline and display LaTeX structures to native Word math', async () => {
+    const sources = [
+        String.raw`\frac{a_1}{b^2}`, String.raw`\sqrt{x}+\sqrt[3]{y}`,
+        String.raw`\sum_{i=1}^{n} i^2`, String.raw`\int_0^1 x^2\,dx`,
+        String.raw`\begin{pmatrix}a&b\\c&d\end{pmatrix}`,
+        String.raw`\begin{cases}x^2&x>0\\0&x\le0\end{cases}`,
+        String.raw`\hat{x}+\vec{v}+\overline{AB}`,
+        String.raw`\mathbb{R}+\text{中文条件}`,
+        String.raw`\left|x\right|+\binom{n}{k}`,
+        String.raw`\lim_{x\to0}\frac{\sin x}{x}=1`,
+    ];
+    const zip = await JSZip.loadAsync(await renderDocumentDocx(v2Document([
+        { type: 'paragraph', children: [{ type: 'text', text: 'Before ' }, { type: 'inlineMath', source: 'E=mc^2' }, { type: 'text', text: ' after' }] },
+        ...sources.map(source => ({ type: 'math' as const, source })),
+    ]), {}, new Map()));
+    const body = await zip.file('word/document.xml').async('string');
+    const xml = new DOMParser().parseFromString(body, 'application/xml');
+    assert.equal(xml.getElementsByTagName('m:oMath').length, sources.length + 1);
+    assert.equal(xml.getElementsByTagName('m:oMathPara').length, sources.length, 'display equations use native display containers');
+    for (const tag of ['m:f', 'm:rad', 'm:deg', 'm:sSub', 'm:sSup', 'm:sSubSup', 'm:limLow', 'm:limUpp', 'm:m', 'm:d', 'm:acc', 'm:bar', 'm:func']) {
+        assert.ok(xml.getElementsByTagName(tag).length > 0, tag);
+    }
+    const limitFunction = xml.getElementsByTagName('m:func').item(0);
+    assert.ok(limitFunction);
+    assert.equal(limitFunction.getElementsByTagName('m:fName').item(0)?.getElementsByTagName('m:f').length, 0, 'limit name stays outside the fraction');
+    assert.equal(limitFunction.getElementsByTagName('m:f').length, 1);
+    const matrix = xml.getElementsByTagName('m:m').item(0);
+    assert.ok(matrix);
+    assert.equal(matrix.getElementsByTagName('m:mr').length, 2);
+    assert.equal(matrix.getElementsByTagName('m:e').length, 4);
+    assert.equal(matrix.textContent, 'abcd');
+    assert.ok(body.includes('<m:begChr m:val="|"/>'), 'MathML divides delimiters use Word vertical bars');
+    assert.ok(body.includes('中文条件') && body.includes('double-struck'));
+    assert.ok(!body.includes('frac{') && !body.includes('begin{') && !body.includes('Unable to typeset'));
+    const paragraph = Array.from(xml.getElementsByTagName('w:p')).find(p => p.textContent === 'Before E=mc2 after');
+    assert.ok(paragraph?.getElementsByTagName('m:oMath').length, 'inline equation stays between its surrounding words');
+});
+
+test('DOCX unsupported and malformed formulas retain the entire original source without partial math', async () => {
+    for (const source of [String.raw`a+\unknownmacro{x}`, String.raw`\frac{a}{`, String.raw`a+\phantom{x}`, 'x'.repeat(20_001)]) {
+        const zip = await JSZip.loadAsync(await renderDocumentDocx(v2Document([
+            { type: 'paragraph', children: [{ type: 'inlineMath', source }] },
+            { type: 'math', source },
+            { type: 'paragraph', children: [{ type: 'text', text: 'following content survives' }] },
+        ]), {}, new Map()));
+        const xml = new DOMParser().parseFromString(await zip.file('word/document.xml').async('string'), 'application/xml');
+        assert.equal(xml.getElementsByTagName('m:oMath').length, 0);
+        assert.equal(Array.from(xml.getElementsByTagName('w:t')).filter(t => t.textContent === source).length, 2);
+        assert.ok(xml.documentElement?.textContent?.includes('following content survives'));
+    }
+});
+
+test('DOCX native math escapes XML text and never creates links from untrusted math commands', async () => {
+    const source = String.raw`\text{<w:hyperlink> \& unsafe} + x < y`;
+    const zip = await JSZip.loadAsync(await renderDocumentDocx(v2Document([
+        { type: 'math', source },
+        { type: 'math', source: String.raw`\href{https://evil.example}{x}` },
+    ]), {}, new Map()));
+    const body = await zip.file('word/document.xml').async('string');
+    const xml = new DOMParser().parseFromString(body, 'application/xml');
+    assert.equal(xml.getElementsByTagName('m:oMath').length, 1);
+    assert.equal(xml.getElementsByTagName('w:hyperlink').length, 0);
+    assert.ok(body.includes('&lt;w:hyperlink&gt;'));
+    assert.ok(xml.documentElement?.textContent?.replace(/\u00a0/g, ' ').includes('<w:hyperlink> & unsafe'));
+    const rels = await zip.file('word/_rels/document.xml.rels').async('string');
+    assert.ok(!rels.includes('evil.example'));
 });

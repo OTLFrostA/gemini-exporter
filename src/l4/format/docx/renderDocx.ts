@@ -1,6 +1,6 @@
 import {
-    Document, ExternalHyperlink, HeadingLevel, ImageRun, Packer, Paragraph, Table, TableCell, TableRow, TextRun,
-    type FileChild, type ParagraphChild,
+    BuilderElement, Document, ExternalHyperlink, HeadingLevel, ImageRun, LevelFormat, Packer, Paragraph, Table, TableCell, TableRow, TextRun,
+    type FileChild, type ParagraphChild, type NumberingDefinition,
 } from 'docx';
 import type { DisplayBlock, DisplayInline, DocumentAst } from '../../../l3b/ast/ast.js';
 import type { ResourceBindings } from '../../packaging/resourceBindings.js';
@@ -10,6 +10,8 @@ import { headerMetadata, messageLabel, sourceLabel, unavailableResourceText } fr
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { safeExternalHref } from '../shared/safeLinks.js';
 import { docxImageInfo } from '../../shared/docxImageType.js';
+
+import { renderDocxMath } from './math.js';
 
 interface InlineStyle { bold?: boolean; italics?: boolean; strike?: boolean; code?: boolean; link?: boolean }
 
@@ -28,6 +30,7 @@ export async function renderDocumentDocx(
     prepared: PreparedResources,
     options: RendererOptions = {},
 ): Promise<Uint8Array> {
+    let listId = 0;
     const locale = options.locale ?? 'en';
     const strings = getRendererStrings(locale);
     const image = (resourceId: string, alt: string): ParagraphChild => {
@@ -60,7 +63,7 @@ export async function renderDocumentDocx(
                 case 'emphasis': return inlines(node.children, { ...style, italics: true });
                 case 'strikethrough': return inlines(node.children, { ...style, strike: true });
                 case 'inlineCode': return [textRun(node.code, { ...style, code: true })];
-                case 'inlineMath': return [textRun(node.source, { ...style, code: true })];
+                case 'inlineMath': return [renderDocxMath(node.source, false) ?? textRun(node.source, { ...style, code: true })];
                 case 'citation': return node.href
                     ? hyperlink(node.href, [textRun(node.label, { ...style, link: true })])
                     : [textRun(node.label, style)];
@@ -95,7 +98,10 @@ export async function renderDocumentDocx(
     const blocks = (nodes: readonly DisplayBlock[], depth = 0, quote = false): FileChild[] =>
         nodes.flatMap(node => {
             switch (node.type) {
-                case 'paragraph': return [p(inlines(node.children), quote ? 'Quote' : undefined)];
+                case 'paragraph': return [new Paragraph({
+                    children: inlines(node.children), ...(quote ? { style: 'Quote' } : {}),
+                    ...(depth > 0 ? { indent: { left: 540 + Math.min(depth - 1, 8) * 360 } } : {}),
+                })];
                 case 'heading': {
                     const heading = [
                         HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3,
@@ -103,29 +109,45 @@ export async function renderDocumentDocx(
                     ][node.level - 1];
                     return [new Paragraph({ children: inlines(node.children), heading })];
                 }
-                case 'list': return node.items.flatMap((item, index) => {
-                    const prefix = node.ordered ? String((node.start ?? 1) + index) + '. ' : '• ';
-                    const first = item.blocks[0];
-                    if (first?.type === 'paragraph') {
+                case 'list': {
+                    const level = Math.min(depth, 8); // OOXML allows nine numbering levels.
+                    const reference: NumberingDefinition = {
+                        reference: `docx-list-${listId++}`,
+                        levels: [{
+                            level, format: node.ordered ? LevelFormat.DECIMAL : LevelFormat.BULLET,
+                            text: node.ordered ? `%${level + 1}.` : '•',
+                            start: node.ordered ? node.start ?? 1 : 1,
+                            style: { paragraph: { indent: { left: 540 + level * 360, hanging: 300 } } },
+                        }],
+                    };
+                    return node.items.flatMap(item => {
+                        const first = item.blocks[0];
                         return [new Paragraph({
-                            children: [textRun(prefix), ...inlines(first.children)],
-                            indent: { left: 540 + depth * 360, hanging: 300 },
-                        }), ...blocks(item.blocks.slice(1), depth + 1, quote)];
-                    }
-                    return [new Paragraph({ text: prefix, indent: { left: 540 + depth * 360, hanging: 300 } }),
-                        ...blocks(item.blocks, depth + 1, quote)];
-                });
+                            children: first?.type === 'paragraph' ? inlines(first.children) : [],
+                            numbering: { reference, level },
+                            ...(quote ? { style: 'Quote' } : {}),
+                        }), ...blocks(first?.type === 'paragraph' ? item.blocks.slice(1) : item.blocks, depth + 1, quote)];
+                    });
+                }
                 case 'quote': return blocks(node.blocks, depth, true);
                 case 'code': return node.code.replace(/\r\n?/g, '\n').split('\n')
                     .map(line => new Paragraph({
                         children: [textRun(line, { code: true })],
                         shading: { fill: 'F3F6FA' }, spacing: { after: 0 },
-                        indent: { left: 200 },
+                        indent: { left: depth > 0 ? 540 + Math.min(depth - 1, 8) * 360 : 200 },
                     }));
-                case 'math': return [
-                    p([textRun(strings.mathFallback, { italics: true })], 'Caption'),
-                    p([textRun(node.source, { code: true })]),
-                ];
+                case 'math': {
+                    const math = renderDocxMath(node.source, true);
+                    if (math) {
+                        const paragraph = new Paragraph({ alignment: 'center' });
+                        paragraph.addChildElement(new BuilderElement({ name: 'm:oMathPara', children: [math] }));
+                        return [paragraph];
+                    }
+                    return [
+                        p([textRun(strings.mathFallback, { italics: true })], 'Caption'),
+                        p([textRun(node.source, { code: true })]),
+                    ];
+                }
                 case 'table': return table(node);
                 case 'image': return [
                     p([image(node.resourceId, node.alt)]),

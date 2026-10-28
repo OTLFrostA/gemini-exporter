@@ -3024,7 +3024,7 @@
       "provenanceSource": "Synthetic v2 Document AST and Domain fixtures exercising local DOCX rendering and L4 export packaging; not independently verified provider evidence.",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Tests actual zipped OOXML and safe links, resource embedding/companion packaging, and missing-image fallback. These are project-defined DOCX behavior contracts, not P0 provider captures.",
-      "testCount": 6,
+      "testCount": 10,
       "tests": [
         {
           "name": "DOCX renders actual OOXML, editable text, safe links, a merged table and embedded image",
@@ -3049,17 +3049,33 @@
         {
           "name": "DOCX image headers use byte-view offsets and reject zero dimensions",
           "classification": "P2"
+        },
+        {
+          "name": "DOCX native lists preserve starts, nesting, restarts and unnumbered continuation paragraphs",
+          "classification": "P2"
+        },
+        {
+          "name": "DOCX converts common inline and display LaTeX structures to native Word math",
+          "classification": "P2"
+        },
+        {
+          "name": "DOCX unsupported and malformed formulas retain the entire original source without partial math",
+          "classification": "P2"
+        },
+        {
+          "name": "DOCX native math escapes XML text and never creates links from untrusted math commands",
+          "classification": "P2"
         }
       ]
     }
   ],
   "summary": {
     "totalSuites": 52,
-    "totalTests": 514,
+    "totalTests": 518,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 494,
+      "P2": 498,
       "P3": 2,
       "P4": 0
     }

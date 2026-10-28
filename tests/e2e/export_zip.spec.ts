@@ -1,7 +1,7 @@
 // Full browser integration against the v2 storage/Domain/Document/Packaging pipeline.
 // L1 network parsing has separate source integration coverage; this isolates actual delivery.
 import { test, expect, seedRegistryAccounts } from './fixtures';
-import { openOptions, seedConversations, accountId } from './uiFixture';
+import { openOptions, seedConversations, exposeUIStorage, accountId } from './uiFixture';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -44,6 +44,23 @@ for (const count of [1, 2]) test(`DOCX Workbench physically downloads ${count} c
     await seedConversations(page, ids.map(id => ({
         id, title: `Word ${id}`, question: `中文提问 ${id}`, body: `中文回答 ${id}`,
     })));
+    await page.evaluate(async ({ ids, accountId }) => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        for (const id of ids) await api.ingestDetail(accountId, id, {
+            savedAt: 200, quality: { status: 'complete' }, assets: [], messages: [
+                { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: `中文提问 ${id}` }] }] },
+                { role: 'assistant', content: [
+                    { type: 'paragraph', children: [{ type: 'text', text: `中文回答 ${id}` }, { type: 'inlineMath', source: 'E=mc^2' }] },
+                    { type: 'math', source: String.raw`\frac{a}{b}+\sqrt{x}` },
+                    { type: 'list', ordered: true, start: 3, items: [
+                        { blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'Native numbered item' }] }] },
+                    ] },
+                ] },
+            ],
+        });
+    }, { ids, accountId });
+    await page.reload();
+    await exposeUIStorage(page);
     await page.locator('#format').selectOption('docx');
     await page.locator('#btnSelectAll').click();
     const pending = page.waitForEvent('download');
@@ -58,6 +75,12 @@ for (const count of [1, 2]) test(`DOCX Workbench physically downloads ${count} c
         .map(async name => JSZip.loadAsync(await outer.file(name).async('uint8array'))));
     expect(documents).toHaveLength(count);
     const contents: string[] = await Promise.all(documents.map(doc => doc.file('word/document.xml').async('string')));
+    for (const xml of contents) {
+        expect(xml).toContain('<m:oMath>');
+        expect(xml).toContain('<m:oMathPara>');
+        expect(xml).toContain('<m:f>');
+        expect(xml).toContain('<w:numPr>');
+    }
     for (const id of ids) {
         expect(contents.some(xml => xml.includes(`中文提问 ${id}`) && xml.includes(`中文回答 ${id}`))).toBe(true);
     }
