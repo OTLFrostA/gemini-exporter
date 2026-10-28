@@ -31,27 +31,61 @@ function date(value: number | undefined): string {
     return value === undefined || !Number.isFinite(value) ? '' : new Date(value).toLocaleString(uiLocale());
 }
 
+function createRow(state: ConversationViewState, id: string) {
+    const row = document.createElement('div');
+    row.className = 'item'; row.dataset.chatId = id;
+    row.dataset.accountId = state.accountId ?? '';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    const select = () => {
+        if (checkbox.disabled) return;
+        if (checkbox.checked) state.selected.add(id); else state.selected.delete(id);
+        updateStat(state);
+    };
+    checkbox.addEventListener('change', select);
+    row.addEventListener('click', event => {
+        if (checkbox.disabled || event.target instanceof Element && event.target.closest('input, a, details')) return;
+        checkbox.checked = !checkbox.checked;
+        select();
+    });
+    const body = document.createElement('div');
+    body.style.cssText = 'flex:1;min-width:0;cursor:pointer';
+    const open = document.createElement('a');
+    open.target = '_blank'; open.rel = 'noopener noreferrer'; open.className = 'open-link';
+    row.append(checkbox, body, open);
+    return {row, checkbox, body, open};
+}
+
+const listViews = new WeakMap<ConversationViewState, Map<string, ReturnType<typeof createRow>>>();
+
 export function renderList(state: ConversationViewState, disabled: boolean, preparedKeys?: ReadonlySet<string>, failedKeys?: ReadonlySet<string>): void {
     const list = elementById('list');
-    list.replaceChildren();
-    for (const index of state.visible()) {
+    let views = listViews.get(state);
+    if (!views) { views = new Map(); listViews.set(state, views); }
+    const visible = state.visible();
+    const visibleIds = new Set(visible.map(index => index.key.conversationId));
+    for (const [id, view] of views) {
+        if (!visibleIds.has(id) || view.row.dataset.accountId !== state.accountId) {
+            view.row.remove(); views.delete(id);
+        }
+    }
+    if (!list.children.length) list.textContent = '';
+    let positionIndex = 0;
+    for (const index of visible) {
         const id = index.key.conversationId;
         const record = state.records[id];
         const status = viewStatus(index, record, preparedKeys?.has(id) ?? false, failedKeys?.has(id) ?? false);
-        const row = document.createElement('div');
-        row.className = 'item'; row.dataset.chatId = id;
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox'; checkbox.checked = state.selected.has(id); checkbox.disabled = disabled;
+        let view = views.get(id);
+        if (!view) {
+            view = createRow(state, id);
+            views.set(id, view);
+        }
+        const { row, checkbox, body, open } = view;
+        checkbox.checked = state.selected.has(id);
+        checkbox.disabled = disabled;
         checkbox.setAttribute('aria-label', text('Select conversation', '选择会话'));
-        const select = () => {
-            if (disabled) return;
-            if (checkbox.checked) state.selected.add(id); else state.selected.delete(id);
-            updateStat(state);
-        };
-        checkbox.addEventListener('change', select);
-
-        const body = document.createElement('div');
-        body.style.cssText = 'flex:1;min-width:0;cursor:pointer';
+        const content = document.createElement('div');
+        content.style.cssText = body.style.cssText;
         const heading = document.createElement('div');
         heading.style.cssText = 'display:flex;align-items:center;flex-wrap:wrap;gap:4px';
         const title = document.createElement('span'); title.className = 'chat-title title';
@@ -67,9 +101,10 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
         const meta = document.createElement('small'); meta.className = 'meta'; meta.style.display = 'block';
         const seen = date(indexActivityTime(index));
         meta.textContent = [seen, record ? `${text('Last export', '上次导出')} · ${record.format}` : ''].filter(Boolean).join(' · ');
-        body.append(heading, meta);
+        content.append(heading, meta);
         if (record?.attachmentIssues?.length) {
             const details = document.createElement('details'); details.className = 'attachment-issues';
+            details.open = body.querySelector('details')?.open ?? false;
             details.addEventListener('click', event => event.stopPropagation());
             const summary = document.createElement('summary');
             summary.textContent = text(`Attachment details (${record.attachmentIssues.length})`, `附件详情（${record.attachmentIssues.length}）`);
@@ -88,27 +123,23 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
                 }
                 details.append(line);
             }
-            body.append(details);
+            content.append(details);
         }
-        body.addEventListener('click', () => {
-            if (disabled) return;
-            checkbox.checked = !checkbox.checked;
-            select();
-        });
+        // Keep the row and controls connected across refreshes so an in-flight
+        // mouse/keyboard gesture keeps its target. Preserve unchanged details too.
+        if (!body.isEqualNode(content)) body.replaceChildren(...content.childNodes);
 
-        const open = document.createElement('a');
         // Never link a provider-supplied URL. Construct a fixed-origin destination from the trusted conversation ID.
         const provider = state.accounts.find(account => account.id === state.accountId)?.providerId;
         const chatgpt = provider === 'chatgpt';
         const claude = provider === 'claude';
         open.href = (provider === 'grok' ? 'https://grok.com/c/' : claude ? 'https://claude.ai/chat/' : chatgpt ? 'https://chatgpt.com/c/' : 'https://gemini.google.com/app/') + encodeURIComponent(id);
-        open.target = '_blank'; open.rel = 'noopener noreferrer'; open.className = 'open-link';
         open.title = provider === 'grok' ? text('Open in Grok', '在 Grok 中打开') : claude ? text('Open in Claude', '在 Claude 中打开')
             : chatgpt ? text('Open in ChatGPT', '在 ChatGPT 中打开') : text('Open in Gemini', '在 Gemini 中打开');
         open.textContent = '↗';
         open.setAttribute('aria-label', open.title);
-        row.append(checkbox, body, open);
-        list.append(row);
+        const position = list.children[positionIndex++];
+        if (position !== row) list.insertBefore(row, position ?? null);
     }
     if (!list.children.length) list.textContent = text('No conversations match this view', '当前视图没有对话');
     updateStat(state);
