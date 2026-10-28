@@ -872,6 +872,9 @@ test('Claude discovery admits normalized organizations, not raw remote JSON reco
     ];
     const registered: Array<{ id: string; name: unknown }> = [];
     const { discoverClaudeAccounts } = load('src/runtime/capabilities/claudeDiscovery.ts', {
+        'src/l1/sniffer/claude/observation.js': {
+            claudeUuid: (value: string | null | undefined): value is string => value === first || value === second,
+        } satisfies Pick<typeof import('../src/l1/sniffer/claude/observation.js'), 'claudeUuid'>,
         'src/l1/client/claude/claudeAccess.js': {
             hasClaudeAccess: async () => true,
             readClaudeSource: async (path: string) => { assert.equal(path, '/api/organizations'); return raw; },
@@ -894,8 +897,11 @@ test('Claude discovery admits normalized organizations, not raw remote JSON reco
     assert.deepEqual(registered.at(-1), { id: second, name: undefined },
         'the single-org fallback must not pass unvalidated names');
 
-    raw = [{ uuid: 'invalid', name: 'wrong', capabilities: ['chat'] }];
-    assert.deepEqual(await discoverClaudeAccounts(), []);
+    for (const malformed of ['invalid', '-'.repeat(36), '111111111-111-4111-8111-111111111111']) {
+        raw = [{ uuid: malformed, name: 'wrong', capabilities: ['chat'] }];
+        assert.deepEqual(await discoverClaudeAccounts(), [], 'invalid UUID must not become an Account');
+        assert.equal(registered.length, 2, 'invalid UUID must never reach the Registry');
+    }
 });
 
 

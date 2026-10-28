@@ -11,6 +11,7 @@ import type { AIProvider, ListEnd, ProviderListOptions, ProviderReadiness } from
 import { parseClaudeList } from '../../parsers/claude/parseList.js';
 import { parseClaudeConversation } from '../../parsers/claude/parseConversation.js';
 import { readClaudeSource } from './claudeSource.js';
+import { claudeUuid } from '../../sniffer/claude/observation.js';
 
 interface ClaudeProviderDeps {
     apiGet?: (path: string, organizationId?: string) => Promise<unknown>;
@@ -33,7 +34,7 @@ export class ClaudeProvider implements AIProvider {
     }
     private async account(accountId: string): Promise<Account> {
         const account = await getAccount(accountId);
-        if (!account || account.providerId !== this.id || !/^[\da-f-]{36}$/i.test(account.providerAccountId))
+        if (!account || account.providerId !== this.id || !claudeUuid(account.providerAccountId))
             throw new TypeError('Claude account mismatch');
         return account;
     }
@@ -98,7 +99,7 @@ export class ClaudeProvider implements AIProvider {
 
     async fetchConversationDetail(accountId: string, conversationId: string, signal?: AbortSignal): Promise<void> {
         const account = await this.account(accountId);
-        if (!/^[\da-f-]{36}$/i.test(conversationId)) throw new TypeError('Invalid Claude conversation UUID');
+        if (!claudeUuid(conversationId)) throw new TypeError('Invalid Claude conversation UUID');
         const path = '/api/organizations/' + account.providerAccountId + '/chat_conversations/'
             + conversationId + '?tree=true&rendering_mode=messages&render_all_tools=true';
         const parsed = parseClaudeConversation(await this.get(path, account, signal), conversationId);
