@@ -37,3 +37,34 @@ test('v2 Workbench exports two Domain conversations as a real ZIP and commits se
     }, accountId)).toEqual(['ok', 'ok']);
     await page.close();
 });
+
+for (const count of [1, 2]) test(`DOCX Workbench physically downloads ${count} conversations with matching export records`, async ({ context, extensionId }, testInfo) => {
+    const page = await openOptions(context, extensionId);
+    const ids = Array.from({ length: count }, (_, i) => `docx-${i + 1}`);
+    await seedConversations(page, ids.map(id => ({
+        id, title: `Word ${id}`, question: `中文提问 ${id}`, body: `中文回答 ${id}`,
+    })));
+    await page.locator('#format').selectOption('docx');
+    await page.locator('#btnSelectAll').click();
+    const pending = page.waitForEvent('download');
+    await page.locator('#btnExport').click();
+    const download = await pending;
+    expect(download.suggestedFilename()).toMatch(count === 1 ? /\.docx$/ : /\.zip$/);
+    const destination = testInfo.outputPath(count === 1 ? 'single.docx' : 'batch.zip');
+    await download.saveAs(destination);
+    const outer = await JSZip.loadAsync(await readFile(destination));
+    const documents = count === 1 ? [outer] : await Promise.all(Object.keys(outer.files)
+        .filter(name => name.endsWith('.docx'))
+        .map(async name => JSZip.loadAsync(await outer.file(name).async('uint8array'))));
+    expect(documents).toHaveLength(count);
+    const contents: string[] = await Promise.all(documents.map(doc => doc.file('word/document.xml').async('string')));
+    for (const id of ids) {
+        expect(contents.some(xml => xml.includes(`中文提问 ${id}`) && xml.includes(`中文回答 ${id}`))).toBe(true);
+    }
+    await expect.poll(() => page.evaluate(async ({ ids, accountId }) => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        return Promise.all(ids.map(conversationId => api.getExportRecord({ accountId, conversationId })
+            .then((record: { format: string; status: string } | null) => record && { format: record.format, status: record.status })));
+    }, { ids, accountId })).toEqual(ids.map(() => ({ format: 'docx', status: 'ok' })));
+    await page.close();
+});

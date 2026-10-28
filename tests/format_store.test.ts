@@ -5,7 +5,7 @@ import { indexStorage } from './helpers/indexStorage.js';
 import { ensureUpgraded } from '../src/migration/upgradeV1.js';
 import { getSettings, updateSettings } from '../src/application/settings/index.js';
 import { FEEDBACK_URL } from '../src/shared/utils/constants.js';
-const SUPPORTED_FORMATS: readonly string[] = ['markdown', 'html', 'json', 'pdf'];
+const SUPPORTED_FORMATS: readonly string[] = ['markdown', 'html', 'json', 'pdf', 'docx'];
 const html = () => readFileSync('src/ui/options/options.html', 'utf8');
 
 test('current Settings default to the supported Markdown export format', async () => {
@@ -16,10 +16,10 @@ test('current Settings default to the supported Markdown export format', async (
         assert.ok(SUPPORTED_FORMATS.includes(format));
     } finally { env.restore(); }
 });
-test('current Options format control accepts exactly the four current formats', () => {
+test('current Options format control accepts exactly the five current formats', () => {
     const select = html().match(/<select id="format"[^>]*>(.*?)<\/select>/s)?.[1]; assert.ok(select);
     const values = [...select.matchAll(/value="([^"]+)"/g)].map(match => match[1]);
-    for (const format of ['markdown', 'html', 'pdf', 'json']) assert.ok(values.includes(format));
+    for (const format of ['markdown', 'html', 'pdf', 'docx', 'json']) assert.ok(values.includes(format));
     for (const invalid of ['json_openai', 'json_raw', 'xml', '']) assert.equal(values.includes(invalid), false);
 });
 test('removed saved formats normalize only through the one-time migration owner', async () => {
