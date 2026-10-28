@@ -193,7 +193,7 @@ test('credential selection rejects invalid SID, lastUsed and slot values without
     assert.equal(latest.sid, 'healthy');
     const legacy = await resolveCred('u2');
     assert.equal(legacy.at, 'LEGACY_AT');
-    assert.equal(legacy.accountSlot, '/u/2', 'historical URL-style slots remain compatible');
+    assert.equal(legacy.accountSlot, 'u2', 'historical URL-style slots normalize only in the trusted view');
     const largeSid = await resolveCred('largeNumericSid');
     assert.equal(largeSid.sid, 1e19, 'historic large numeric SIDs must remain readable');
     assert.equal(env.writes(), 0);
