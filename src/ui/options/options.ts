@@ -644,7 +644,15 @@ export async function initWorkbench(): Promise<void> {
         link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
     el('btnPlatformPermissions').addEventListener('click', () => { if (!busy) TourGuide.showPlatformAuthorization(select); });
-    el('btnTourGuide').addEventListener('click', () => { if (!busy) void TourGuide.startTour(select); });
+    const prepareTourLiveSave = async () => {
+        if (settings?.defaultFormat === 'markdown') return;
+        try {
+            await updateSettings({ defaultFormat: 'markdown' });
+            settings = await readSettings();
+            render();
+        } catch (error) { statusError(error); throw error; }
+    };
+    el('btnTourGuide').addEventListener('click', () => { if (!busy) void TourGuide.startTour(select, prepareTourLiveSave); });
     const applyOpenedAccount = async (value: unknown) => {
         if (!isAccountId(value)) return;
         // Consume once: directly opening Options later must not reuse a previous source.
@@ -692,7 +700,7 @@ export async function initWorkbench(): Promise<void> {
             'warn', 'Folder permission could not be restored: ' + (error instanceof Error ? error.message : String(error)));
     }
     render();
-    if (installationTour) await TourGuide.startTour(select);
+    if (installationTour) await TourGuide.startTour(select, prepareTourLiveSave);
     else {
         const current = chrome.runtime.getManifest().version;
         const feature = getLatestEligibleFeature(settings.lastSeenFeatureVersion ?? current, current);

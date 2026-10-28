@@ -27,7 +27,7 @@ export const STEPS: TourStep[] = [
     { id: 'live_save', placement: 'right',
         target: () => document.querySelector<HTMLElement>('.delivery-card:has(input[value="folderWriter"])'),
         title: () => text('Live Save', '实时保存'),
-        description: () => text('Select Save to local folder and authorize it. Live Save writes Markdown updates there; browser download or other formats pause it without forgetting your preference.', '先选择「保存到本地文件夹」并授权目录，再开启实时保存。切换到浏览器下载或其他格式时会暂停，不会清除原来的开启状态。'),
+        description: () => text('Markdown has been selected for this step. Select Save to local folder and authorize it, then enable Live Save (only effective with MD format); browser download or other formats pause it without forgetting your preference.', '已为此步骤切换到 Markdown（MD）。先选择「保存到本地文件夹」并授权目录，再开启实时保存（只有在选择 MD 格式时生效）。切换到浏览器下载或其他格式时会暂停，不会清除原来的开启状态。'),
         hint: () => text('Select the local-folder option, then choose a folder. Next always works.', '先选本地文件夹，再点击选择文件夹；也可以使用「下一步」。'),
         setupAction: next => bindDelayedActions([[target('liveSaveDiskToggle')(), 'change'], [target('btnSetDir')(), 'click']], next, 300) },
     { id: 'feedback', placement: 'right', target: target('feedbackBox'), title: () => text('Optional feedback', '可选反馈'), description: () => text('This link opens the feedback form. Start using only closes this tutorial.', '点击链接打开反馈表单；“开始使用”只关闭教程。'), hint: () => text('Feedback is optional; Start using only closes this tour.', '反馈是可选的；「开始使用」只会结束教程。'), setupAction: next => bindDelayedActions([[target('feedbackBox')(), 'click']], next, 0) }
