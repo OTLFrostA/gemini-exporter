@@ -16,6 +16,7 @@ from scripts.framework.scenario_provider import OnlineScenarioProvider
 from scripts.framework.lifecycle_tracker import SessionLifecycleTracker
 from scripts.framework.pipeline import SerialActionExecutor
 from scripts.framework.environment import TestEnvironment
+from scripts.framework.integrity.model import validate_frozen_evidence
 
 try:
     from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, is_gemini_url
@@ -93,8 +94,10 @@ class TestContext:
     def freeze_turn_evidence(self, driver, record: Dict[str, Any]) -> None:
         """Preserve stream/in-place snapshots and freeze freshly hydrated webpage evidence."""
         record.setdefault('stream_turn_evidence', list(record['turn_evidence']))
-        record['turn_evidence'] = driver.settled_conversation_evidence(
+        final_turns = driver.settled_conversation_evidence(
             record['chat_id'], [turn['prompt'] for turn in record['stream_turn_evidence']])
+        validate_frozen_evidence(record['chat_id'], record['stream_turn_evidence'], final_turns)
+        record['turn_evidence'] = final_turns
         in_place = getattr(driver, 'last_in_place_evidence', None)
         if isinstance(in_place, list):
             record['in_place_turn_evidence'] = in_place

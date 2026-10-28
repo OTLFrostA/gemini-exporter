@@ -8,9 +8,9 @@ import { ingestDetail } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import { contentComposer } from '../src/l3b/compose/composeContent.js';
-import type { DomainConversationIndex } from '../src/l2/conversationIndex.js';
+import { makeConversationIndex } from './helpers/conversationIndexFixture.js';
 
-const index: DomainConversationIndex = { key: fixtureKey(String('review123'), 'gemini'),   title: 'Review fixture', titleSource: "provider",   updatedAt: 1700000000000 };
+const index = makeConversationIndex({ key: fixtureKey('review123'), title: 'Review fixture', titleSource: 'provider', updatedAt: 1700000000000 });
 
 test('malformed delivery history cannot contaminate the independently validated Domain snapshot', async () => {
     await ingestDetail(index.key.accountId, index.key.conversationId, { quality: { status: 'complete' }, assets: [], messages: [] },

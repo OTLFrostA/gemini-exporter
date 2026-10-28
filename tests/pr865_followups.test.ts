@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { admitFixture } from './helpers/admitFixture.js';
 import { bindFixture, fixtureAccount } from './helpers/domainFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { indexFixture } from './helpers/indexFixture.js';
+import { makeConversationIndex } from './helpers/conversationIndexFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { runExport, shouldSkipExport } from '../src/application/export/runExport.js';
 import type { ExportRequest } from '../src/application/export/types.js';
@@ -121,8 +121,8 @@ test('v2 uses a fresh local Detail without cloud fetch, and refreshes stale Deta
         assert.equal(fetches, 0, 'a complete, current Detail does not need a remote fetch');
         assert.match(await download.blobs[0].text(), /Saved local answer/);
 
-        await putIndexes([indexFixture({
-            id, providerId: 'custom', title: id, updatedAt: sourceTime + 5_000,
+        await putIndexes([makeConversationIndex({
+            key: { accountId: account.id, conversationId: id }, title: id, updatedAt: sourceTime + 5_000,
         })]);
         assert.equal((await runExport(request(id))).exported, 1);
         assert.equal(fetches, 1);
@@ -140,8 +140,8 @@ test('v2 uses a fresh local Detail without cloud fetch, and refreshes stale Deta
 test('a transient refresh failure exports a stale snapshot as partial, retries Skip and becomes ok after fresh admission', async () => {
     const id = 'retry_snapshot';
     await admitFixture(account.id, snapshot(id, 'Saved snapshot'));
-    await putIndexes([indexFixture({
-        id, providerId: 'custom', title: id, updatedAt: sourceTime + 5_000,
+    await putIndexes([makeConversationIndex({
+        key: { accountId: account.id, conversationId: id }, title: id, updatedAt: sourceTime + 5_000,
     })]);
     let fetches = 0;
     let available = false;
@@ -225,8 +225,8 @@ test('unavailable resources mark delivered content partial; explicitly excluding
 test('confirmed conversation_not_found deletes the local Key/record and forbids old-Detail fallback', async () => {
     const id = 'confirmed_deleted';
     await admitFixture(account.id, snapshot(id, 'Must not export deleted answer'));
-    await putIndexes([indexFixture({
-        id, providerId: 'custom', title: id, updatedAt: sourceTime + 1_000,
+    await putIndexes([makeConversationIndex({
+        key: { accountId: account.id, conversationId: id }, title: id, updatedAt: sourceTime + 1_000,
     })]);
     await putExportRecord(key(id), { exportedAt: sourceTime + 2_000, format: 'markdown',
         status: 'partial', chatTime: sourceTime });
@@ -258,7 +258,7 @@ test('a failed fetch does not use another account\'s Detail or create a record',
         messages: [{ role: 'user', content: 'Private other-account answer' }],
     }, { qualityStatusOverride: 'complete' });
     await admitFixture(otherAccountId, bindFixture(foreign, otherAccountId));
-    await putIndexes([indexFixture({ id, providerId: 'custom', title: 'Not available', updatedAt: sourceTime })]);
+    await putIndexes([makeConversationIndex({ key: { accountId: account.id, conversationId: id }, title: 'Not available', updatedAt: sourceTime })]);
     const restoreProvider = registerCustomProvider();
     const download = captureBrowserDownloads();
     try {
@@ -278,8 +278,8 @@ test('a failed fetch does not use another account\'s Detail or create a record',
 test('ExportRecord.chatTime uses the delivered Detail version, never a newer Index timestamp', async () => {
     const id = 'older_body_version';
     await admitFixture(account.id, snapshot(id, 'Captured older body'));
-    await putIndexes([indexFixture({
-        id, providerId: 'custom', title: id, updatedAt: sourceTime + 5_000,
+    await putIndexes([makeConversationIndex({
+        key: { accountId: account.id, conversationId: id }, title: id, updatedAt: sourceTime + 5_000,
     })]);
     let attempts = 0;
     const restoreProvider = registerCustomProvider({

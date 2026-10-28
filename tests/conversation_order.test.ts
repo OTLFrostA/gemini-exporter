@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { parseList } from '../src/l1/parsers/gemini/rpc/parseList.js';
 import { compareConversationIndexes, indexActivityTime, mergeConversationIndex } from '../src/l2/conversationIndex.js';
 import { indexFixture } from './helpers/indexFixture.js';
+import { makeConversationIndex } from './helpers/conversationIndexFixture.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 
 test('index ordering prioritizes authored activity over creation and leaves unknown times after known times', () => {
@@ -12,13 +13,13 @@ test('index ordering prioritizes authored activity over creation and leaves unkn
     assert.equal(indexActivityTime(records[2]), undefined);
 });
 test('index ordering preserves established array order on ties including missing activity', () => {
-    const records = ['third', 'first', 'second'].map(id => indexFixture({ id, title: id }));
+    const records = ['third', 'first', 'second'].map(id => makeConversationIndex({ key: { conversationId: id }, title: id }));
     assert.deepEqual(records.sort(compareConversationIndexes).map(item => item.key.conversationId), ['third', 'first', 'second']);
     assert.equal(compareConversationIndexes({ ...records[0], updatedAt: 0 }, records[1]), -1);
 });
 test('reviving an old conversation monotonically advances activity without changing creation', () => {
-    const old = indexFixture({ id: 'revived', title: 'Revived', createdAt: 1000, updatedAt: 2000 });
-    const newer = mergeConversationIndex(old, indexFixture({ ...old, updatedAt: 5000 }));
+    const old = makeConversationIndex({ key: { conversationId: 'revived' }, title: 'Revived', createdAt: 1000, updatedAt: 2000 });
+    const newer = mergeConversationIndex(old, makeConversationIndex({ ...old, updatedAt: 5000 }));
     assert.equal(newer.createdAt, 1000);
     assert.equal(newer.updatedAt, 5000);
     assert.equal(mergeConversationIndex(newer, old).updatedAt, 5000);
@@ -35,7 +36,7 @@ test('list parsing provides strict indexes and independent source times, with no
 
 
 test('only the canonical source update version drives activity', () => {
-    const list = indexFixture({ id: 'chat', title: 'Research', updatedAt: 100 });
+    const list = makeConversationIndex({ key: { conversationId: 'chat' }, updatedAt: 100 });
     assert.equal(indexActivityTime(list), 100);
     assert.equal(indexActivityTime({ ...list, updatedAt: 300 }), 300);
     assert.equal(indexActivityTime({ ...list, updatedAt: undefined }), undefined);
