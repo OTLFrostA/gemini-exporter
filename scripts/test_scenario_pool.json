@@ -1,47 +1,5 @@
 [
   {
-    "id": "materials_binary_phase_lever_rule_mass_balance",
-    "title": "Binary alloy phase diagrams: lever rule and mass conservation",
-    "domain": "materials_phase_equilibrium",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original teaching illustration of a fictional binary alloy phase diagram with a two-phase region, a horizontal tie line, endpoint compositions and an overall alloy composition. Clearly mark it as schematic synthetic data, not a measured material.",
-      "Derive the lever rule from solute and total-mass conservation in LaTeX. Distinguish mass fractions from mole fractions and explain the assumptions of a fixed-temperature tie line.",
-      "Write runnable standard-library Python computing phase fractions for arbitrary ordered endpoint compositions. Reject inconsistent units, out-of-range compositions and zero-width tie lines; include independent conservation checks and limiting cases.",
-      "Build a Markdown table for five overall compositions on a stated synthetic tie line. Reconstruct overall composition from each computed pair of phase fractions and discuss numerical behavior near endpoints.",
-      "Combine the derivation, code and a labeled ASCII tie line into a detailed English-Chinese report. Explain why phase composition and phase amount differ, and why the simple rule cannot infer kinetics or a real diagram from a schematic."
-    ]
-  },
-  {
-    "id": "control_discrete_lyapunov_stability_certificate",
-    "title": "Discrete control: Lyapunov stability and independent numerical certificates",
-    "domain": "control_discrete_lyapunov",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Analyze a two-dimensional discrete linear system x[k+1]=A x[k]. Use the uploaded attachment only as a schema example and define your own explicit stable rational matrix A with nonzero off-diagonal entries; state all assumptions and distinguish asymptotic from one-step Euclidean contraction.",
-      "Derive the discrete Lyapunov equation A^T P A-P=-I in LaTeX, expand its independent scalar equations for symmetric P, and explain the positive-definite condition.",
-      "Write runnable standard-library Python solving those scalar equations using Fraction arithmetic and Gaussian elimination with pivoting. Do not use external numerical packages or silently assume invertibility.",
-      "Independently verify symmetry, positive definiteness using principal minors, and exact residual zero. Give a Markdown table of all certificate quantities for the chosen matrix.",
-      "Derive a bound on decay in the P norm and explain the relationship to the Euclidean norm through extremal eigenvalues. Clearly identify whether each bound is exact or conservative.",
-      "Provide a counterexample with transient Euclidean growth despite asymptotic stability. Compute a short trajectory and compare squared Euclidean and Lyapunov energies in a Markdown table.",
-      "Explain what fails for eigenvalues on or outside the unit circle, including a defective Jordan block. Add meaningful tests that reject invalid certificates rather than merely comparing output with the same solver.",
-      "Produce a complete reproducible English-Chinese report integrating the code, exact rational certificate, trajectory table and an ASCII energy-flow diagram. Distinguish analytically verified facts from unexecuted numerical claims."
-    ]
-  },
-  {
     "id": "circuits_rc_step_energy_balance",
     "title": "RC transients: step response and energy accounting",
     "domain": "electrical_rc_transients",
@@ -417,6 +375,48 @@
       "Add exhaustive checks on tiny operation permutations to compare the graph classifier with enumeration of conflict-preserving serial orders. Supply complete deterministic Python code.",
       "Add executable boundary tests for read-only transactions, repeated accesses, no transactions, one transaction, duplicate operation IDs and distinct items. Explain which schedules remain nonrecoverable despite conflict serializability.",
       "Write a Chinese-English audit containing definitions, proof, full classifier and checker, and negative tests. Explain why this exercise does not establish database isolation guarantees, deadlock freedom or recoverability of a real engine."
+    ]
+  },
+  {
+    "id": "acoustics_two_source_interference_phase_audit",
+    "title": "Acoustics two source interference and phase audit",
+    "domain": "acoustics_wave_interference",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original teaching illustration of two coherent loudspeakers producing sound interference in a classroom. Label the source separation, observation point and path difference; avoid a stock diagram.",
+      "For equal amplitude sources at 440 Hz and sound speed 343 m/s derive pressure and intensity versus path difference using complex phasors. Explain the distinction between amplitude and intensity.",
+      "Make a Markdown table of normalized intensity for path differences 0, lambda/8, lambda/4, 3lambda/8 and lambda/2. Show exact symbolic results and rounded values.",
+      "Write a self contained Python function computing intensity with unequal source amplitudes and a phase offset; include limiting case assertions for constructive and destructive interference.",
+      "Discuss how finite bandwidth, reflections and source phase drift change the predicted nulls. Give an ordered measurement procedure and a short uncertainty budget with equations."
+    ]
+  },
+  {
+    "id": "epidemiology_sir_invariant_peak_certificate",
+    "title": "SIR epidemic invariant and peak certificate",
+    "domain": "epidemiology_sir_dynamics",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Introduce the closed population SIR model with normalized population, beta=0.3 per day, gamma=0.1 per day, S0=0.99 and I0=0.01. Define all variables and units.",
+      "Derive conservation of population and the phase plane invariant I+S-(gamma/beta) log S. Explain the domain assumptions.",
+      "Derive the infected peak condition and calculate the peak infected fraction from the invariant. Keep intermediate expressions exact where possible.",
+      "Use a Markdown table to compare beta values 0.15, 0.2, 0.3 and 0.4 while gamma remains fixed. Include initial growth rate, effective reproduction number and peak fraction.",
+      "Write a dependency free Python RK4 solver with adaptive step halving, nonnegativity checks and conservation diagnostics.",
+      "Explain how to verify the numerical solution against the invariant without conflating local error and global error. Supply assertions.",
+      "Derive the final size equation and describe a bracketed root method that excludes the irrelevant branch; explain why the root is unique in the chosen bracket.",
+      "Summarize limitations from heterogeneous contacts and parameter uncertainty. Provide a numbered validation checklist and distinguish a teaching calculation from a real forecast."
     ]
   }
 ]
