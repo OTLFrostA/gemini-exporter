@@ -13,6 +13,7 @@ let relayout: (() => void) | undefined;
 let authorizationReady = false;
 let skipAuthorizationStep = false;
 let onConnected: ((accountId: string) => Promise<void>) | undefined;
+let prepareLiveSave: (() => Promise<void>) | undefined;
 
 export function consumeTourIntent(): boolean {
     const url = new URL(location.href);
@@ -24,7 +25,7 @@ function destroy(): void {
     cleanupStep?.(); cleanupStep = undefined;
     cleanupOverlay?.(); cleanupOverlay = undefined;
     root?.remove(); root = null; mode = null; onDismiss = undefined; relayout = undefined;
-    authorizationReady = false; skipAuthorizationStep = false; onConnected = undefined;
+    authorizationReady = false; skipAuthorizationStep = false; onConnected = undefined; prepareLiveSave = undefined;
 }
 function close(): void { const callback = onDismiss; destroy(); callback?.(); }
 const finishTour = async (): Promise<void> => { destroy(); };
@@ -218,7 +219,13 @@ function footer(popover: HTMLElement): HTMLElement {
 async function goToStep(index: number): Promise<void> {
     if (mode !== 'tour') return;
     if (index >= STEPS.length) { destroy(); return; }
-    stepIndex = Math.max(skipAuthorizationStep ? 1 : 0, index);
+    const nextIndex = Math.max(skipAuthorizationStep ? 1 : 0, index);
+    if (STEPS[nextIndex].id === 'live_save' && prepareLiveSave) {
+        const previousRoot = root;
+        try { await prepareLiveSave(); } catch { return; }
+        if (mode !== 'tour' || root !== previousRoot) return;
+    }
+    stepIndex = nextIndex;
     const step = STEPS[stepIndex];
     const relatedId = step.id === 'live_save' ? 'btnSetDir' : step.id === 'select' ? 'btnSelectAll' : undefined;
     const related = relatedId
@@ -263,9 +270,10 @@ async function nextStep(): Promise<void> {
     await goToStep(stepIndex + 1);
 }
 async function prevStep(): Promise<void> { await goToStep(stepIndex - 1); }
-async function startTour(connected?: (accountId: string) => Promise<void>): Promise<void> {
+async function startTour(connected?: (accountId: string) => Promise<void>,
+    liveSaveSetup?: () => Promise<void>): Promise<void> {
     if (modalOpen()) return;
-    destroy(); mode = 'tour'; onConnected = connected;
+    destroy(); mode = 'tour'; onConnected = connected; prepareLiveSave = liveSaveSetup;
     const granted = await Promise.all(SOURCE_PLATFORMS.map(hasPlatformAccess));
     if (mode !== 'tour') return;
     skipAuthorizationStep = granted.every(Boolean);

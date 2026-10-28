@@ -361,3 +361,36 @@ test('tourGuide - final action stays inside the viewport immediately after resiz
     await page.getByRole('button', { name: 'Start using', exact: true }).click();
     assert.equal(await page.locator('.tour-overlay-container').count(), 0);
 });
+
+for (const format of ['html', 'pdf', 'json']) {
+    test(`Live Save tutorial switches ${format} to persisted Markdown before showing the step`, async () => {
+        await open({ settings: { defaultFormat: format, exportDelivery: 'folderWriter', enabledDisk: false },
+            directoryName: 'Exports' });
+        await page.locator('#btnTourGuide').click();
+        await page.evaluate(() => Reflect.get(window, 'testUi').tour.goToStep(5));
+        assert.equal(await page.locator('#format').inputValue(), 'markdown');
+        assert.equal(await page.locator('#liveSaveDiskToggle').isEnabled(), true);
+        assert.equal(await page.locator('#liveSaveDiskToggle').isChecked(), false);
+        assert.match(await page.locator('.tour-content').textContent() ?? '', /only effective with MD format/);
+        assert.deepEqual(await read(page, 'patches'), [{ defaultFormat: 'markdown' }]);
+        await page.locator('#tourPrevBtn').click();
+        await page.locator('#tourNextBtn').click();
+        assert.deepEqual(await read(page, 'patches'), [{ defaultFormat: 'markdown' }]);
+    });
+}
+
+test('Live Save format switch preserves an in-progress export format', async () => {
+    await open({ holdExport: true, settings: { defaultFormat: 'html', enabledDisk: false,
+        exportDelivery: 'browserDownload' } });
+    await page.locator('#list .item input').first().check();
+    await page.locator('#btnTourGuide').click();
+    await page.evaluate(() => Reflect.get(window, 'testUi').tour.goToStep(4));
+    await page.locator('#btnExport').click();
+    await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Live Save');
+    assert.equal(await page.locator('#format').inputValue(), 'markdown');
+    assert.equal(await page.locator('body').getAttribute('data-busy'), 'true');
+    assert.equal((await read(page, 'exports'))[0].format, 'html');
+    await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
+    await page.waitForFunction(() => document.body.dataset.busy === 'false');
+    assert.equal(await page.locator('#format').inputValue(), 'markdown');
+});
