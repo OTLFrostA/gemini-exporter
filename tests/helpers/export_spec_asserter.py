@@ -495,6 +495,22 @@ class ExportSpecificationAsserter:
                 elif syn == "image" and "![" not in matched_content:
                     self.log_error(matched_file, f"已知会话《{name}》预期包含图片附件引用 ('![]')，但未找到")
 
+            # Compare every ordered turn with independent, frozen webpage evidence.
+            fixture_name = gold.get("turn_evidence_fixture")
+            if fixture_name:
+                from pathlib import Path
+                from scripts.framework.assertions import assert_turn_content
+                fixture_path = Path(__file__).resolve().parents[1] / 'fixtures' / fixture_name
+                fixture = json.loads(fixture_path.read_text(encoding='utf-8'))
+                if fixture['conversationId'] != cid:
+                    self.log_error(matched_file, 'Golden turn evidence belongs to another conversation')
+                else:
+                    ok, message = assert_turn_content(matched_content, fixture['turns'])
+                    if ok:
+                        self.log_pass(matched_file, message)
+                    else:
+                        self.log_error(matched_file, message)
+
             # 校验多轮用户上传与 MD5 去重
             exp_upload_imgs = gold.get("expected_upload_images")
             if exp_upload_imgs:

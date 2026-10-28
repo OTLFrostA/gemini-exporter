@@ -51,6 +51,14 @@ DESIGNATED_HISTORICAL_CHATS = [
         "syntax_checks": []
     },
     {
+        "id": "a714229ffb19b514",
+        "category": "长对话跨页完整性 (63 轮)",
+        "name": "平稳时序的分割共形预测解析（63 轮长对话）",
+        "expected_snippets": ["split conformal prediction", "Chinese-English audit"],
+        "syntax_checks": ["codeblock", "table"],
+        "turn_evidence_fixture": "gemini_long_conversation.json"
+    },
+    {
         "id": "533ac8ca2ecb8bd7",
         "category": "用户文件附件 (JSON/Docs)",
         "name": "测试配置文件加载（用户文件附件 JSON）",
@@ -273,7 +281,7 @@ class ZipExportDownloadCase(FeatureTestCase):
                 check_res = select_format_targets(cdp_opt, ctx, "markdown")
             except RuntimeError as e:
                 return False, f"ZIP 导出目标准备不足: {e}", None
-            expected_min_checked = 6 if ctx.chat_records else 4
+            expected_min_checked = len(ctx.chat_records) + sum(not h.get('optional') for h in DESIGNATED_HISTORICAL_CHATS)
             if len(check_res['matched']) < expected_min_checked:
                 return False, f"工作台勾选数不足: {check_res}", check_res
 
@@ -302,7 +310,7 @@ class MultimodalSpecCase(FeatureTestCase):
         super().__init__(
             feature_id="feat_multimodal_spec_assertion",
             domain=FeatureDomain.EXPORT_DISK,
-            name="4 大黄金分类规范断言",
+            name="黄金分类与长对话全文完整性断言",
             description="解压导出的 ZIP，按 v2 Frontmatter 检查附件、来源事实与 Imagen 模型归属",
             critical=True,
             prerequisites=["feat_zip_export_download"]
@@ -316,7 +324,7 @@ class MultimodalSpecCase(FeatureTestCase):
         extract_dir = os.path.join(ctx.output_dir, "extracted_verify_" + str(int(time.time())))
         golden_chats = [dict(c) for c in DESIGNATED_HISTORICAL_CHATS]
         expected_scenarios = ctx.scenarios[:2] if ctx.chat_records else []
-        min_conversations = 6 if ctx.chat_records else 4
+        min_conversations = len(ctx.chat_records) + sum(not h.get('optional') for h in DESIGNATED_HISTORICAL_CHATS)
         uploaded_files = [ctx.shared_data["uploaded_test_file"]] if "uploaded_test_file" in ctx.shared_data else None
 
         spec_ok, spec_msg, spec_data = CDPAssertions.assert_exported_zip_spec(

@@ -1600,5 +1600,59 @@ class Tier2LifecycleOrderingTests(unittest.TestCase):
         ):
             self.assertLess(order.index(before), order.index(after), (before, after))
 
+
+class LongConversationGoldenContracts(unittest.TestCase):
+    def check_golden(self, bodies):
+        turns = [
+            {'prompt': 'Initial question', 'response': 'Initial answer with essential middle evidence and a final conclusion.'},
+            {'prompt': 'Middle question', 'response': 'Middle answer'},
+            {'prompt': 'Final question', 'response': 'Final answer'},
+        ]
+        fixture = {'conversationId': CID, 'turns': turns}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / f'Long_{CID[-6:]}.md'
+            path.write_text('id: '+CID+'\n'+bodies, encoding='utf-8')
+            oracle = ExportSpecificationAsserter(folder)
+            oracle.md_files = [str(path)]
+            with patch('pathlib.Path.read_text', return_value=json.dumps(fixture)):
+                oracle.assert_golden_conversations([{'id': CID, 'turn_evidence_fixture': 'long.json'}])
+            return oracle.errors
+
+    @staticmethod
+    def markdown():
+        return ('## 👤 You\nInitial question\n## 🤖 Assistant\n'
+                'Initial answer with essential middle evidence and a final conclusion.\n'
+                '## 👤 You\nMiddle question\n## 🤖 Assistant\nMiddle answer\n'
+                '## 👤 You\nFinal question\n## 🤖 Assistant\nFinal answer\n')
+
+    def test_complete_ordered_conversation_passes(self):
+        self.assertEqual(self.check_golden(self.markdown()), [])
+
+    def test_tail_only_and_missing_middle_round_fail(self):
+        text = self.markdown()
+        for damaged in (text[text.index('## 👤 You\nFinal'):],
+                        text.replace('## 👤 You\nMiddle question\n## 🤖 Assistant\nMiddle answer\n', '')):
+            with self.subTest(damaged=damaged):
+                self.assertTrue(self.check_golden(damaged))
+
+    def test_answer_middle_loss_fails_even_with_first_and_last_text(self):
+        self.assertTrue(self.check_golden(self.markdown().replace('essential middle evidence and ', '')))
+
+    def test_long_conversation_is_required_in_standard_targets(self):
+        from scripts.framework.cases.export import DESIGNATED_HISTORICAL_CHATS
+        target = next(chat for chat in DESIGNATED_HISTORICAL_CHATS if chat['id'] == 'a714229ffb19b514')
+        self.assertFalse(target.get('optional', False))
+        self.assertEqual(target['turn_evidence_fixture'], 'gemini_long_conversation.json')
+
+    def test_frozen_webpage_evidence_covers_all_sixty_three_turns(self):
+        fixture = json.loads((Path(__file__).parent / 'fixtures/gemini_long_conversation.json').read_text())
+        self.assertEqual(fixture['conversationId'], 'a714229ffb19b514')
+        self.assertEqual(len(fixture['turns']), 63)
+        for turn in fixture['turns']:
+            self.assertTrue(turn['prompt'].strip())
+            self.assertTrue(turn['response'].strip())
+            self.assertIsInstance(turn['code_blocks'], list)
+            self.assertIsInstance(turn['execution_blocks'], list)
+
 if __name__ == '__main__':
     unittest.main()
