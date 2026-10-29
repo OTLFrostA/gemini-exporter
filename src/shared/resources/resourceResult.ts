@@ -32,7 +32,8 @@ export async function attemptResource(resourceId: string, work: () => Promise<Re
             return { ...missingResource(resourceId, error.message, code), httpStatus: status,
                 issue: { code, message: error.message, httpStatus: status } };
         }
-        if (error instanceof OperationError) return { ...missingResource(resourceId, error.message, error.code), issue: operationIssue(error) };
+        if (error instanceof OperationError) return { ...missingResource(resourceId, error.message, error.code),
+            ...(error.httpStatus !== undefined ? { httpStatus: error.httpStatus } : {}), issue: operationIssue(error) };
         return missingResource(resourceId, error instanceof Error ? error.message : String(error));
     }
 }
@@ -42,6 +43,10 @@ export class ResourceHttpError extends Error {
 }
 type ResourceIssueKind = 'expired' | 'restricted' | 'download' | 'processing' | 'unknown';
 export function resourceIssueKind(failure: ResourceFailure): ResourceIssueKind {
+    if (failure.code === 'SOURCE_HTTP_ERROR') {
+        const status = failure.httpStatus ?? failure.issue?.httpStatus;
+        return status === 401 || status === 403 ? 'restricted' : 'download';
+    }
     if (failure.code === 'RESOURCE_SOURCE_EXPIRED') return 'expired';
     if (failure.code === 'RESOURCE_ACCESS_RESTRICTED') return 'restricted';
     if (['RESOURCE_PROCESSING_FAILED', 'RESOURCE_SIZE_LIMIT', 'RESOURCE_SIZE_MISMATCH',

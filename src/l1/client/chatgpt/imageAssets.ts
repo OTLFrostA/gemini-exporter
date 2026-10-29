@@ -13,8 +13,9 @@ interface ChatGPTParsedDownload {
 }
 
 export function fileIdFromPointer(pointer: string): string | null {
-    if (!pointer.startsWith('sediment://')) return null;
-    const id = pointer.slice('sediment://'.length);
+    const prefix = ['sediment://', 'file-service://'].find(prefix => pointer.startsWith(prefix));
+    if (!prefix) return null;
+    const id = pointer.slice(prefix.length);
     return id ? id : null;
 }
 

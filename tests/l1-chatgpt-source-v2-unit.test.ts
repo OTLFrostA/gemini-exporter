@@ -39,7 +39,7 @@ test('ChatGPT missing image bytes does not become missing body evidence', () => 
     const result = parse(chatgptDetailGen('C_DETAIL_L1_SOURCE_05'));
     assert.equal(result.conversation.detail.quality.status, 'complete');
     assert.equal(result.conversation.detail.assets.length, 1);
-    assert.ok(result.diagnostics.some(d => d.code === 'CHATGPT_IMAGE_ASSET_UNAVAILABLE'));
+    assert.ok(result.diagnostics.some(d => d.code === 'CHATGPT_IMAGE_ASSET_DEFERRED' && d.severity === 'info'));
     assert.equal(result.conversation.detail.messages[0].attachmentIds, undefined);
     assert.deepEqual(result.conversation.detail.messages[0].content.filter(b => b.type === 'image').map(b => b.assetId), [result.conversation.detail.assets[0].id]);
 });

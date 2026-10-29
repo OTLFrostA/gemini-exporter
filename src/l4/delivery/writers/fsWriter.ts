@@ -85,19 +85,27 @@ class FsWriter implements IExportWriter {
         this.__writeChains.set(chainKey, gate);
         await prev;
         try {
-            const targetDir = actualSubDir ? await ensureSubDir(batchDir, actualSubDir) : batchDir;
-            const fileHandle = await targetDir.getFileHandle(cleanName, { create: true });
-            const writable = await fileHandle.createWritable();
-            try {
-                await writable.write(actualContent instanceof Uint8Array
-                    ? isWritableBytes(actualContent) ? actualContent : new Uint8Array(actualContent)
-                    : actualContent);
-                await writable.close();
-            } catch (writeErr) {
-                if (typeof writable.abort === 'function') {
-                    try { await writable.abort(); } catch (_) {}
+            for (let attempt = 0; ; attempt++) {
+                try {
+                    const targetDir = actualSubDir ? await ensureSubDir(batchDir, actualSubDir) : batchDir;
+                    const fileHandle = await targetDir.getFileHandle(cleanName, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    try {
+                        await writable.write(actualContent instanceof Uint8Array
+                            ? isWritableBytes(actualContent) ? actualContent : new Uint8Array(actualContent)
+                            : actualContent);
+                        await writable.close();
+                    } catch (writeErr) {
+                        if (typeof writable.abort === 'function') {
+                            try { await writable.abort(); } catch (_) {}
+                        }
+                        throw writeErr;
+                    }
+                    break;
+                } catch (error) {
+                    // A stale File System Access snapshot needs fresh handles and a new stream.
+                    if (!(error instanceof DOMException) || error.name !== 'InvalidStateError' || attempt >= 2) throw error;
                 }
-                throw writeErr;
             }
         } catch (error) {
             throw operationError(error, error instanceof DOMException && error.name === 'NotAllowedError'
