@@ -21,7 +21,7 @@ export interface GlobalSettings {
 export async function getSettings(): Promise<GlobalSettings> {
     const stored = await getStoredSettings();
     return { defaultFormat: 'markdown', skipExported: true,
-        includeAssets: true, enabledDisk: false, developerMode: false,
+        includeAssets: false, enabledDisk: false, developerMode: false,
         ...stored,
         // Existing Live Save users continue in folder mode; new users default to browser download.
         exportDelivery: stored.exportDelivery ?? (stored.enabledDisk ? 'folderWriter' : 'browserDownload') };

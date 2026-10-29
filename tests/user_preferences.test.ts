@@ -49,6 +49,6 @@ test('userPreferences - position and language roundtrip; ZIP and diagnostics rem
         const patch: Partial<GlobalSettings> = { language: 'zh', badgePosition: { left: 100, top: 200 }, defaultFormat: 'pdf' };
         await updateSettings(patch); const read = await getSettings();
         assert.equal(read.language, 'zh'); assert.deepEqual(read.badgePosition, patch.badgePosition); assert.equal(read.defaultFormat, 'pdf');
-        assert.equal(read.enabledDisk, false); assert.equal(read.includeAssets, true);
+        assert.equal(read.enabledDisk, false); assert.equal(read.includeAssets, false);
     } finally { env.restore(); }
 });

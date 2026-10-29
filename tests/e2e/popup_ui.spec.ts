@@ -44,7 +44,9 @@ test('Popup rejects malformed current context without download and allows retry 
     await popup.locator('#btnCurrent').click();await expect(popup.locator('#status')).toHaveText('No trusted current conversation');await expect(popup.locator('#btnCurrent')).toBeDisabled();expect(downloads).toBe(1);
 });
 for(const format of ['html','markdown','json'] as const)test(`Popup ${format} physical export delivers the body and a final attachment failure correction`,async({context,extensionId})=>{
-    const options=await openOptions(context,extensionId);await seedConversations(options,[{id:'a',body:'Body survives',missingAsset:true}]);const popup=await openPopup(context,extensionId);await popup.locator(`[data-format="${format}"]`).click();
+    const options=await openOptions(context,extensionId);await seedConversations(options,[{id:'a',body:'Body survives',missingAsset:true}]);
+    await options.evaluate(async()=>Reflect.get(globalThis,'uiFixture').updateSettings({includeAssets:true}));
+    const popup=await openPopup(context,extensionId);await popup.locator(`[data-format="${format}"]`).click();
     const downloads: Download[]=[];popup.on('download',file=>downloads.push(file));await popup.locator('#btnCurrent').click();
     await expect.poll(()=>downloads.length).toBe(2);await expect(popup.locator('#btnCurrent')).toBeEnabled();
     const file=downloads.find(file=>!file.suggestedFilename().startsWith('attachments_'))!;

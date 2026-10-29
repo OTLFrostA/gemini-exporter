@@ -9,7 +9,9 @@ test('physical archive bytes survive verified local deletion; missing bodies fai
     const source=await context.newPage();await source.route('https://gemini.google.com/**',route=>route.fulfill({contentType:'text/html',body:`<!doctype html><script>window.WIZ_global_data={qDCSke:'10000000001',SNlM0e:'token',cfb2h:'build'}</script><main>Offline source fixture</main>`}));await source.goto('https://gemini.google.com/app/archive_local');await expect(source.locator('#geminiExportBadge')).toBeVisible();
     await context.route('https://lh3.googleusercontent.com/archive-fixture.png',route=>route.fulfill({contentType:'image/png',body:Buffer.from(png,'base64')}));
     await page.evaluate(async id=>{const api=Reflect.get(globalThis,'uiFixture');const key={accountId:id,conversationId:'archive_local'};const detail=await api.getDetail(key);const{key:_key,...fields}=detail;fields.savedAt=200;fields.assets=[{id:'img',kind:'image',sourceUri:'https://lh3.googleusercontent.com/archive-fixture.png',mediaType:'image/png'}];fields.messages[1].content.push({type:'image',assetId:'img'});await api.ingestDetail(id,'archive_local',fields,{title:'Retained local archive',titleSource:'provider'});await api.ingestIndexes(id,[{conversationId:'metadata_only',fields:{title:'Title without body',titleSource:'derived'}}]);},accountId);
-    await page.reload();await page.locator('[data-chat-id="archive_local"] input').check();
+    await page.reload();await page.locator('#devToggle').check();await expect(page.locator('#devToggle')).toBeEnabled();
+    await page.locator('#includeAssets').check();await expect(page.locator('#includeAssets')).toBeEnabled();
+    await page.locator('[data-chat-id="archive_local"] input').check();
     const downloads: Download[]=[];page.on('download',file=>downloads.push(file));await page.locator('#btnExport').click();
     await expect.poll(()=>downloads.length).toBe(2);await expect(page.locator('body')).toHaveAttribute('data-busy','false');
     const file=downloads.find(file=>file.suggestedFilename().endsWith('.md'))!;

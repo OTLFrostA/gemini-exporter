@@ -69,6 +69,10 @@ test('large unchanged exports do not rebuild the conversation list for each skip
 test('export progress keeps one cumulative three-counter message through source and attachment events', async ({context,extensionId}) => {
     const page = await openOptions(context, extensionId);
     await seedConversations(page, [{id:'one'}, {id:'two'}]);
+    await page.locator('#devToggle').check();
+    await expect(page.locator('#devToggle')).toBeEnabled();
+    await page.locator('#includeAssets').check();
+    await expect(page.locator('#includeAssets')).toBeEnabled();
     await page.evaluate(async accountId => {
         const api = Reflect.get(globalThis, 'uiFixture');
         for (const id of ['one', 'two']) await api.ingestDetail(accountId, id, {

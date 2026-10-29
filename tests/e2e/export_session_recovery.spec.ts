@@ -37,6 +37,7 @@ test('active export locks scan, settings and selection through cancellation and 
     expect(await read(page,'settings')).toEqual(beforeSettings);
     expect(await read(page,'patches')).toEqual(beforePatches);
     await expect(page.locator('#format')).toHaveValue(beforeSettings.defaultFormat);
+    await expect(page.locator('#includeAssets')).toBeChecked({ checked: beforeSettings.includeAssets });
     await expect(page.locator('input[value="browserDownload"]')).toBeChecked();
     const request = (await read(page, 'exports'))[0];
     const progress = await page.locator('#status').textContent();
@@ -63,9 +64,11 @@ test('active export locks scan, settings and selection through cancellation and 
     await expect(page.locator('#log')).toHaveText(originalLog!);
     await page.locator('#list span').click({force:true});await expect(page.locator('#list input')).toBeChecked();await page.locator('#btnCancel').click();await expect(page.locator('#btnSyncAll')).toBeDisabled();
     await expect(page.locator('#exportOptionsLock')).toBeVisible();
+    await expect(page.locator('#includeAssets')).toBeDisabled();
     await page.evaluate(()=>Reflect.get(window,'harness').finishExport());await expect(page.locator('#btnSyncAll')).toBeEnabled();await expect(page.locator('#list input')).toBeEnabled();await expect(page.locator('#status')).toContainText('Cancelled');expect((await read(page,'exports')).length).toBe(1);
     await expect(page.locator('#exportOptionsLock')).toBeHidden();
     await expect(page.locator('#format')).toBeEnabled();
+    await expect(page.locator('#includeAssets')).toBeEnabled();
     await expect(page.locator('#btnTourGuide')).toBeEnabled();
 });
 
