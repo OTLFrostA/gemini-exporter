@@ -86,7 +86,6 @@ export function parseGeminiBody(
     }));
 }
 
-/** Adapt body-local facts already decoded by the resource pipeline. */
 export function structuredBodyAttachments(message: { structuredImages: ImageAttachment[] }): ResourceEvidence[] {
     return message.structuredImages.map(image => ({
         ...image, type: 'image', src: image.sourceUrl,

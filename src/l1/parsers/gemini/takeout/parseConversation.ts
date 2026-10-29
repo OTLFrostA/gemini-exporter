@@ -14,7 +14,6 @@ export type { TakeoutSourceFile } from './archiveResources.js';
 
 export interface GeminiTakeoutRaw {
     htmlText: string;
-    /** Actual HTML entry path, used to resolve relative source references. */
     activityPath?: string;
     archiveFiles?: Readonly<Record<string, TakeoutSourceFile>>;
 }

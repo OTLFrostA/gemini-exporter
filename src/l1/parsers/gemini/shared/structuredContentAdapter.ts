@@ -39,19 +39,10 @@ export function convertGeminiInlines(
         return textWithSoftBreaks(text);
     }
 
-    // Validate annotations integrity and bounds
     for (const a of annotations) {
         if (!Number.isInteger(a.start) || !Number.isInteger(a.end) || a.start < 0 || a.end > text.length || a.start > a.end) {
             return null;
         }
-        // Supported inline annotation types:
-        // 0: strong (bold)
-        // 2: emphasis (italic)
-        // 4: inline math
-        // 5: subtle/italic emphasis
-        // 6: link
-        // 7: inline code
-        // 12: strikethrough
         if (a.type === 'source') {
             if (!a.sourceIds?.length || a.sourceIds.some(id => !sources.get(id)?.length)) return null;
         } else if (![0, 2, 4, 5, 6, 7, 12].includes(a.type)) {
@@ -75,7 +66,6 @@ export function convertGeminiInlines(
         return leafA - leafB;
     });
 
-    // Check for invalid crossing overlaps
     for (let i = 0; i < sorted.length; i++) {
         for (let j = i + 1; j < sorted.length; j++) {
             const a = sorted[i];
@@ -87,7 +77,6 @@ export function convertGeminiInlines(
     }
 
     function convertRange(start: number, end: number, curAnnots: GeminiAnnotation[]): InlineNode[] | null {
-        // Find top-level annotations within [start, end]
         const topAnnots: GeminiAnnotation[] = [];
         for (const a of curAnnots) {
             if (a.start < start || a.end > end) continue;
@@ -116,19 +105,16 @@ export function convertGeminiInlines(
             if (isLeafAnnotation(a.type) && curAnnots.some(c => c !== a && c.start >= a.start && c.end <= a.end)) return null;
 
             if (a.type === 4) {
-                // Inline Math
                 nodes.push({
                     type: 'inlineMath',
                     source: rawSlice,
                 });
             } else if (a.type === 7) {
-                // Inline Code
                 nodes.push({
                     type: 'inlineCode',
                     code: rawSlice,
                 });
             } else if (a.type === 'source' || [0, 2, 5, 6, 12].includes(a.type)) {
-                // Container annotation with potential nested annotations
                 const innerAnnots = curAnnots.filter(
                     (c) => c !== a && c.start >= a.start && c.end <= a.end,
                 );
@@ -227,7 +213,6 @@ export function geminiStructuredToContent(
                 break;
             }
             case 18: {
-                // Text / Heading / Paragraph
                 const inlines = convertGeminiInlines(node.text, node.annotations, sources);
                 if (inlines === null) return null;
 
@@ -248,7 +233,6 @@ export function geminiStructuredToContent(
             }
 
             case 12: {
-                // Display Math
                 blocks.push({
                     type: 'math',
                     source: node.FTa,
@@ -257,7 +241,6 @@ export function geminiStructuredToContent(
             }
 
             case 1: {
-                // Code block
                 blocks.push({
                     type: 'code',
                     code: node.code,
@@ -276,7 +259,6 @@ export function geminiStructuredToContent(
 
             case 20:
             case 14: {
-                // Unordered (20) or Ordered (14) list
                 const items: ListItem[] = [];
                 for (const item of node.items) {
                     const itemBlocks = geminiStructuredToContent(
@@ -295,7 +277,6 @@ export function geminiStructuredToContent(
             }
 
             case 15: {
-                // Blockquote
                 const quoteBlocks = geminiStructuredToContent(
                     { children: node.children }, sources,
                 );
@@ -308,7 +289,6 @@ export function geminiStructuredToContent(
             }
 
             case 17: {
-                // Table
                 const tableRows: TableRow[] = [];
                 for (const row of node.rows) {
                     const cells: TableCell[] = [];

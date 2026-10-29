@@ -1,6 +1,5 @@
 import type { BlockNode } from '../../../../l2/content/blocks.js';
 
-/** Gemini hides confirmed grounding tokens in code, but quoted code literals are authored data. */
 export function closeGeminiCodeCitations(blocks: BlockNode[], markers: readonly string[] = []): void {
     const normalize = (value: string): string => value.toLowerCase().replace(/\s+/g, ' ');
     const confirmed = new Set(markers.filter(marker => /^\[cite:\s*\d+(?:\s*,\s*\d+)*\]$/i.test(marker)).map(normalize));

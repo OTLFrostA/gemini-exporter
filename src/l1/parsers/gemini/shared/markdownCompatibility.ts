@@ -70,7 +70,6 @@ function normalizeMathFences(source: string): string {
         const line = lines[i];
         const trimmed = line.trimStart();
 
-        // Track code blocks (``` or ~~~) so math delimiters inside code are left untouched
         if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
             const fence = trimmed.slice(0, 3);
             if (!inCodeBlock) {
@@ -149,9 +148,6 @@ export const GM_MD_001_FENCE_NORMALIZATION: MarkdownCompatRule = Object.freeze({
     transform: normalizeMathFences,
 });
 
-/**
- * Initial state was empty; GM-MD-001 admitted per Section 4 & 31 admission policy.
- */
 /** Real Gemini emits raw absolute-value bars inside table math, before GFM lexing. */
 export function normalizeTableMathPipes(source: string): string {
     const lines = source.split('\n');
