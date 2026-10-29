@@ -62,7 +62,6 @@ export interface TableCell {
     children: InlineNode[];
     /** Positive integer, at most 1000; the complete logical grid is also at most 1000 columns. */
     colSpan?: number;
-    /** Positive integer, at most 65534. */
     rowSpan?: number;
 }
 
@@ -96,7 +95,6 @@ export interface ThematicBreakBlock {
     type: 'thematicBreak';
 }
 
-/** Unsupported content remains visible as plain text. */
 export interface UnknownBlock {
     type: 'unknown';
     sourceType: string;
