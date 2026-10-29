@@ -1,3 +1,5 @@
+import { resourceDownloadOrigin } from '../../../shared/platformHosts.js';
+import { hasResourceAccess, requestResourceAuthorization } from '../../../runtime/capabilities/platformAuthorization.js';
 import { elementById, requiredElement } from '../../shared/elements.js';
 import { attachmentFailure, attachmentIssueText } from '../../shared/exportSummary.js';
 import { resourceIssueKind } from '../../../shared/resources/resourceResult.js';
@@ -127,6 +129,24 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
                             const source = document.createElement('a'); source.href = url.href;
                             source.textContent = text('Open source', '查看来源'); source.target = '_blank'; source.rel = 'noopener noreferrer';
                             line.append(' ', source);
+                            const sourceUrl = issue.sourceUrl;
+                            if (resourceDownloadOrigin(sourceUrl) && issue.httpStatus === undefined
+                                && ['RESOURCE_DOWNLOAD_FAILED', 'RESOURCE_UNAVAILABLE'].includes(issue.code)) {
+                                const allow = document.createElement('button');
+                                allow.type = 'button'; allow.className = 'authorize-resource'; allow.hidden = true;
+                                const label = text(`Allow downloads from ${url.hostname}`, `允许从 ${url.hostname} 下载`);
+                                allow.textContent = label;
+                                void hasResourceAccess(sourceUrl).then(granted => { allow.hidden = granted; });
+                                allow.addEventListener('click', () => {
+                                    const request = requestResourceAuthorization(sourceUrl);
+                                    allow.disabled = true;
+                                    void request.then(granted => {
+                                        allow.disabled = granted;
+                                        allow.textContent = granted ? text('Access allowed; export this conversation again', '已授权，请重新导出此会话') : label;
+                                    });
+                                });
+                                line.append(' ', allow);
+                            }
                         }
                     } catch { /* Older records may contain an invalid source locator. */ }
                 }

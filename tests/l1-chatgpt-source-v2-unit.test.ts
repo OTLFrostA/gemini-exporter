@@ -167,3 +167,51 @@ test('source termination evidence survives decoding and storage independently of
         assert.equal(parse(raw).conversation.detail.quality.status, 'partial', variant);
     }
 });
+
+test('Work handoff exports visible card text without its internal prompt or raw JSON', () => {
+    const raw = chatgptDetailGen('C_DETAIL_L1_SOURCE_01');
+    const message = raw.mapping.answer?.message;
+    assert.ok(message);
+    const reason = '需要接着上一轮的测试审计进度，逐个读取真实测试和实现。';
+    message.recipient = 'local.handoff';
+    message.end_turn = false;
+    message.content = { content_type: 'code', language: 'json', text: JSON.stringify({ reason, prompt: 'INTERNAL-PROMPT-DO-NOT-EXPORT' }) };
+    const original = structuredClone(raw);
+    const parsed = parse(raw);
+    assert.deepEqual(parsed.conversation.detail.quality, { status: 'complete', sourceTurn: 'handoff' });
+    assert.equal(parsed.conversation.detail.messages.length, 2);
+    const body = JSON.stringify(parsed.conversation.detail.messages);
+    assert.match(body, /Continue in ChatGPT Work/);
+    assert.ok(body.includes(reason));
+    assert.doesNotMatch(body, /INTERNAL-PROMPT|"prompt"|"language":"json"/);
+    assert.deepEqual(raw, original, 'projection never mutates native source nodes');
+    assert.ok(!parsed.diagnostics.some(d => d.code === 'CHATGPT_BRANCH_COVERAGE_INCOMPLETE'));
+});
+
+test('unreadable visible handoffs stay incomplete even when followed by a finished reply', () => {
+    for (const text of ['{bad json', '{}', '{"reason":42}', '{"reason":"  "}', '{"prompt":"hidden-only"}']) {
+        const raw = chatgptDetailGen('C_DETAIL_L1_SOURCE_01');
+        const node = raw.mapping.answer;
+        assert.ok(node?.message);
+        node.message.recipient = 'local.handoff';
+        node.message.content = { content_type: 'code', language: 'json', text };
+        assert.equal(parse(raw).conversation.detail.quality.status, 'partial', text);
+        const final = { ...node, id: 'final', parent: 'answer', message: { ...node.message,
+            id: 'message-final', recipient: 'all', end_turn: true,
+            content: { content_type: 'text', parts: ['Final reply'] } } };
+        const followup = { ...raw, current_node: 'final', mapping: { ...raw.mapping, final } };
+        assert.equal(parse(followup).conversation.detail.quality.status, 'partial', text);
+    }
+});
+
+test('hidden handoff nodes do not invent visible cards or claim missing visible content', () => {
+    const raw = chatgptDetailGen('C_DETAIL_L1_SOURCE_01');
+    const message = raw.mapping.answer?.message;
+    assert.ok(message);
+    message.recipient = 'local.handoff';
+    message.metadata = { is_visually_hidden_from_conversation: true };
+    message.content = { content_type: 'code', language: 'json', text: '{"reason":"HIDDEN-REASON"}' };
+    const parsed = parse(raw);
+    assert.equal(parsed.conversation.detail.quality.status, 'complete');
+    assert.doesNotMatch(JSON.stringify(parsed.conversation.detail.messages), /HIDDEN-REASON/);
+});

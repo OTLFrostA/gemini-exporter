@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { PLATFORM_HOSTS, platformOrigins, SOURCE_PLATFORMS, type SourcePlatform } from '../src/shared/platformHosts.js';
-import { hasPlatformAccess, requestPlatformsAccess } from '../src/l1/client/platformAccess.js';
+import { RESOURCE_DOWNLOAD_ORIGINS, resourceDownloadOrigin, PLATFORM_HOSTS, platformOrigins, SOURCE_PLATFORMS, type SourcePlatform } from '../src/shared/platformHosts.js';
+import { hasResourceAccess, requestResourceAccess, hasPlatformAccess, requestPlatformsAccess } from '../src/l1/client/platformAccess.js';
 import { syncPlatformContentScripts, syncAllPlatformContentScripts } from '../src/runtime/capabilities/platformInjection.js';
 
 const platforms = SOURCE_PLATFORMS;
@@ -10,7 +10,7 @@ test('manifest declares exactly the independent optional platform groups and no 
     const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
     assert.deepEqual(manifest.host_permissions ?? [], []);
     assert.deepEqual(manifest.content_scripts ?? [], []);
-    const origins = platforms.flatMap(platformOrigins);
+    const origins = [...platforms.flatMap(platformOrigins), ...RESOURCE_DOWNLOAD_ORIGINS];
     assert.equal(new Set(origins).size, origins.length);
     assert.deepEqual([...manifest.optional_host_permissions].sort(), origins.sort());
     assert.ok(platformOrigins('chatgpt').includes('https://images.openai.com/*'));
@@ -115,4 +115,55 @@ test('bulk authorization requests the selected origin union exactly once in the 
         assert.equal(await requestPlatformsAccess(['chatgpt']), false);
         assert.deepEqual(requests[1], platformOrigins('chatgpt'));
     } finally { holder.chrome = original; }
+});
+
+test('external image grants are optional, exact-origin, and separate from platform access', async t => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    const grants = new Set<string>();
+    const requests: string[][] = [];
+    let gesture = false, denied = false;
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { permissions: {
+        contains: async ({ origins }: { origins: string[] }) => origins.every(origin => grants.has(origin)),
+        request: ({ origins }: { origins: string[] }) => {
+            assert.equal(gesture, true, 'native request starts synchronously in the click handler');
+            requests.push(origins);
+            if (!denied) origins.forEach(origin => grants.add(origin));
+            return Promise.resolve(!denied);
+        },
+    } } });
+    t.after(() => {
+        if (descriptor) Object.defineProperty(globalThis, 'chrome', descriptor);
+        else Reflect.deleteProperty(globalThis, 'chrome');
+    });
+    const uri = 'https://cdn.sanity.io/images/project/image.png?q=100';
+    assert.equal(resourceDownloadOrigin(uri), 'https://cdn.sanity.io/*');
+    assert.equal(await hasResourceAccess(uri), false);
+    assert.deepEqual(requests, []);
+    for (const invalid of ['http://cdn.sanity.io/image.png', 'https://cdn.sanity.io.evil.test/x',
+        'https://cdn.sanity.io:8443/x', 'https://user:password@cdn.sanity.io/x', '/image.png', 'https://other.test/x']) {
+        assert.equal(resourceDownloadOrigin(invalid), undefined);
+        assert.equal(await requestResourceAccess(invalid), false);
+    }
+    assert.deepEqual(requests, []);
+    gesture = true;
+    const platform = requestPlatformsAccess(['chatgpt']);
+    gesture = false;
+    assert.equal(await platform, true);
+    assert.deepEqual(requests[0], platformOrigins('chatgpt'));
+    assert.equal(await hasResourceAccess(uri), false, 'connecting ChatGPT does not grant external image access');
+    gesture = true;
+    const resource = requestResourceAccess(uri);
+    gesture = false;
+    assert.equal(await resource, true);
+    assert.deepEqual(requests[1], ['https://cdn.sanity.io/*']);
+    assert.equal(await hasResourceAccess(uri), true);
+    grants.delete('https://cdn.sanity.io/*');
+    assert.equal(await hasResourceAccess(uri), false);
+    denied = true;
+    gesture = true;
+    const decline = requestResourceAccess(uri);
+    gesture = false;
+    assert.equal(await decline, false);
+    assert.equal(await hasResourceAccess(uri), false);
+    assert.equal(await hasPlatformAccess('chatgpt'), true, 'denial or revocation does not disconnect the platform');
 });

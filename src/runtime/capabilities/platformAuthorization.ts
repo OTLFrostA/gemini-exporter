@@ -1,4 +1,4 @@
-import { hasPlatformAccess, requestPlatformsAccess } from '../../l1/client/platformAccess.js';
+import { hasResourceAccess, requestResourceAccess, hasPlatformAccess, requestPlatformsAccess } from '../../l1/client/platformAccess.js';
 import { PLATFORM_HOSTS, type SourcePlatform } from '../../shared/platformHosts.js';
 import { preparePlatformTab, syncPlatformContentScripts } from './platformInjection.js';
 import { discoverChatGPTAccounts } from './chatgptDiscovery.js';
@@ -7,7 +7,8 @@ import { discoverClaudeAccounts } from './claudeDiscovery.js';
 import { getAccount } from '../api/accountRegistry.js';
 import { sendTabMessage } from './tabService.js';
 
-export { hasPlatformAccess, requestPlatformsAccess as requestPlatformAuthorization };
+export { hasPlatformAccess, requestPlatformsAccess as requestPlatformAuthorization,
+    hasResourceAccess, requestResourceAccess as requestResourceAuthorization };
 
 /** Authorization works without a signed-in tab. Existing documents activate in place. */
 export async function activatePlatformAccess(platforms: readonly SourcePlatform[]): Promise<boolean> {

@@ -18,3 +18,13 @@ export const PLATFORM_HOSTS = {
 export function platformOrigins(platform: SourcePlatform): string[] {
     return [...PLATFORM_HOSTS[platform].pages, ...PLATFORM_HOSTS[platform].attachments];
 }
+
+/** External image access is separate from platform connection and granted per origin. */
+export const RESOURCE_DOWNLOAD_ORIGINS = ['https://cdn.sanity.io/*'] as const;
+export function resourceDownloadOrigin(uri: string): string | undefined {
+    try {
+        const url = new URL(uri);
+        if (url.protocol !== 'https:' || url.username || url.password) return undefined;
+        return RESOURCE_DOWNLOAD_ORIGINS.find(origin => origin === `${url.origin}/*`);
+    } catch { return undefined; }
+}

@@ -201,6 +201,15 @@ function decodeContent(value: unknown): ChatGPTMessageContent {
     };
 }
 
+function decodeHandoffReason(content: ChatGPTMessageContent): string | undefined {
+    if (content.content_type !== 'code' || typeof content.text !== 'string') return undefined;
+    try {
+        const payload: unknown = JSON.parse(content.text);
+        const reason = record(payload)?.reason;
+        return typeof reason === 'string' && reason.trim() ? reason : undefined;
+    } catch { return undefined; }
+}
+
 function decodeMessage(value: unknown): ChatGPTNodeMessage {
     const source = record(value);
     const author = record(source?.author);
@@ -208,12 +217,15 @@ function decodeMessage(value: unknown): ChatGPTNodeMessage {
     if (!source || typeof source.id !== 'string' || !author
         || role !== 'user' && role !== 'assistant' && role !== 'system' && role !== 'tool')
         throw new TypeError('Invalid ChatGPT Detail message');
+    const content = decodeContent(source.content);
+    const handoffReason = role === 'assistant' && source.recipient === 'local.handoff' ? decodeHandoffReason(content) : undefined;
     const metadata = decodeMetadata(source.metadata);
     const time = chatGPTTimestamp(source.create_time);
     return {
         id: source.id,
         author: { role, ...(text(author.name) !== undefined ? { name: text(author.name) } : {}) },
-        content: decodeContent(source.content),
+        content,
+        ...(handoffReason !== undefined ? { handoffReason } : {}),
         recipient: text(source.recipient) ?? '',
         ...(text(source.status) !== undefined ? { status: text(source.status) } : {}),
         weight: typeof source.weight === 'number' && Number.isFinite(source.weight) ? source.weight : 0,

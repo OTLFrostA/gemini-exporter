@@ -1,3 +1,5 @@
+import { decodeChatGPTDetail } from '../src/l1/parsers/chatgpt/decodeDetail.js';
+import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
 import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { ConfirmedSourceEmptyError } from '../src/l1/client/sourceErrors.js';
 /**
@@ -316,3 +318,39 @@ for (const sourceTurn of ['unfinished', 'interrupted', 'unknown'] as const) {
         assert.equal(refreshes, 2, 'unfinished/uncertain or stale source snapshots are refreshed on the next export');
     });
 }
+
+test('Work handoff card is physically delivered as readable Markdown with a successful export record', async t => {
+    const host = v2ExportHost(t);
+    const id = 'visible-work-handoff';
+    await seedExportConversation(id);
+    const raw = { id, title: 'Handoff', current_node: 'handoff', update_time: 0.1, mapping: {
+        root: { id: 'root', children: ['question'] },
+        question: { id: 'question', parent: 'root', children: ['handoff'], message: {
+            id: 'message-question', author: { role: 'user' }, recipient: 'all',
+            content: { content_type: 'text', parts: ['Review the repository'] } } },
+        handoff: { id: 'handoff', parent: 'question', children: [], message: {
+            id: 'message-handoff', author: { role: 'assistant' }, recipient: 'local.handoff',
+            status: 'finished_successfully', end_turn: false,
+            content: { content_type: 'code', language: 'json', text: JSON.stringify({
+                reason: 'Work can inspect the repository and prepare the requested changes.',
+                prompt: 'INTERNAL-WORK-PROMPT' }) } } },
+    } };
+    const snapshot = parseChatGPTConversation({ conversation: decodeChatGPTDetail(raw, id), assetsByNode: new Map() }).conversation.detail;
+    await ingestDetail(account.id, id, snapshot, { updatedAt: 100 });
+    t.mock.method(GeminiProvider.prototype, 'fetchConversationDetail', async () => {
+        await ingestDetail(account.id, id, snapshot, { updatedAt: 100 });
+    });
+    const result = await runExport(exportRequest([id]));
+    assert.equal(result.exported, 1);
+    assert.equal(result.partial, 0);
+    assert.deepEqual(result.failed, []);
+    const markdown = await host.blobs[0].text();
+    assert.match(markdown, /Review the repository/);
+    assert.match(markdown, /Continue in ChatGPT Work/);
+    assert.match(markdown, /Work can inspect the repository/);
+    assert.doesNotMatch(markdown, /INTERNAL-WORK-PROMPT|"reason"/);
+    const record = await getExportRecord(exportKey(id));
+    assert.equal(record?.status, 'ok');
+    assert.equal(record?.sourceTurn, 'handoff');
+    assert.equal(record?.otherContentMissing, undefined);
+});

@@ -233,7 +233,6 @@ function branchCoverage(conversation: ChatGPTApiConversationWithId, nodes: reado
     const leaf = conversation.current_node ? conversation.mapping.get(conversation.current_node)?.message : undefined;
     if (!conversation.current_node) return incomplete('current_node_missing');
     // Turn termination is a separate fact: a stopped reply can still be fully saved.
-    if (leaf?.recipient === 'local.handoff') return incomplete('handoff_content_unrepresented', conversation.current_node);
     let id: string | undefined = conversation.current_node;
     const seen = new Set<string>();
     while (id) {
@@ -241,6 +240,10 @@ function branchCoverage(conversation: ChatGPTApiConversationWithId, nodes: reado
         seen.add(id);
         const node: ChatGPTConversationNode | undefined = conversation.mapping.get(id);
         if (!node) return incomplete('ancestor_missing', id);
+        if (node.message?.recipient === 'local.handoff'
+            && !node.message.metadata?.is_visually_hidden_from_conversation
+            && !node.message.metadata?.is_thinking_preamble_message
+            && !nodes.some(rendered => rendered.id === id)) return incomplete('handoff_content_unrepresented', id);
         if (node.parent == null) return 'complete';
         id = node.parent;
     }

@@ -1,4 +1,4 @@
-import { OperationError } from '../../shared/errors/operationError.js';
+import { OperationError, operationError } from '../../shared/errors/operationError.js';
 import { ResourceHttpError, ResourceProcessingError } from '../../shared/resources/resourceResult.js';
 import type { DomainAsset } from '../../l2/conversationDetail.js';
 import { readConversationKey, type ConversationKey } from '../../l2/conversationKey.js';
@@ -122,6 +122,8 @@ export async function acquireSourceResource(asset: DomainAsset, signal?: AbortSi
                 responseType: response?.type ?? null, redirected: response?.redirected ?? null,
                 errorName: error instanceof Error ? error.name : 'NonError', aborted: signal?.aborted ?? false,
                 elapsedMs: Date.now() - startedAt } });
+        signal?.throwIfAborted();
+        if (error instanceof TypeError) throw operationError(error, 'RESOURCE_DOWNLOAD_FAILED');
         throw error;
     }
 }
