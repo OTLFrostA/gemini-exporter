@@ -142,6 +142,12 @@
     transform: translateX(14px);
     background: white;
   }
+  label:has(input[type=checkbox].toggle) { cursor: pointer; }
+  label:has(input[type=checkbox].toggle:disabled) {
+    opacity: .45;
+    cursor: default;
+  }
+  input[type=checkbox].toggle:disabled { cursor: default; }
   /* Dev alone uses an inverted direction: ON is left, beside its label. */
   #devToggle::after { transform: translateX(14px); }
   #devToggle:checked::after { transform: translateX(0); }
@@ -383,7 +389,7 @@
     </div>
 
     <div id="logSection" class="dev-only" style="display:flex; flex-direction:column; gap:8px; flex:1; min-height:90px; overflow:hidden; margin-top:4px;">
-      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;font-size:12px;flex:none" data-i18n-title="includeAssetsTip" title="Download images and file attachments">
+      <label style="display:flex;gap:8px;align-items:center;font-size:12px;flex:none" data-i18n-title="includeAssetsTip" title="Download images and file attachments">
         <input type="checkbox" id="includeAssets" class="toggle">
         <span data-i18n="includeAssets">下载附件（可能需要更长时间）</span>
       </label>
