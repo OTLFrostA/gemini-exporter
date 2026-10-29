@@ -20,6 +20,7 @@ import {
     shouldSkipChatGPTMessage,
 } from '../src/l1/parsers/chatgpt/conversationTree.js';
 import {
+    buildFileDownloadPath,
     fileIdFromPointer,
     parseFileDownloadPayload,
 } from '../src/l1/client/chatgpt/imageAssets.js';
@@ -211,6 +212,13 @@ test('files/download helpers narrow signed-url payloads', () => {
     assert.equal(fileIdFromPointer('https://x/y.png'), null);
     assert.equal(fileIdFromPointer('file-service://file-legacy'), 'file-legacy');
     assert.equal(fileIdFromPointer('file-service://'), null);
+    const opaque = 'prefix#file_abc#p_0.preview.jpg';
+    const scoped = new URL(buildFileDownloadPath(opaque, 'conversation-id'), 'https://chatgpt.com');
+    assert.equal(decodeURIComponent(scoped.pathname.split('/').at(-1) ?? ''), opaque);
+    assert.equal(scoped.hash, '');
+    assert.equal(scoped.searchParams.get('conversation_id'), 'conversation-id');
+    assert.equal(scoped.searchParams.get('inline'), 'false');
+    assert.equal(scoped.searchParams.get('download_intent'), 'true');
     assert.deepEqual(
         parseFileDownloadPayload(fileDownloadGen('C_FILE_DOWNLOAD_HELPERS_01')),
         { downloadUrl: 'https://x/dl', fileName: 'a.png', byteLength: 10 },
@@ -228,6 +236,7 @@ test('Detail submits image identities; bytes are acquired on demand without chan
                 return Promise.resolve(new Response(JSON.stringify(chatgptSessionGen('C_FILE_DOWNLOAD_SESSION_01')), { status: 200 }));
             }
             if (u.includes('/files/download/file_cat')) {
+                assert.equal(new URL(u).searchParams.get('conversation_id'), 'conv-img');
                 return Promise.resolve(new Response(JSON.stringify(fileDownloadGen('C_FILE_DOWNLOAD_ACQUIRE_01')), { status: 200 }));
             }
             if (u.includes('/files/download/file_missing')) {
@@ -261,6 +270,8 @@ test('Detail submits image identities; bytes are acquired on demand without chan
     const legacy = { ...detail.assets[0], sourceUri: 'file-service://file_cat' };
     assert.equal(provider.canAcquireResourceDirectly(legacy), true);
     assert.deepEqual((await provider.acquireResource(key, legacy)).bytes, pngBytes);
+    const upload = { id: 'uploaded-file', kind: 'file' as const, sourceUri: 'file-download:file_cat' };
+    assert.deepEqual((await provider.acquireResource(key, upload)).bytes, pngBytes);
     await assert.rejects(provider.acquireResource(key, detail.assets[1]), /404/);
     assert.equal(detail.quality.status, 'complete');
     const after = await getDetail(storageIdentity('chatgpt', account.id, 'conv-img'));
