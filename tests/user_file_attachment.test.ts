@@ -7,7 +7,6 @@ const attachments = require('./helpers/recordFixture/attachments.js');
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 
 test('user_file_attachment: itemMatchesFilename correctly identifies valid filenames and rejects URLs', () => {
-    // Valid filenames with standard and custom extensions
     assert.strictEqual(attachments.itemMatchesFilename('architecture.md'), true);
     assert.strictEqual(attachments.itemMatchesFilename('payload.json'), true);
     assert.strictEqual(attachments.itemMatchesFilename('script.py'), true);
@@ -15,7 +14,6 @@ test('user_file_attachment: itemMatchesFilename correctly identifies valid filen
     assert.strictEqual(attachments.itemMatchesFilename('data.custom'), true);
     assert.strictEqual(attachments.itemMatchesFilename('random_token_123.dat'), true);
 
-    // Reject URLs with extensions or query params
     assert.strictEqual(attachments.itemMatchesFilename('https://example.com/doc.pdf'), false);
     assert.strictEqual(attachments.itemMatchesFilename('https://contribution.usercontent.google.com/download?c=123&filename=architecture.md'), false);
     assert.strictEqual(attachments.itemMatchesFilename('http://lh3.googleusercontent.com/pic.png'), false);
@@ -26,27 +24,20 @@ test('user_file_attachment: itemMatchesFilename correctly identifies valid filen
 });
 
 test('user_file_attachment: extractFileNameFromUrl extracts filenames from query params and paths', () => {
-    // URL with query param filename=
     const u1 = 'https://contribution.usercontent.google.com/download?c=CgxiYXJkX3N0b3JhZ2U&filename=architecture.md&opi=103135050';
     assert.strictEqual(attachments.extractFileNameFromUrl(u1), 'architecture.md');
 
-    // URL with URL-encoded query param filename=
     const u2 = 'https://contribution.usercontent.google.com/download?c=123&filename=%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E6%8A%A5%E5%91%8A.json&opi=456';
     assert.strictEqual(attachments.extractFileNameFromUrl(u2), '架构设计报告.json');
 
-    // Custom extension
     const u3 = 'https://contribution.usercontent.google.com/download?c=456&filename=test_run.custom&foo=bar';
     assert.strictEqual(attachments.extractFileNameFromUrl(u3), 'test_run.custom');
 
-    // Path segment extraction
     const u4 = 'https://drive.google.com/uc?export=download&id=123/sample_data.csv';
     assert.strictEqual(attachments.extractFileNameFromUrl(u4), 'sample_data.csv');
 });
 
 test('user_file_attachment: extractUserFiles handles real Gemini payload with Drive thumb and Contribution download URL', () => {
-    // The exact structure seen in production:
-    // node[0] is Drive thumb (viewer/thumb?ds=...)
-    // node[1] is contribution.usercontent.google.com download URL with filename=...
     const downloadUrl = 'https://contribution.usercontent.google.com/download?c=CgxiYXJkX3N0b3JhZ2USTxIMcmVxdWVzdF9kYXRhGj8KMDFhMzNjNWM1NjdkOWMwZDEwMDA2NWJkYWZiODRmMGYxMDI4YTFmZjJlZTNhNmFjYRILEgcQwLPF9o4VGAE&filename=architecture.md&opi=103135050';
     const realTurnUserPayload = [
         [

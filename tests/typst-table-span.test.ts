@@ -162,11 +162,6 @@ test('real WASM: header span and oversized span compile without data loss', asyn
 });
 
 test('real WASM: multi-cell staggered rowspan occupancy compiles and retains all text', async () => {
-    // 3-column table with staggered rowspans:
-    // Row 0: R0C0 (span 2 rows), R0C1 (span 3 rows), R0C2 (1 row)
-    // Row 1: R1C2 (cols 0, 1 occupied by R0C0, R0C1)
-    // Row 2: R2C0 (1 row), R2C2 (col 1 occupied by R0C1)
-    // Row 3: R3C0, R3C1, R3C2 (all 1 row)
     const blocks = [{
         type: 'table', rows: [
             row(cell('R0C0-span2', { rowSpan: 2 }), cell('R0C1-span3', { rowSpan: 3 }), cell('R0C2')),
@@ -190,10 +185,6 @@ test('real WASM: multi-cell staggered rowspan occupancy compiles and retains all
 });
 
 test('real WASM: 2x2 multi-cell block span occupancy compiles cleanly', async () => {
-    // 3-column table with a 2x2 merged block:
-    // Row 0: 2x2-block (rowspan: 2, colspan: 2), R0C2
-    // Row 1: R1C2 (cols 0, 1 occupied by 2x2-block)
-    // Row 2: R2C0, R2C1, R2C2
     const blocks = [{
         type: 'table', rows: [
             row(cell('block-2x2', { rowSpan: 2, colSpan: 2 }), cell('R0C2-side')),
