@@ -35,9 +35,3 @@ Grok source/provider tests cover account isolation, pagination, cancellation,
 snapshot changes, malformed and partial data, citations, files, generated-image
 cards and task-only signed resource URLs. Browser tests cover permission denial
 and connect/sync. Release tests check shipped bundles and upstream attribution.
-
-A live three-turn Grok conversation was exported through production acquisition,
-storage and export code in all four formats. The physical files contained the
-six messages, table, Python code, math and one decoded 129,761-byte JPEG; the image
-was visually compared with the webpage. The PDF embedded the image once. This
-focused check is separate from the standardized Gemini Tier 2 regression suite.
