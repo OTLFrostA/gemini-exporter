@@ -70,7 +70,6 @@ function decodeEntities(s: string): string {
         .replace(/&#39;/g, "'");
 }
 
-/** Split the document into its top-level turn sections (depth-aware). */
 function splitTurns(html: string): string[] {
     const turns = [];
     const re = /<section class="gem-turn[^>]*>/g;
@@ -90,7 +89,6 @@ function splitTurns(html: string): string[] {
     return turns;
 }
 
-/** Visible text lines of an HTML fragment, in document order. */
 function textLines(fragment: string): string[] {
     let t = fragment
         .replace(/<script[\s\S]*?<\/script>/gi, ' ')

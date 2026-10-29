@@ -54,11 +54,9 @@ test('Differential Runner: Structural diffs default to D_CANNOT_DETERMINE (No au
 });
 
 test('Differential Runner: Math comparison defaults all diffs to D_CANNOT_DETERMINE with conversion gain flag', () => {
-    // Both identical
     const same = compareMathConversion('x^2', { typst: 'x^2' }, { typst: 'x^2' });
     assert.strictEqual(same.hasDiff, false);
 
-    // Candidate converts where baseline failed -> defaults to D_CANNOT_DETERMINE, records candidateConversionGain=true
     const gain = compareMathConversion(
         '\\arg(z)',
         { diagnostic: { code: 'FAILED' } },
@@ -69,7 +67,6 @@ test('Differential Runner: Math comparison defaults all diffs to D_CANNOT_DETERM
     assert.strictEqual(gain.candidateConversionGain, true);
     assert.ok(gain.rationale?.includes('Candidate converted LaTeX expression'));
 
-    // Candidate failed where baseline succeeded -> Defaults to D_CANNOT_DETERMINE
     const diverge = compareMathConversion(
         '\\frac{1}{2}',
         { typst: 'frac(1, 2)' },
@@ -171,7 +168,7 @@ test('Differential Runner: Recursively catches table structure and cell alterati
 
     const bundleTableB = [{
                     type: 'table',
-                    columns: [{ align: 'left' }, { align: 'center' }], // alignment differs
+                    columns: [{ align: 'left' }, { align: 'center' }],
                     headerRows: [{
                         cells: [
                             { children: [{ type: 'text', text: 'H1' }] },

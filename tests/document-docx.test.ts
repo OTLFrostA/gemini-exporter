@@ -116,8 +116,8 @@ test('DOCX unreadable image dimensions preserve companion bytes and readable fal
     const jpeg = readFileSync('tests/fixtures/docx/portrait.jpg');
     const brokenImages = [
         new Uint8Array([255, 216, 255]),
-        new Uint8Array([255, 216, 255, 224, 255, 255]), // metadata extends past EOF
-        new Uint8Array([255, 216, 255, 192, 0, 2]), // frame too short
+        new Uint8Array([255, 216, 255, 224, 255, 255]),
+        new Uint8Array([255, 216, 255, 192, 0, 2]),
         jpeg.subarray(0, 40),
         new Uint8Array([255, 216, 255, 218, 0, 2]), // scan without a frame
     ];

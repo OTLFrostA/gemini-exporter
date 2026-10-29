@@ -40,15 +40,12 @@ test('PR 3 - 1: Single generated image on model turn renders 1 inline figure and
     const { document, resources } = await parseFixture(raw);
     const msg = document.messages[0];
 
-    // Canonical AST check
     const imgBlock = msg.blocks.find((b: any) => b.type === 'image');
     assert.ok(imgBlock, 'ImageBlock must exist in canonical blocks');
 
-    // HTML Rendering check
     const { html, diagnostics } = renderDocumentHtml(document, resources);
     assert.strictEqual(diagnostics.length, 0, 'Expected zero diagnostics for resolvable image');
 
-    // 1 inline visual figure in model content
     const inlineFigures = html.match(/<figure class="gem-figure gem-image-block"/g) || [];
     assert.strictEqual(inlineFigures.length, 1, 'Expected exactly 1 inline <figure> in model content');
     assert.ok(html.includes('class="gem-msg-img"'), 'Expected inline image to have gem-msg-img class');
@@ -59,7 +56,6 @@ test('PR 3 - 1: Single generated image on model turn renders 1 inline figure and
     assert.strictEqual(cards.length, 0, 'No companion card should be rendered');
     assert.ok(!html.includes('gem-carousel'), 'No carousel should be rendered');
 
-    // Image appears in exactly 1 figure
     const srcCount = html.split('src="assets/martian_cat.png"').length - 1;
     assert.strictEqual(srcCount, 1, 'Image src must appear exactly once in rendered HTML');
 });
@@ -94,7 +90,6 @@ test('PR 3 - 2: Multiple generated images on model turn render N inline figures 
     const { html, diagnostics } = renderDocumentHtml(document, resources);
     assert.strictEqual(diagnostics.length, 0, 'Expected zero diagnostics');
 
-    // N inline figures
     const inlineFigures = html.match(/<figure class="gem-figure gem-image-block"/g) || [];
     assert.strictEqual(inlineFigures.length, 4, 'Expected 4 inline figures');
 
@@ -103,7 +98,6 @@ test('PR 3 - 2: Multiple generated images on model turn render N inline figures 
     assert.strictEqual(cards.length, 0, 'Expected 0 companion cards');
     assert.ok(!html.includes('gem-carousel'), 'No carousel should be rendered');
 
-    // Verify all 4 paths exist in exactly 1 figure each
     for (let i = 1; i <= 4; i++) {
         const path = `assets/cat_${i}.png`;
         const count = html.split(`src="${path}"`).length - 1;
@@ -140,7 +134,6 @@ test('PR 3 - 3: User uploaded image attachment renders 1 inline figure and no co
     const { document, resources } = await parseFixture(raw);
     const userMsg = document.messages[0];
 
-    // Canonical AST check
     const userImgBlock = userMsg.blocks.find((b: any) => b.type === 'image');
     assert.ok(userImgBlock, 'User image block must exist');
 
@@ -182,7 +175,6 @@ test('PR 3 - 4: Generated image retains both content and explicit attachment pla
     const { document, resources } = await parseFixture(raw);
     const { html } = renderDocumentHtml(document, resources);
 
-    // Markdown inline image rendered
     assert.ok(html.includes('gem-inline-img') || html.includes('gem-image-block'), 'Expected inline image to be rendered');
     assert.ok(html.includes('assets/generated_preview.png'), 'Expected asset path in HTML');
 
@@ -191,7 +183,6 @@ test('PR 3 - 4: Generated image retains both content and explicit attachment pla
     assert.strictEqual(cards.length, 0, 'Explicit inline markdown image should not generate redundant companion cards');
     assert.ok(!html.includes('gem-carousel'), 'No carousel should be rendered');
 
-    // Image path appears exactly once
     const count = html.split('src="assets/generated_preview.png"').length - 1;
     assert.strictEqual(count, 2, 'Both source placements must render as images');
 });
@@ -253,7 +244,6 @@ test('PR 3 - 5: Real-world 040ffd Imagen regression shape (model text + 6 genera
     assert.strictEqual(cards.length, 0, 'No companion download cards should be rendered');
     assert.ok(!modelTurn.includes('gem-carousel'), 'No carousel should be rendered');
 
-    // Verify all 6 paths appear in exactly 1 figure each
     for (let i = 1; i <= 6; i++) {
         const path = `assets/cat_0${i}.jpg`;
         const count = html.split(`src="${path}"`).length - 1;
