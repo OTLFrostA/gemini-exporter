@@ -39,10 +39,14 @@
   button.ok{background:var(--ok);color:#062419}
   .small{padding:4px 10px;font-size:12px;height:28px;border-radius:6px;}
   button:disabled{opacity:.45;pointer-events:none}
-  .feedback-card{margin-top:auto;padding:10px 12px;background:var(--card-inner);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;text-decoration:none;color:var(--muted);cursor:pointer;transition:all 0.15s ease;}
-  .feedback-card:hover{background:#171926;border-color:var(--border-focus);color:var(--text);}
-  .feedback-card:hover .feedback-arrow{opacity:1;transform:translate(1px,-1px);color:var(--accent2);}
-  .feedback-card:active{transform:scale(0.99);}
+  .support-links{margin-top:auto;padding-top:6px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:2px;flex:none;}
+  .support-link{display:flex;align-items:center;gap:10px;min-height:38px;padding:9px 10px;border-radius:8px;color:var(--muted);text-decoration:none;cursor:pointer;transition:background .15s ease,color .15s ease;}
+  .support-link:hover{background:var(--card-inner);color:var(--text);}
+  .support-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .support-link-icon{width:16px;height:16px;flex:none;}
+  .support-link-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:500;}
+  .support-link-arrow{font-size:12px;opacity:.6;flex:none;transition:opacity .15s ease,transform .15s ease;}
+  .support-link:hover .support-link-arrow{opacity:1;transform:translate(1px,-1px);}
   .direct-write-modal{width:min(440px,92vw);max-height:90vh;overflow-y:auto;padding:20px;border:1px solid var(--border-focus);border-radius:14px;background:var(--card);color:var(--text);box-shadow:0 18px 50px rgba(0,0,0,.38)}
   .direct-write-modal::backdrop{background:rgba(0,0,0,.62);backdrop-filter:blur(3px)}
   .direct-write-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
@@ -55,7 +59,6 @@
   .cleanup-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
   .cleanup-actions .destructive{background:var(--card-inner);color:var(--destructive-text,#ff8a8a);border:1px solid currentColor}
   .cleanup-actions button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-  .feedback-arrow{font-size:12px;opacity:0.6;flex:none;transition:opacity 0.15s ease,transform 0.15s ease,color 0.15s ease;}
   .export-preferences{display:flex;flex-direction:column;gap:10px;background:var(--card-inner);padding:12px;border-radius:10px;border:1px solid var(--border)}
   .export-format-row{display:flex;align-items:center;gap:12px;font-size:13px;min-height:32px}
   .export-format-row select{flex:1;min-width:0;height:32px;padding:4px 8px}
@@ -392,13 +395,22 @@
       <div id="log" class="log" style="flex:1; overflow-y:auto;" data-i18n="logReady">就绪</div>
     </div>
 
-    <a href="https://tally.so/r/Y56ZBB" target="_blank" rel="noopener noreferrer" id="feedbackBox" class="feedback-card" data-i18n-title="btnFeedbackTip" title="前往表单提交反馈或新功能建议">
-      <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:inherit; min-width:0;">
-        <span style="font-size:13px; flex:none;">💬</span>
-        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" data-i18n="feedbackPrompt">遇到问题或有新建议？</span>
-      </div>
-      <span class="feedback-arrow">↗</span>
-    </a>
+    <div class="support-links">
+      <a href="https://tally.so/r/Y56ZBB" target="_blank" rel="noopener noreferrer" id="feedbackBox" class="support-link" data-i18n-title="btnFeedbackTip" title="前往表单提交反馈或新功能建议">
+        <svg class="support-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8M8 13h6"/>
+        </svg>
+        <span class="support-link-label" data-i18n="sendFeedback">提交反馈</span>
+        <span class="support-link-arrow" aria-hidden="true">↗</span>
+      </a>
+      <a href="https://discord.gg/e3FgrXUZ8f" target="_blank" rel="noopener noreferrer" id="discordBox" class="support-link" data-i18n-title="btnDiscordTip" title="加入 Discord 社区交流">
+        <svg class="support-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <span class="support-link-label" data-i18n="joinDiscord">加入 Discord</span>
+        <span class="support-link-arrow" aria-hidden="true">↗</span>
+      </a>
+    </div>
   </div>
 
   <div class="card card-right">
