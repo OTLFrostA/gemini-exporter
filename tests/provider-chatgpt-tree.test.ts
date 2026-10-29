@@ -1,3 +1,5 @@
+import { chatGPTSandboxLocator, readChatGPTSandboxLocator } from '../src/l1/resources/chatgptSandbox.js';
+import { parseOpenAIConversation } from '../src/l1/parsers/chatgpt/parseExportConversation.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
 import { decodeChatGPTDetail } from '../src/l1/parsers/chatgpt/decodeDetail.js';
 import { chatGPTInteractiveSnapshot } from '../src/l1/parsers/chatgpt/interactiveSnapshot.js';
@@ -247,6 +249,12 @@ test('Detail submits image identities; bytes are acquired on demand without chan
                 assert.equal(new URL(u).searchParams.get('conversation_id'), 'conv-img');
                 return Promise.resolve(new Response(JSON.stringify(fileDownloadGen('C_FILE_DOWNLOAD_ACQUIRE_01')), { status: 200 }));
             }
+            if (u.includes('/conversation/conv-img/interpreter/download')) {
+                const query = new URL(u).searchParams;
+                assert.equal(query.get('message_id'), 'msg-sandbox');
+                assert.equal(query.get('sandbox_path'), '/mnt/data/preview image.png');
+                return Promise.resolve(new Response(JSON.stringify(fileDownloadGen('C_ATTACHMENT_DOWNLOAD_ACQUIRE_01')), { status: 200 }));
+            }
             if (u.endsWith('/conversation/conv-img/attachment/file_cat/download')) {
                 return Promise.resolve(new Response(JSON.stringify(fileDownloadGen('C_ATTACHMENT_DOWNLOAD_ACQUIRE_01')), { status: 200 }));
             }
@@ -287,6 +295,9 @@ test('Detail submits image identities; bytes are acquired on demand without chan
     assert.deepEqual((await provider.acquireResource(key, legacy)).bytes, pngBytes);
     const upload = { id: 'uploaded-file', kind: 'file' as const, sourceUri: 'file-download:file_cat' };
     assert.deepEqual((await provider.acquireResource(key, upload)).bytes, pngBytes);
+    const generated = { id: 'sandbox-image', kind: 'image' as const, sourceUri: chatGPTSandboxLocator('msg-sandbox', '/mnt/data/preview image.png') };
+    assert.equal(provider.canAcquireResourceDirectly(generated), true);
+    assert.deepEqual((await provider.acquireResource(key, generated)).bytes, pngBytes);
     for (const status of [403, 404]) {
         const library = { ...upload, id: `library-${status}`, sourceUri: `file-download:file_fallback_${status}` };
         assert.deepEqual((await provider.acquireResource(key, library)).bytes, pngBytes);
@@ -893,7 +904,26 @@ test('live ChatGPT Markdown resources close over registered assets without touch
     const detail = result.conversation.detail;
     assert.doesNotThrow(() => assertDomainClosure(detail));
     assert.equal(detail.assets.length, 2);
-    assert.equal(detail.assets.filter(asset => asset.sourceUri === pointer).length, 1);
-    assert.ok(detail.assets.some(asset => asset.sourceUri === 'sandbox:/mnt/data/report.csv' && asset.kind === 'file'));
+    assert.equal(detail.assets.filter(asset => readChatGPTSandboxLocator(asset.sourceUri ?? '')?.path === '/mnt/data/generated/contact-sheet.png').length, 1);
+    assert.ok(detail.assets.some(asset => readChatGPTSandboxLocator(asset.sourceUri ?? '')?.path === '/mnt/data/report.csv' && asset.kind === 'file'));
+    assert.ok(detail.assets.every(asset => readChatGPTSandboxLocator(asset.sourceUri ?? '')?.messageId === 'msg-a'));
+    const archive = parseOpenAIConversation(conversation);
+    assert.ok(archive.conversation.detail.assets.some(asset => asset.sourceUri === pointer));
     assert.ok(detail.messages.some(message => message.content.some(block => block.type === 'code')));
+});
+
+test('sandbox files with the same path stay scoped to their provider message', () => {
+    const conversation: ChatGPTApiConversationWithId = {
+        id: 'sandbox-messages', title: 'Generated files', is_archived: false, current_node: 'second',
+        mapping: new Map([
+            ['root', { id: 'root', children: ['first'] }],
+            ['first', textNode('first', 'root', 'assistant', '[File](sandbox:/mnt/data/report.csv)')],
+            ['second', textNode('second', 'first', 'assistant', '[New file](sandbox:/mnt/data/report.csv)')],
+        ]),
+    };
+    const { assets } = parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail;
+    assert.equal(assets.length, 2);
+    assert.notEqual(assets[0].id, assets[1].id);
+    assert.deepEqual(assets.map(asset => readChatGPTSandboxLocator(asset.sourceUri ?? '')?.messageId), ['msg-first', 'msg-second']);
+    assert.ok(assets.every(asset => asset.name === 'report.csv'));
 });
