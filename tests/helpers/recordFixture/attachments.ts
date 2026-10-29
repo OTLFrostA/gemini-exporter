@@ -1,20 +1,6 @@
 import * as source from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
-import type { RawImageCandidate, ImageAttachment, UserFileAttachment, DeepResearchDocMeta, DocSectionsResult } from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
+import type { RawImageCandidate, ImageAttachment } from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 export * from '../../../src/l1/parsers/gemini/rpc/sourceAttachments.js';
-interface GeminiParserAttachmentsModule {
-    isInternalChipUrl: (u?: string | null) => boolean;
-    filterNewImages: (images: ImageAttachment[], seenSet: Set<string>) => ImageAttachment[];
-    extractImageEvidence: (obj: unknown) => ImageAttachment[];
-    extractResponseImageEvidence: typeof source.extractResponseImageEvidence;
-    extractImages: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
-    extractUserFiles: (turnUserArr: unknown) => UserFileAttachment[];
-    extractDocumentsMeta: (root: unknown) => DeepResearchDocMeta[];
-    createDocumentReader: typeof source.createDocumentReader;
-    parseDocSections: (docContentArr: unknown, contentMatch?: "substring") => DocSectionsResult;
-    itemMatchesFilename: (name: string) => boolean;
-    extractFileNameFromUrl: (url: string) => string | null;
-}
-
     const IMAGE_EXT_MIME: Record<string, string> = {
         ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
         ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif",
@@ -79,6 +65,4 @@ export function extractImages(obj: unknown, seqRef?: { value: number }): ImageAt
     const counter = seqRef ?? { value: 1 };
     return source.collectImages(obj, raw => normalizeRawImage(raw, counter));
 }
-const GeminiParserAttachments: GeminiParserAttachmentsModule = { ...source, extractImages };
-if (typeof module === 'object' && module.exports) module.exports = GeminiParserAttachments;
-export default GeminiParserAttachments;
+
