@@ -154,7 +154,7 @@ export async function initWorkbench(): Promise<void> {
             ['select', ['accountIdSelect', 'format', 'chatFilterSelect']],
             ['input', ['skipExported', 'includeAssets', 'liveSaveDiskToggle', 'chatSearchInput', 'btnSelectAll']],
             ['button', ['btnSetDir', 'btnExport', 'btnRetryFailed', 'btnClearExported', 'btnClearScan',
-                'btnSyncAll', 'btnForceFullScan', 'btnImportTakeout', 'btnImportOpenAI', 'btnTourGuide', 'btnPlatformPermissions']],
+                'btnSyncAll', 'btnForceFullScan', 'btnImportTakeout', 'btnTourGuide', 'btnPlatformPermissions']],
         ] as const;
         for (const [tag, ids] of controls) for (const id of ids) control(tag, id).disabled = busy || !settings;
         for (const id of ['devToggle', 'langToggle'])
@@ -186,14 +186,12 @@ export async function initWorkbench(): Promise<void> {
         const name = account?.displayName || account?.email || account?.providerAccountId || text('No local account', '暂无本地账户');
         el('accountName').textContent = state.accounts.length ? '' : text('Connect a platform', '请先连接平台');
         el('accountName').style.display = state.accounts.length ? 'none' : 'inline-flex';
+        el('btnImportTakeout').title = text('Import a ZIP archive for the selected platform', '导入当前所选平台的 ZIP 压缩包');
+        const zipSupported = !state.accountId || account?.providerId === 'gemini' || account?.providerId === 'chatgpt';
         el('takeoutAccountName').textContent = state.accountId
-            ? account?.providerId === 'gemini' ? `→ ${name}` : text('Select Gemini', '请选择 Gemini')
+            ? zipSupported ? `→ ${name}` : text('ZIP import is unavailable for this platform.', '此平台暂不支持 ZIP 导入。')
             : text('First import', '首次导入');
         el('takeoutAccountName').title = state.accountId ? name : text('Creates a default Gemini account after choosing a ZIP', '选定 ZIP 后创建 Gemini 默认账户');
-        control('button', 'btnImportOpenAI').disabled = busy || !settings || account?.providerId !== 'chatgpt';
-        el('openaiImportHint').textContent = account?.providerId === 'chatgpt'
-            ? text('ZIP attachments stay available while this page is open.', '此页面保持打开时可导出 ZIP 附件。')
-            : text('Select a ChatGPT account to import.', '请选择 ChatGPT 账户后导入。');
         selector.title = name;
         el('ver').textContent = chrome.runtime.getManifest().version;
         if (settings) {
@@ -234,7 +232,7 @@ export async function initWorkbench(): Promise<void> {
             ? text('Reauthorize', '重新授权')
             : handle ? text('Change', '更换') : text('Choose folder', '选择文件夹');
         control('button', 'btnImportTakeout').disabled = busy || !settings ||
-            !!(state.accountId && account?.providerId !== 'gemini');
+            !zipSupported;
         for (const id of ['btnClearExported', 'btnClearScan']) control('button', id).disabled = busy || !state.accountId;
         control('button', 'btnForceFullScan').disabled = busy || !settings?.developerMode;
         el('btnCancel').style.display = action === 'export' && !!controller ? 'inline-flex' : 'none';
@@ -504,46 +502,41 @@ export async function initWorkbench(): Promise<void> {
         });
     });
     const fileInput = control('input', 'takeoutFileInput');
-    el('btnImportTakeout').addEventListener('click', () => { if (!busy) fileInput.click(); });
-    const importFile = (file: File) => perform('takeout', async () => {
-        status(() => text('Importing Takeout ZIP…', '正在导入 Takeout ZIP…'));
-        try {
-            const result = await handleTakeoutImport(file, state.accountId, { onTarget: select,
-                onProgress: percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent) });
-            status(() => text(`Imported ${result.imported} conversations (${result.status})`,
-                `已提交 ${result.imported} 条对话（${result.status === 'ok' ? '完成' : result.status === 'partial' ? '部分完成' : '未知'}）`));
-        } finally { fileInput.value = ''; }
-    });
+    const importButton = control('button', 'btnImportTakeout');
+    const importFile = (file: File) => {
+        if (busy || importButton.disabled) return;
+        const accountId = state.accountId;
+        const account = state.accounts.find(a => a.id === accountId);
+        return perform('takeout', async () => {
+            try {
+                if (account?.providerId === 'chatgpt') {
+                    status(() => text('Importing OpenAI ZIP…', '正在导入 OpenAI ZIP…'));
+                    const result = await importOpenAI(file, account.id,
+                        percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent), importedResources);
+                    if (result.status === 'empty') status(() => text(
+                        'This OpenAI ZIP contains no conversation bodies. No conversations were imported.',
+                        '此 OpenAI ZIP 没有聊天正文，未导入任何会话。'), 'warn');
+                    else status(() => text(
+                        `Imported ${result.imported} conversations; skipped ${result.skipped}; unavailable attachments ${result.missingAssets}.${result.status === 'partial' ? ' Import partially completed.' : ''}`,
+                        `已导入 ${result.imported} 条会话；跳过 ${result.skipped} 条；${result.missingAssets} 个附件不可用。${result.status === 'partial' ? '导入部分完成。' : ''}`),
+                        result.status === 'partial' ? 'warn' : 'info');
+                } else {
+                    status(() => text('Importing Takeout ZIP…', '正在导入 Takeout ZIP…'));
+                    const result = await handleTakeoutImport(file, accountId, { onTarget: select,
+                        onProgress: percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent) });
+                    status(() => text(`Imported ${result.imported} conversations (${result.status})`,
+                        `已提交 ${result.imported} 条对话（${result.status === 'ok' ? '完成' : result.status === 'partial' ? '部分完成' : '未知'}）`));
+                }
+            } finally { fileInput.value = ''; }
+        });
+    };
+    importButton.addEventListener('click', () => { if (!busy && !importButton.disabled) fileInput.click(); });
     fileInput.addEventListener('change', () => { const file = fileInput.files?.[0]; if (file) void importFile(file); });
-    el('btnImportTakeout').addEventListener('dragover', event => event.preventDefault());
-    el('btnImportTakeout').addEventListener('drop', event => {
+    importButton.addEventListener('dragover', event => event.preventDefault());
+    importButton.addEventListener('drop', event => {
         event.preventDefault();
         const file = event.dataTransfer?.files[0];
-        if (file && !busy) void importFile(file);
-    });
-    const openaiInput = control('input', 'openaiFileInput');
-    const importOpenAIFile = (file: File) => perform('takeout', async () => {
-        try {
-            if (!state.accountId) throw new Error('Select a ChatGPT account before importing OpenAI ZIP');
-            status(() => text('Importing OpenAI ZIP…', '正在导入 OpenAI ZIP…'));
-            const result = await importOpenAI(file, state.accountId,
-                percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent), importedResources);
-            if (result.status === 'empty') status(() => text(
-                'This OpenAI ZIP contains no conversation bodies. No conversations were imported.',
-                '此 OpenAI ZIP 没有聊天正文，未导入任何会话。'), 'warn');
-            else status(() => text(
-                `Imported ${result.imported} conversations; skipped ${result.skipped}; unavailable attachments ${result.missingAssets}.${result.status === 'partial' ? ' Import partially completed.' : ''}`,
-                `已导入 ${result.imported} 条会话；跳过 ${result.skipped} 条；${result.missingAssets} 个附件不可用。${result.status === 'partial' ? '导入部分完成。' : ''}`),
-                result.status === 'partial' ? 'warn' : 'info');
-        } finally { openaiInput.value = ''; }
-    });
-    el('btnImportOpenAI').addEventListener('click', () => { if (!busy) openaiInput.click(); });
-    openaiInput.addEventListener('change', () => { const file = openaiInput.files?.[0]; if (file) void importOpenAIFile(file); });
-    el('btnImportOpenAI').addEventListener('dragover', event => event.preventDefault());
-    el('btnImportOpenAI').addEventListener('drop', event => {
-        event.preventDefault();
-        const file = event.dataTransfer?.files[0];
-        if (file && !busy) void importOpenAIFile(file);
+        if (file) void importFile(file);
     });
     for (const [id, scanRecords] of [['btnClearExported', false], ['btnClearScan', true]] as const)
         el(id).addEventListener('click', async () => {
