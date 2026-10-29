@@ -1,4 +1,3 @@
-# scripts/framework/features.py
 """
 Declarative Feature Registry and Test Status Matrix.
 Defines all testable capabilities of Gemini Exporter across 5 core lifecycle domains.

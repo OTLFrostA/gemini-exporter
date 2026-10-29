@@ -1,4 +1,3 @@
-# scripts/framework/driver/platform_driver.py
 """
 Unified AI Chat Platform Driver Abstraction.
 Defines the core abstract contracts and cross-platform data models
