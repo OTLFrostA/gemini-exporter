@@ -1,5 +1,5 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
-import { parseGeminiTakeoutZipArchive, parseGeminiTakeoutZip } from '../src/l1/imports/takeout/readArchive.js';
+import { parseGeminiTakeoutZipArchive } from '../src/l1/imports/takeout/readArchive.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -134,29 +134,30 @@ test('Takeout extraction has no export naming and native parsing does not call c
 });
 
 
-test('raw ZIP bytes decode directly to selected and batch Domain results with actual archive entries', async () => {
+test('raw ZIP bytes decode directly to batch Domain results with actual archive entries', async () => {
     const JSZip = require('../lib/jszip.min.js') as { new(): { file(path: string, data: string): void; generateAsync(options: { type: string }): Promise<Uint8Array> }; loadAsync(bytes: unknown): Promise<unknown> };
     const zip = new JSZip();
     zip.file('Takeout/Gemini/MyActivity.html', activity('Question', '<p>Output <img src="photo.png"></p>'));
     zip.file('Takeout/Gemini/photo.png', 'image source bytes');
     const data = await zip.generateAsync({ type: 'uint8array' });
-    const result = await parseGeminiTakeoutZip(data, { providerId: 'gemini', readArchive: bytes => JSZip.loadAsync(bytes) });
+    const batch = await parseGeminiTakeoutZipArchive(data, { account: fixtureAccount('gemini'), providerId: 'gemini', readArchive: bytes => JSZip.loadAsync(bytes) });
+    assert.equal(batch.length, 1);
+    const [result] = batch;
     assert.equal(result.conversationId, ID);
     assert.equal(result.conversation.detail.assets.length, 1);
     const handle = result.archiveResources[result.conversation.detail.assets[0].id];
     assert.equal(handle.path, 'Takeout/Gemini/photo.png');
     assert.equal(await handle.entry.async!('text'), 'image source bytes');
     assertDomainClosure((JSON.parse(JSON.stringify(result.conversation))).detail);
-    const batch = await parseGeminiTakeoutZipArchive(data, { account: fixtureAccount('gemini'), providerId: 'gemini', readArchive: bytes => JSZip.loadAsync(bytes) });
-    assert.deepEqual(batch[0].conversation, result.conversation);
+
 });
 
 test('ZIP parsing rejects malformed inventories, unverifiable HTML sizes and ambiguous activity selection', async () => {
     const data = new Uint8Array([1]);
-    await assert.rejects(parseGeminiTakeoutZip(data, { providerId: 'gemini', readArchive: async () => ({}) }), /inventory/);
-    await assert.rejects(parseGeminiTakeoutZip(data, { providerId: 'gemini',
+    await assert.rejects(parseGeminiTakeoutZipArchive(data, { providerId: 'gemini', readArchive: async () => ({}) }), /inventory/);
+    await assert.rejects(parseGeminiTakeoutZipArchive(data, { providerId: 'gemini',
         readArchive: async () => ({ files: { 'MyActivity.html': { async: async () => activity() } } }) }), /size|大小/);
-    await assert.rejects(parseGeminiTakeoutZip(data, { providerId: 'gemini',
+    await assert.rejects(parseGeminiTakeoutZipArchive(data, { providerId: 'gemini',
         readArchive: async () => ({ files: { 'a/MyActivity.html': { _data: { uncompressedSize: 0 } }, 'b/MyActivity.html': { _data: { uncompressedSize: 0 } } } }) }), /activityPath/);
 });
 
