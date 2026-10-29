@@ -101,7 +101,6 @@ async function build() {
         throw new Error(`esbuild bundle build failed with ${errors} error(s)`);
     }
 
-    // Build the Typst sandbox entry as ESM (loaded via <script type="module"> in the sandbox page)
     for (const [entryName, entryFile] of Object.entries(SANDBOX_ENTRIES)) {
         if (!fs.existsSync(entryFile)) {
             throw new Error(`Sandbox entrypoint source missing for ${entryName}: ${entryFile}`);
