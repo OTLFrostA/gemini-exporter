@@ -224,7 +224,6 @@ export async function initWorkbench(): Promise<void> {
                         ? text('Paused: Markdown only; switch back to resume', '已暂停 · 仅支持 Markdown，切回后恢复')
                         : text('Paused: authorize a folder to resume', '已暂停 · 请选择或重新授权文件夹');
         }
-        // The folder picker and Live Save share a handle and depend on folder delivery.
         control('button', 'btnSetDir').disabled = busy || !folderSelected;
         const handle = Directory.getDirHandle();
         const pending = Directory.getPendingPermissionHandle();
