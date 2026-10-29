@@ -150,7 +150,6 @@ function setPill(el, text, cls) {
   el.className = 'pill ' + cls;
 }
 
-/* ---------------- 1. 环境 ---------------- */
 (function initEnv() {
   $('ua').textContent = navigator.userAgent;
   $('secureCtx').textContent = String(window.isSecureContext);
@@ -163,7 +162,6 @@ function setPill(el, text, cls) {
   $('browserName').textContent = name;
 })();
 
-/* ---------------- 2. 授权与 API ---------------- */
 var permResult = 'unknown';
 var queryFn = null;   // 实际使用的 query 函数
 var queryPath = '';
@@ -270,7 +268,6 @@ $('btnQuery').addEventListener('click', function () {
 
 $('fontFilter').addEventListener('input', function () { renderFontTable($('fontFilter').value); });
 
-/* ---------------- 4. 样本字体切换 ---------------- */
 $('btnApplyFont').addEventListener('click', function () {
   var fam = $('fontSelect').value;
   if (!fam) return;
@@ -282,7 +279,6 @@ $('btnResetFont').addEventListener('click', function () {
   log('样本字体恢复系统默认');
 });
 
-/* ---------------- 5. 系统字体探测 ---------------- */
 var PROBE_FONTS = [
   'system-ui', '-apple-system', 'Segoe UI', 'Roboto',
   'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑',
@@ -323,7 +319,6 @@ $('btnProbe').addEventListener('click', function () {
   window.__probeResult = { present: present, missing: missing };
 });
 
-/* ---------------- 6. 测试记录 ---------------- */
 $('btnRecord').addEventListener('click', function () {
   var rec = {
     generatedAt: new Date().toISOString(),

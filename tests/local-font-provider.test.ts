@@ -305,7 +305,6 @@ test('cache: warmLocalFontCache queries once and caches entries', async () => {
         await warmLocalFontCache();
         assert.strictEqual(callCount, 1);
 
-        // queryLocalFontsProvider reuses the cache
         const res = await queryLocalFontsProvider();
         assert.strictEqual(res.ok, true);
         assert.strictEqual(callCount, 1);

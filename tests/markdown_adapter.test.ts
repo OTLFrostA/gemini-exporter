@@ -237,9 +237,6 @@ test('Layer M1: Task list checkbox prepends marker to item text', () => {
     assert.strictEqual(list.items[1].blocks[0].children[0].text, '[x] Done task');
 });
 
-// =========================================================================
-// Layer M2: Integration Smoke Tests (micromark -> mdast -> Content AST)
-// =========================================================================
 
 test('Layer M2: Smoke test - Headings, paragraphs, and standard inlines', () => {
     const { ctx } = createTestContext();
@@ -392,9 +389,6 @@ test('Layer M2: parsed Markdown paragraph retains inline nodes', () => {
     assert.strictEqual(inlines[4].text, ' text');
 });
 
-// =========================================================================
-// Reference Nodes & Definition Resolution (PR 2.1 Hardening)
-// =========================================================================
 
 test('Reference Nodes: Standard full, collapsed, and shortcut linkReference resolve definitions', () => {
     const { ctx } = createTestContext();
@@ -414,16 +408,13 @@ test('Reference Nodes: Standard full, collapsed, and shortcut linkReference reso
     const links = para.children.filter((c: any) => c.type === 'link');
     assert.strictEqual(links.length, 3);
 
-    // Full reference
     assert.strictEqual(links[0].href, 'https://google.com');
     assert.strictEqual(links[0].title, 'Google Search');
     assert.strictEqual(links[0].children[0].text, 'Google Link');
 
-    // Collapsed reference
     assert.strictEqual(links[1].href, 'https://github.com');
     assert.strictEqual(links[1].children[0].text, 'GitHub');
 
-    // Shortcut reference
     assert.strictEqual(links[2].href, 'https://commonmark.org');
     assert.strictEqual(links[2].title, 'Specification');
     assert.strictEqual(links[2].children[0].text, 'CommonMark');

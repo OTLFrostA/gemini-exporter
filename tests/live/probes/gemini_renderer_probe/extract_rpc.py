@@ -27,7 +27,6 @@ for file in case_dir.glob('rpc-*.txt'):
     except (ValueError, IndexError):
         continue
 if not candidates: raise SystemExit(f'No RPC model text containing {marker!r}')
-# The complete assistant text is longer than duplicated excerpts/metadata strings.
 candidates.sort(reverse=True, key=lambda x:x[0])
 length, path, raw, rpc_hash = candidates[0]
 out_dir.mkdir(parents=True, exist_ok=True)
