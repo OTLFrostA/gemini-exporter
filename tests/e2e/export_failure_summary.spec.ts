@@ -15,6 +15,7 @@ test('100 failed conversations collapse into one group, copy the reason once, an
     await page.locator('#btnExport').click();
     await page.locator('#btnModalContinueZip').click();
     await expect(page.locator('#exportFailureTitle')).toHaveText('100 conversations failed · Issue groups: 1');
+    await expect(page.locator('#exportFailureCard')).toHaveAttribute('data-severity', 'error');
     const groups = page.locator('#exportFailureList > details');
     await expect(groups).toHaveCount(1);
     await expect(groups.locator('summary')).toHaveText('File delivery failed · 100 conversations · 100 occurrences');
@@ -62,7 +63,7 @@ test('partial exports aggregate warnings, preserve all counts beyond log limits,
             code: 'RESOURCE_PROCESSING_FAILED', message: `Resource ${i} rejected` });
         h.finishExport();
     });
-    await expect(page.locator('#exportFailureTitle')).toHaveText('0 conversations failed · Issue groups: 1');
+    await expect(page.locator('#exportFailureTitle')).toHaveText('Export warnings · Issue groups: 1');
     await expect(page.locator('#exportFailureList summary')).toHaveText('Attachment could not be processed · 1 conversations · 10001 occurrences');
     await expect(page.locator('#btnRetryFailed')).toBeHidden();
     const downloaded = page.waitForEvent('download');
@@ -79,6 +80,49 @@ test('partial exports aggregate warnings, preserve all counts beyond log limits,
     expect(report.exportRuns[0].issues[0]).toMatchObject({ category: 'RESOURCE_PROCESSING_FAILED', severity: 'warning', occurrences: 10001 });
     expect(report.exportRuns[0].issues[0].conversations).toHaveLength(1);
 });
+
+for (const theme of ['light', 'dark'] as const) {
+    test(`warnings use a warm notice and mixed failures stay red in ${theme} theme`, async ({ page }, testInfo) => {
+        await mount(page, 'options', { holdExport: true, settings: { theme } });
+        await page.locator('#btnSelectAll').click();
+        await page.locator('#btnExport').click();
+        const warn = async () => page.evaluate(() => {
+            const h = Reflect.get(window, 'harness');
+            h.exportOptions.onDiagnostic({ key: h.exports.at(-1).keys[0], stage: 'source_parse', severity: 'warning',
+                code: 'GEMINI_STRUCTURED_FALLBACK', message: 'Native structured body unavailable; using Markdown fallback' });
+        });
+        await warn();
+        await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
+        const card = page.locator('#exportFailureCard');
+        const title = page.locator('#exportFailureTitle');
+        await expect(page.locator('#btnExport')).toBeEnabled();
+        await expect(card).toHaveAttribute('data-severity', 'warning');
+        await expect(title).toHaveText('Export warnings · Issue groups: 1');
+        await expect(title).toHaveCSS('color', theme === 'light' ? 'rgb(161, 98, 7)' : 'rgb(223, 183, 126)');
+        await expect(page.locator('#btnRetryFailed')).toBeHidden();
+        await expect(page.locator('#btnCopyFailedLog')).toHaveText('Copy Diagnostics');
+        await page.locator('#langToggle').uncheck();
+        await expect(title).toHaveText('导出警告 · 1 组提示');
+        await expect(page.locator('#btnCopyFailedLog')).toHaveText('复制诊断');
+        await card.screenshot({ path: testInfo.outputPath(`warning-${theme}.png`) });
+        await page.locator('#langToggle').check();
+
+        await page.locator('#btnExport').click();
+        await warn();
+        await page.evaluate(() => {
+            const h = Reflect.get(window, 'harness');
+            h.failExport = true;
+            h.finishExport();
+        });
+        await expect(card).toHaveAttribute('data-severity', 'error');
+        await expect(title).toHaveText('1 conversations failed · Issue groups: 2');
+        await expect(title).toHaveCSS('color', theme === 'light' ? 'rgb(180, 35, 54)' : 'rgb(224, 139, 148)');
+        await expect(page.locator('#btnRetryFailed')).toBeVisible();
+        await expect(page.locator('#exportFailureList details[data-severity="warning"]')).toHaveCount(1);
+        await expect(page.locator('#exportFailureList details[data-severity="error"]')).toHaveCount(1);
+        await card.screenshot({ path: testInfo.outputPath(`mixed-${theme}.png`) });
+    });
+}
 
 test('preflight folder authorization is a status prompt, not a batch failure', async ({ page }) => {
     await mount(page, 'options', { settings: { exportDelivery: 'folderWriter' } });
