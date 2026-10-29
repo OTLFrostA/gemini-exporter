@@ -2,12 +2,6 @@ import { fixtureAccount } from './helpers/domainFixture.js';
 const { sourceDetail, sourceMessage } = require('./helpers/l1SourceFixture.js');
 const { parseGeminiRpcConversation } = require('../src/l1/parsers/gemini/rpc/parseConversation.js');
 const { detailGen: geminiDetailGen } = require('./fixtures/providers/geminiDetail.js') as typeof import('./fixtures/providers/geminiDetail.js');
-/**
- * Phase C 规格测试 —— 解析可观测 (P1-8 / P1-9)
- * red-by-design: 修复前失败、修复后通过。
- *
- * 运行：node -r ./tests/ts_register.js --test tests/parse_observability.test.ts
- */
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -64,11 +58,9 @@ test('P1-8e: pagination 跨页合并 turnsRejected 与 schemaDrift（去重）',
 
 const UUID = "123e4567-e89b-12d3-a456-426614174099";
 function strictDocItem(title = "Adequate Strict Title Here"): unknown[] {
-    // DEEP_RESEARCH_DOC: [CHIP_URL:0, ?:1, ID:2, TITLE:3, CONTENT_ID:4, TIMESTAMP:5]
     return [["https://x/immersive_entry_chip/abc"], "filler", UUID, title];
 }
 function flatDocItem(title = "Adequate Flat Title Here"): unknown[] {
-    // 非严格形态：item[0] 不是数组，长度 < 4
     return ["https://y/immersive_entry_chip/def", UUID, title];
 }
 
@@ -131,7 +123,7 @@ test('P1-9f: findDocContentById 全等路径不标 contentMatch', () => {
 });
 
 test('P1-9g: findDocContentById includes 长元素（>=80）不再命中', () => {
-    const elem = "n".repeat(40) + "docLong1" + "m".repeat(40); // 88 字符，确实包含 docId
+    const elem = "n".repeat(40) + "docLong1" + "m".repeat(40);
     assert.strictEqual(elem.length, 88);
     assert.ok(elem.includes("docLong1"));
     const found = attachments.createDocumentReader([[elem]]).byId("docLong1");
@@ -169,7 +161,6 @@ test('P1-9k: findDocContentById substring match -> parseDocSections 端到端透
     assert.strictEqual(res.contentMatch, 'substring', 'parseDocSections 必须透传匹配依据');
     assert.ok(res.contentMarkdown.includes("这是一段用于测试文档段落的文字内容"), 'sections 内容应被正确解析为 markdown');
 
-    // 3. 对照组：全等匹配节点不标记 contentMatch，经 parseDocSections 后 contentMatch 保持 undefined
     const exactNode = ["docExactId", [[rawSection, "https://example.com/doc-link"]]];
     const exactFound = attachments.createDocumentReader([exactNode]).byId("docExactId");
     assert.ok(exactFound);

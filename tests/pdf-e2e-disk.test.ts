@@ -18,7 +18,6 @@ const JSZip = require('../lib/jszip.min.js');
 const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
 const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'conversation-sample.json'), 'utf8'));
 
-// Fixture helpers
 
 function makeSample(idSuffix: string, title: string, marker?: string) {
     const c = JSON.parse(JSON.stringify(sample));
@@ -37,7 +36,6 @@ function makeSample(idSuffix: string, title: string, marker?: string) {
     return c;
 }
 
-/** Recursively collect plain text from the prepared display transport inline/block nodes. */
 function flattenText(node: any): string {
     if (!node) return '';
     if (typeof node === 'string') return node;

@@ -41,7 +41,6 @@ const {
     resolveLocalCjkFont,
 } = require('./helpers/realWasmSandbox.js');
 
-// builders
 
 
 function para(text: string) {
@@ -135,7 +134,6 @@ function assertPdfMagic(pdfBytes: Uint8Array): void {
     assert.strictEqual(Buffer.from(pdfBytes.slice(0, 5)).toString('latin1'), '%PDF-');
 }
 
-// D8-1: 0 外部请求
 
 test('D8-1: full WASM init + font install + compile makes 0 external requests', async () => {
     const domain = makeDomain([
@@ -185,18 +183,13 @@ test('D8-2: formulas compile to selectable text, not images', async () => {
         extracted.imageXObjectCount, 0,
         'no image XObjects: formulas are vector text, not rasterized images',
     );
-    // Selectable math: Typst sets variables in mathematical alphanumeric
-    // symbols (NewCMMath), which extract as real Unicode text, e.g.
-    // E=mc^2 -> "𝐸=𝑚𝑐2", a^2+b^2=c^2 -> "𝑎2+𝑏2=𝑐2".
     for (const needle of ['𝐸', '𝑚', '𝑐', '𝑎', '𝑏', '=', '2']) {
         assert.ok(extracted.text.includes(needle), `extracted text contains ${JSON.stringify(needle)}`);
     }
     assert.ok(!extracted.text.includes('�'), 'no tofu in math runs');
-    // Surrounding prose extracts intact alongside the math.
     assert.ok(extracted.text.includes('mass-energy'), 'prose survives alongside math');
 });
 
-// D8-3: CJK 文本提取 / 无 tofu
 
 test('D8-3: long Chinese session extracts with full CJK coverage, zero tofu', async (t: { skip: (msg?: string) => void }) => {
     const cjkFont = resolveLocalCjkFont();
@@ -305,7 +298,6 @@ test('D8-4: 50 MiB file attachment stays metadata-only (no read, no hash, no OOM
     );
 });
 
-// D8-5: 多会话压力
 
 test('D8-5: 20 sequential compiles on one reused frame: timing + heap', async () => {
     const host = new RealWasmSandboxHost(repoRoot());
@@ -353,7 +345,6 @@ test('D8-5: 20 sequential compiles on one reused frame: timing + heap', async ()
     }
     const heapEnd = process.memoryUsage().heapUsed;
     assert.strictEqual(failures, 0, 'zero compile failures across 20 sessions');
-    // One frame for all 20 compiles, like production frame reuse.
     assert.strictEqual(host.stats.framesCreated, 1, 'single sandbox frame reused');
     const sorted = [...times].sort((a, b) => a - b);
     console.log(
@@ -365,7 +356,6 @@ test('D8-5: 20 sequential compiles on one reused frame: timing + heap', async ()
     );
 });
 
-// D8-6: 连续导出 dispose / leak 回归 (#594)
 
 test('D8-6: repeated create -> compile -> dispose leaves no frame/listener growth', async () => {
     const CYCLES = 5;
@@ -395,7 +385,6 @@ test('D8-6: repeated create -> compile -> dispose leaves no frame/listener growt
     console.log(`  D8-6: ${CYCLES} cycles, stats=${JSON.stringify(host.stats)}`);
 });
 
-// extractor self-check (guards the test helper itself)
 
 // extractor unit tests (guard the test helper itself)
 
@@ -424,7 +413,6 @@ endbfchar`;
     for (const p of [cmap, content, font, cidfont, page, pages, catalog]) pdf += p + '\n';
     pdf += 'trailer\n<< /Size 8 /Root 7 0 R >>\nstartxref\n0\n%%EOF';
     const extracted = extractPdfText(Buffer.from(pdf, 'latin1'));
-    // 0x13->问, 0x17->春, 0x28->眠, 0x29->不
     assert.strictEqual(extracted.text, '问春眠不');
 });
 
