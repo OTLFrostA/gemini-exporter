@@ -304,6 +304,7 @@ export async function runExport(request: ExportRequest, options: {
                     // Refresh once on an actual access/expiry response, then rebuild references from
                     // committed facts: a new source URI may also change the resource's identity.
                     if ([...item.prepared.values()].some(value => !value.ok
+                        && value.code !== 'RESOURCE_LOCATOR_UNAVAILABLE'
                         && value.httpStatus !== undefined && [401, 403, 404, 410].includes(value.httpStatus))) {
                         diagnose({ key, stage: 'resource_refresh', severity: 'info', code: 'RESOURCE_REFRESH_STARTED',
                             message: 'Refreshing source after attachment access failure' });
