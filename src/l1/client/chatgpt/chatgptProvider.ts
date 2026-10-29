@@ -53,6 +53,8 @@ export class ChatGPTProvider implements AIProvider {
 
     private fetchFn: ChatGPTFetch;
     private origin: string;
+    // Share credentials within this provider, scoped by account; never persist tokens.
+    private readonly tokens = new Map<string, Promise<string>>();
     private readonly cooldowns = new Map<string, number>();
     private readonly resources?: SourceResourceContext;
 
@@ -76,6 +78,43 @@ export class ChatGPTProvider implements AIProvider {
         if (!account || account.providerId !== this.id) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Provider account mismatch');
         return account;
     }
+    private accessToken(account: Account, signal?: AbortSignal): Promise<string> {
+        const cached = this.tokens.get(account.id);
+        if (cached) return cached;
+        const pending = this.fetchAccessToken(account, signal).catch(error => {
+            if (this.tokens.get(account.id) === pending) this.tokens.delete(account.id);
+            throw error;
+        });
+        this.tokens.set(account.id, pending);
+        return pending;
+    }
+    private async fetchAccessToken(account: Account, signal?: AbortSignal): Promise<string> {
+        const response = await this.fetchFn(`${this.origin}/api/auth/session`, { credentials: 'include', signal });
+        if (!response.ok) throw new OperationError('SOURCE_HTTP_ERROR', `ChatGPT session failed: ${response.status}`, response.status);
+        const raw: unknown = await response.json();
+        const { accessToken, observation } = readChatGPTSession(raw);
+        if (observation ? observation.providerAccountId !== account.providerAccountId : account.providerAccountId !== 'default')
+            throw new OperationError('ACCOUNT_CHANGED', 'ChatGPT request account mismatch');
+        if (!accessToken) throw new OperationError('SOURCE_AUTH_UNAVAILABLE', 'ChatGPT session has no accessToken');
+        return accessToken;
+    }
+    private async authenticatedRequest(path: string, account: Account, signal?: AbortSignal): Promise<Response> {
+        for (let attempt = 0; ; attempt++) {
+            signal?.throwIfAborted();
+            const pending = this.accessToken(account, signal);
+            const token = await pending;
+            signal?.throwIfAborted();
+            const response = await this.fetchFn(`${chatGPTApiBase(this.origin)}${path}`, {
+                credentials: 'include', signal,
+                headers: { Authorization: `Bearer ${token}`, 'X-Authorization': `Bearer ${token}` },
+            });
+            if (response.status !== 401) return response;
+            // An older in-flight 401 must not discard another request's refreshed token.
+            if (this.tokens.get(account.id) === pending) this.tokens.delete(account.id);
+            if (attempt === 1) return response;
+            // Refresh once, validating the original account before sending another API request.
+        }
+    }
     private async authedGet(path: string, account: Account, signal?: AbortSignal,
         notFoundCode: 'SOURCE_HTTP_ERROR' | 'RESOURCE_LOCATOR_UNAVAILABLE' = 'SOURCE_HTTP_ERROR'): Promise<unknown> {
         for (let attempt = 0; ; attempt++) {
@@ -87,18 +126,7 @@ export class ChatGPTProvider implements AIProvider {
                 remaining = (this.cooldowns.get(account.id) ?? 0) - Date.now();
             }
             signal?.throwIfAborted();
-            // Re-observe identity after every cooldown; a browser account can
-            // change while the export is waiting.
-            const sessionResponse = await this.fetchFn(`${this.origin}/api/auth/session`, { credentials: 'include', signal });
-            if (!sessionResponse.ok) throw new OperationError('SOURCE_HTTP_ERROR', `ChatGPT session failed: ${sessionResponse.status}`, sessionResponse.status);
-            const rawSession: unknown = await sessionResponse.json();
-            const { accessToken: token, observation: observed } = readChatGPTSession(rawSession);
-            if (observed ? observed.providerAccountId !== account.providerAccountId : account.providerAccountId !== 'default') throw new OperationError('ACCOUNT_CHANGED', 'ChatGPT request account mismatch');
-            if (!token) throw new OperationError('SOURCE_AUTH_UNAVAILABLE', 'ChatGPT session has no accessToken');
-            const res = await this.fetchFn(`${chatGPTApiBase(this.origin)}${path}`, {
-                credentials: 'include', signal,
-                headers: { Authorization: `Bearer ${token}`, 'X-Authorization': `Bearer ${token}` },
-            });
+            const res = await this.authenticatedRequest(path, account, signal);
             if (res.status === 429) {
                 const header = res.headers.get('Retry-After');
                 const seconds = header !== null && /^\d+(?:\.\d+)?$/.test(header.trim()) ? Number(header) * 1000 : NaN;

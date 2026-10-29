@@ -3,6 +3,8 @@ import { describeFixtures, synthetic } from './provenance.js';
 const indexSession = () => ({ accessToken: 'test-token', user: { id: 'u-index' }, account: { id: 'w-index' } });
 const listSession = () => ({ accessToken: 'tok', user: { id: 'u-list' }, account: { id: 'workspace-list' } });
 const fixtureMap = {
+    'C_TOKEN_REUSE_INITIAL': () => ({ accessToken: 'old-token' }),
+    'C_TOKEN_REUSE_REFRESHED': () => ({ accessToken: 'refreshed-token' }),
     'C_ACCOUNT_CONTEXT_WORKSPACE_01': () => ({
         user: { id: 'subject' }, account: { id: 'workspace-1' }, accessToken: 'private-token',
     }),

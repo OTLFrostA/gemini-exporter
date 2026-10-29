@@ -824,7 +824,7 @@ test('an unclosed inline opener cannot consume formulas in later table cells or 
     assert.ok(actual.includes('| 20 | $1$ | $0$ |'));
 });
 
-test('ChatGPT 429 respects Retry-After, refreshes identity, and retries the same page', async t => {
+test('ChatGPT 429 respects Retry-After, reuses its token, and retries the same page', async t => {
     t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['retry-user', 'retry-space']));
     let calls = 0, sessions = 0;
@@ -846,7 +846,7 @@ test('ChatGPT 429 respects Retry-After, refreshes identity, and retries the same
     assert.equal(calls, 1);
     t.mock.timers.tick(1);
     assert.equal(await pending, 'source_end');
-    assert.equal(calls, 2); assert.equal(sessions, 2);
+    assert.equal(calls, 2); assert.equal(sessions, 1);
 });
 
 test('ChatGPT 429 cooldown aborts promptly without another request', async t => {
@@ -866,7 +866,7 @@ test('ChatGPT 429 cooldown aborts promptly without another request', async t => 
     assert.equal(calls, 1);
 });
 
-test('ChatGPT 429 retries are bounded and recheck a changed account', async t => {
+test('ChatGPT 429 retries are bounded; a later 401 refresh rejects a changed account', async t => {
     t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['bounded-user', 'space']));
     let calls = 0, changed = false;
@@ -874,7 +874,9 @@ test('ChatGPT 429 retries are bounded and recheck a changed account', async t =>
         if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify(chatgptSessionGen(
             changed ? 'C_PROVIDER_CHATGPT_TREE_BOUNDED_429_SESSION_02' : 'C_PROVIDER_CHATGPT_TREE_BOUNDED_429_SESSION_01',
         )));
-        calls++; return new Response(chatgptListGen('C_PROVIDER_CHATGPT_TREE_BOUNDED_429_EMPTY_01'), { status: 429, headers: { 'Retry-After': '1' } });
+        calls++;
+        if (changed) return new Response(null, { status: 401 });
+        return new Response(chatgptListGen('C_PROVIDER_CHATGPT_TREE_BOUNDED_429_EMPTY_01'), { status: 429, headers: { 'Retry-After': '1' } });
     } });
     const pending = provider.listConversations({ accountId: account.id, streamId: 'recent' });
     const rejected = assert.rejects(pending, /HTTP 429/);
@@ -888,7 +890,7 @@ test('ChatGPT 429 retries are bounded and recheck a changed account', async t =>
     const mismatch = assert.rejects(again, /account mismatch/);
     await new Promise(resolve => setImmediate(resolve));
     t.mock.timers.tick(121000);
-    await mismatch; assert.equal(calls, 4);
+    await mismatch; assert.equal(calls, 5);
 });
 
 test('live ChatGPT Markdown resources close over registered assets without touching code', () => {
@@ -959,4 +961,118 @@ test('a session endpoint 404 is not classified as a missing attachment locator',
     await assert.rejects(provider.acquireResource({ accountId: account.id, conversationId: 'missing' },
         { id: 'asset', kind: 'file', sourceUri: 'file-download:file_missing' }),
     { code: 'SOURCE_HTTP_ERROR', httpStatus: 404 });
+});
+
+
+test('concurrent and subsequent ChatGPT attachments share one session request', async () => {
+    const account = await getOrCreateAccount('chatgpt', 'default');
+    let sessions = 0, exchanges = 0;
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) {
+            sessions++;
+            await new Promise(resolve => setImmediate(resolve));
+            return Response.json(chatgptSessionGen('C_FILE_DOWNLOAD_SESSION_01'));
+        }
+        if (url.includes('/backend-api/')) {
+            exchanges++;
+            return Response.json(fileDownloadGen('C_FILE_DOWNLOAD_ACQUIRE_01'));
+        }
+        return new Response(signedAssetGen('C_SIGNED_ASSET_CAT_PNG_01'));
+    } });
+    const acquire = () => provider.acquireResource({ accountId: account.id, conversationId: 'token-reuse' },
+        { id: 'asset', kind: 'file', sourceUri: 'sediment://file_cat' });
+    await Promise.all([acquire(), acquire(), acquire()]);
+    await acquire();
+    assert.equal(sessions, 1);
+    assert.equal(exchanges, 4);
+});
+
+for (const status of [401, 403]) {
+    test(`ChatGPT authentication recovery is bounded for HTTP ${status}`, async () => {
+        const account = await getOrCreateAccount('chatgpt', 'default');
+        let sessions = 0, calls = 0;
+        const provider = new ChatGPTProvider({ fetchFn: async url => {
+            if (url.endsWith('/api/auth/session')) {
+                sessions++;
+                return Response.json(chatgptSessionGen('C_FILE_DOWNLOAD_SESSION_01'));
+            }
+            calls++;
+            return new Response(null, { status });
+        } });
+        await assert.rejects(provider.fetchConversationDetail(account.id, 'auth-failed'), { httpStatus: status });
+        assert.equal(calls, status === 401 ? 2 : 1);
+        assert.equal(sessions, status === 401 ? 2 : 1);
+    });
+}
+
+test('ChatGPT retries with refreshed credentials after one 401', async () => {
+    const account = await getOrCreateAccount('chatgpt', 'default');
+    let sessions = 0, calls = 0;
+    const provider = new ChatGPTProvider({ fetchFn: async (url, init) => {
+        if (url.endsWith('/api/auth/session')) {
+            sessions++;
+            return Response.json(chatgptSessionGen(sessions === 1
+                ? 'C_TOKEN_REUSE_INITIAL' : 'C_TOKEN_REUSE_REFRESHED'));
+        }
+        calls++;
+        assert.equal(new Headers(init?.headers).get('Authorization'), calls === 1 ? 'Bearer old-token' : 'Bearer refreshed-token');
+        if (calls === 1) return new Response(null, { status: 401 });
+        return Response.json(chatgptDetailGen('C_PROVIDER_CHATGPT_TREE_IMAGE_DETAIL_01'));
+    } });
+    await provider.fetchConversationDetail(account.id, 'conv-img');
+    assert.equal(sessions, 2);
+    assert.equal(calls, 2);
+});
+
+
+test('late concurrent ChatGPT 401 responses share the refreshed session', async () => {
+    const account = await getOrCreateAccount('chatgpt', 'default');
+    let sessions = 0, staleCalls = 0, freshCalls = 0;
+    let releaseLate: (() => void) | undefined;
+    const late = new Promise<void>(resolve => { releaseLate = resolve; });
+    const provider = new ChatGPTProvider({ fetchFn: async (url, init) => {
+        if (url.endsWith('/api/auth/session')) {
+            sessions++;
+            return Response.json(chatgptSessionGen(sessions === 1
+                ? 'C_TOKEN_REUSE_INITIAL' : 'C_TOKEN_REUSE_REFRESHED'));
+        }
+        if (new Headers(init?.headers).get('Authorization') === 'Bearer old-token') {
+            staleCalls++;
+            if (staleCalls === 2) await late;
+            return new Response(null, { status: 401 });
+        }
+        freshCalls++;
+        releaseLate?.();
+        return new Response(null, { status: 404 });
+    } });
+    const acquire = () => provider.acquireResource({ accountId: account.id, conversationId: 'concurrent-auth' },
+        { id: 'asset', kind: 'file', sourceUri: 'sediment://file_cat' });
+    const results = await Promise.allSettled([acquire(), acquire()]);
+    assert.ok(results.every(result => result.status === 'rejected'));
+    assert.equal(staleCalls, 2);
+    assert.equal(freshCalls, 2);
+    assert.equal(sessions, 2);
+});
+
+test('ChatGPT session failures can be retried and tokens are isolated by account', async () => {
+    const first = await getOrCreateAccount('chatgpt', JSON.stringify(['bounded-user', 'space']));
+    const second = await getOrCreateAccount('chatgpt', JSON.stringify(['another-user', 'space']));
+    let sessions = 0, calls = 0;
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) {
+            sessions++;
+            if (sessions === 1) return new Response(null, { status: 503 });
+            return Response.json(chatgptSessionGen(sessions === 2
+                ? 'C_PROVIDER_CHATGPT_TREE_BOUNDED_429_SESSION_01'
+                : 'C_PROVIDER_CHATGPT_TREE_BOUNDED_429_SESSION_02'));
+        }
+        calls++;
+        return new Response(null, { status: 404 });
+    } });
+    await assert.rejects(provider.fetchConversationDetail(first.id, 'auth-isolation'), { httpStatus: 503 });
+    await assert.rejects(provider.fetchConversationDetail(first.id, 'auth-isolation'), { httpStatus: 404 });
+    await assert.rejects(provider.fetchConversationDetail(second.id, 'auth-isolation'), { httpStatus: 404 });
+    await assert.rejects(provider.fetchConversationDetail(first.id, 'auth-isolation'), { httpStatus: 404 });
+    assert.equal(sessions, 3);
+    assert.equal(calls, 3);
 });
