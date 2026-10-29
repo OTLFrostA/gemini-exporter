@@ -14,10 +14,6 @@ export function registerCleanup(fn: () => void): () => void {
     };
 }
 
-/**
- * Run and clear all cleanups registered by the previous bundle.
- * Called once at the top of the content-script re-init path.
- */
 export function runCleanups(): void {
     const fns: Array<() => void> = Array.isArray(window.__gemExporterCleanups) ? window.__gemExporterCleanups : [];
     window.__gemExporterCleanups = [];

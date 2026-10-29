@@ -56,7 +56,6 @@ export class ContentContext {
         try {
             this._activeClient?.abort?.();
         } catch {
-            /* intentional: best-effort abort */
         }
     }
 

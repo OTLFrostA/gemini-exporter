@@ -18,7 +18,6 @@ function readAttachmentIssue(value: unknown): ExportAttachmentIssue {
         ...('sourceUrl' in value && typeof value.sourceUrl === 'string' ? { sourceUrl: value.sourceUrl } : {}),
         ...('httpStatus' in value && value.httpStatus !== undefined ? { httpStatus: readCount(value.httpStatus) } : {}) };
 }
-/** Chrome JSON replies lose the worker's in-memory ExportResult proof. */
 function readExportResult(value: unknown): ExportResult | null {
     if (value === null) return null;
     if (!value || typeof value !== 'object' || Array.isArray(value)
