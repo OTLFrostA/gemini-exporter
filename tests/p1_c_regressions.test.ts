@@ -8,8 +8,6 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-// P1-C 组「取消/超时/退避逻辑缺陷」回归测试（P1-031~035、P1-038~042）
-// 运行：node -r ./tests/ts_register.js --test tests/p1_c_regressions.test.ts
 
 const { handleHttp429, interruptibleSleep, parseRetryAfterMs } = require('../src/l1/client/gemini/api/retryPolicy.js');
 const rpcClientMod = require('../src/l1/client/gemini/api/rpcClient.js');
@@ -24,7 +22,6 @@ const { attemptResource } = require('../src/shared/resources/resourceResult.js')
 const { acquireSourceResource } = require('../src/l1/resources/sourceResources.js');
 // The retired asset pipeline belongs to the unselected runtime cases below.
 
-// P1-031: 429 退避 sleep 可中断
 
 test('p1c - interruptibleSleep: 完整等待返回 false，被 abort 中断返回 true', async () => {
     const t0 = Date.now();
@@ -67,7 +64,6 @@ test('p1c - parseRetryAfterMs: 整数秒钳制到 30s；HTTP-date 可解析；�
     assert.strictEqual(parseRetryAfterMs('garbage'), undefined, 'unparseable ignored');
     assert.strictEqual(parseRetryAfterMs(null), undefined);
 
-    // P1-033: HTTP-date 格式（RFC 7231）
     const future = new Date(Date.now() + 10000).toUTCString();
     const parsed = parseRetryAfterMs(future);
     assert.ok(typeof parsed === 'number' && parsed !== undefined, 'HTTP-date should parse');
@@ -96,14 +92,13 @@ test('p1c - handleHttp429: Retry-After 头被实际采用且不超过 30s 上限
 
 test('p1c - handleHttp429: 显式 retryAfterMs 参数在无 header 时生效', async () => {
     const res = await handleHttp429({
-        resp: { status: 429 }, // 无 headers（如经 chrome.tabs.sendMessage 取回的响应）
+        resp: { status: 429 },
         retryCount: 0,
         maxRetries: 3,
         retryAfterMs: 4000,
         label: 'p1c-test'
     });
     assert.strictEqual(res.shouldRetry, true);
-    // backoff(0) ∈ [2000,3000)，max(., 4000) 恒为 4000
     assert.strictEqual(res.delayMs, 4000, `explicit hint honored, got ${res.delayMs}`);
 });
 
@@ -127,7 +122,6 @@ test('p1c - mergeAbortSignals: 空/单个/多个 signal 的合并语义', () => 
 test('p1c - postBatchexecute: 有调用方 signal 时内部 timeout 仍生效；调用方 abort 也穿透', async () => {
     const origFetch = (global as any).fetch;
     try {
-        // 永不 resolve 的 fetch，但遵循 signal（模拟真实 fetch 的 abort 行为）
         (global as any).fetch = (_url: string, _opts: any) => new Promise((_resolve, reject) => {
             const sig = _opts.signal as AbortSignal | undefined;
             assert.ok(sig instanceof AbortSignal, 'fetch must receive an AbortSignal');
@@ -149,7 +143,6 @@ test('p1c - postBatchexecute: 有调用方 signal 时内部 timeout 仍生效；
         );
         assert.ok(Date.now() - t0 < 5000, `timeout fired promptly (took ${Date.now() - t0}ms)`);
 
-        // 情形 B：调用方 abort 穿透到 fetch
         const caller2 = new AbortController();
         const t1 = Date.now();
         const p = rpcClientMod.postBatchexecute({
@@ -165,7 +158,6 @@ test('p1c - postBatchexecute: 有调用方 signal 时内部 timeout 仍生效；
     }
 });
 
-// P1-035: getConversationList 15s 超时 + 429 退避快速取消
 
 test('p1c - getConversationList: 429 退避期间 abort 直接抛取消，不睡满退避', async () => {
     const origFetch = (global as any).fetch;
@@ -198,7 +190,6 @@ test('p1c - listConversations: pre-start cancellation propagates AbortError with
     await assert.rejects(provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent', signal: controller.signal }), { name: 'AbortError' });
 });
 
-// Retired batchFetcher/assetPipeline scenarios now exercise the current owners.
 test('p1c - HTTP 429 backoff is cancelled before a retry begins', async () => {
     const controller = new AbortController();
     const work = handleHttp429({ resp: { status: 429 }, retryCount: 0, maxRetries: 3, signal: controller.signal });

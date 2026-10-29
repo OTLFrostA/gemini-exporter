@@ -47,7 +47,7 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
     const handlers = new Set<(message: any, sender: any, response: (value: any) => void) => unknown>();
     const restoreWindow = replaceGlobal('window', {
         __gemExporterCleanups: [],
-        addEventListener: () => {} // BadgeView registers a resize listener at module evaluation.
+        addEventListener: () => {}
     });
     const restoreChrome = replaceGlobal('chrome', { runtime: {
         onMessage: {

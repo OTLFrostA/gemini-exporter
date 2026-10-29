@@ -78,7 +78,6 @@ test('P1-078 - duplicate registration of a DIFFERENT instance warns loudly', () 
 
 
 test('P1-088 - checkReadiness never passes the slot id off as the account name', async () => {
-    // Runtime: stub credential resolution to force the ready:true branch.
     const credMgr = require('../src/l1/client/gemini/api/credentialManager.js').default;
     const orig = credMgr.resolveCred;
     credMgr.resolveCred = async () => ({ sid: 's', at: 'a', bl: 'b', accountSlot: 'u0' });

@@ -89,7 +89,6 @@ test('p1_h2 - P1-116: FsWriter serializes concurrent writes to the same path', a
     const { FsWriter } = require('../src/l4/delivery/writers/fsWriter.js');
     const events: string[] = [];
     const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
-    // Tag writables by creation order to observe interleaving.
     let n = 0;
     const dirHandle2: any = {
         getDirectoryHandle: async () => dirHandle2,
