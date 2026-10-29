@@ -1,4 +1,3 @@
-# Gemini-specific cases and environment runtime.
 """
 Feature-Driven Test Runner Orchestrator.
 Uses DAGRunner to resolve dependencies across FeatureTestCases,
@@ -99,11 +98,9 @@ class GeminiRuntime:
         self.target_features = target_features
         self.domain = domain
 
-        # 组装 DAG 调度器并解析目标子图与前置闭包
         self.dag = self._assemble_dag()
         self.target_ids = self._resolve_target_ids(self.target_features, self.domain)
 
-        # 确定执行节点集合 (包含直接目标与传递前置闭包)
         gemini_required_fids = {
             "feat_inpage_export_badge",
             "feat_chat_generation",

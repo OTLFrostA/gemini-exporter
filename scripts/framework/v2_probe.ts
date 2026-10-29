@@ -84,7 +84,6 @@ export async function l3Contracts(ids: string[], providerId = 'gemini') {
     return { layout, documents };
 }
 
-/** Exercise the user-facing account-local reset. */
 export async function clearScanRecords() {
     await ensureV2Ready();
     await clearLocalScanRecords(accountId());

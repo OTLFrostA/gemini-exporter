@@ -107,7 +107,6 @@ class OnlineScenarioProvider:
                     break
 
         if target_idx is None and not required_features:
-            # 无特定特征时按轮次长度就绪出队；必测特性不得降级。
             for idx, s in enumerate(pool):
                 if len(s.get("turns", [])) >= min_turns:
                     target_idx = idx
@@ -119,10 +118,8 @@ class OnlineScenarioProvider:
         selected = pool.pop(target_idx)
 
         if is_corpus_path(self.pool_path):
-            # corpus 永不修改：消费记录进 git-ignored 的运行时状态
             record_consumption([selected], consumed_by=os.path.basename(sys.argv[0]))
         else:
-            # 显式自定义路径：传统语义，直接改文件
             self._save_json(self.pool_path, pool)
             archive = self._load_json(self.archive_path, [])
             archived_item = dict(selected)

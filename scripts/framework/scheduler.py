@@ -141,7 +141,6 @@ class DAGRunner:
     def run(self, ctx: Any, target_ids: Optional[List[str]] = None) -> bool:
         """按拓扑顺序调度执行用例（支持目标子图剪枝）"""
         nonblocking_statuses = (TestStatus.PASS, TestStatus.WARN)
-        # 同步特性至 registry
         for case in self.cases.values():
             ctx.registry.register(case.to_feature())
 
@@ -216,7 +215,6 @@ class DAGRunner:
             else:
                 print(f"   ❌ [{fid}] FAIL (耗时 {dur_str}): {message}")
 
-        # 生成最终检验矩阵
         print("\n" + ctx.registry.generate_matrix_report())
 
         # Every case must complete. Explicit audit warnings are nonblocking;

@@ -52,7 +52,6 @@ def get_gemini_tab(port=CDP_DEFAULT_PORT):
         if tab.get("type", "page") == "page" and is_gemini_url(tab.get("url", "")):
             return tab
 
-    # 未找到则尝试新开一个
     new_url = f"http://127.0.0.1:{port}/json/new?https://gemini.google.com/app"
     req = urllib.request.Request(new_url, method="PUT")
     with urllib.request.urlopen(req, timeout=5) as response:
@@ -106,7 +105,6 @@ def run_scenarios(dataset_path, port=CDP_DEFAULT_PORT, delay=2, only_id=None):
     results = []
 
     try:
-        # 严格校验并锁定模型为 3.8 Flash + High
         print("🔒 校验锁定模型环境 (3.8 Flash + High)...")
         driver.ensure_model(target_model="3.8 Flash", target_thinking=True)
 
@@ -121,7 +119,6 @@ def run_scenarios(dataset_path, port=CDP_DEFAULT_PORT, delay=2, only_id=None):
                 print(f"    ℹ️  {desc}")
             print(f"    🔄 计划轮次: {len(turns)} 轮")
 
-            # 开启新会话: 导航至 /app
             cdp.eval("location.href = 'https://gemini.google.com/app'")
             if not driver.ensure_ready(timeout=30.0):
                 print(f"    ❌ 页面加载就绪超时，跳过此场景")
