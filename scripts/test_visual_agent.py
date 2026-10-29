@@ -153,10 +153,8 @@ def main():
     parser.add_argument("--target", type=str, default="options", choices=["options", "gemini", "popup"], help="Target page (default: options)")
     parser.add_argument("--no-reinstall", action="store_true", help="跳过纯净重装 (默认启动时纯净重装扩展)")
 
-    # Pathway 1
     parser.add_argument("--playground", action="store_true", help="[途径一] 启动视觉交互靶场供 Subagent 进行自主探索与交互")
 
-    # Pathway 2
     parser.add_argument("--api", "--custom-ai", dest="custom_ai", action="store_true", help="[途径二] 通过自定义/第三方多模态 AI 接口执行推演")
     parser.add_argument("--endpoint", type=str, default=None, help="自定义多模态接口 Endpoint URL (或通过 CUSTOM_AI_ENDPOINT 环境变量配置)")
     parser.add_argument("--api-key", type=str, default=None, help="自定义接口 API Key (或通过 CUSTOM_AI_API_KEY 环境变量配置)")
