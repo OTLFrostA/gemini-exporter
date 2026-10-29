@@ -32,7 +32,7 @@ test('sidebar support footer exposes separate localized feedback and Discord lin
         const feedback = page.locator('#feedbackBox');
         const discord = page.locator('#discordBox');
         assert.equal(await page.locator('.support-links > a').count(), 2);
-        assert.equal(await feedback.getAttribute('href'), 'https://tally.so/r/Y56ZBB');
+        assert.equal(await feedback.getAttribute('href'), 'https://tally.so/r/Y56ZBB?source=extension');
         assert.equal(await discord.getAttribute('href'), 'https://discord.gg/e3FgrXUZ8f');
         for (const link of [feedback, discord]) {
             assert.equal(await link.getAttribute('target'), '_blank');

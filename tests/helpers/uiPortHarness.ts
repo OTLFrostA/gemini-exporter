@@ -36,7 +36,8 @@ export const PLATFORM_HOSTS = {
  claude:{pages:['https://claude.ai/*'],attachments:[]}
 };
 export const DIRECT_WRITE_THRESHOLD = 20;
-export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB';
+export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB?source=extension';
+export const UNINSTALL_FEEDBACK_URL = 'https://tally.so/r/Y56ZBB?source=uninstall';
 export const indexActivityTime = i => i.updatedAt === undefined ? i.activityAt : i.activityAt === undefined ? i.updatedAt : Math.max(i.updatedAt,i.activityAt);
 export const compareConversationIndexes = (a,b) => (indexActivityTime(b) ?? -Infinity) - (indexActivityTime(a) ?? -Infinity);
 export const resourceIssueKind = f => f.code === 'RESOURCE_SOURCE_EXPIRED' ? 'expired' : f.code === 'RESOURCE_ACCESS_RESTRICTED' ? 'restricted' : f.code === 'RESOURCE_PROCESSING_FAILED' ? 'processing' : 'download';

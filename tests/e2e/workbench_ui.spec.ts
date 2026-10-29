@@ -14,7 +14,7 @@ test('workbench list preserves explicit selection across row clicks, search and 
     await page.locator('#chatSearchInput').fill('量子');await expect(page.locator('#list .item')).toHaveCount(1);await page.locator('#btnSelectAll').click();await expect(page.locator('#selectedStat')).toHaveText('1 of 3 selected');
     await page.locator('#chatSearchInput').fill('');await expect(page.locator('#list .item')).toHaveCount(3);
     for(const language of ['zh','en']) {await page.locator('#langToggle').setChecked(language==='en');await expect(page.locator('#btnSelectAll')).toHaveAttribute('aria-label',language==='zh'?'全选当前可见会话':'Select all visible conversations');await expect(page.locator('[data-chat-id="chat_001"] input')).toBeChecked();}
-    await expect(page.locator('#feedbackBox')).toHaveAttribute('href','https://tally.so/r/Y56ZBB');await expect(page.locator('#feedbackBox')).toHaveAttribute('target','_blank');await expect(page.locator('#feedbackBox')).toContainText('Got questions or suggestions?');
+    await expect(page.locator('#feedbackBox')).toHaveAttribute('href','https://tally.so/r/Y56ZBB?source=extension');await expect(page.locator('#feedbackBox')).toHaveAttribute('target','_blank');await expect(page.locator('#feedbackBox')).toContainText('Got questions or suggestions?');
     await expect(page.locator('#btnSelectUpdated,#btnSelectUnexported,#btnFeedback')).toHaveCount(0);
 });
 test('list badges distinguish success, later activity, incomplete exports and missing records',async({context,extensionId})=>{

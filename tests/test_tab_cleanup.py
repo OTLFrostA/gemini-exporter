@@ -1,7 +1,7 @@
 """Acceptance tab cleanup preserves existing pages and survives delayed feedback."""
 import unittest
 from unittest.mock import Mock, patch
-from scripts.framework.tab_cleanup import TestTabScope, uninstall_extension
+from scripts.framework.tab_cleanup import TestTabScope, uninstall_extension, is_feedback
 
 
 def page(identity, url):
@@ -9,6 +9,11 @@ def page(identity, url):
 
 
 class TabCleanupTests(unittest.TestCase):
+    def test_feedback_detection_accepts_both_sources(self):
+        self.assertTrue(is_feedback('https://tally.so/r/Y56ZBB?source=extension'))
+        self.assertTrue(is_feedback('https://tally.so/r/Y56ZBB?source=uninstall'))
+        self.assertFalse(is_feedback('https://tally.so/r/other?source=uninstall'))
+
     @patch('scripts.framework.tab_cleanup.time.monotonic', side_effect=[0, 3])
     @patch('scripts.framework.tab_cleanup.CDPConnection')
     @patch('scripts.framework.tab_cleanup.get_browser_ws_url', return_value='ws://browser')

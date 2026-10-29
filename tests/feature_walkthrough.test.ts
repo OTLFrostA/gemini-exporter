@@ -47,7 +47,7 @@ test('Options shows the 2.0 notice once for upgrades and opens the existing feed
         patch.lastSeenFeatureVersion), [{ lastSeenFeatureVersion: '2.0.0' }]);
     await page.getByRole('button', { name: 'Leave Feedback' }).click();
     assert.equal(await page.locator('.tour-popover').count(), 0);
-    assert.deepEqual(await read(page, 'openedUrls'), ['https://tally.so/r/Y56ZBB']);
+    assert.deepEqual(await read(page, 'openedUrls'), ['https://tally.so/r/Y56ZBB?source=extension']);
 });
 test('Options does not show the 2.0 notice on a new 2.0 installation', async () => {
     page = await browser.newPage();

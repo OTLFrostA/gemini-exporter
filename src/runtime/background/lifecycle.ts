@@ -1,6 +1,6 @@
 import { ensureV2Ready } from './readiness.js';
 import { getSettings, updateSettings } from '../../application/settings/index.js';
-import { FEEDBACK_URL } from '../../shared/utils/constants.js';
+import { UNINSTALL_FEEDBACK_URL } from '../../shared/utils/constants.js';
 
 /**
  * Configure chrome.storage.session access level so content scripts can access
@@ -19,7 +19,7 @@ export function initSessionAccessLevel(): void {
 export function initUninstallUrl(): void {
     if (chrome.runtime?.setUninstallURL) {
         try {
-            chrome.runtime.setUninstallURL(FEEDBACK_URL, () => {
+            chrome.runtime.setUninstallURL(UNINSTALL_FEEDBACK_URL, () => {
                 if (chrome.runtime.lastError) {
                     console.warn('[Gemini Exporter] Failed to set uninstall URL:', chrome.runtime.lastError.message);
                 }

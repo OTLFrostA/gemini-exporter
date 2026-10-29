@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { indexStorage } from './helpers/indexStorage.js';
 import { ensureUpgraded } from '../src/migration/upgradeV1.js';
 import { getSettings, updateSettings } from '../src/application/settings/index.js';
-import { FEEDBACK_URL } from '../src/shared/utils/constants.js';
+import { FEEDBACK_URL, UNINSTALL_FEEDBACK_URL } from '../src/shared/utils/constants.js';
 const SUPPORTED_FORMATS: readonly string[] = ['markdown', 'html', 'json', 'pdf', 'docx'];
 const html = () => readFileSync('src/ui/options/options.html', 'utf8');
 
@@ -33,7 +33,10 @@ test('format control choices match the ExportRequest formats rather than removed
     const select = html().match(/<select id="format"[^>]*>(.*?)<\/select>/s)?.[1] ?? '';
     assert.deepEqual([...select.matchAll(/value="([^"]+)"/g)].map(match => match[1]).sort(), [...SUPPORTED_FORMATS].sort());
 });
-test('constants - FEEDBACK_URL is configured', () => { assert.equal(FEEDBACK_URL, 'https://tally.so/r/Y56ZBB'); });
+test('feedback links attribute extension and uninstall sources separately', () => {
+    assert.equal(FEEDBACK_URL, 'https://tally.so/r/Y56ZBB?source=extension');
+    assert.equal(UNINSTALL_FEEDBACK_URL, 'https://tally.so/r/Y56ZBB?source=uninstall');
+});
 for (const stored of ['json_openai', 'json_raw']) for (const developerMode of [false, true]) test(`migration repairs saved ${stored} in developer mode ${developerMode}`, async () => {
     const env = indexStorage({ gemini_export_format: stored, gemini_dev_mode: developerMode }); try {
         await ensureUpgraded(); const settings = await getSettings();
