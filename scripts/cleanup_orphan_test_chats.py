@@ -43,7 +43,6 @@ def cleanup_orphan_chats(port=9222):
         deleted_count = 0
 
         while True:
-            # 获取当前侧边栏中匹配的孤儿测试会话
             candidates = cdp.eval(f"""
             (() => {{
                 const keywords = {json.dumps(TEST_TITLE_KEYWORDS)};

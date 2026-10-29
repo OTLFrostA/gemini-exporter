@@ -29,7 +29,6 @@ def is_gemini_url(url: str) -> bool:
         parsed = urllib.parse.urlsplit(url)
         if parsed.hostname not in ("gemini.google.com", "bard.google.com"):
             return False
-        # 排除 Chrome 侧边栏/系统内置 glic 浮窗 (webview / chrome://glic)
         if parsed.path.startswith("/glic"):
             return False
         return True
@@ -45,7 +44,6 @@ class CDPConnection:
         port, path = port_path.split("/", 1)
         self.sock = socket.create_connection((host, int(port)), timeout=30)
 
-        # WebSocket Handshake
         key = base64.b64encode(os.urandom(16)).decode("ascii")
         req = (
             f"GET /{path} HTTP/1.1\r\n"

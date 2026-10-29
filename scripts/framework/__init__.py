@@ -1,4 +1,3 @@
-# scripts/framework/__init__.py
 """
 Gemini Exporter Feature-Driven Testing Framework.
 Provides declarative feature specifications, CDP action primitives, assertions, and test runner.
