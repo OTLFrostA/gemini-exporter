@@ -1076,3 +1076,72 @@ test('ChatGPT session failures can be retried and tokens are isolated by account
     assert.equal(sessions, 3);
     assert.equal(calls, 3);
 });
+
+
+for (const scenario of [
+    { name: 'short server delay', header: '6', delay: 6000 },
+    { name: 'long server delay', header: '180', delay: 180000 },
+    { name: 'HTTP date', header: 'Thu, 01 Jan 1970 00:00:06 GMT', delay: 6000 },
+    { name: 'zero server delay', header: '0', delay: 0 },
+    { name: 'past HTTP date', header: 'Wed, 31 Dec 1969 23:59:59 GMT', delay: 0 },
+    { name: 'missing header', header: undefined, delay: undefined },
+    { name: 'invalid header', header: 'not-a-date', delay: undefined },
+    { name: 'negative delay', header: '-1', delay: undefined },
+]) {
+    test(`ChatGPT 429 uses Retry-After or fallback: ${scenario.name}`, async t => {
+        t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+        const account = await getOrCreateAccount('chatgpt', JSON.stringify(['retry-user', 'retry-space']));
+        const requestedAt: number[] = [];
+        const provider = new ChatGPTProvider({ fetchFn: async url => {
+            if (url.endsWith('/api/auth/session'))
+                return Response.json(chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_SESSION_01'));
+            requestedAt.push(Date.now());
+            return requestedAt.length === 1
+                ? new Response(chatgptListGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_EMPTY_01'), { status: 429,
+                    headers: scenario.header === undefined ? {} : { 'Retry-After': scenario.header } })
+                : Response.json(chatgptListGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_LIST_01'));
+        } });
+        const pending = provider.listConversations({ accountId: account.id, streamId: 'recent' });
+        await new Promise(resolve => setImmediate(resolve));
+        if (scenario.delay === 0) {
+            assert.equal(await pending, 'source_end');
+            assert.deepEqual(requestedAt, [0, 0]);
+        } else {
+            const minimum = scenario.delay ?? 30000;
+            t.mock.timers.tick(minimum - 1);
+            await new Promise(resolve => setImmediate(resolve));
+            assert.deepEqual(requestedAt, [0]);
+            t.mock.timers.tick(scenario.delay === undefined ? 1001 : 1);
+            assert.equal(await pending, 'source_end');
+            assert.equal(requestedAt.length, 2);
+            if (scenario.delay !== undefined) assert.equal(requestedAt[1], scenario.delay);
+            else assert.ok(requestedAt[1] >= 30000 && requestedAt[1] <= 31000);
+        }
+    });
+}
+
+test('ChatGPT missing Retry-After retains bounded 30/60/120 second backoff', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+    t.mock.method(Math, 'random', () => 0);
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['retry-user', 'retry-space']));
+    const requestedAt: number[] = [];
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session'))
+            return Response.json(chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_SESSION_01'));
+        requestedAt.push(Date.now());
+        return new Response(chatgptListGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_EMPTY_01'), { status: 429 });
+    } });
+    const pending = provider.listConversations({ accountId: account.id, streamId: 'recent' });
+    const rejected = assert.rejects(pending, /HTTP 429/);
+    await new Promise(resolve => setImmediate(resolve));
+    for (const delay of [30000, 60000, 120000]) {
+        const calls = requestedAt.length;
+        t.mock.timers.tick(delay - 1);
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(requestedAt.length, calls);
+        t.mock.timers.tick(1);
+        await new Promise(resolve => setImmediate(resolve));
+    }
+    await rejected;
+    assert.deepEqual(requestedAt, [0, 30000, 90000, 210000]);
+});

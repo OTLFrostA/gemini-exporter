@@ -130,9 +130,11 @@ export class ChatGPTProvider implements AIProvider {
             if (res.status === 429) {
                 const header = res.headers.get('Retry-After');
                 const seconds = header !== null && /^\d+(?:\.\d+)?$/.test(header.trim()) ? Number(header) * 1000 : NaN;
-                const date = header ? Date.parse(header) - Date.now() : NaN;
-                const retryAfterMs = Number.isFinite(seconds) ? seconds : Number.isFinite(date) ? Math.max(0, date) : 0;
-                const delay = calculateBackoff(attempt, { initialDelayMs: 30000, maxDelayMs: 120000, retryAfterMs });
+                // HTTP dates begin with a weekday. Do not let Date.parse treat
+                // malformed numeric delays (for example -1) as calendar dates.
+                const date = header && /^[A-Za-z]/.test(header.trim()) ? Date.parse(header) - Date.now() : NaN;
+                const retryAfterMs = Number.isFinite(seconds) ? seconds : Number.isFinite(date) ? Math.max(0, date) : undefined;
+                const delay = retryAfterMs ?? calculateBackoff(attempt, { initialDelayMs: 30000, maxDelayMs: 120000 });
                 this.cooldowns.set(account.id, Math.max(this.cooldowns.get(account.id) ?? 0, Date.now() + delay));
                 if (attempt < 3) continue;
             }
