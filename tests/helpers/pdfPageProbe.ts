@@ -58,11 +58,9 @@ function applyPt(m: Matrix, x: number, y: number): [number, number] {
 interface TextRun {
     page: number;
     text: string;
-    /** Baseline origin in PDF points (y-up), composed CTM x text matrix. */
     x: number;
     y: number;
     size: number;
-    /** Estimated advance width in points (heuristic, see file header). */
     width: number;
 }
 
@@ -105,12 +103,11 @@ function parseResourceMap(section: string): Map<string, number> {
     return map;
 }
 
-/** Heuristic advance width for a decoded string at the given font size. */
 function estimateWidth(text: string, size: number): number {
     let w = 0;
     for (const ch of text) {
         const code = ch.codePointAt(0) ?? 0;
-        if (code > 0x2e7f) w += size * 0.95; // CJK + math alphanumerics
+        if (code > 0x2e7f) w += size * 0.95;
         else if (code < 128) w += size * 0.5;
         else w += size * 0.55;
     }
@@ -129,7 +126,6 @@ function decodeToken(token: string, font: FontEntry | null): { bytes: number[]; 
     return { bytes, text: decodeBytes(bytes, font?.toUnicode ?? null) };
 }
 
-/** Extract per-page layout info from a PDF. */
 export function probePdfLayout(pdfBytes: Uint8Array): LayoutReport {
     const data = Buffer.from(pdfBytes);
     const objs = parseObjects(data);
@@ -214,7 +210,6 @@ export function probePdfLayout(pdfBytes: Uint8Array): LayoutReport {
                 const width = estimateWidth(text, fontSize);
                 runs.push({ page: pageIndex, text, x, y, size: fontSize, width });
                 pageTexts.push(text);
-                // Advance the text matrix by the estimated width.
                 tm = mul([1, 0, 0, 1, width, 0], tm);
             };
 
@@ -288,7 +283,6 @@ export function probePdfLayout(pdfBytes: Uint8Array): LayoutReport {
                     case 'TD':
                     case 'cm':
                     case 'Do': {
-                        // Operands were pushed as strings; handle by arity below.
                         break;
                     }
                     default: {
@@ -296,7 +290,6 @@ export function probePdfLayout(pdfBytes: Uint8Array): LayoutReport {
                         break;
                     }
                 }
-                // Multi-operand operators: inspect the stack tail.
                 if (t === 'cm' || t === 'Tm') {
                     const f = parseFloat(stack.pop() ?? 'NaN');
                     const e = parseFloat(stack.pop() ?? 'NaN');

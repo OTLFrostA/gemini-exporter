@@ -74,7 +74,6 @@ export function parseLiteralPdfString(s: string): number[] {
         if (s[i] === '\\' && i + 1 < s.length) {
             const n = s[i + 1];
             if (n >= '0' && n <= '7') {
-                // Octal escape: up to 3 octal digits (Typst emits \000\001 for 2-byte codes).
                 let oct = '';
                 let j = i + 1;
                 while (j < s.length && oct.length < 3 && s[j] >= '0' && s[j] <= '7') {
@@ -152,9 +151,8 @@ function winAnsiFallback(code: number): string {
 
 export function decodeBytes(bytes: number[], toUnicode: Map<string, string> | null): string {
     if (toUnicode && toUnicode.size > 0) {
-        // Determine code length from the first key.
         const firstKey = toUnicode.keys().next().value as string;
-        const codeLen = firstKey.length; // hex chars
+        const codeLen = firstKey.length;
         const codeBytes = codeLen / 2;
         let out = '';
         for (let i = 0; i + codeBytes <= bytes.length; i += codeBytes) {
@@ -214,7 +212,7 @@ export function tokenizeContent(content: string): string[] {
         let j = i + (c === '/' ? 1 : 0);
         while (j < n && !isWs(content[j]) && !isDelim(content[j])) j += 1;
         if (j > i) tokens.push(content.slice(i, j));
-        else i += 1; // unreachable defensive
+        else i += 1;
         i = j > i ? j : i + 1;
     }
     return tokens;
@@ -273,7 +271,6 @@ interface ExtractedPdf {
     fonts: string[];
 }
 
-/** Extract selectable text from a PDF. */
 export function extractPdfText(pdfBytes: Uint8Array, honorActualText = true): ExtractedPdf {
     const data = Buffer.from(pdfBytes);
     const objs = parseObjects(data);
@@ -311,7 +308,6 @@ export function extractPdfText(pdfBytes: Uint8Array, honorActualText = true): Ex
     const markedText = new Map<string, string>();
     const markedEntries: Array<{ key: string; text: string }> = [];
 
-    // Build font info: resource name -> { toUnicode, baseFont }
     const fontInfo = new Map<string, { toUnicode: Map<string, string> | null; baseFont: string }>();
     const fonts: string[] = [];
     for (const obj of objs.values()) {
@@ -331,7 +327,6 @@ export function extractPdfText(pdfBytes: Uint8Array, honorActualText = true): Ex
         }
     }
 
-    // Map resource name (/F1) -> font object num via page /Resources.
     let imageXObjectCount = 0;
     let pageCount = 0;
     const pageText: string[] = [];
@@ -404,7 +399,6 @@ export function extractPdfText(pdfBytes: Uint8Array, honorActualText = true): Ex
                         stack.length = 0;
                     } else if (t === 'EMC') {
                         const entry = markedContentStack.at(-1);
-                        // An outer ActualText replaces the entire nested marked sequence.
                         if (entry?.actualText != null && !markedContentStack.slice(0, -1).some(m => m.actualText != null))
                             append(entry.actualText);
                         markedContentStack.pop();
@@ -416,7 +410,6 @@ export function extractPdfText(pdfBytes: Uint8Array, honorActualText = true): Ex
                         }
                         stack.length = 0;
                     } else if (t === '"') {
-                        // " : aw ac string " — discard word/char spacing, show string.
                         const s = stack.pop() ?? '';
                         stack.pop(); stack.pop();
                         if (!markedContentStack.some(m => m.actualText != null)) {
@@ -424,7 +417,6 @@ export function extractPdfText(pdfBytes: Uint8Array, honorActualText = true): Ex
                         }
                         stack.length = 0;
                     } else if (t === 'TJ') {
-                        // Stack holds: '[', elements..., ']'. Render in order.
                         const elems: string[] = [];
                         while (stack.length > 0) {
                             const e = stack.pop() as string;

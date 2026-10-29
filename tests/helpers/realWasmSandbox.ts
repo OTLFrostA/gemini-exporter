@@ -41,7 +41,6 @@ const {
 
 const PDF_FORMAT = 1;
 
-/** Repo root, resolved from this helper's location (tests/helpers/). */
 export function repoRoot(): string {
     return path.resolve(__dirname, '..', '..');
 }
@@ -54,8 +53,6 @@ const TEMPLATE_FILES: ReadonlyArray<readonly [string, string]> = [
     ['/render-inline.typ', 'render-inline.typ'],
     ['/render-message.typ', 'render-message.typ'],
     ['/mitex-scope.typ', 'mitex-scope.typ'],
-    // Referenced by components.typ as theme: "quiet-light.tmTheme",
-    // resolved relative to /components.typ.
     ['/quiet-light.tmTheme', 'quiet-light.tmTheme'],
 ];
 
@@ -95,7 +92,6 @@ class RealWasmSandboxFrame {
     }
 
     postToSandbox(message: Record<string, unknown>, _transfer?: unknown): void {
-        // Async delivery, like postMessage.
         queueMicrotask(() => {
             void this.dispatch(message).catch((error: unknown) => {
                 this.emit({
@@ -110,7 +106,6 @@ class RealWasmSandboxFrame {
     onMessage(handler: MessageHandler): () => void {
         this.stats.listenersAttached += 1;
         this.handler = handler;
-        // The real sandbox page posts READY on load.
         queueMicrotask(() => this.emit({ type: SANDBOX_TO_HOST.READY }));
         return () => {
             this.stats.listenersDetached += 1;
