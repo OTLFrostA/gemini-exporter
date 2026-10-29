@@ -312,14 +312,18 @@ export class ChatGPTProvider implements AIProvider {
                     throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'ChatGPT resource locator unavailable');
                 }
                 phase = 'resource_fetch';
-                origin = diagnosticOrigin(exchange.downloadUrl);
+                // Native uploaded-file exchanges can return a root-relative URL.
+                // Resolving against the extension page instead loses the attachment.
+                const downloadUrl = new URL(exchange.downloadUrl, this.origin);
+                if (downloadUrl.protocol !== 'https:') throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'Unsupported ChatGPT download URL scheme');
+                origin = downloadUrl.origin;
                 emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_DOWNLOAD_URL_SHAPE',
                     message: 'Download locator shape before file request', details: {
                         shape: diagnosticUrlShape(exchange.downloadUrl), origin,
                         fetchBaseOrigin: typeof location === 'undefined' ? null : location.origin,
                         locatorKind: sandbox ? 'sandbox' : uploadedFile ? 'uploaded_file' : 'file',
                     } });
-                response = await this.fetchFn(exchange.downloadUrl, { signal });
+                response = await this.fetchFn(downloadUrl.href, { signal });
                 if (!response.ok) throw new ResourceHttpError(response.status);
                 phase = 'read_body';
                 const bytes = new Uint8Array(await response.arrayBuffer());

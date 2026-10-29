@@ -16,11 +16,21 @@ test('export filenames remove Unicode noncharacters from diagnostic titles', () 
     assert.equal(sanitizeRelativePath('assets/图\u{5FFFF}片.png'), 'assets/图片.png');
 });
 
-test('filename sanitization removes lone surrogates and retains valid Unicode', () => {
-    const valid = '中文😀🧑🏽‍💻é e\u0301\u{4E7D9}.md';
+test('filename sanitization removes lone surrogates and retains assigned Unicode', () => {
+    const valid = '中文😀🧑🏽‍💻é e\u0301\u{31350}\uE000\u{F0000}.md';
     assert.equal(sanitizeFileName(valid), valid);
     assert.equal(sanitizeFileName('中\uD800文\uDC00😀.md'), '中文😀.md');
     assert.equal(sanitizeFileName('\uDBFF😀\uDFFF.md'), '😀.md');
+});
+
+test('native macOS EILSEQ titles lose unassigned scalars before filename reservation', () => {
+    assert.equal(buildExportFileName('代码依赖可视化\u{4E7D9}', '6ab84970-7684-83e8-b454-0baaa20585e8'),
+        '代码依赖可视化_0585e8.md');
+    for (const codePoint of [0x378, 0x35000, 0x3E7D9, 0x40000, 0x4E7D9]) {
+        assert.equal(sanitizeFileName(`文件${String.fromCodePoint(codePoint)}.md`), '文件.md');
+    }
+    assert.equal(sanitizeRelativePath('assets/图\u{4E7D9}片.png'), 'assets/图片.png');
+    assert.equal(sanitizeFileName('\u{4E7D9}'), 'untitled');
 });
 
 test('titles containing only invalid Unicode fall back to a stable export filename', () => {

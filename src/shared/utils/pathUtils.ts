@@ -16,8 +16,10 @@ export function isReservedRoute(id?: string | number | null): boolean {
 
 export function sanitizeFileName(name?: string | null, fallback: string = 'untitled'): string {
     if (!name) return fallback;
-    // Avoid filesystem-rejected noncharacters and lone surrogates; Unicode mode preserves emoji pairs.
-    let s = String(name).replace(/[\p{Noncharacter_Code_Point}\p{Surrogate}]/gu, '')
+    // Native macOS filenames reject unassigned scalars (EILSEQ), including
+    // U+4E7D9. Unassigned also includes noncharacters; preserve assigned emoji,
+    // CJK, combining marks and private-use characters. Only the path is cleaned.
+    let s = String(name).replace(/[\p{Unassigned}\p{Surrogate}]/gu, '')
         .replace(/[\r\n\t\f\v]+/g, ' ').replace(/[\u0000-\u001F\u007F-\u009F]/g, '_');
     s = s.replace(/\.\.\//g, '_').replace(/\.\.\\/g, '_');
     s = s.replace(/[<>:"/\\|?*]+/g, '_');

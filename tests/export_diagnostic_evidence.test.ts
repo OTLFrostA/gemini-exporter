@@ -113,20 +113,25 @@ test('native sandbox expiration remains distinct from HTTP 404 and does not disc
     assert.doesNotMatch(JSON.stringify(diagnostics), /do-not-log|private-path|secret/);
 });
 
-test('relative download locator evidence records shape without signed paths', async () => {
+for (const origin of ['https://chatgpt.com', 'https://chat.openai.com']) test(`relative downloads resolve against provider origin ${origin}`, async () => {
     const account = await getOrCreateAccount('chatgpt', 'default');
     const diagnostics: Diagnostic[] = [];
-    const provider = new ChatGPTProvider({ fetchFn: async url => {
+    const requests: string[] = [];
+    const provider = new ChatGPTProvider({ origin, fetchFn: async url => {
+        requests.push(url);
         if (url.endsWith('/api/auth/session')) return Response.json(sessionGen('C_FILE_DOWNLOAD_SESSION_01'));
         if (url.includes('/backend-api/')) return Response.json(fileDownloadGen('C_DIAGNOSTIC_RELATIVE_DOWNLOAD_01'));
-        throw new TypeError('Failed to fetch');
+        assert.equal(url, `${origin}/private-path?token=do-not-log`);
+        return new Response('uploaded-file-bytes');
     } });
-    await assert.rejects(provider.acquireResource({ accountId: account.id, conversationId: 'relative' },
-        { id: 'relative', kind: 'file', sourceUri: 'file-download:file_relative' }, undefined, d => diagnostics.push(d)));
+    const result = await provider.acquireResource({ accountId: account.id, conversationId: 'relative' },
+        { id: 'relative', kind: 'file', sourceUri: 'file-download:file_relative' }, undefined, d => diagnostics.push(d));
+    assert.equal(new TextDecoder().decode(result.bytes), 'uploaded-file-bytes');
+    assert.equal(requests.length, 3);
     const shape = diagnostics.find(d => d.code === 'CHATGPT_DOWNLOAD_URL_SHAPE');
     assert.ok(shape?.details && typeof shape.details === 'object' && !Array.isArray(shape.details));
     assert.deepEqual(shape.details.shape, { kind: 'root_relative', scheme: null, length: 30, surroundingWhitespace: false });
-    assert.equal(shape.details.origin, null);
+    assert.equal(shape.details.origin, origin);
     assert.doesNotMatch(JSON.stringify(diagnostics), /private-path|do-not-log/);
 });
 
