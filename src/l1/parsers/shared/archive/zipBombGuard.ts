@@ -1,6 +1,6 @@
-const MAX_ZIP_SIZE = 500 * 1024 * 1024; // 500MB compressed size
-const MAX_ENTRY_COUNT = 10000; // 10,000 files
-const MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024; // 1GB uncompressed estimate
+const MAX_ZIP_SIZE = 500 * 1024 * 1024;
+const MAX_ENTRY_COUNT = 10000;
+const MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024;
 
 type ZipGuardTranslator = (key: string, ...args: unknown[]) => string;
 
@@ -13,12 +13,10 @@ function isZipContainer(value: unknown): value is { files: Record<string, unknow
 }
 
 export function validateZipFile(file?: unknown, translate?: ZipGuardTranslator): void {
-    // Handle pre-loaded JSZip instances
     if (isRecord(file) && typeof file.file === 'function' && isRecord(file.files)) {
         validateZipEntries(file, translate);
         return;
     }
-    // Accept File/Blob (.size) as well as Buffer/Uint8Array (.length/.byteLength).
     const byteSize = typeof file === 'string'
         ? file.length
         : isRecord(file)

@@ -31,9 +31,6 @@ export function parseMarkdownAst(source: string): Root {
     });
 }
 
-/**
- * Parse a markdown string into Content AST BlockNode[].
- */
 export function parseMarkdownToBlocks(
     markdown: string,
     idPrefix: string,

@@ -2,7 +2,6 @@ import { grokObject, grokUuid } from './source.js';
 
 export type GrokWireResponse = Record<string, unknown> & { responseId: string; message: string };
 
-/** Bridge current Grok asset metadata to Loominary's existing attachment schema. */
 export function compatibleGrokBodies(payload: { responses: GrokWireResponse[] }, warn: (code: string, message: string) => void) {
     return { ...payload, responses: payload.responses.map((value): GrokWireResponse => {
         const row = structuredClone(value);
