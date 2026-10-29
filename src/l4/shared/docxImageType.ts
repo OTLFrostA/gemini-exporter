@@ -34,7 +34,7 @@ export function docxImageInfo(mediaType: string | undefined, bytes: Uint8Array):
         const marker = bytes[offset++];
         if (marker === 0 || marker === 0xD8) return undefined;
         if (marker === 0xD9 || marker === 0xDA) return undefined; // EOI or scan data before a frame
-        if (marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) continue; // standalone markers
+        if (marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) continue;
         if (offset + 2 > bytes.length) return undefined;
         const length = bytes[offset] * 256 + bytes[offset + 1];
         if (length < 2 || offset + length > bytes.length) return undefined;

@@ -3,11 +3,9 @@ import * as accountStore from '../../l3a/storageService.js';
 import * as accountAdmission from '../../l2/accountAdmission.js';
 import { readAccount, readAccountRegistry, DEFAULT_ACCOUNT_KEY, type Account } from '../../l2/accountRegistry.js';
 
-/** Extension pages and the worker share the extension-origin Registry. */
 function inExtensionContext(): boolean {
     return typeof location !== 'undefined' && location.protocol === 'chrome-extension:';
 }
-/** All surfaces resolve Accounts from the extension-origin Registry. */
 type RegistryRequest =
     | { command: 'get'; accountId: Account['id'] }
     | { command: 'list'; providerId?: Account['providerId'] }
