@@ -1,5 +1,5 @@
 import { validateZipFile, validateZipEntries } from '../../parsers/shared/archive/zipBombGuard.js';
-import { parseGeminiTakeoutConversation, parseGeminiTakeoutArchiveAsync, type GeminiTakeoutRaw, type GeminiTakeoutParseContext, type GeminiTakeoutParseResult, type TakeoutSourceFile } from '../../parsers/gemini/takeout/parseConversation.js';
+import { parseGeminiTakeoutArchiveAsync, type GeminiTakeoutRaw, type GeminiTakeoutParseContext, type GeminiTakeoutParseResult, type TakeoutSourceFile } from '../../parsers/gemini/takeout/parseConversation.js';
 
 export type GeminiTakeoutZipRaw = Uint8Array | ArrayBuffer | Blob;
 type TakeoutArchiveReader = (bytes: GeminiTakeoutZipRaw) => Promise<unknown>;
@@ -55,9 +55,6 @@ async function decodeArchive(bytes: GeminiTakeoutZipRaw, context: GeminiTakeoutZ
 }
 
 /** Import input IO: ZIP safety and reads precede the pure HTML source parser. */
-export async function parseGeminiTakeoutZip(bytes: GeminiTakeoutZipRaw, context: GeminiTakeoutZipContext): Promise<GeminiTakeoutParseResult> {
-    return parseGeminiTakeoutConversation(await decodeArchive(bytes, context), context);
-}
 export async function parseGeminiTakeoutZipArchive(bytes: GeminiTakeoutZipRaw, context: GeminiTakeoutZipContext): Promise<GeminiTakeoutParseResult[]> {
     return parseGeminiTakeoutArchiveAsync(await decodeArchive(bytes, context), context, context.onProgress);
 }

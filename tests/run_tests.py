@@ -165,16 +165,21 @@ def test_javascript_unit_tests(target_tests=None):
     import subprocess
     import glob
     import shutil
-    import tempfile
 
-    jsc_bin = "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc"
-    node_bin = None
-    for cand in [shutil.which("node"), os.path.expanduser("~/.local/node/bin/node"), os.path.expanduser("~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"), r"C:\Program Files\nodejs\node.exe"]:
-        if cand and os.path.exists(cand):
-            node_bin = cand
-            break
+    # npm test and the TypeScript require hook already require Node.
+    node_bin = next((candidate for candidate in [
+        shutil.which("node"),
+        os.path.expanduser("~/.local/node/bin/node"),
+        os.path.expanduser("~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"),
+        r"C:\Program Files\nodejs\node.exe",
+    ] if candidate and os.path.exists(candidate)), None)
+    assert node_bin, "Node.js is required for the TypeScript unit test suite"
 
-    test_files = sorted(set(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")) + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts")) + glob.glob(os.path.join(BASE_DIR, "tests", "arch", "*.test.ts"))))
+    test_files = sorted(set(
+        glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js"))
+        + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts"))
+        + glob.glob(os.path.join(BASE_DIR, "tests", "arch", "*.test.ts"))
+    ))
     if target_tests is not None:
         norm_targets = {os.path.normpath(t).replace("\\", "/") for t in target_tests}
         norm_bases = {os.path.basename(t) for t in target_tests}
@@ -187,202 +192,19 @@ def test_javascript_unit_tests(target_tests=None):
             print("  ✓ 无受影响的 JavaScript/TypeScript 单元测试需要执行。")
             return
 
-
-    # Preload files for mock fs in JSC
-    file_map = {}
-    for root, dirs, files in os.walk(BASE_DIR):
-        # Prune build outputs, test results and artifacts
-        dirs[:] = [d for d in dirs if d not in ["node_modules", ".git", "playwright", "dist", "output", "test-results", "playwright-report"]]
-        if any(x in root for x in ["node_modules", ".git", "playwright", "dist", "tests/output", "tests\\output", "test-results", "playwright-report"]):
-            continue
-        for f in files:
-            if f.endswith((".js", ".html", ".json", ".md")):
-                p = os.path.join(root, f)
-                with open(p, "r", encoding="utf-8", errors="replace") as fp:
-                    content = fp.read()
-                    file_map[os.path.normpath(p)] = content
-
     register_hook = os.path.join(BASE_DIR, "tests", "ts_register.js")
-
     for tf in test_files:
         rel = os.path.relpath(tf, BASE_DIR)
-        if node_bin:
-            cmd = [node_bin, "-r", register_hook, "--test", tf] if os.path.exists(register_hook) else [node_bin, "--test", tf]
-            # L1's isolated unit fixtures require their frozen public-port mocks
-            # before loading production imports, just like test-l1-units.cjs.
-            with open(tf, encoding="utf-8") as source:
-                isolated_l1 = "helpers/l1V2UnitMocks.js" in source.read()
-            if isolated_l1:
-                cmd = [node_bin, "-r", register_hook, "-r",
-                       os.path.join(BASE_DIR, "tests", "helpers", "l1V2UnitPreload.cjs"), "--test", tf]
-            res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
-            assert res.returncode == 0, f"Unit test failed in {rel}:\n{res.stdout}\n{res.stderr}"
-            print(f"  ✓ Unit test suite passed: {rel}")
-        elif os.path.exists(jsc_bin):
-            with open(tf, "r", encoding="utf-8") as f:
-                test_code = f.read()
-
-            harness = (
-                "const __fileMap = " + json.dumps(file_map) + ";\n"
-                "const __dirname = " + json.dumps(os.path.join(BASE_DIR, "tests")) + ";\n"
-                """
-            const modules = {};
-            const nodeTest = (name, fn) => {
-                try { fn(); }
-                catch(e) { throw new Error(name + ': ' + (e.stack || e.message || e)); }
-            };
-            nodeTest.test = nodeTest;
-            nodeTest.skip = (name) => { throw new Error('Skipping unit tests is strictly forbidden: ' + name); };
-            nodeTest.only = nodeTest;
-
-            function require(id) {
-                if (id === 'node:test' || id === 'test') return nodeTest;
-                if (id === 'node:assert' || id === 'assert') {
-                    return {
-                        strictEqual: (a, b) => { if (a !== b) throw new Error(a + ' !== ' + b); },
-                        deepStrictEqual: (a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(JSON.stringify(a) + ' !== ' + JSON.stringify(b)); },
-                        ok: (a, msg) => { if (!a) throw new Error(msg || ('Expected truthy, got ' + a)); }
-                    };
-                }
-                if (id === 'node:path' || id === 'path') {
-                    return {
-                        join: (...parts) => {
-                            let p = parts.join('/').replace(/\\/+/g, '/');
-                            const segments = p.split('/');
-                            const resolved = [];
-                            for (const seg of segments) {
-                                if (seg === '..') resolved.pop();
-                                else if (seg && seg !== '.') resolved.push(seg);
-                            }
-                            return (p.startsWith('/') ? '/' : '') + resolved.join('/');
-                        }
-                    };
-                }
-                if (id === 'node:fs' || id === 'fs') {
-                    return {
-                        readFileSync: (p, enc) => {
-                            let norm = p.replace(/\\/+/g, '/');
-                            const segments = norm.split('/');
-                            const resolved = [];
-                            for (const seg of segments) {
-                                if (seg === '..') resolved.pop();
-                                else if (seg && seg !== '.') resolved.push(seg);
-                            }
-                            norm = (norm.startsWith('/') ? '/' : '') + resolved.join('/');
-                            if (__fileMap[norm]) return __fileMap[norm];
-                            for (const k in __fileMap) {
-                                if (k.endsWith(norm) || norm.endsWith(k)) return __fileMap[k];
-                            }
-                            throw new Error('File not found in mock fs: ' + p);
-                        }
-                    };
-                }
-                if (modules[id]) return modules[id];
-                throw new Error('Module not found: ' + id);
-            }
-            """
-            )
-
-            preload_js = []
-            for mod_path, mod_id in [
-                ("src/l1/parsers/gemini/rpc/extractors.js", "./parser/extractors.js"),
-                ("src/l1/parsers/gemini/rpc/extractors.js", "./extractors.js"),
-                ("src/l1/parsers/gemini/rpc/extractors.js", "../src/l1/parsers/gemini/rpc/extractors.js"),
-                ("tests/helpers/recordFixture/attachments.js", "./parser/attachments.js"),
-                ("tests/helpers/recordFixture/attachments.js", "./attachments.js"),
-                ("tests/helpers/recordFixture/attachments.js", "./helpers/recordFixture/attachments.js"),
-                ("src/l1/parsers/gemini/rpc/parseList.js", "./parser/parseList.js"),
-                ("src/l1/parsers/gemini/rpc/parseList.js", "./parseList.js"),
-                ("src/l1/parsers/gemini/rpc/parseList.js", "../src/l1/parsers/gemini/rpc/parseList.js"),
-                ("src/l1/client/gemini/api/credentialManager.js", "./client/credentialManager.js"),
-                ("src/l1/client/gemini/api/credentialManager.js", "./credentialManager.js"),
-                ("src/l1/client/gemini/api/credentialManager.js", "../src/l1/client/gemini/api/credentialManager.js"),
-                ("src/l1/client/gemini/api/retryPolicy.js", "./client/retryPolicy.js"),
-                ("src/l1/client/gemini/api/retryPolicy.js", "./retryPolicy.js"),
-                ("src/l1/client/gemini/api/retryPolicy.js", "../src/l1/client/gemini/api/retryPolicy.js"),
-                ("src/l1/client/gemini/api/rpcClient.js", "./client/rpcClient.js"),
-                ("src/l1/client/gemini/api/rpcClient.js", "./rpcClient.js"),
-                ("src/l1/client/gemini/api/rpcClient.js", "../src/l1/client/gemini/api/rpcClient.js"),
-                ("src/l1/client/gemini/api/pagination.js", "./client/pagination.js"),
-                ("src/l1/client/gemini/api/pagination.js", "./pagination.js"),
-                ("src/l1/client/gemini/api/pagination.js", "../src/l1/client/gemini/api/pagination.js"),
-                ("src/l1/client/gemini/geminiClient.js", "../src/l1/client/gemini/geminiClient.js"),
-                ("src/l1/client/gemini/geminiClient.js", "./src/l1/client/gemini/geminiClient.js"),
-                ("src/l1/client/gemini/geminiClient.js", "./geminiClient.js"),
-                ("src/core/constants.js", "../src/core/constants.js"),
-                ("src/core/constants.js", "./constants.js"),
-                ("src/core/tabService.js", "../src/core/tabService.js"),
-                ("src/l4/packaging/writers/zipWriter.js", "../src/l4/packaging/writers/zipWriter.js"),
-                ("src/l4/delivery/writers/fsWriter.js", "../src/l4/delivery/writers/fsWriter.js"),
-                ("src/l4/delivery/writers/writerInterface.js", "../src/l4/delivery/writers/writerInterface.js"),
-                ("src/core/engine/chatFormatter.js", "../src/core/engine/chatFormatter.js"),
-                ("src/shared/resources/takeout/mediaIndex.js", "./takeout/mediaIndex.js"),
-                ("src/shared/resources/takeout/mediaIndex.js", "./mediaIndex.js"),
-                ("src/shared/resources/takeout/mediaIndex.js", "../src/shared/resources/takeout/mediaIndex.js"),
-                ("src/l1/imports/takeout/importTakeout.js", "./takeout/takeoutParser.js"),
-                ("src/l1/imports/takeout/importTakeout.js", "./takeoutParser.js"),
-                ("src/l1/imports/takeout/importTakeout.js", "../src/l1/imports/takeout/importTakeout.js"),
-                ("src/core/engine/export/progressReporter.js", "./export/progressReporter.js"),
-                ("src/core/engine/export/progressReporter.js", "./progressReporter.js"),
-                ("src/core/engine/export/progressReporter.js", "../src/core/engine/export/progressReporter.js"),
-                ("src/core/engine/export/sessionRecovery.js", "./export/sessionRecovery.js"),
-                ("src/core/engine/export/sessionRecovery.js", "./sessionRecovery.js"),
-                ("src/core/engine/export/sessionRecovery.js", "../src/core/engine/export/sessionRecovery.js"),
-                ("src/core/engine/export/batchWorker.js", "./export/batchWorker.js"),
-                ("src/core/engine/export/batchWorker.js", "./batchWorker.js"),
-                ("src/core/engine/export/batchWorker.js", "../src/core/engine/export/batchWorker.js"),
-                ("src/core/engine/export/exportOrchestrator.js", "./export/exportOrchestrator.js"),
-                ("src/core/engine/export/exportOrchestrator.js", "./exportOrchestrator.js"),
-                ("src/core/engine/export/exportOrchestrator.js", "../src/core/engine/export/exportOrchestrator.js"),
-                ("src/core/exporter/zipWriter.js", "../src/core/exporter/zipWriter.js"),
-                ("src/core/exporter/fsWriter.js", "../src/core/exporter/fsWriter.js"),
-                ("src/ui/options/state/conversationsStore.js", "../src/ui/options/state/conversationsStore.js"),
-                ("src/ui/options/views/listView.js", "../src/ui/options/views/listView.js"),
-                ("src/ui/options/views/logView.js", "../src/ui/options/views/logView.js"),
-                ("src/ui/options/views/accountView.js", "../src/ui/options/views/accountView.js"),
-                ("src/ui/options/views/dialogView.js", "../src/ui/options/views/dialogView.js"),
-                ("src/runtime/capabilities/dirHandleController.js", "../src/runtime/capabilities/dirHandleController.js"),
-                ("src/ui/options/controllers/takeoutController.js", "../src/ui/options/controllers/takeoutController.js"),
-                ("src/ui/options/controllers/syncController.js", "../src/ui/options/controllers/syncController.js"),
-                ("src/ui/options/controllers/exportController.js", "../src/ui/options/controllers/exportController.js"),
-                ("storage_service.js", "../storage_service.js"),
-                ("chat_formatter.js", "../chat_formatter.js"),
-                ("gemini_parser.js", "../gemini_parser.js"),
-                ("takeout_engine.js", "../takeout_engine.js"),
-                ("src/shared/utils/locales/zh.js", "./locales/zh.js"),
-                ("src/shared/utils/locales/en.js", "./locales/en.js"),
-                ("src/shared/utils/locales/zh.js", "../src/shared/utils/locales/zh.js"),
-                ("src/shared/utils/locales/en.js", "../src/shared/utils/locales/en.js"),
-                ("src/shared/utils/i18n.js", "../src/shared/utils/i18n.js"),
-                ("src/shared/utils/i18n.js", "./i18n.js"),
-                ("i18n.js", "../i18n.js")
-            ]:
-                full_p = os.path.join(BASE_DIR, mod_path)
-                if not os.path.exists(full_p):
-                    if mod_path.startswith("src/"):
-                        dp = os.path.join(BASE_DIR, "dist", mod_path[4:])
-                        if os.path.exists(dp):
-                            full_p = dp
-                if not os.path.exists(full_p) and mod_path.endswith('.js'):
-                    tsp = full_p[:-3] + '.ts'
-                    if os.path.exists(tsp):
-                        full_p = tsp
-                if os.path.exists(full_p):
-                    with open(full_p, "r", encoding="utf-8") as mf:
-                        content = mf.read()
-                    preload_js.append(
-                        "(function() {\n"
-                        "  const module = { exports: {} };\n"
-                        "  const exports = module.exports;\n"
-                        + content + "\n"
-                        "  modules[" + json.dumps(mod_id) + "] = module.exports;\n"
-                        "})();\n"
-                    )
-
-            full_script = harness + "\n".join(preload_js) + "\n" + test_code
-            res = subprocess.run([jsc_bin, "-e", full_script], capture_output=True, text=True)
-            assert res.returncode == 0, f"Unit test failed in {rel}:\n{res.stderr or res.stdout}"
-            print(f"  ✓ Unit test suite passed: {rel}")
+        cmd = [node_bin, "-r", register_hook, "--test", tf] if os.path.exists(register_hook) else [node_bin, "--test", tf]
+        # L1's isolated unit fixtures need their frozen public-port mocks before production imports.
+        with open(tf, encoding="utf-8") as source:
+            isolated_l1 = "helpers/l1V2UnitMocks.js" in source.read()
+        if isolated_l1:
+            cmd = [node_bin, "-r", register_hook, "-r",
+                   os.path.join(BASE_DIR, "tests", "helpers", "l1V2UnitPreload.cjs"), "--test", tf]
+        res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        assert res.returncode == 0, f"Unit test failed in {rel}:\n{res.stdout}\n{res.stderr}"
+        print(f"  ✓ Unit test suite passed: {rel}")
 
 def test_content_badge_flicker_prevention():
     """Verify the actual v2 Badge owner, not removed SyncEngine/IndexCapture files."""

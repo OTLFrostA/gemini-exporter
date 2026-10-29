@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createTakeoutResourceResolver, type TakeoutSourceFile } from '../src/l1/parsers/gemini/takeout/archiveResources.js';
 import { parseGeminiTakeoutConversation } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
-import { parseGeminiTakeoutZip, parseGeminiTakeoutZipArchive } from '../src/l1/imports/takeout/readArchive.js';
+import { parseGeminiTakeoutZipArchive } from '../src/l1/imports/takeout/readArchive.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
 
 const directory = 'Takeout/My Activity/Gemini Apps';
@@ -102,7 +102,7 @@ test('extensionless image resolution retains generation facts and a separate acq
     assertDomainClosure((JSON.parse(JSON.stringify(result.conversation))).detail);
 });
 
-test('ZIP selected and batch parsing retain the Gemini Apps activity directory in multi-product archives', async () => {
+test('ZIP batch parsing retains the Gemini Apps activity directory in multi-product archives', async () => {
     const JSZip = require('../lib/jszip.min.js') as { new(): { file(path: string, data: string): void; generateAsync(options: { type: string }): Promise<Uint8Array> }; loadAsync(bytes: unknown): Promise<unknown> };
     const zip = new JSZip();
     zip.file(activityPath, activity('<p><img src="photo.png"></p>'));
@@ -111,12 +111,11 @@ test('ZIP selected and batch parsing retain the Gemini Apps activity directory i
     zip.file('Takeout/My Activity/Other Product/photo.png', 'Other image bytes');
     const bytes = await zip.generateAsync({ type: 'uint8array' });
     const context = { account: fixtureAccount(), providerId: 'gemini' as const, readArchive: (bytes: Uint8Array | ArrayBuffer | Blob) => JSZip.loadAsync(bytes) };
-    const selected = await parseGeminiTakeoutZip(bytes, context);
     const batch = await parseGeminiTakeoutZipArchive(bytes, context);
+    assert.equal(batch.length, 1, 'non-Gemini products must not become conversation imports');
+    const [selected] = batch;
     const asset = selected.conversation.detail.assets[0];
     assert.equal(selected.archiveResources[asset.id].path, `${directory}/photo.png`);
     assert.equal(await selected.archiveResources[asset.id].entry.async!('text'), 'Gemini image bytes');
-    assert.equal(batch.length, 1, 'non-Gemini products must not become conversation imports');
-    assert.deepEqual(batch[0].conversation, selected.conversation);
     assert.ok(!selected.diagnostics.some(d => d.code === 'TAKEOUT_AMBIGUOUS_RESOURCE'));
 });

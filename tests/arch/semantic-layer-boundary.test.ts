@@ -90,6 +90,16 @@ test('the compatibility directory is retired and no production source imports it
         }
     }
 });
+test('v1 migration stays isolated to worker readiness and remains covered by the independent upgrade suite', () => {
+    assert.ok(existsSync(resolve(core, 'migration/upgradeV1.ts')));
+    assert.ok(existsSync(resolve(root, 'tests/upgrade_v1.test.cjs')));
+    const wrapper = readFileSync(resolve(root, 'tests/upgrade_released_v17.test.ts'), 'utf8');
+    assert.ok(wrapper.includes("require('./upgrade_v1.test.cjs')"));
+    const runtimeCallers = [...graph].filter(([, edges]) => edges.some(edge => edge.target === 'migration/upgradeV1.ts'))
+        .map(([owner]) => owner).sort();
+    assert.deepEqual(runtimeCallers, ['runtime/background/readiness.ts']);
+});
+
 function renderer(owner: string): boolean {
     return /^l4\/format\/(?:html|json|markdown|shared|typst)\//.test(owner);
 }
@@ -183,7 +193,8 @@ test('list acquisition consumes parser facts instead of reinterpreting wire fiel
 });
 
 test('normal runtime cannot parse historical records or depend on application projections', () => {
-    const obsolete = new Set(['parseLegacyConversation', 'toDomainConversationDetail', 'createParsedConversationView', 'readParsedConversation', 'createNativeDetailView', 'ParsedConversationView']);
+    const obsolete = new Set(['parseLegacyConversation', 'toDomainConversationDetail', 'createParsedConversationView', 'readParsedConversation', 'createNativeDetailView', 'ParsedConversationView',
+        'parseGeminiTakeoutZip', 'GeminiParserAttachments', 'inferLegacyProviderId', 'getTakeoutMediaForChat', 'extractC2PATimestamp', 'moduleOverrides']);
     for (const file of files(resolve(root, 'src'))) {
         const name = relative(core, file).replace(/\\/g, '/');
         const migration = name.startsWith('l1/parsers/legacyStorage/');
