@@ -205,9 +205,15 @@ test('partial fallback diagnostics explain freshness and source failure without 
     assert.ok(diagnostics.some(event => event.key?.conversationId === key.conversationId
         && event.code === 'SOURCE_REFRESH_FAILED' && event.message.length > 0));
     assert.deepEqual(diagnostics.find(event => event.code === 'DETAIL_NOT_COMPLETE')?.details,
-        { quality: 'partial', messageCount: 1 });
+        { quality: 'partial', messageCount: 1, savedAt: 100, indexUpdatedAt: 200,
+            lastMessageId: null, lastMessageRole: 'assistant' });
     assert.deepEqual(diagnostics.find(event => event.code === 'DETAIL_STALE')?.details,
-        { savedAt: 100, updatedAt: 200 });
+        { savedAt: 100, updatedAt: 200, lagMs: 100 });
+    assert.deepEqual(diagnostics.find(event => event.code === 'DETAIL_REFRESH_RESULT')?.details, {
+        refreshFailed: true, requestedExplicitly: false, needsSourceReaders: false,
+        before: { savedAt: 100, indexUpdatedAt: 200, quality: 'partial', messageCount: 1 },
+        after: { savedAt: 100, indexUpdatedAt: 200, quality: 'partial', messageCount: 1 },
+    });
     assert.equal((await getExportRecord(key))?.otherContentMissing, true);
     const retry = await runExport(exportRequest([key.conversationId]), {
         onDiagnostic: () => { throw new Error('Diagnostic observer failed'); },

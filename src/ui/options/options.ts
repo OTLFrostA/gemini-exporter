@@ -682,18 +682,23 @@ export async function initWorkbench(): Promise<void> {
     });
     el('btnClearLog').addEventListener('click', () => { log.length = 0; renderLog(); });
     el('btnExportDiag').addEventListener('click', () => {
-        const currentExportIssues = state.indexes.flatMap(index => {
-            const record = state.records[index.key.conversationId];
-            return record?.status === 'partial' ? [{ key: index.key, title: index.title, record,
-                reasonAvailability: 'Stored outcome only; exact causes require a captured export run' }] : [];
-        });
-        const payload = JSON.stringify({ schemaVersion: 2, generatedAt: Date.now(),
-            extensionVersion: chrome.runtime.getManifest().version, userAgent: navigator.userAgent,
-            accountId: state.accountId, scanRuns, exportRuns, droppedExportRuns,
-            currentExportIssues, logs: log }, null, 2);
-        const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
-        const link = document.createElement('a'); link.href = url; link.download = 'gemini-exporter-ui-diagnostics.json';
-        link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+        void (async () => {
+            let grantedPermissions: chrome.permissions.Permissions | null = null;
+            try { grantedPermissions = await chrome.permissions.getAll(); } catch { /* Diagnostic export still works without permission inspection. */ }
+            const currentExportIssues = state.indexes.flatMap(index => {
+                const record = state.records[index.key.conversationId];
+                return record?.status === 'partial' ? [{ key: index.key, title: index.title, record,
+                    reasonAvailability: 'Stored outcome only; exact causes require a captured export run' }] : [];
+            });
+            const payload = JSON.stringify({ schemaVersion: 2, diagnosticRevision: 3, generatedAt: Date.now(),
+                environment: { online: navigator.onLine, grantedPermissions },
+                extensionVersion: chrome.runtime.getManifest().version, userAgent: navigator.userAgent,
+                accountId: state.accountId, scanRuns, exportRuns, droppedExportRuns,
+                currentExportIssues, logs: log }, null, 2);
+            const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
+            const link = document.createElement('a'); link.href = url; link.download = 'gemini-exporter-ui-diagnostics.json';
+            link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+        })().catch(statusError);
     });
     el('btnPlatformPermissions').addEventListener('click', () => { if (!busy) TourGuide.showPlatformAuthorization(select); });
     const prepareTourLiveSave = async () => {

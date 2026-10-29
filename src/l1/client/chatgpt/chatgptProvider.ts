@@ -1,5 +1,5 @@
 import { readChatGPTSandboxLocator } from '../../resources/chatgptSandbox.js';
-import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
+import { diagnosticOrigin, emitDiagnostic, type Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { OperationError, operationError } from '../../../shared/errors/operationError.js';
 import { abortableSleep, calculateBackoff } from '../../../shared/utils/retryUtils.js';
 import { ResourceHttpError, ResourceProcessingError } from '../../../shared/resources/resourceResult.js';
@@ -244,46 +244,84 @@ export class ChatGPTProvider implements AIProvider {
             catch (error) { console.warn('[Gemini Exporter] Source diagnostic listener failed', error); }
         }
         const admission = await ingestDetail(account.id, conversationId, parsed.conversation.detail, index);
+        emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_DETAIL_ADMISSION', message: 'Source detail admission completed',
+            details: { accepted: admission.accepted, changed: admission.changed,
+                sourceVersion: parsed.sourceVersion ?? null, quality: parsed.conversation.detail.quality.status,
+                messageCount: parsed.conversation.detail.messages.length, assetCount: parsed.conversation.detail.assets.length } });
         if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId }, parsed);
     }
     canAcquireResourceDirectly(asset: DomainAsset): boolean {
         return !!readChatGPTSandboxLocator(asset.sourceUri ?? '') || !!fileIdFromPointer(asset.sourceUri ?? '') || /^file-download:[a-zA-Z0-9_-]+$/.test(asset.sourceUri ?? '');
     }
-    async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
+    async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal,
+        onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<ResourceBytes> {
         signal?.throwIfAborted();
         readConversationKey(key);
         const account = await this.context(key.accountId);
         const remote = async () => {
-            const sandbox = readChatGPTSandboxLocator(asset.sourceUri ?? '');
-            const uploadedFile = asset.sourceUri?.startsWith('file-download:') === true;
-            const fileId = uploadedFile ? asset.sourceUri?.slice(14) : fileIdFromPointer(asset.sourceUri ?? '');
-            let path: string;
-            if (sandbox) path = buildSandboxDownloadPath(key.conversationId, sandbox.messageId, sandbox.path);
-            else {
-                if (!fileId) return acquireSourceResource(asset, signal);
-                path = uploadedFile ? buildAttachmentDownloadPath(fileId, key.conversationId)
-                    : buildFileDownloadPath(fileId, key.conversationId);
+            const startedAt = Date.now();
+            let phase = 'download_locator';
+            let origin: string | null = diagnosticOrigin(this.origin);
+            let response: Response | undefined;
+            try {
+                const sandbox = readChatGPTSandboxLocator(asset.sourceUri ?? '');
+                const uploadedFile = asset.sourceUri?.startsWith('file-download:') === true;
+                const fileId = uploadedFile ? asset.sourceUri?.slice(14) : fileIdFromPointer(asset.sourceUri ?? '');
+                let path: string;
+                if (sandbox) path = buildSandboxDownloadPath(key.conversationId, sandbox.messageId, sandbox.path);
+                else {
+                    if (!fileId) {
+                        phase = 'source_fetch';
+                        origin = asset.sourceUri ? diagnosticOrigin(asset.sourceUri) : null;
+                        return await acquireSourceResource(asset, signal, onDiagnostic);
+                    }
+                    path = uploadedFile ? buildAttachmentDownloadPath(fileId, key.conversationId)
+                        : buildFileDownloadPath(fileId, key.conversationId);
+                }
+                let raw: unknown;
+                try { raw = await this.authedGet(path, account, signal, 'RESOURCE_LOCATOR_UNAVAILABLE'); }
+                catch (error) {
+                    // Library-backed files can still require the scoped file exchange.
+                    // Older stored locators do not distinguish those from regular uploads.
+                    if (!fileId || !uploadedFile || !(error instanceof OperationError) || (error.code !== 'SOURCE_HTTP_ERROR' && error.code !== 'RESOURCE_LOCATOR_UNAVAILABLE')
+                        || error.httpStatus !== 403 && error.httpStatus !== 404) throw error;
+                    raw = await this.authedGet(buildFileDownloadPath(fileId, key.conversationId), account, signal, 'RESOURCE_LOCATOR_UNAVAILABLE');
+                }
+                phase = 'download_payload';
+                const exchange = parseFileDownloadPayload(raw);
+                if (!exchange) {
+                    emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_DOWNLOAD_PAYLOAD_INVALID',
+                        message: 'Download exchange has no accepted download URL', details: {
+                            locatorKind: sandbox ? 'sandbox' : uploadedFile ? 'uploaded_file' : 'file',
+                            responseKind: raw === null ? 'null' : Array.isArray(raw) ? 'array' : typeof raw,
+                            responseKeys: raw && typeof raw === 'object' && !Array.isArray(raw) ? Object.keys(raw).slice(0, 20) : [],
+                            status: raw && typeof raw === 'object' && 'status' in raw && typeof raw.status === 'string' ? raw.status.slice(0, 100) : null,
+                            downloadUrlPresent: !!(raw && typeof raw === 'object' && 'download_url' in raw && typeof raw.download_url === 'string' && raw.download_url),
+                        } });
+                    throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'ChatGPT resource locator unavailable');
+                }
+                phase = 'resource_fetch';
+                origin = diagnosticOrigin(exchange.downloadUrl);
+                response = await this.fetchFn(exchange.downloadUrl, { signal });
+                if (!response.ok) throw new ResourceHttpError(response.status);
+                phase = 'read_body';
+                const bytes = new Uint8Array(await response.arrayBuffer());
+                signal?.throwIfAborted();
+                if (!bytes.byteLength) throw new ResourceProcessingError('Empty ChatGPT resource');
+                const mediaType = asset.mediaType ?? exchange.mimeType ?? response.headers.get('content-type')?.split(';')[0].trim();
+                const name = asset.name ?? exchange.fileName;
+                emitDiagnostic(onDiagnostic, { severity: 'info', code: 'RESOURCE_FETCH_COMPLETED', message: 'ChatGPT attachment bytes acquired',
+                    details: { origin, httpStatus: response.status, byteLength: bytes.byteLength, elapsedMs: Date.now() - startedAt } });
+                return { bytes, ...(mediaType ? { mediaType } : {}), ...(name ? { name } : {}) };
+            } catch (error) {
+                emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_RESOURCE_REQUEST_FAILED', message: 'ChatGPT attachment acquisition failed',
+                    details: { phase, origin, httpStatus: error instanceof OperationError ? error.httpStatus ?? null : response?.status ?? null,
+                        responseType: response?.type ?? null, redirected: response?.redirected ?? null,
+                        errorName: error instanceof Error ? error.name : 'NonError', aborted: signal?.aborted ?? false,
+                        elapsedMs: Date.now() - startedAt } });
+                throw error;
             }
-            let raw: unknown;
-            try { raw = await this.authedGet(path, account, signal, 'RESOURCE_LOCATOR_UNAVAILABLE'); }
-            catch (error) {
-                // Library-backed files can still require the scoped file exchange.
-                // Older stored locators do not distinguish those from regular uploads.
-                if (!fileId || !uploadedFile || !(error instanceof OperationError) || (error.code !== 'SOURCE_HTTP_ERROR' && error.code !== 'RESOURCE_LOCATOR_UNAVAILABLE')
-                    || error.httpStatus !== 403 && error.httpStatus !== 404) throw error;
-                raw = await this.authedGet(buildFileDownloadPath(fileId, key.conversationId), account, signal, 'RESOURCE_LOCATOR_UNAVAILABLE');
-            }
-            const exchange = parseFileDownloadPayload(raw);
-            if (!exchange) throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'ChatGPT resource locator unavailable');
-            const response = await this.fetchFn(exchange.downloadUrl, { signal });
-            if (!response.ok) throw new ResourceHttpError(response.status);
-            const bytes = new Uint8Array(await response.arrayBuffer());
-            signal?.throwIfAborted();
-            if (!bytes.byteLength) throw new ResourceProcessingError('Empty ChatGPT resource');
-            const mediaType = asset.mediaType ?? exchange.mimeType ?? response.headers.get('content-type')?.split(';')[0].trim();
-            const name = asset.name ?? exchange.fileName;
-            return { bytes, ...(mediaType ? { mediaType } : {}), ...(name ? { name } : {}) };
         };
-        return this.resources ? this.resources.acquire(key, asset, signal, remote) : remote();
+        return this.resources ? this.resources.acquire(key, asset, signal, remote, onDiagnostic) : remote();
     }
 }
