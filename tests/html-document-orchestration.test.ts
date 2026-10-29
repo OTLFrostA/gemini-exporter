@@ -1,4 +1,3 @@
-/** Public HTML orchestration and the pure Document AST backend. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseFixture } from './helpers/documentFixture.js';

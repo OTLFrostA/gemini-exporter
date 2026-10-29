@@ -107,7 +107,6 @@ test('p1-lock: session tokens live in chrome.storage.session, never in chrome.st
     vm.runInContext(protocolCode, ctx, { filename: 'protocol.js' });
     vm.runInContext(code, ctx, { filename: 'bootstrap.js' });
     ctx.TestBootstrap.initBootstrap();
-    // bootstrap runs ensureCreds() at load; let its async chain settle.
     await new Promise(r => setImmediate(r));
     await new Promise(r => setImmediate(r));
 

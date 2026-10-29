@@ -154,7 +154,7 @@ for (const baseline of ['1.6.0', undefined]) test(`real Migration: Account/count
     });
     await seedRuntimeLegacyAccount();
     runtime.install('update', '1.8.1');
-    const worker = runtime.readyApi.ensureV2Ready(); // Worker takes the direct path.
+    const worker = runtime.readyApi.ensureV2Ready();
     global.window = contentWindow() as any;
     global.location = { protocol: 'https:' } as any;
     let resolved = 0;

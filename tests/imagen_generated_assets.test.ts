@@ -174,7 +174,6 @@ test('assetFetcher - fetchGgChain follows multi-hop ALR text redirects to final 
                     })
                 };
             } else if (url.includes('/rd-gg/hop1')) {
-                // Hop 1: returns text/plain pointing to rd-gg/final
                 return {
                     ok: true,
                     status: 200,
@@ -184,7 +183,6 @@ test('assetFetcher - fetchGgChain follows multi-hop ALR text redirects to final 
                     })
                 };
             } else if (url.includes('/rd-gg/final')) {
-                // Hop 2: returns binary image/jpeg
                 return {
                     ok: true,
                     status: 200,

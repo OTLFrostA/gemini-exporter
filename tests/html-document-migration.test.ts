@@ -73,7 +73,6 @@ const chat: any = {
     ],
 };
 
-/** Role sequence of top-level turn sections, in document order. */
 function turnRoles(html: string): string[] {
     const roles: string[] = [];
     const re = /<section class="gem-turn gem-turn-(user|model)"/g;
