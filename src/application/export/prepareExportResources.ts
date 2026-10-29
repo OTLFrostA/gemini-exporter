@@ -7,12 +7,15 @@ export async function prepareExportResources(
     requiredIds: ReadonlySet<string>,
     acquire: (asset: DomainAsset, signal?: AbortSignal) => Promise<ResourceBytes>,
     signal?: AbortSignal,
+    onProgress?: (completed: number, total: number) => void,
 ): Promise<PreparedResources> {
     const prepared = new Map<string, ResourceResult>();
     const ids = [...requiredIds];
     const results = new Map<string, ResourceResult>();
     const remaining = ids.values();
     let stopped = false;
+    let completed = 0;
+    onProgress?.(0, ids.length);
     const worker = async (): Promise<void> => {
         try {
             for (const id of remaining) {
@@ -27,6 +30,7 @@ export async function prepareExportResources(
                 const sourceUri = asset?.sourceUri;
                 results.set(id, !result.ok && sourceUri && /^https:\/\//i.test(sourceUri)
                     ? { ...result, sourceUrl: sourceUri } : result);
+                onProgress?.(++completed, ids.length);
             }
         } catch (error) {
             stopped = true;

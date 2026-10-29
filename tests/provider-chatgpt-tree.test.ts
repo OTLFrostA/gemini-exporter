@@ -927,3 +927,50 @@ test('sandbox files with the same path stay scoped to their provider message', (
     assert.deepEqual(assets.map(asset => readChatGPTSandboxLocator(asset.sourceUri ?? '')?.messageId), ['msg-first', 'msg-second']);
     assert.ok(assets.every(asset => asset.name === 'report.csv'));
 });
+
+for (const phase of ['session headers', 'session body', 'api body', 'attachment body']) {
+    test(`ChatGPT ${phase} has a deadline covering the response body`, async t => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        const account = await getOrCreateAccount('chatgpt', JSON.stringify(['retry-user', 'retry-space']));
+        let stalled = false;
+        const provider = new ChatGPTProvider({ fetchFn: async (url, init) => {
+            const session = url.endsWith('/api/auth/session');
+            const api = url.includes('/backend-api/');
+            if ((phase.startsWith('session') && session) || (phase === 'api body' && api)
+                || (phase === 'attachment body' && !session && !api)) {
+                stalled = true;
+                if (phase === 'session headers') return new Promise((_resolve, reject) => {
+                    init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+                });
+                return new Response(new ReadableStream({ start(controller) {
+                    init?.signal?.addEventListener('abort', () => controller.error(init.signal?.reason), { once: true });
+                } }));
+            }
+            return new Response(JSON.stringify(session ? chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_SESSION_01')
+                : fileDownloadGen('C_ATTACHMENT_DOWNLOAD_ACQUIRE_01')));
+        } });
+        const pending = phase === 'attachment body'
+            ? provider.acquireResource({ accountId: account.id, conversationId: 'conv-timeout' },
+                { id: 'file', kind: 'file', sourceUri: 'file-download:file_timeout' })
+            : provider.fetchConversationDetail(account.id, 'conv-timeout');
+        const rejected = assert.rejects(pending, { code: 'SOURCE_REQUEST_TIMEOUT' });
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(stalled, true);
+        t.mock.timers.tick(60000);
+        await rejected;
+    });
+}
+
+test('ChatGPT caller cancellation retains its reason instead of becoming a timeout', async () => {
+    const account = await getOrCreateAccount('chatgpt', 'default');
+    const controller = new AbortController();
+    const reason = new DOMException('Stopped by user', 'AbortError');
+    const provider = new ChatGPTProvider({ fetchFn: async (_url, init) => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+    }) });
+    const pending = provider.fetchConversationDetail(account.id, 'conv-cancel', controller.signal);
+    const rejected = assert.rejects(pending, error => error === reason);
+    await new Promise(resolve => setImmediate(resolve));
+    controller.abort(reason);
+    await rejected;
+});

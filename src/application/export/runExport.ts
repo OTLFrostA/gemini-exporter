@@ -60,6 +60,7 @@ interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'export
 /** One runtime task for every trigger and format. No sessions, checkpoints or delivery receipts. */
 export async function runExport(request: ExportRequest, options: {
     onProgress?: (progress: ExportProgress) => void;
+    onResourceProgress?: (progress: { key: ConversationKey; completed: number; total: number }) => void;
     /** Settled items and staged browser files; only 'exported' carries a committed record. */
     onItemUpdate?: (update: ExportItemUpdate) => void;
     onDiagnostic?: (diagnostic: ExportDiagnostic) => void;
@@ -290,7 +291,11 @@ export async function runExport(request: ExportRequest, options: {
                             (asset, abort) => options.importedResources?.has(key, asset.id)
                                 ? options.importedResources.acquire(key, asset, abort,
                                     () => providerFor(account.providerId).acquireResource(key, asset, abort))
-                                : providerFor(account.providerId).acquireResource(key, asset, abort), signal);
+                                : providerFor(account.providerId).acquireResource(key, asset, abort), signal, (completed, total) => {
+                                options.onResourceProgress?.({ key, completed, total });
+                                diagnose({ key, stage: 'resource', severity: 'info', code: 'RESOURCE_ACQUISITION_PROGRESS',
+                                    message: `Attachments ${completed}/${total}`, details: { completed, total } });
+                            });
                         return { ...view, key, account, conversation: snapshot, prepared, fileIds, refreshFailed,
                             ...(record?.folderBaseName ? { folderBaseName: record.folderBaseName } : {}) };
                     };
@@ -300,6 +305,8 @@ export async function runExport(request: ExportRequest, options: {
                     // committed facts: a new source URI may also change the resource's identity.
                     if ([...item.prepared.values()].some(value => !value.ok
                         && value.httpStatus !== undefined && [401, 403, 404, 410].includes(value.httpStatus))) {
+                        diagnose({ key, stage: 'resource_refresh', severity: 'info', code: 'RESOURCE_REFRESH_STARTED',
+                            message: 'Refreshing source after attachment access failure' });
                         let refreshed = false;
                         try {
                             await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,

@@ -323,6 +323,9 @@ export async function initWorkbench(): Promise<void> {
                     run.diagnostics.push({ ...diagnostic, at: Date.now(), title: titleFor(diagnostic.key) });
                 },
                 onProgress: p => progress(() => text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`)),
+                onResourceProgress: p => progress(() => text(
+                    `Downloading attachments ${p.completed}/${p.total} · ${titleFor(p.key)}`,
+                    `正在下载附件 ${p.completed}/${p.total} · ${titleFor(p.key)}`)),
                 onItemUpdate: update => {
                     if (update.status === 'failed') run.issues.add(update.diagnostic, titleFor(update.key));
                     run.items.push({ ...update, at: Date.now(), title: titleFor(update.key) });

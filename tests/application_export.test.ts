@@ -287,6 +287,7 @@ test('attachment pool limits parallel downloads and preserves reference order af
     let active = 0;
     let peak = 0;
     const started: string[] = [];
+    const progress: number[][] = [];
     const preparing = prepareExportResources(assets, new Set(assets.map(asset => asset.id)), async asset => {
         active++;
         peak = Math.max(peak, active);
@@ -296,10 +297,11 @@ test('attachment pool limits parallel downloads and preserves reference order af
         else await firstWave.promise;
         active--;
         return { bytes: Uint8Array.of(1) };
-    });
+    }, undefined, (completed, total) => progress.push([completed, total]));
     await firstWave.promise;
     finish.release();
     const result = await preparing;
+    assert.deepEqual(progress, Array.from({ length: 8 }, (_, completed) => [completed, 7]));
     assert.equal(peak, 3);
     assert.equal(started.length, 7);
     assert.deepEqual([...result.keys()], assets.map(asset => asset.id));
@@ -644,4 +646,21 @@ test('a worker AbortError drains siblings without starting remaining attachment 
     siblings.release();
     await rejected;
     assert.deepEqual(started, ['asset-0', 'asset-1', 'asset-2']);
+});
+
+
+test('a request timeout stays an attachment failure and does not cancel later work', async () => {
+    seed('first', { assets: true });
+    const progress: number[][] = [];
+    provider.acquireResource = async (_key, asset) => {
+        if (asset.id === 'image') throw new OperationError('SOURCE_REQUEST_TIMEOUT', 'ChatGPT request exceeded 60 seconds');
+        return { bytes: Uint8Array.of(1) };
+    };
+    const result = await runExport(request(), { onResourceProgress: value => progress.push([value.completed, value.total]) });
+    assert.equal(result.aborted, false);
+    assert.equal(result.exported, 1);
+    assert.equal(result.partial, 1);
+    assert.deepEqual(progress, [[0, 2], [1, 2], [2, 2]]);
+    assert.equal(records.get(address(key()))?.attachmentIssues?.[0].code, 'SOURCE_REQUEST_TIMEOUT');
+    assert.equal(events.includes('refresh'), false);
 });
