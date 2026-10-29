@@ -7,7 +7,6 @@ const { sanitizeFileName } = require('../src/shared/utils/pathUtils.js');
 const { ZipWriter, isPrecompressedAsset } = require('../src/l4/packaging/writers/zipWriter.js');
 const { __setZipConstructor } = require('../src/l4/packaging/writers/zipWriter.js');
 
-// FsWriter
 test('fsWriter - sanitizeFileName and ensureSubDir nested resolution', async () => {
     assert.strictEqual(sanitizeFileName('valid_name.md'), 'valid_name.md');
     assert.strictEqual(sanitizeFileName(''), 'untitled');
@@ -49,7 +48,6 @@ test('fsWriter - sanitizeFileName and ensureSubDir nested resolution', async () 
     }, /Directory permission not granted: denied/);
 });
 
-// ZipWriter
 test('zipWriter - exports, instantiation, and sanitization', () => {
     assert.ok(ZipWriter);
     __setZipConstructor(class MockJSZip {
@@ -231,13 +229,11 @@ test('zipWriter - passes (path, content, options) through to JSZip file()', () =
 
     const writer = new ZipWriter();
 
-    // Case 1: (path, content, options) where content is string (base64)
     writer.writeFile('files/config.json', 'eyJuYW1lIjoidGVzdCJ9', { base64: true });
     assert.strictEqual(capturedPath, 'files/config.json');
     assert.strictEqual(capturedContent, 'eyJuYW1lIjoidGVzdCJ9');
     assert.strictEqual(capturedOpts.base64, true);
 
-    // (path, content) 2-arg with nested subdir
     writer.writeFile('assets/data.txt', 'hello-world');
     assert.strictEqual(capturedPath, 'assets/data.txt');
     assert.strictEqual(capturedContent, 'hello-world');
@@ -270,13 +266,11 @@ test('fsWriter - writes via relativePath and decodes base64 correctly', async ()
     const writer = new FsWriter(mockDirHandle);
     await writer.init();
 
-    // Base64 string for "hello" is "aGVsbG8="
     await writer.writeFile('files/hello.txt', 'aGVsbG8=', { base64: true });
     assert.strictEqual(targetFileName, 'hello.txt');
     assert.ok(writtenData instanceof Uint8Array);
     assert.strictEqual(Buffer.from(writtenData).toString('utf-8'), 'hello');
 
-    // Subdir via relative path
     await writer.writeFile('assets/plain.txt', 'plain text');
     assert.strictEqual(targetFileName, 'plain.txt');
     assert.strictEqual(writtenData, 'plain text');
