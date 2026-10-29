@@ -221,7 +221,7 @@ export class ChatGPTProvider implements AIProvider {
         const remote = async () => {
             const fileId = asset.sourceUri?.startsWith('file-download:') ? asset.sourceUri.slice(14) : fileIdFromPointer(asset.sourceUri ?? '');
             if (!fileId) return acquireSourceResource(asset, signal);
-            const exchange = parseFileDownloadPayload(await this.authedGet(buildFileDownloadPath(fileId), account, signal));
+            const exchange = parseFileDownloadPayload(await this.authedGet(buildFileDownloadPath(fileId, key.conversationId), account, signal));
             if (!exchange) throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'ChatGPT resource locator unavailable');
             const response = await this.fetchFn(exchange.downloadUrl, { signal });
             if (!response.ok) throw new ResourceHttpError(response.status);

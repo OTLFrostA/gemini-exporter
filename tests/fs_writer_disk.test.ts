@@ -67,3 +67,26 @@ test('fsWriter - invokes abort() on writable when write operation fails', async 
     assert.strictEqual(closeCalled, false, 'close() must not be called when write throws');
 });
 
+
+for (const persistent of [false, true]) test(`fsWriter - stale snapshot retry is bounded (persistent=${persistent})`, async () => {
+    let opened = 0;
+    let aborted = 0;
+    let writes = 0;
+    const writer = new FsWriter({
+        getFileHandle: async () => {
+            opened++;
+            return { createWritable: async () => ({
+                write: async () => { writes++; },
+                close: async () => {
+                    if (persistent || opened === 1) throw new DOMException('Stale disk state', 'InvalidStateError');
+                },
+                abort: async () => { aborted++; },
+            }) };
+        },
+    });
+    if (persistent) await assert.rejects(writer.writeFile('chat.md', 'body'), /Stale disk state/);
+    else assert.equal(await writer.writeFile('chat.md', 'body'), 'chat.md');
+    assert.equal(opened, persistent ? 3 : 2);
+    assert.equal(writes, opened);
+    assert.equal(aborted, persistent ? 3 : 1);
+});

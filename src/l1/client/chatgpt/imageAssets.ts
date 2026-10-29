@@ -13,13 +13,17 @@ interface ChatGPTParsedDownload {
 }
 
 export function fileIdFromPointer(pointer: string): string | null {
-    if (!pointer.startsWith('sediment://')) return null;
-    const id = pointer.slice('sediment://'.length);
+    const prefix = ['sediment://', 'file-service://'].find(prefix => pointer.startsWith(prefix));
+    if (!prefix) return null;
+    const id = pointer.slice(prefix.length);
     return id ? id : null;
 }
 
-export function buildFileDownloadPath(fileId: string): string {
-    return `/files/download/${encodeURIComponent(fileId)}`;
+export function buildFileDownloadPath(fileId: string, conversationId: string): string {
+    // File access can depend on the conversation scope, including Project uploads.
+    // Keep the opaque file pointer intact; encode it as one path segment.
+    const query = new URLSearchParams({ conversation_id: conversationId, inline: 'false', download_intent: 'true' });
+    return `/files/download/${encodeURIComponent(fileId)}?${query}`;
 }
 
 /** Narrow the files/download payload without ever upgrading unknown data. */

@@ -1,3 +1,4 @@
+import { registerChatGPTMarkdownAssets } from './registerMarkdownAssets.js';
 import type { chatGPTInteractiveSnapshot } from './interactiveSnapshot.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { ResourceAcquisitionHint } from '../../resources/resourceAcquisition.js';
@@ -126,17 +127,17 @@ function messageOfNode(
                     sourceUri: image.pointer,
                 });
             } else {
-                // Keep placeholder asset + diagnostic instead of silently dropping the image.
+                // Record identity now; resource acquisition happens after parsing.
                 assets.push({
                     id: assetId,
                     kind: 'image',
                     sourceUri: seg.pointer,
                 });
                 ctx.diagnostics.push({
-                    id: `image-unavailable:${node.id}:${assetId}`,
-                    severity: 'warning',
-                    code: 'CHATGPT_IMAGE_ASSET_UNAVAILABLE',
-                    message: `Image asset '${seg.pointer}' could not be downloaded; preserved as placeholder`,
+                    id: `image-deferred:${node.id}:${assetId}`,
+                    severity: 'info',
+                    code: 'CHATGPT_IMAGE_ASSET_DEFERRED',
+                    message: `Image asset '${seg.pointer}' registered for on-demand acquisition`,
                     sourceRef: ctx.sourceRef,
                     path: `messages[${node.id}].assets[${assetId}]`,
                 });
@@ -251,6 +252,7 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
             { ...ctx, sourceRef: { ...ctx.sourceRef, providerMessageId: node.id } },
         ),
     );
+    registerChatGPTMarkdownAssets({ assets, messages });
     // Source activity versions travel beside Detail; Index owns updatedAt.
     const sourceVersion = conversation.updatedAtMs;
     return {

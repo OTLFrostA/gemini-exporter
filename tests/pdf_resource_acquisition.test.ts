@@ -1,3 +1,4 @@
+import { OperationError } from '../src/shared/errors/operationError.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
@@ -193,4 +194,18 @@ test('delivery summary separates unavailable source attachments from retryable f
     assert.match(summary, /Attachment download failed: 1; retry later/);
     assert.match(summary, /Conversation export failed: 0/);
     assert.doesNotMatch(summary, /Other incomplete/);
+});
+
+test('ChatGPT attachment API HTTP failures retain status and a useful summary', async () => {
+    for (const status of [403, 404]) {
+        const result = await attemptResource('upload', async () => {
+            throw new OperationError('SOURCE_HTTP_ERROR', `File exchange HTTP ${status}`, status);
+        });
+        assert.equal(result.ok, false);
+        if (result.ok) throw new Error('Expected resource failure');
+        assert.equal(result.httpStatus, status);
+        assert.equal(resourceIssueKind(result), status === 403 ? 'restricted' : 'download');
+        assert.match(resourceFailureText(result, 'zh'), new RegExp(`HTTP ${status}`));
+        assert.doesNotMatch(resourceFailureText(result, 'zh'), /未知/);
+    }
 });
