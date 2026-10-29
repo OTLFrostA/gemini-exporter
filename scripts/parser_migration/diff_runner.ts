@@ -107,7 +107,7 @@ function canonicalizeSemanticAst(val: any): any {
         }
         const v = val[key];
         if (v === undefined) {
-            continue;
+            continue; // undefined is equivalent to absent key
         }
 
         if (key === 'language' && typeof v === 'string' && val.type === 'code') {
@@ -228,6 +228,7 @@ function deepCompareAst(path: string, a: any, b: any): DiffDetail | null {
         const valA = a[key];
         const valB = b[key];
 
+        // undefined is equivalent to absent
         if (valA === undefined && valB === undefined) continue;
 
         const subDiff = deepCompareAst(`${path}.${key}`, valA, valB);

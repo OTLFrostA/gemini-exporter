@@ -61,6 +61,7 @@ def extract_corpus():
             expr = m.group(1) or m.group(2)
             if expr:
                 s = expr.strip()
+                # Exclude plain currency numbers ($5, $10.50)
                 if s and not re.match(r"^\d+(?:\.\d{1,2})?$", s):
                     if (s, False) not in seen:
                         seen.add((s, False))
@@ -106,6 +107,7 @@ def extract_corpus():
             for name in zf.namelist():
                 if name.endswith(".html"):
                     html = zf.read(name).decode("utf-8", errors="replace")
+                    # In MyActivity.html, user prompts are marked with 'Prompted ...'
                     chunks = re.findall(r'<div class="content-cell[^"]*">([\s\S]*?)</div>', html)
                     for idx, c in enumerate(chunks):
                         clean = re.sub(r'<br\s*/?>', '\n', c)

@@ -41,6 +41,8 @@ class TestTabScope:
     def close(self, ext_id=None):
         browser = CDPConnection(get_browser_ws_url(self.port))
         try:
+            # Target closure and onInstalled page creation are asynchronous.
+            # Drain late pages as well as those present at the first snapshot.
             deadline = time.monotonic() + 2
             while True:
                 for tab in get_tabs(self.port):
