@@ -67,7 +67,6 @@ export function createSourceResourceContext() {
             const mediaType = result.mediaType ?? asset.mediaType, name = result.name ?? asset.name;
             return { ...result, ...(mediaType ? { mediaType } : {}), ...(name ? { name } : {}) };
         },
-        /** Folder exports discard already-delivered conversation readers immediately. */
         releaseConversation(key: ConversationKey) {
             readConversationKey(key);
             readers.delete(conversationIdentity(key));

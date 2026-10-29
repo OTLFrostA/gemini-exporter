@@ -69,16 +69,16 @@ const WRB = 'wrb.fr';
 // RPC endpoint names (compiled Google-side identifiers — rotate together
 // with WRB consumers when Google redeploys).
 const RPCS: ProtocolRPCS = {
-    LIST: 'MaZiqc',        // conversation list (sidebar pagination)
-    DETAIL: 'hNvQHb',      // conversation detail (turns payload)
+    LIST: 'MaZiqc',
+    DETAIL: 'hNvQHb',
     LEGACY_LIST: 'b7Lged', // legacy list payload shape still returned by detail calls
-    GEMS: 'CNgdBe',        // gems/custom instructions list (currently unused, kept for reference)
-    DELETE: 'GzXR5e'       // conversation delete (deletion sniffing anchor)
+    GEMS: 'CNgdBe',
+    DELETE: 'GzXR5e'
 };
 
 const TOKENS: ProtocolTokens = {
-    AT: 'SNlM0e', // XSRF/at token
-    BL: 'cfb2h'   // frontend build label key (the "bl" request param)
+    AT: 'SNlM0e',
+    BL: 'cfb2h'
 };
 
 const TOKEN_PATTERNS: ProtocolTokenPatterns = {
@@ -104,9 +104,6 @@ const DELETION_ANCHORS: RegExp[] = [
 // frontend when rotating protocol profiles.
 const BL_FALLBACK = 'boq_assistant-bard-web-server_20260802.09_p1';
 
-// Conversation count limits. 500 is Google's sliding-window size: counts
-// reaching it trigger the Takeout guidance flow. SERVER_LIMIT_TEXT is the
-// (localized-ish) marker inside the server-side error message.
 const LIMITS: ProtocolLimits = {
     SLIDING_WINDOW: 500,
     SERVER_LIMIT_TEXT: '600条'
