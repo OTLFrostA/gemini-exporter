@@ -13,8 +13,18 @@ test('workbench list preserves explicit selection across row clicks, search and 
     await expect(page.locator('#btnSelectAll')).toHaveJSProperty('indeterminate',false);
     await page.locator('#chatSearchInput').fill('量子');await expect(page.locator('#list .item')).toHaveCount(1);await page.locator('#btnSelectAll').click();await expect(page.locator('#selectedStat')).toHaveText('1 of 3 selected');
     await page.locator('#chatSearchInput').fill('');await expect(page.locator('#list .item')).toHaveCount(3);
-    for(const language of ['zh','en']) {await page.locator('#langToggle').setChecked(language==='en');await expect(page.locator('#btnSelectAll')).toHaveAttribute('aria-label',language==='zh'?'全选当前可见会话':'Select all visible conversations');await expect(page.locator('[data-chat-id="chat_001"] input')).toBeChecked();}
-    await expect(page.locator('#feedbackBox')).toHaveAttribute('href','https://tally.so/r/Y56ZBB');await expect(page.locator('#feedbackBox')).toHaveAttribute('target','_blank');await expect(page.locator('#feedbackBox')).toContainText('Got questions or suggestions?');
+    for(const language of ['zh','en']) {
+        await page.locator('#langToggle').setChecked(language==='en');
+        await expect(page.locator('#btnSelectAll')).toHaveAttribute('aria-label',language==='zh'?'全选当前可见会话':'Select all visible conversations');
+        await expect(page.locator('[data-chat-id="chat_001"] input')).toBeChecked();
+        await expect(page.locator('#feedbackBox')).toContainText(language==='zh'?'提交反馈':'Send Feedback');
+        await expect(page.locator('#discordBox')).toContainText(language==='zh'?'加入 Discord':'Join Discord');
+    }
+    for(const [id,href] of [['feedbackBox','https://tally.so/r/Y56ZBB'],['discordBox','https://discord.gg/e3FgrXUZ8f']]) {
+        await expect(page.locator('#'+id)).toHaveAttribute('href',href);
+        await expect(page.locator('#'+id)).toHaveAttribute('target','_blank');
+        await expect(page.locator('#'+id)).toHaveAttribute('rel','noopener noreferrer');
+    }
     await expect(page.locator('#btnSelectUpdated,#btnSelectUnexported,#btnFeedback')).toHaveCount(0);
 });
 test('list badges distinguish success, later activity, incomplete exports and missing records',async({context,extensionId})=>{
