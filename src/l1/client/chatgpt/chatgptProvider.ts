@@ -1,3 +1,4 @@
+import { readChatGPTSandboxLocator } from '../../resources/chatgptSandbox.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { OperationError, operationError } from '../../../shared/errors/operationError.js';
 import { abortableSleep, calculateBackoff } from '../../../shared/utils/retryUtils.js';
@@ -26,6 +27,7 @@ import { CHATGPT_HOSTS, chatGPTApiBase } from '../../parsers/chatgpt/chatgptType
 import { parseChatGPTConversation } from '../../parsers/chatgpt/parseConversation.js';
 import { decodeChatGPTDetail } from '../../parsers/chatgpt/decodeDetail.js';
 import {
+    buildSandboxDownloadPath,
     buildAttachmentDownloadPath,
     buildFileDownloadPath,
     fileIdFromPointer,
@@ -213,24 +215,29 @@ export class ChatGPTProvider implements AIProvider {
         if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId }, parsed);
     }
     canAcquireResourceDirectly(asset: DomainAsset): boolean {
-        return !!fileIdFromPointer(asset.sourceUri ?? '') || /^file-download:[a-zA-Z0-9_-]+$/.test(asset.sourceUri ?? '');
+        return !!readChatGPTSandboxLocator(asset.sourceUri ?? '') || !!fileIdFromPointer(asset.sourceUri ?? '') || /^file-download:[a-zA-Z0-9_-]+$/.test(asset.sourceUri ?? '');
     }
     async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
         signal?.throwIfAborted();
         readConversationKey(key);
         const account = await this.context(key.accountId);
         const remote = async () => {
+            const sandbox = readChatGPTSandboxLocator(asset.sourceUri ?? '');
             const uploadedFile = asset.sourceUri?.startsWith('file-download:') === true;
             const fileId = uploadedFile ? asset.sourceUri?.slice(14) : fileIdFromPointer(asset.sourceUri ?? '');
-            if (!fileId) return acquireSourceResource(asset, signal);
-            const path = uploadedFile ? buildAttachmentDownloadPath(fileId, key.conversationId)
-                : buildFileDownloadPath(fileId, key.conversationId);
+            let path: string;
+            if (sandbox) path = buildSandboxDownloadPath(key.conversationId, sandbox.messageId, sandbox.path);
+            else {
+                if (!fileId) return acquireSourceResource(asset, signal);
+                path = uploadedFile ? buildAttachmentDownloadPath(fileId, key.conversationId)
+                    : buildFileDownloadPath(fileId, key.conversationId);
+            }
             let raw: unknown;
             try { raw = await this.authedGet(path, account, signal); }
             catch (error) {
                 // Library-backed files can still require the scoped file exchange.
                 // Older stored locators do not distinguish those from regular uploads.
-                if (!uploadedFile || !(error instanceof OperationError) || error.code !== 'SOURCE_HTTP_ERROR'
+                if (!fileId || !uploadedFile || !(error instanceof OperationError) || error.code !== 'SOURCE_HTTP_ERROR'
                     || error.httpStatus !== 403 && error.httpStatus !== 404) throw error;
                 raw = await this.authedGet(buildFileDownloadPath(fileId, key.conversationId), account, signal);
             }

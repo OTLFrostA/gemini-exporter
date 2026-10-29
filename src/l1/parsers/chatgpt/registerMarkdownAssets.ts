@@ -1,21 +1,26 @@
+import { chatGPTSandboxLocator, chatGPTSandboxPath } from '../../resources/chatgptSandbox.js';
 import type { BlockNode } from '../../../l2/content/blocks.js';
 import type { InlineNode } from '../../../l2/content/inline.js';
 import type { DomainAsset, ConversationDetail } from '../../../l2/conversationDetail.js';
 import { assetIdForPointer } from './conversationTree.js';
 
 /** Register Markdown resources before Domain closure, for live and archive sources. */
-export function registerChatGPTMarkdownAssets(detail: Pick<ConversationDetail, 'assets' | 'messages'>): void {
+export function registerChatGPTMarkdownAssets(detail: Pick<ConversationDetail, 'assets' | 'messages'>, sourceMessageIds?: ReadonlyMap<string, string>): void {
     const assets = detail.assets;
-    function register(uri: string, kind: DomainAsset['kind']): string {
-        const existing = assets.find(asset => asset.id === uri || asset.sourceUri === uri);
-        if (existing) return existing.id;
-        const base = `${kind}-${assetIdForPointer(uri)}`;
-        let id = base;
-        for (let suffix = 1; assets.some(asset => asset.id === id); suffix++) id = `${base}-${suffix}`;
-        assets.push({ id, kind, sourceUri: uri });
-        return id;
-    }
     for (const message of detail.messages) {
+        const messageId = message.id === undefined ? undefined : sourceMessageIds?.get(message.id);
+        function register(uri: string, kind: DomainAsset['kind']): string {
+            const sandboxPath = chatGPTSandboxPath(uri);
+            const sourceUri = sandboxPath && messageId ? chatGPTSandboxLocator(messageId, sandboxPath) : uri;
+            const existing = assets.find(asset => asset.id === uri || asset.sourceUri === sourceUri);
+            if (existing) return existing.id;
+            const base = `${kind}-${assetIdForPointer(sourceUri)}`;
+            let id = base;
+            for (let suffix = 1; assets.some(asset => asset.id === id); suffix++) id = `${base}-${suffix}`;
+            const name = sandboxPath?.split('/').at(-1);
+            assets.push({ id, kind, sourceUri, ...(name ? { name } : {}) });
+            return id;
+        }
         const files = new Set<string>();
         const inlines = (nodes: InlineNode[]): InlineNode[] => nodes.flatMap((node): InlineNode[] => {
             if (node.type === 'image') return [{ ...node, assetId: register(node.assetId, 'image') }];

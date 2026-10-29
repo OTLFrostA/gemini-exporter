@@ -63,6 +63,7 @@ interface ChatGPTNodeAssets {
 }
 
 interface ChatGPTParseInput {
+    source?: 'api' | 'archive';
     account?: Account;
     conversation: ChatGPTApiConversationWithId;
     assetsByNode: Map<string, ChatGPTNodeAssets>;
@@ -252,7 +253,9 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
             { ...ctx, sourceRef: { ...ctx.sourceRef, providerMessageId: node.id } },
         ),
     );
-    registerChatGPTMarkdownAssets({ assets, messages });
+    const sourceMessageIds = input.source === 'archive' ? undefined
+        : new Map(nodes.flatMap((node): [string, string][] => node.message ? [[node.id, node.message.id]] : []));
+    registerChatGPTMarkdownAssets({ assets, messages }, sourceMessageIds);
     // Source activity versions travel beside Detail; Index owns updatedAt.
     const sourceVersion = conversation.updatedAtMs;
     return {

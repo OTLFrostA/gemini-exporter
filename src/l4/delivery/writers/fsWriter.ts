@@ -84,16 +84,22 @@ class FsWriter implements IExportWriter {
         const gate = new Promise<void>((res) => { releaseGate = res; });
         this.__writeChains.set(chainKey, gate);
         await prev;
+        let stage = 'directory';
         try {
             for (let attempt = 0; ; attempt++) {
                 try {
+                    stage = 'directory';
                     const targetDir = actualSubDir ? await ensureSubDir(batchDir, actualSubDir) : batchDir;
+                    stage = 'file handle';
                     const fileHandle = await targetDir.getFileHandle(cleanName, { create: true });
+                    stage = 'open';
                     const writable = await fileHandle.createWritable();
                     try {
+                        stage = 'write';
                         await writable.write(actualContent instanceof Uint8Array
                             ? isWritableBytes(actualContent) ? actualContent : new Uint8Array(actualContent)
                             : actualContent);
+                        stage = 'close';
                         await writable.close();
                     } catch (writeErr) {
                         if (typeof writable.abort === 'function') {
@@ -108,8 +114,11 @@ class FsWriter implements IExportWriter {
                 }
             }
         } catch (error) {
-            throw operationError(error, error instanceof DOMException && error.name === 'NotAllowedError'
+            const failure = operationError(error, error instanceof DOMException && error.name === 'NotAllowedError'
                 ? 'DIRECTORY_PERMISSION_REQUIRED' : 'FILE_WRITE_FAILED');
+            const name = error instanceof Error || error instanceof DOMException ? error.name : 'Error';
+            throw new OperationError(failure.code, `File ${stage} failed for ${relativePath} [${name}]: ${failure.message}`,
+                failure.httpStatus, { cause: error });
         } finally {
             releaseGate();
             if (this.__writeChains.get(chainKey) === gate) {

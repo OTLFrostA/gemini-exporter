@@ -17,4 +17,10 @@ The production `ChatGPTProvider` was also exercised with a CDP-backed fetch func
 
 This verifies successful acquisition through the routes, not resolution of the reporter’s 403/404 failures. The debug profile uses a different account. Its sample did not have a composite image identifier or a failing uploaded attachment. Composite normalization and uploaded-file route selection have regression tests grounded in the native frontend implementation; those exact failing resources have not been retested.
 
-Sandbox-generated files use a further native interpreter download endpoint requiring message identity. This change does not implement that separate acquisition path.
+## Sandbox-generated resources
+
+API Markdown images and download links under `sandbox:/mnt/data/` retain their source message identity in a durable `chatgpt-sandbox:` locator. The provider exchanges the conversation ID, original provider message ID, and decoded sandbox path through `/conversation/{conversation_id}/interpreter/download`, then downloads the returned signed URL. Two messages using the same path are separate resources. Archive parsing retains ordinary sandbox paths for ZIP resource binding, and fenced code is not interpreted as a download link.
+
+A focused CDP-backed provider check used three existing test-account API resource descriptors: a generated PNG (1,470,923 bytes), Python script (6,398 bytes), and Markdown report (11,716 bytes). All were physically downloaded. PNG decoding, Python syntax parsing, and Markdown UTF-8 checks passed. This checks acquisition from known descriptors; it is not a full UI export or a retest of the diagnostic account’s 138 resource failures.
+
+Persistent folder write failures now include the native exception name, relative path, and failing lifecycle stage. The repeated failure in the supplied diagnostics has not been reproduced in this test profile; retaining that context supports a precise diagnosis on the next retry.

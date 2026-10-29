@@ -30,6 +30,11 @@ export function buildAttachmentDownloadPath(fileId: string, conversationId: stri
     return `/conversation/${encodeURIComponent(conversationId)}/attachment/${encodeURIComponent(fileId)}/download`;
 }
 
+export function buildSandboxDownloadPath(conversationId: string, messageId: string, path: string): string {
+    const query = new URLSearchParams({ message_id: messageId, sandbox_path: path, download_intent: 'true' });
+    return `/conversation/${encodeURIComponent(conversationId)}/interpreter/download?${query}`;
+}
+
 /** Both native download exchanges return a signed URL; status may be omitted. */
 export function parseFileDownloadPayload(value: unknown): ChatGPTParsedDownload | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
