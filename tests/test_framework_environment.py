@@ -1,4 +1,3 @@
-# tests/test_framework_environment.py
 """
 Unit tests for Tier 2 TestEnvironment (scripts/framework/environment.py).
 Validates:
@@ -125,7 +124,6 @@ class TestFrameworkEnvironment(unittest.TestCase):
         self.assertIsNotNone(options_tab)
         self.assertEqual(options_tab["webSocketDebuggerUrl"], "ws://mock/options")
 
-        # ensure_tab logic resolution
         self.assertEqual(self.env.ensure_tab("gemini")["webSocketDebuggerUrl"], "ws://mock/gemini")
         self.assertEqual(self.env.ensure_tab("chat")["webSocketDebuggerUrl"], "ws://mock/gemini")
         self.assertEqual(self.env.ensure_tab("options")["webSocketDebuggerUrl"], "ws://mock/options")
@@ -195,7 +193,6 @@ class TestFrameworkEnvironment(unittest.TestCase):
         self.assertEqual(set_override["params"]["deviceScaleFactor"], 1)
         self.assertEqual(set_override["params"]["mobile"], False)
 
-        # clear viewport
         self.env.clear_viewport(mock_cdp)
         self.assertEqual(mock_cdp.calls[-1]["method"], "Emulation.clearDeviceMetricsOverride")
 

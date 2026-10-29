@@ -33,23 +33,19 @@ class TestImpactAnalyzer(unittest.TestCase):
         target = "src/l3a/storageService.ts"
         affected = self.graph.get_transitive_dependents({target})
 
-        # 直接引用
         self.assertIn("src/l1/sniffer/gemini/messageBridge.ts", affected)
         self.assertIn("src/ui/options/options.ts", affected)
         self.assertIn("tests/application_export.test.ts", affected)
 
-        # 传递间接引用 (via syncEngine or options)
         self.assertIn("tests/six-module-integration.test.ts", affected)
         self.assertIn("tests/ui_v2.test.ts", affected)
 
-        # 影响分析结果断言
         res = analyze_impact({target}, graph=self.graph, base_dir=BASE_DIR)
         self.assertFalse(res.is_all_affected)
         self.assertFalse(res.is_docs_only)
         self.assertGreaterEqual(len(res.target_unit_tests), 15)
         self.assertIn("tests/application_export.test.ts", res.target_unit_tests)
         self.assertIn("tests/ui_v2.test.ts", res.target_unit_tests)
-        # core 变动应触发所有 E2E
         self.assertEqual(len(res.target_e2e_specs), len(res.all_e2e_specs))
 
     def test_localized_badge_view_impact(self):
@@ -59,12 +55,10 @@ class TestImpactAnalyzer(unittest.TestCase):
         self.assertFalse(res.is_all_affected)
         self.assertFalse(res.is_docs_only)
 
-        # 仅影响少数几个单元测试
         self.assertLess(len(res.target_unit_tests), len(res.all_unit_tests) // 3)
         self.assertIn("tests/ui_v2.test.ts", res.target_unit_tests)
         self.assertNotIn("tests/takeout_engine.test.ts", res.target_unit_tests)
 
-        # 仅影响 content 相关的 E2E
         self.assertIn("tests/e2e/production_v2.spec.ts", res.target_e2e_specs)
         self.assertIn("tests/e2e/account_registry.spec.ts", res.target_e2e_specs)
         self.assertNotIn("tests/e2e/native_parser.spec.ts", res.target_e2e_specs)

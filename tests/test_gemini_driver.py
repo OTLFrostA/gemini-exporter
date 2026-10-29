@@ -1,4 +1,3 @@
-# tests/test_gemini_driver.py
 """
 Unit tests for GeminiDriver, GeminiChatSession, and TurnResult abstractions.
 Validates declarative interaction model, turn encapsulation, and state isolation.
@@ -45,9 +44,9 @@ class TestGeminiDriverSuite(unittest.TestCase):
             model_selected = any(it["isSelected"] and it["text"].startswith("3.8 Flash ") for it in menu)
             medium_selected = any(it["isSelected"] and it["text"].startswith("Medium ") for it in menu)
             if not model_selected:
-                cdp.eval_responses.append(True)  # model click
+                cdp.eval_responses.append(True)
             if not medium_selected:
-                cdp.eval_responses.extend([False, True, True])  # reopen and select Medium
+                cdp.eval_responses.extend([False, True, True])
         return cdp
 
     def model_menu(self, model="3.8 Flash", level="Low", include_medium=True, include_target=True):
@@ -141,10 +140,8 @@ class TestGeminiDriverSuite(unittest.TestCase):
         driver = GeminiDriver(cdp)
         session = GeminiChatSession(driver, chat_id="chat_123")
 
-        # Mock execute_turn_pipeline returning success
         with patch.object(driver, "execute_turn_pipeline", return_value=(True, "OK")):
             with patch.object(driver, "get_current_chat_id", return_value="chat_123"):
-                # Mock DOM evaluation for model response
                 cdp.eval_responses = [
                     {"text": "Response 1", "hasImages": False, "modelCount": 1}
                 ]
@@ -191,7 +188,6 @@ class TestGeminiDriverSuite(unittest.TestCase):
 
         with patch("scripts.framework.actions.CDPActions.click_new_chat", return_value=True) as mock_click:
             with patch.object(driver, "ensure_model", return_value=True) as mock_model:
-                # Mock state polling: ready on first check
                 cdp.eval_responses = [
                     {"isAppRoute": True, "bubbleCount": 0, "hasEditor": True}
                 ]
@@ -210,7 +206,7 @@ class TestGeminiDriverSuite(unittest.TestCase):
         with patch.object(driver, "get_current_chat_id", return_value="different_chat"):
             with patch.object(driver, "ensure_model", return_value=True) as mock_model:
                 cdp.eval_responses = [
-                    True  # ready check on path
+                    True
                 ]
                 session = driver.open_chat("target_chat_999", timeout=5.0)
 
@@ -232,12 +228,10 @@ class TestGeminiDriverSuite(unittest.TestCase):
         from scripts.framework.actions import CDPActions
         cdp = MockCDP()
 
-        # Case 1: URL pathname match
         cdp.eval_responses = ["abc1234567"]
         cid1 = CDPActions.get_current_chat_id(cdp)
         self.assertEqual(cid1, "abc1234567")
 
-        # Case 2: None returned if empty
         cdp.eval_responses = [None]
         cid2 = CDPActions.get_current_chat_id(cdp)
         self.assertIsNone(cid2)

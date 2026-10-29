@@ -129,13 +129,11 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         pruned_cases = self.dag.prune_subgraph(["feat_search_filter_by_keyword", "feat_language_toggle"])
         pruned_fids = [c.feature_id for c in pruned_cases]
 
-        # 仅包含 Takeout 导入及所选 2 项工作台特性
         self.assertEqual(len(pruned_cases), 3)
         self.assertEqual(pruned_fids[0], "feat_takeout_zip_import")
         self.assertIn("feat_search_filter_by_keyword", pruned_fids)
         self.assertIn("feat_language_toggle", pruned_fids)
 
-        # 绝对不包含耗时的对话生成
         self.assertNotIn("feat_chat_generation", pruned_fids)
         self.assertNotIn("feat_imagen_multimodal", pruned_fids)
 
@@ -152,17 +150,14 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         self.assertIn("feat_search_clear_restore", pruned_fids)
         self.assertIn("feat_zip_export_download", pruned_fids)
 
-        # 剪枝成功：不包含网页端实时发帖节点
         self.assertNotIn("feat_chat_generation", pruned_fids)
         self.assertNotIn("feat_imagen_multimodal", pruned_fids)
 
     def test_framework_runner_target_resolution(self):
         """验证 FrameworkRunner 对 --features 与 --domain 的解析能力"""
-        # 单特性与多特性解析 (逗号分隔)
         targets = FrameworkRunner(target_features="feat_search_filter_by_keyword, feat_language_toggle").target_ids
         self.assertEqual(sorted(targets), ["feat_language_toggle", "feat_search_filter_by_keyword"])
 
-        # 领域解析 (workbench)
         wb_targets = FrameworkRunner(domain="workbench").target_ids
         for fid in [
             "feat_tour_guide_interactive",
@@ -174,29 +169,24 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         ]:
             self.assertIn(fid, wb_targets)
 
-        # 领域解析 (takeout)
         to_targets = FrameworkRunner(domain="takeout").target_ids
         self.assertEqual(
             sorted(to_targets),
             ["feat_authoritative_title_upgrade", "feat_deep_scan_pagination", "feat_takeout_zip_import"]
         )
 
-        # 异常特性名报错
         with self.assertRaises(ValueError):
             FrameworkRunner(target_features="invalid_feature_xyz")
 
-        # 异常领域名报错
         with self.assertRaises(ValueError):
             FrameworkRunner(domain="invalid_domain_xyz")
 
     def test_needs_gemini_and_scenarios_decision(self):
         """验证只有真正需要 Gemini 发帖或页面交互的子图才会初始化 Gemini 标签页与场景池"""
-        # 仅测工作台：无需 Gemini，无需实时场景池
         r_wb = FrameworkRunner(domain="workbench")
         self.assertFalse(r_wb.needs_gemini)
         self.assertFalse(r_wb.needs_live_scenarios)
 
-        # 仅测 Takeout：无需 Gemini，无需实时场景池
         r_to = FrameworkRunner(domain="takeout")
         self.assertFalse(r_to.needs_gemini)
         self.assertFalse(r_to.needs_live_scenarios)
@@ -286,13 +276,11 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         mock_dag.register(c2)
         mock_dag.register(c3)
 
-        # 创建一个轻量 mock TestContext
         class MockContext:
             def __init__(self):
                 self.registry = FeatureRegistry()
 
         ctx = MockContext()
-        # 仅调度 node_mid (及其前置 node_root)
         success = mock_dag.run(ctx, target_ids=["node_mid"])
 
         self.assertTrue(success)
@@ -300,7 +288,6 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         self.assertTrue(c2.executed)
         self.assertFalse(c3.executed)
 
-        # 检查 Registry 状态
         res1 = ctx.registry.get_result("node_root")
         res2 = ctx.registry.get_result("node_mid")
         res3 = ctx.registry.get_result("node_unrelated_heavy")
