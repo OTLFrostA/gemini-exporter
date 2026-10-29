@@ -181,7 +181,6 @@ test('Fetch: live Unicode frame lengths count UTF-16 units rather than UTF-8 byt
 });
 
 for (const transport of ['Fetch', 'XHR']) test(`${transport}: cumulative stream above 3 MiB reaches the final answered frame`, async () => {
-    // Repeated growing snapshots make a modest answer a large cumulative stream.
     const wire = geminiStreamGen('G_STREAM_CUMULATIVE_3_MIB_01');
     assert.ok(Buffer.byteLength(wire) > 3 * 1024 * 1024);
     const harness = hookHarness(async () => new Response(wire));

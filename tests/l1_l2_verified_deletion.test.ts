@@ -49,7 +49,7 @@ test('L2 confirmed remote deletion atomically removes one key but preserves Cove
         assert.ok(await getIndex(other));
         assert.ok(await getDetail(other));
         assert.ok(await getExportRecord(other));
-        await ingestDeletedConversation(account.id, conversationId); // idempotent
+        await ingestDeletedConversation(account.id, conversationId);
         await assert.rejects(ingestDeletedConversation('10000000-0000-4000-8000-000000000099', conversationId), /account does not exist/);
     } finally { env.restore(); }
 });

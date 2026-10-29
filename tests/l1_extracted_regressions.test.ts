@@ -56,7 +56,6 @@ test('generic Markdown parses images through the caller-provided asset resolver'
     }]);
 });
 
-// --- From p0_regressions.test.ts (P0-2 credential backfill) ---
 test('P0-2: resolveCred backfill must not drop other accounts from the credential map', async () => {
     const sessionStore: Record<string, any> = {};
     const prevChrome = (global as any).chrome;
@@ -106,7 +105,6 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
     }
 });
 
-// --- From user_file_attachment.test.ts (L1 source attachment extraction) ---
 test('user_file_attachment: itemMatchesFilename correctly identifies valid filenames and rejects URLs', () => {
     assert.strictEqual(attachments.itemMatchesFilename('architecture.md'), true);
     assert.strictEqual(attachments.itemMatchesFilename('payload.json'), true);
@@ -182,7 +180,6 @@ test('shopping and lmdx widget references are not downloadable image files', () 
     assert.equal(images[0].sourceEvidence?.detectorKind, 'extractImages [url,w,h]');
 });
 
-// --- From regression_lock.test.ts (hookCredentials & parser wire helpers) ---
 function createHookSandbox(sniffProfile?: typeof import('../src/l1/parsers/gemini/dom/accountSniffer.js').sniffUserProfileFromDom) {
     const hookCode = fs.readFileSync(path.resolve(__dirname, '../src/l1/sniffer/gemini/hookCredentials.js'), 'utf8');
     const protocolCode = fs.readFileSync(path.resolve(__dirname, '../src/l1/protocol/gemini/protocol.js'), 'utf8');
