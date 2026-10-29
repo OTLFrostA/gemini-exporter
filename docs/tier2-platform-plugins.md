@@ -181,8 +181,7 @@ on both an existing conversation and a new conversation passed without sending
 messages; this does not establish that the current account quota permits Haiku
 generation. Historical golden conversations keep their original models.
 
-Claude is registered alongside Gemini and ChatGPT; `--platforms all` now selects
-all three. Its 22-case plan uses the same scheduler, workbench cases, session
+Claude is registered alongside Gemini and ChatGPT; `--platforms all` selects these three suites. Grok does not yet have a registered Tier 2 platform plugin. Its 22-case plan uses the same scheduler, workbench cases, session
 finalization and CDP installation/download helpers. The golden JSON has a
 `conversationIds` array; the default identifies the test account's three-round
 backup conversation containing real AskUserQuestion and Write → Artifact tools.
@@ -239,120 +238,14 @@ report records `testInstallMode: required-claude-hosts`; this mode does not test
 the shipping optional-permission prompt. Set `TIER2_CLAUDE_REQUIRED_HOSTS=0` to use
 the ordinary install and real native permission prompt again.
 
-### Claude full-plan run, 2026-10-22
+## Gemini dual-source comparison
 
-The required-host local install completed clean installation and onboarding.
-The first 5-turn scene completed. Native Claude Docs output exposed a waiter bug:
-virtualization reduced visible assistant-node counts after a new reply, so count
-growth could not prove completion. The waiter now uses Claude's native
-`data-turn-key` identity; a regression covers five old visible nodes shrinking
-to one new reply. A resumed full plan verified the five-turn source once and did
-not resend any completed prompt or consume another scenario pair.
+The Gemini plugin can compare structured source content against its raw Markdown counterpart, using the *same captured native RPC evidence*. This is a diagnostic difference check: one representation is not automatically the truth, and differing whitespace, table alignments, TeX source, citations and resource references need source-level review.
 
-The second scene completed 4 of 8 planned turns, then Claude Free displayed its
-five-hour message-quota notice with a 02:00 reset. The next prompt remained in
-the composer; waiting for an enabled send button timed out. This is an observed
-account quota, not an observed HTTP 429. The final matrix is **1 PASS, 3 FAIL,
-18 dependency SKIP**: missing page badge, passive sidebar capture and incomplete
-multi-turn generation failed; real uninstall/reinstall passed. Connection and
-onboarding passed outside the case matrix. Export, golden and lifecycle cases
-were blocked, so this run does not validate their physical outputs. There were
-no source-API polling loops; the resumed run used one independent prefix read.
-The scenario pool was replenished from 18 to 20 with new optics and queueing
-scenes. Reports, interruption history and quota observations remain local under
-`tests/output/tier2-claude-full-required-20261022/`.
+For an offline replay without a browser or any new conversation:
 
+```bash
+npm run test:gemini-dual -- --input /absolute/path/to/native --output /absolute/path/to/report
+```
 
-### Claude follow-up fixes and evidence
-
-The passive bridge now has optional-permission dynamic MAIN/ISOLATED scripts,
-request-bound organization routing, native list/detail/stream capture, confirmed
-DELETE receipts and a server-rendered sidebar fallback. Badge, Popup and current
-account routing include Claude. A real clean-install attempt passed Badge and
-all seven then-visible sidebar rows. Its final matrix was 3 PASS / 1 FAIL /
-18 dependency SKIP; quota remained the blocking full-flow gate.
-
-The original second scene's fourth reply was *submitted*, but its final source
-`stop_reason` was `error`; only three replies finished. The former DOM waiter
-incorrectly recorded its visible partial code as complete. Native quota notices
-now fail before further sends, and explicit source interruption always stays
-partial. Incomplete resume evidence is saved separately without overwriting a
-previous completed snapshot. Account quota is not labelled HTTP 429.
-
-Scans now use the observed `chat_conversations_v2` strong-consistency offset
-endpoint, admitting Coverage only for ordered/nonrepeating complete pages with
-an explicit `has_more` terminal fact. A targeted eight-row scan verified source
-exhaustion. Two complete existing conversations (five-round acoustic example
-and three-round questionnaire/Artifact golden) passed separate four-format disk
-checks: 16 messages, 27 exact code bodies, two generated file originals, and
-full source fragments. Generated file bytes are compared across every format.
-This targeted run does not replace full generation, live-save/promotion or
-confirmed-deletion acceptance.
-
-PDF inspection also exposed an optional Local Font Access prompt blocking
-export. Exports now use already-granted device fonts or bundled offline fonts,
-without waiting for a permission prompt. Native interactive widgets are retained
-as inert SVG/HTML source; Docs edits are chronological authored content rather
-than a guessed final remote document. Local reports and page/contact-sheet
-renders are under `tests/output/claude-fixes-physical-20261022/`.
-
-The quota-detection diagnostic attempt consumed a separate reserved pair and
-submitted one new first prompt before the site's quota notice appeared; no
-completed reply was recorded and no independent source request was made.
-Send attempts are now recorded before dispatch separately from completed
-`records`, so interrupted replies cannot hide actual attempted traffic. No
-further live prompts were sent during the targeted export checks.
-
-The final targeted follow-up also passed current-conversation Popup download
-with original attachments and unchanged-content skipping for both exported
-conversations (no download and no receipt rewrite). Popup had omitted the ZIP
-library used for attached files; it now loads the same library as Options,
-with a browser regression covering actual ZIP contents. These additional gates
-still do not substitute for quota-blocked generation and lifecycle acceptance.
-
-### Claude non-posting acceptance (2026-10-23)
-
-At the user's request, independent source snapshots and physical four-format
-exports were checked for all eight existing conversations, including interrupted
-and empty history. `assert_existing_exports` validates those states explicitly;
-the full-generation oracle still rejects unfinished replies. The Markdown
-evidence grammar now preserves spaced dollar price spans as prose, fixing a
-false formula mismatch without changing product output. The L3 probe's optional
-provider argument also permits the same storage/document contract checks on Claude.
-
-Search by title/ID, selection, language, initial export receipts, Popup downloads,
-unchanged skipping, clear/cancel/rescan, historical-visit Live Save and same-key
-native deletion were checked independently of message generation. Deletion used
-only a source-backed prior test conversation. Local artifacts, source snapshots,
-all 53 PDF page renders and eight HTML screenshots are under
-`tests/output/claude-existing-20261023/`. This is scoped acceptance, never a full
-Tier 2 pass: new multi-turn generation, completed-stream capture, reply-triggered
-promotion and export advancement were not exercised.
-
-Uninstall/reinstall and the fresh seven-step tour also passed. The restored
-install was reconnected and scanned the seven remaining conversations (the
-eighth was the disposable deletion target). With Live Save disabled, the SSR
-visit did not acquire local Detail; enabling it and revisiting produced the
-Markdown plus both unchanged original attachment files. Exactly one local
-required-Claude-host install remains enabled. Final Tier 1 passed, including
-164 Playwright tests with one existing skip; Python platform contracts passed
-41 tests. The local report records scoped acceptance separately from full Tier 2.
-
-
-### Claude full-run quota retry (2026-10-23)
-
-The next unfiltered full run completed all five turns of its first scenario.
-The sixth dispatched prompt, which started the eight-turn scenario, produced
-Claude's native five-hour message-limit notice instead of a completed reply.
-The run stopped without retrying: six sends, five completed replies, and one
-independent source snapshot. No HTTP 429 was recorded by the quota evidence.
-The first source contains ten messages and thirteen native tool calls, including
-file creation and code execution; this was not a five-message short-text quota
-measurement. The final matrix remains 3 PASS / 1 FAIL / 18 dependency SKIP,
-not a full Tier 2 pass. Evidence and resumable first-scenario progress are in
-`tests/output/tier2-claude-full-20261023-retry/claude/`.
-
-The two consumed scenarios were replaced with new generalized-CRT and WGS84
-coordinate-transform scenarios, restoring the pool to 20/20. Full Tier 1 passed
-again with 164 Playwright tests passing and the opt-in documentation screenshot
-capture skipped. No product-code change was needed for this account-quota stop.
+Input must be native Gemini batchexecute evidence (`.json` including `data.transport.decodedPayload` or raw RPC `.txt`), not DOM/cached content. The generated report records input provenance, differences and incomplete coverage. An unequal result does not itself prove a product bug; the comparison does not test attachment bytes or the rendered document.
