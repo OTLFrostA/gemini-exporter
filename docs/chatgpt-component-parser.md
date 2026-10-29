@@ -24,12 +24,6 @@ An unsupported block uses its provider Markdown segment when neighboring text un
 
 `modules`, `fallbackBlocks` and `unsupported` diagnostics describe which route was used. Completeness measures static textual coverage; it never promises interactive behavior, live selection state, or exact visual reproduction. Branch integrity and stream completion still independently determine conversation quality.
 
-## Evidence and verification
+## Regression and limitations
 
-`tests/fixtures/chatgpt_dil_corpus.json` contains 114 unique retained educational test answers, with raw source and provider fallback. The captures came from 33 retained source snapshots across 21 conversations in both ChatGPT test worktrees; identifiers were removed. These are synthetic educational conversations, not standards or an exhaustive inventory of ChatGPT components.
-
-The corpus regression requires every captured answer to parse without fallback through both the component renderer and the production conversation parser and compares the source-only result to the result when fallback is present. Separate assertions check original code bodies, questionnaire question/choice ordering, six Helmholtz checklist labels before the conclusion, nested control flow, unknown components and interpreter safety. The existing captured compost questionnaire also exercises the full conversation parser and quality classification.
-
-Offline production exports of the questionnaire and full Helmholtz report were checked in Markdown, HTML and real WASM-compiled PDF. All six PDF pages and the HTML questionnaire/report/checklist were visually inspected. This verification makes no ChatGPT network calls and does not claim a new live Tier 2 pass. New component families need their own captured source fixtures and explicit static representations.
-
-The expanded offline audit replays all 33 retained full mappings and emits Markdown/HTML for each. It found and corrected missing math/caption/compound-interest modules, input-default coverage, and a premature fallback math normalization that could replace an exact source code body. Raw-only replay lacks attachment bytes; image placeholders and acquisition warnings are expected in this audit and do not prove image export fidelity.
+The parser lives in `src/l1/parsers/chatgpt/dil/`, and its source/fallback regression corpus lives in `tests/fixtures/chatgpt_dil_corpus.json`. It exports static content, not live interactions or user input state. New component families require fixtures and an explicit partial/fallback policy. Validate the Domain text and physical output before claiming full fidelity.

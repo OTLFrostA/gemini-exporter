@@ -5,9 +5,9 @@ permalink: /
 
 # Gemini Exporter
 
-**Free and open-source tools for exporting and backing up your Google Gemini conversations.**
+**Free, open-source and locally processed exports of your AI conversations.**
 
-Gemini Exporter runs locally in your browser and supports exporting conversations to PDF, HTML, Markdown, and other portable formats.
+Gemini Exporter exports supported Gemini conversations to portable local files. Source builds also include opt-in experimental ChatGPT, Claude and Grok adapters. Markdown, HTML, PDF and JSON are available; DOCX support is documented for the current source implementation.
 
 - [View Gemini Exporter on GitHub](https://github.com/OTLFrostA/gemini-exporter)
 - [Extension Privacy Policy](./PRIVACY_POLICY.html)
@@ -30,5 +30,5 @@ The separate Gemini Exporter Stats automation reads aggregate Google Analytics d
 - [Source module map](https://github.com/OTLFrostA/gemini-exporter/blob/main/src/README.md)
 - [Account identity](./account-registry.html) · [Domain type boundaries](./domain-type-boundaries.html)
 - [Document AST](./architecture/document-ast.html) · [DOCX rendering](./architecture/docx-export.html)
-- [Module-unit isolation](./v2-unit-isolation.html) · [Provider fixtures](./provider-fixture-audit.html)
+- [Module-unit isolation](./v2-unit-isolation.html) · [Claude source adapter](./claude-support.html) · [Grok source adapter](./grok-support.html)
 - [Tier 2 platform plugins](./tier2-platform-plugins.html) · [Tier 3 exploration checklist](./tier3-exploration-checklist.html)
