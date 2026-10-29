@@ -76,7 +76,6 @@ test('trusted provider-limit window is persisted by L2/L3a and reused for v2 ear
     await options.click('#btnSyncAll');
     await expect(options.locator('#btnSyncAll')).toBeEnabled();
     await expect(options.locator('.tour-overlay-container')).toHaveCount(0);
-    // Four committed source rows are below the v2 Takeout suggestion threshold (>150).
     expect(requests[0]).toEqual(['head', 'tC_middle', 'tC_limit']);
     await expect.poll(async () => (await v2(options)).coverage?.range?.head.time).toBe(1700000100000);
 

@@ -1,4 +1,3 @@
-// Full browser v2 UI -> Application -> Composer -> HTML -> physical download.
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
 import { readFile } from 'node:fs/promises';
