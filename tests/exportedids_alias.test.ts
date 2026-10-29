@@ -7,6 +7,7 @@ import { ConversationViewState } from '../src/ui/options/state/conversationsStor
 import { v2ExportHost, exportKey, exportRequest, seedExportConversation } from './helpers/v2ExportHost.js';
 import { runExport } from '../src/application/export/runExport.js';
 import { ingestDetail } from '../src/l2/ingestion.js';
+import { __getZipConstructor, __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 
 const accountId = exportKey('').accountId;
 const record = (exportedAt: number) => ({ exportedAt, format: 'markdown' as const, status: 'ok' as const });
@@ -78,12 +79,15 @@ test('same conversation ID in two accounts never aliases their records', async (
 
 test('failed resources persist only minimal partial status after real delivery', async t => {
     const host = v2ExportHost(t);
+    const previousZip = __getZipConstructor();
+    __setZipConstructor(require('../lib/jszip.min.js'));
+    t.after(()=>__setZipConstructor(previousZip));
     await ingestDetail(accountId, 'partial', {
         savedAt: 100, quality: { status: 'complete' }, assets: [{ id: 'missing', kind: 'image' }],
         messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'missing' }] }],
     }, { title: 'Partial', titleSource: 'provider', updatedAt: 100 });
     const result = await runExport(exportRequest(['partial'], { includeAssets: true }));
-    assert.equal(result.exported, 1); assert.equal(result.partial, 1); assert.equal(host.clicks(), 1);
+    assert.equal(result.exported, 1); assert.equal(result.partial, 1); assert.equal(host.clicks(), 2);
     const records = await listExportRecords(accountId);
     assert.equal(records.partial.status, 'partial');
     assert.equal('hasFailedAssets' in records.partial, false);

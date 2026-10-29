@@ -45,6 +45,7 @@ export const state = {
     failRender: '' as RenderFormat | '', failRenderKey: '' as string,
     directory: {} as FileSystemDirectoryHandle | null,
     onDelivery: undefined as (() => void) | undefined,
+    onPackage: undefined as ((archiveName?: string) => Promise<void>) | undefined,
     sourceContext: undefined as SourceResourceContext | undefined,
     releasedKeys: [] as string[], releasedContexts: 0,
     pdfPrepared: [] as string[], pdfBindings: {} as ResourceBindings,
@@ -221,18 +222,19 @@ stubModule('../../src/l4/format/json/serializeDomainJson.js', {
     },
 });
 function plan(format: ExportFormat, conversation: ReadonlyDomain, prepared: PreparedResources,
-    fileIds: ReadonlySet<string>, target: PlanCall[]): ExportPathPlan {
+    fileIds: ReadonlySet<string>, target: PlanCall[], expectedIds?: ReadonlySet<string>): ExportPathPlan {
     const id = conversation.index.key.conversationId;
     target.push({ format, key: id, fileIds: [...fileIds], preparedIds: [...prepared.keys()] });
     const resources: Record<string, string> = {};
     for (const [assetId, value] of prepared) if (value.ok) resources[assetId] = 'mock/' + assetId;
-    return { fileName: 'mock-' + id + '.' + format, resources, externalResourceIds: new Set<string>() };
+    for (const id of expectedIds ?? []) resources[id] = 'mock/' + id;
+    return { fileName: 'mock-' + id + '.' + format, resources, externalResourceIds: new Set(Object.keys(resources)) };
 }
 stubModule('../../src/l4/packaging/index.js', {
     createExportPathPlanner(format: ExportFormat) {
         state.folderPlannerCreations.push(format);
-        return (conversation: ReadonlyDomain, prepared: PreparedResources, fileIds: ReadonlySet<string>, baseName?: string) => {
-            const planned = plan(format, conversation, prepared, fileIds, state.folderPlans);
+        return (conversation: ReadonlyDomain, prepared: PreparedResources, fileIds: ReadonlySet<string>, baseName?: string, expectedIds?: ReadonlySet<string>) => {
+            const planned = plan(format, conversation, prepared, fileIds, state.folderPlans, expectedIds);
             return baseName ? { ...planned, fileName: `${baseName}.${format}` } : planned;
         };
     },
@@ -245,12 +247,20 @@ stubModule('../../src/l4/packaging/index.js', {
         state.builtFiles.push({ format, content, plan: planned });
         return [{ fileName: planned.fileName, mimeType: 'application/x-mock', content }];
     },
-    async packageExportFiles(groups: readonly (readonly ExportArtifact[])[], delivery: ExportDelivery) {
+    buildResourceFiles(planned: ExportPathPlan, prepared: PreparedResources): ExportArtifact[] {
+        return [...planned.externalResourceIds].map(id => {
+            const value = prepared.get(id);
+            if (!value?.ok) throw new Error('Unavailable bound resource');
+            return { fileName: planned.resources[id], mimeType: value.value.mediaType ?? 'application/octet-stream', content: value.value.bytes };
+        });
+    },
+    async packageExportFiles(groups: readonly (readonly ExportArtifact[])[], delivery: ExportDelivery, archiveName?: string) {
+        await state.onPackage?.(archiveName);
         const files = groups.flatMap(group => [...group]);
         state.packages.push({ delivery, groups: groups.length, files: files.length });
         if (state.failPackage) throw new Error('Mock package failed');
-        if (delivery === 'browserDownload' && files.length > 1) {
-            return [{ fileName: 'mock-batch.zip', mimeType: 'application/x-mock', content: 'mock-batch' }];
+        if (delivery === 'browserDownload' && (files.length > 1 || archiveName)) {
+            return [{ fileName: archiveName ?? 'mock-batch.zip', mimeType: 'application/x-mock', content: 'mock-batch' }];
         }
         return files;
     },
@@ -327,7 +337,7 @@ export function reset(): void {
     Object.assign(state, {
         failRead: false, failSettingsRead: false, failSettingsWrite: false,
         failRecord: '', failDelivery: 0, failDelete: '', failPackage: false, failRender: '', failRenderKey: '',
-        directory: {}, onDelivery: undefined, sourceContext: undefined,
+        directory: {}, onDelivery: undefined, onPackage: undefined, sourceContext: undefined,
         releasedKeys: [], releasedContexts: 0,
         pdfPrepared: [], pdfBindings: {}, pdfDiagnostics: [], htmlDiagnostics: [],
         pdfLocale: undefined, pdfRenderKey: '', accountOverride: undefined, settingsReads: 0, disposed: 0,

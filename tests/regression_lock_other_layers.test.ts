@@ -4,6 +4,7 @@
  * Legacy ExportEngine queues, AssetPipeline and source-text implementation locks
  * are not v2 interfaces. Only browser/network/IndexedDB host surfaces are faked.
  */
+import { readDeliveredFiles } from './helpers/v2ExportHost.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -60,12 +61,14 @@ function fakeBrowser(t: { after: (fn: () => void) => void }, failClick = false) 
     const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
     const originalCreate = URL.createObjectURL;
     const blobs: Blob[] = [];
+    const filenames: string[] = [];
     let clicks = 0;
     Object.defineProperty(globalThis, 'document', { configurable: true, value: {
         createElement: (tag: string) => {
             assert.equal(tag, 'a');
             return { href: '', download: '', remove() {}, click() {
                 clicks++;
+                filenames.push(this.download);
                 if (failClick) throw new Error('Browser download refused');
             } };
         },
@@ -85,7 +88,7 @@ function fakeBrowser(t: { after: (fn: () => void) => void }, failClick = false) 
         if (previousLocation) Object.defineProperty(globalThis, 'location', previousLocation);
         else Reflect.deleteProperty(globalThis, 'location');
     });
-    return { blobs, clicks: () => clicks };
+    return { blobs, filenames, clicks: () => clicks };
 }
 function fakeNetwork(t: { after: (fn: () => void) => void }, bytes: Uint8Array, mediaType: string) {
     const chromeHost = globalThis.chrome;
@@ -143,14 +146,13 @@ test('P0: a v2 document attachment is present in ZIP and its ExportRecord lands 
     assert.equal(result.exported, 1);
     assert.equal(result.failed.length, 0);
     assert.equal(result.partial, 0);
-    assert.equal(host.clicks(), 1);
-    const zip = await JSZip.loadAsync(await host.blobs[0].arrayBuffer());
-    const names: string[] = Object.keys(zip.files);
-    const main = names.find(name => name.endsWith('.md') && !name.startsWith('files/'));
-    const document = names.find(name => name.startsWith('files/') && name.endsWith('doc.md'));
+    assert.equal(host.clicks(), 2);
+    const files = await readDeliveredFiles(host);
+    const main = files.find(file=>file.name.endsWith('.md') && !file.name.startsWith('files/'));
+    const document = files.find(file=>file.name.startsWith('files/') && file.name.endsWith('doc.md'));
     assert.ok(main && document);
-    assert.match(await zip.file(main).async('string'), /Answer cccc3333dddd4444/);
-    assert.equal(await zip.file(document).async('string'), '# embedded doc body');
+    assert.match(String(await main.async('string')), /Answer cccc3333dddd4444/);
+    assert.equal(await document.async('string'), '# embedded doc body');
     assert.equal((await getExportRecord(conversationKey(id)))?.status, 'ok');
 });
 
@@ -166,11 +168,11 @@ test('P0: a v2 image attachment is packaged once with its original bytes and a s
     const result = await runExport(request(id));
     assert.equal(result.exported, 1);
     assert.equal(result.failed.length, 0);
-    assert.equal(host.clicks(), 1);
-    const zip = await JSZip.loadAsync(await host.blobs[0].arrayBuffer());
-    const images: string[] = Object.keys(zip.files).filter(name => name.startsWith('assets/') && name.endsWith('.png'));
-    assert.equal(images.length, 1);
-    assert.deepEqual(await zip.file(images[0]).async('uint8array'), png);
+    assert.equal(host.clicks(), 2);
+    const files = await readDeliveredFiles(host);
+    const images = files.filter(file=>file.name.startsWith('assets/') && file.name.endsWith('.png'));
+    assert.equal(images.length,1);
+    assert.deepEqual(await images[0].async('uint8array'),png);
     assert.equal((await getExportRecord(conversationKey(id)))?.status, 'ok');
     assert.equal(Object.keys(await listExportRecords(account.id)).length, 1);
 });

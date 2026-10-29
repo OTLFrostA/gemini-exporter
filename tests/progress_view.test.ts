@@ -7,6 +7,29 @@ import { errorText } from '../src/ui/shared/settings.js';
 test('headless UI status helpers preserve errors without requiring a DOM', () => {
     assert.equal(errorText(new Error('Offline')), 'Offline'); assert.equal(errorText('Aborted'), 'Aborted');
 });
+test('body delivery advances its counter while attachments remain active, and cancellation reports the preserved document', async () => {
+    const browser = await chromium.launch({headless:true});
+    try {
+        const page = await browser.newPage();
+        await mount(page,'options',{holdExport:true});
+        await page.locator('#btnSelectAll').click();
+        await page.locator('#btnExport').click();
+        await page.evaluate(()=>{
+            const h = Reflect.get(window,'harness');
+            const key = h.exports[0].keys[0];
+            h.exportOptions.onBodyDelivered(key);
+            h.exportOptions.onResourceProgress({key,completed:0,total:2,downloaded:0});
+        });
+        assert.equal(await page.locator('#progText').textContent(),'Prepared 1 conversations · delivered 1 documents · downloaded 0 attachments');
+        assert.equal(await page.locator('body').getAttribute('data-busy'),'true');
+        assert.equal(await page.locator('#splitDeliveryHint').isVisible(),true);
+        assert.equal(await page.locator('.status-exported').count(),0);
+        await page.locator('#btnCancel').click();
+        await page.evaluate(()=>Reflect.get(window,'harness').finishExport());
+        await page.waitForFunction(()=>document.body.dataset.busy!=='true');
+        assert.match(await page.locator('#status').textContent()??'',/Cancelled; Documents already delivered: 1/);
+    } finally { await browser.close(); }
+});
 test('current progress status displays committed counts, final result and clears busy controls', async () => {
     const browser = await chromium.launch({ headless: true }); try {
         const page = await browser.newPage(); await mount(page, 'options', { holdScan: true });
@@ -88,7 +111,7 @@ test('Folder export updates persisted item badges and the bar before the full ba
         assert.match(await page.locator('[data-chat-id="one"] .status-exported').textContent() ?? '', /^Export successful \(.+\)$/);
         assert.equal(await page.locator('[data-chat-id="two"] .status-exported').count(), 0);
         assert.match(await page.locator('#bar').getAttribute('style') ?? '', /width:\s*50%/);
-        assert.equal(await page.locator('#status').textContent(), 'Prepared 1 conversations · exported 1 conversations · downloaded 0 attachments');
+        assert.equal(await page.locator('#status').textContent(), 'Prepared 1 conversations · delivered 1 documents · downloaded 0 attachments');
 
         await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
         await page.waitForFunction(() => document.body.dataset.busy !== 'true');

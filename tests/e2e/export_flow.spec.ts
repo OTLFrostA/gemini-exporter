@@ -93,7 +93,7 @@ test('export progress keeps one cumulative three-counter message through source 
     const messages: string[] = await page.evaluate(() => Reflect.get(window, 'exportProgressMessages'));
     expect(messages.length).toBeGreaterThan(2);
     const counts = messages.map(message => {
-        const match = /^Prepared (\d+) conversations · exported (\d+) conversations · downloaded (\d+) attachments$/.exec(message);
+        const match = /^Prepared (\d+) conversations · delivered (\d+) documents · downloaded (\d+) attachments$/.exec(message);
         if (!match) throw new Error(`Unexpected export progress: ${message}`);
         return match.slice(1).map(Number);
     });

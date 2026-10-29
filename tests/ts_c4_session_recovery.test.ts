@@ -97,7 +97,7 @@ test('C4-v2-4: failed resource bytes produce a partial record that must be retri
     assert.equal(partial.partial, 1);
     assert.equal(records.get(address(key()))?.status, 'partial');
     assert.equal(records.get(address(key()))?.chatTime, 100);
-    assert.deepEqual(state.browserPlans[0].preparedIds, ['image', 'file']);
+    assert.deepEqual(Object.keys(state.rendererCalls[0].bindings), ['image','file']);
 
     provider.acquireResource = async () => ({ bytes: new Uint8Array([1, 2, 3]) });
     const retried = await runExport(request({ skipUnchanged: true }));
@@ -109,7 +109,7 @@ test('C4-v2-4: failed resource bytes produce a partial record that must be retri
     const unchanged = await runExport(request({ skipUnchanged: true }));
     assert.equal(unchanged.exported, 0);
     assert.equal(unchanged.skipped, 1);
-    assert.equal(deliveries.length, 2);
+    assert.equal(deliveries.length, 4);
 });
 
 test('C4-v2-5: Folder delivery failure leaves only that ConversationKey unrecorded', async () => {

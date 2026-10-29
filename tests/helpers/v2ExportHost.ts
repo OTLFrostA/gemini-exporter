@@ -7,6 +7,27 @@ import type { ExportRequest } from '../../src/application/export/types.js';
 
 const account = fixtureAccount('gemini');
 
+/** Merge physical deliveries in the documented extraction order: documents,
+ * then attachments and corrections, regardless of browser download order. */
+export async function readDeliveredFiles(host: {blobs: readonly Blob[]; filenames: readonly string[]}) {
+    const library: {loadAsync(bytes:ArrayBuffer):Promise<{files:Record<string,{
+        dir:boolean; async(type:'uint8array'):Promise<Uint8Array>;
+    }>} >} = require('../../lib/jszip.min.js');
+    const files = new Map<string,Uint8Array>();
+    const deliveries = [...host.blobs.entries()].sort(([a],[b])=>
+        Number(/^attachments_.*\.zip$/.test(host.filenames[a]))-Number(/^attachments_.*\.zip$/.test(host.filenames[b])));
+    for (const [index,blob] of deliveries) {
+        const name = host.filenames[index];
+        if (name.endsWith('.zip')) {
+            const zip = await library.loadAsync(await blob.arrayBuffer());
+            for (const [path,entry] of Object.entries(zip.files))
+                if (!entry.dir) files.set(path,await entry.async('uint8array'));
+        } else files.set(name,new Uint8Array(await blob.arrayBuffer()));
+    }
+    return [...files].map(([name,bytes])=>({name,
+        async:async(type:'string'|'uint8array')=>type==='string'?new TextDecoder().decode(bytes):bytes}));
+}
+
 /** Only the extension host is faked: L2, L3a, Application, L3b and L4 remain real. */
 export function v2ExportHost(t: TestContext, onClick: () => void = () => {}) {
     const storage = indexStorage();

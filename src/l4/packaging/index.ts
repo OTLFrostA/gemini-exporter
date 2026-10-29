@@ -25,8 +25,9 @@ const resourceExtensions: Readonly<Record<string, string>> = {
 };
 
 /** Reuse one path namespace across a batch without retaining every resource byte. */
-export function createExportPathPlanner(format: ExportFormat):
-    (conversation: ReadonlyDomain, prepared: PreparedResources, fileIds: ReadonlySet<string>, fileBaseName?: string) => ExportPathPlan {
+export function createExportPathPlanner(format: ExportFormat, resourceScope?: string):
+    (conversation: ReadonlyDomain, prepared: PreparedResources, fileIds: ReadonlySet<string>, fileBaseName?: string,
+        expectedIds?: ReadonlySet<string>) => ExportPathPlan {
     const used = new Set<string>();
     function reserve(directory: string, name: string): string {
         // Percent is literal source text, never a second encoded path supplied to a writer.
@@ -43,7 +44,7 @@ export function createExportPathPlanner(format: ExportFormat):
             if (!used.has(key)) { used.add(key); return candidate; }
         }
     }
-    return (conversation, prepared, fileIds, fileBaseName) => {
+    return (conversation, prepared, fileIds, fileBaseName, expectedIds) => {
         const id = conversation.index.key.conversationId;
         const fileName = reserve('', fileBaseName ? `${fileBaseName}.${extensions[format]}`
             : buildExportFileName(conversation.index.title, id, extensions[format]));
@@ -51,14 +52,18 @@ export function createExportPathPlanner(format: ExportFormat):
         const externalResourceIds = new Set<string>();
         for (const asset of conversation.detail.assets) {
             const result = prepared.get(asset.id);
-            if (!result?.ok) continue;
-            const mediaType = result.value.mediaType ?? asset.mediaType;
+            // Linked documents reserve paths from metadata before attachment acquisition.
+            // Acquisition must use these same paths even when response metadata differs.
+            if (!result?.ok && !expectedIds?.has(asset.id)) continue;
+            const acquired = result?.ok ? result.value : undefined;
+            const mediaType = acquired?.mediaType ?? asset.mediaType;
             const extension = resourceExtensions[mediaType ?? ''] ?? (asset.document ? 'md' : asset.kind === 'image' ? 'jpg' : 'bin');
             const baseName = sanitizeFileName(asset.name || asset.id);
             const name = asset.name && /\.[^.]+$/.test(baseName) ? baseName : `${baseName}.${extension}`;
-            resources[asset.id] = reserve(asset.kind === 'image' ? 'assets/' : 'files/', shortScope(id) + name);
+            const directory = asset.kind === 'image' ? 'assets/' : 'files/';
+            resources[asset.id] = reserve(directory + (resourceScope ? `${resourceScope}/` : ''), shortScope(id) + name);
             const embeddedDocxImage = format === 'docx' && asset.kind === 'image'
-                && docxImageInfo(mediaType, result.value.bytes) !== undefined;
+                && acquired !== undefined && docxImageInfo(mediaType, acquired.bytes) !== undefined;
             if ((format !== 'pdf' && !embeddedDocxImage) || fileIds.has(asset.id)) externalResourceIds.add(asset.id);
         }
         return { fileName, resources, externalResourceIds };
@@ -79,7 +84,12 @@ export function planExportPaths(
 export function buildExportFiles(format: ExportFormat, plan: ExportPathPlan,
     content: string | Uint8Array, prepared: PreparedResources): ExportArtifact[] {
     assertExportPath(plan.fileName);
-    const files: ExportArtifact[] = [{ fileName: plan.fileName, mimeType: mimeTypes[format], content }];
+    return [{ fileName: plan.fileName, mimeType: mimeTypes[format], content }, ...buildResourceFiles(plan, prepared)];
+}
+
+/** Build attachments separately without rendering or rewriting an already delivered body. */
+export function buildResourceFiles(plan: ExportPathPlan, prepared: PreparedResources): ExportArtifact[] {
+    const files: ExportArtifact[] = [];
     for (const id of plan.externalResourceIds) {
         const path = plan.resources[id];
         if (!path) throw new Error(`External resource has no planned path: ${id}`);
@@ -92,7 +102,7 @@ export function buildExportFiles(format: ExportFormat, plan: ExportPathPlan,
 }
 
 export async function packageExportFiles(groups: readonly (readonly ExportArtifact[])[],
-    delivery: ExportDelivery): Promise<ExportArtifact[]> {
+    delivery: ExportDelivery, archiveName?: string): Promise<ExportArtifact[]> {
     const nonempty = groups.filter(group => group.length > 0);
     const files = nonempty.flatMap(group => [...group]);
     const paths = new Set<string>();
@@ -102,12 +112,12 @@ export async function packageExportFiles(groups: readonly (readonly ExportArtifa
         if (paths.has(key)) throw new Error(`Duplicate export path: ${file.fileName}`);
         paths.add(key);
     }
-    if (!files.length || !(delivery === 'browserDownload' && files.length > 1)) return files;
+    if (!files.length || !(delivery === 'browserDownload' && (files.length > 1 || archiveName))) return files;
     const writer = new ZipWriter();
     for (const file of files) {
         if (writer.writeFile(file.fileName, file.content) !== file.fileName) throw new Error('ZIP writer changed planned path');
     }
-    const fileName = nonempty.length === 1
+    const fileName = archiveName ? sanitizeFileName(archiveName) : nonempty.length === 1
         ? sanitizeFileName(nonempty[0][0].fileName.replace(/\.[^.]+$/, '') + '.zip')
         : `conversations_${Date.now()}.zip`;
     return [{ fileName, mimeType: 'application/zip', content: await writer.generateBlob() }];
