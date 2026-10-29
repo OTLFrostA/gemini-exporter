@@ -5,7 +5,6 @@ import { invalidateAccountContext } from '../../src/runtime/content/accountConte
 
 export const ACCOUNT_OBSERVATION = { providerId: 'gemini', providerAccountId: '10000000001' };
 
-/** Exercise the actual resolver with a MAIN observation bridge and committed Registry receipt. */
 export function accountRuntime(slot = 'u0') {
     const originalLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
     if (!originalLocation) Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: `https://gemini.google.com/u/${slot.slice(1)}/app`, origin: 'https://gemini.google.com' } });

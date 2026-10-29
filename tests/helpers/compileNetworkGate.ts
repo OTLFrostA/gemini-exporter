@@ -38,15 +38,12 @@ interface NetworkGateViolation {
 }
 
 interface NetworkGateReport<T> {
-    /** 被测函数的返回值 (原样透传)。 */
     result: T;
-    /** 执行期间所有被拦截到的网络调用 (含 data:/blob:)。 */
     violations: NetworkGateViolation[];
     /** 外部网络请求计数 — 门禁断言的对象, 必须为 0。 */
     externalRequestCount: number;
 }
 
-/** Harness 拒绝网络调用时抛出的错误 (模拟离线环境的网络失败)。 */
 export class NetworkGateBlockedError extends Error {
     readonly url: string;
     constructor(url: string) {
@@ -73,10 +70,6 @@ function urlOf(input: unknown): string {
     }
 }
 
-/**
- * 在网络门禁下执行 fn。返回被测结果 + 违规记录。
- * 被测函数可以是同步或异步; 抛出的业务异常会原样透出 (门禁只管网络计数)。
- */
 export async function withNetworkGate<T>(fn: () => T | Promise<T>): Promise<NetworkGateReport<T>> {
     const violations: NetworkGateViolation[] = [];
     const g = globalThis as unknown as Record<string, unknown>;
@@ -89,7 +82,6 @@ export async function withNetworkGate<T>(fn: () => T | Promise<T>): Promise<Netw
         violations.push({ kind, url, method });
     };
 
-    // -- fetch: 记录后拒绝, 模拟 CDP 阻断 ------------------------------------
     const gateFetch = (input: unknown, init?: { method?: string }): Promise<never> => {
         const url = urlOf(input);
         const inputMethod =
@@ -120,7 +112,6 @@ export async function withNetworkGate<T>(fn: () => T | Promise<T>): Promise<Netw
               }
           };
 
-    // -- WebSocket: 存在才劫持 -----------------------------------------------
     const gateWebSocket = typeof origWebSocket === 'undefined'
         ? null
         : class {

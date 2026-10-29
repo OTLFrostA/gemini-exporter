@@ -36,7 +36,6 @@ export function fixtureAccountFor<T extends { index: { key: ConversationKey } }>
     if (['10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000003'].includes(accountId)) return fixtureAccount('gemini', accountId);
     throw new Error(`Undeclared fixture Account ${accountId}`);
 }
-/** Explicitly create a distinct account-owned test snapshot. */
 export function bindFixture<T extends DomainFixture>(value: T, account: Account | string): T {
     const result = structuredClone(value);
     result.account = typeof account === 'string' ? fixtureAccount(value.account.providerId, account) : account;
