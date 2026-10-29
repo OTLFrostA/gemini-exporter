@@ -12,6 +12,5 @@ def load_plugins(modules=()):
     registry.register(ChatGPTPlugin())
     registry.register(ClaudePlugin())
     for module in modules:
-        # Explicit opt-in Python modules export register(registry).
         import_module(module).register(registry)
     return registry

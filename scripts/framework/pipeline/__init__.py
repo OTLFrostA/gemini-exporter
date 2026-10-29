@@ -1,4 +1,3 @@
-# scripts/framework/pipeline/__init__.py
 from .stages import PipelineStage, PipelineConcurrencyViolationError, CircuitBreakerError
 from .process_lock import ProcessLock, ProcessLockError
 from .actions import (

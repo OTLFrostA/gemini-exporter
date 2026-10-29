@@ -1,4 +1,3 @@
-# scripts/framework/pipeline/executor.py
 """
 Serial Action Executor with State Machine Invariant Guard.
 Guarantees strictly single-flight execution of atomic actions,
@@ -66,7 +65,6 @@ class SerialActionExecutor:
 
                 print(f"      ▶️ [Action {idx}/{len(actions)}] {action.name} (Stage: {self._current_stage.name})...")
 
-                # 执行原子动作
                 try:
                     res: ActionResult = action.execute(ctx, cdp)
                 except Exception as ex:

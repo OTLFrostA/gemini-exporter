@@ -1,4 +1,3 @@
-# scripts/framework/pipeline/process_lock.py
 """
 Process-Level Mutex Lock for Gemini Exporter Test Automation.
 Ensures strictly one Tier 2 live runner runs on the system at any given moment,
@@ -23,7 +22,6 @@ class ProcessLock:
         if lock_file_path:
             self.lock_file_path = os.path.abspath(lock_file_path)
         else:
-            # Default lock in temp directory
             tmp_dir = os.environ.get("TMPDIR") or os.environ.get("TEMP") or "/tmp"
             self.lock_file_path = os.path.join(tmp_dir, "gemini_exporter_live_test.lock")
 
@@ -40,7 +38,6 @@ class ProcessLock:
         except Exception as e:
             raise ProcessLockError(f"无法打开或创建进程锁文件 '{self.lock_file_path}': {e}")
 
-        # Platform-specific non-blocking exclusive lock
         if os.name == "nt":
             import msvcrt
             try:
@@ -54,7 +51,6 @@ class ProcessLock:
             except (IOError, OSError):
                 self._read_conflict_and_raise()
 
-        # Write lock info
         try:
             os.ftruncate(self.fd, 0)
             os.lseek(self.fd, 0, os.SEEK_SET)
