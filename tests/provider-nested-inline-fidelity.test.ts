@@ -42,7 +42,6 @@ test('Fidelity 1: Table cell bold renders as <strong> and does not leak **', asy
     assert.strictEqual(cellChildren[0].type, 'strong');
     assert.strictEqual(cellChildren[0].children[0].text, 'bold text');
 
-    // HTML assertions
     assert.ok(html.includes('<strong>bold text</strong>'), 'HTML contains <strong>bold text</strong>');
     assert.ok(!html.includes('**bold text**'), 'HTML does not leak **bold text**');
 });
@@ -61,7 +60,6 @@ test('Fidelity 2: Table cell HTML break <br> renders as lineBreak and does not l
     assert.strictEqual(cellChildren[1].type, 'lineBreak');
     assert.strictEqual(cellChildren[1].kind, 'hard');
 
-    // HTML assertions
     assert.ok(html.includes('<strong>确定状态</strong><br>任意时刻只能处于确定的'), 'HTML contains <br> line break after strong');
     assert.ok(!html.includes('&lt;br&gt;'), 'HTML does not escape <br> to literal &lt;br&gt;');
     assert.ok(!html.includes('&lt;br/&gt;'), 'HTML does not contain literal &lt;br/&gt;');
@@ -81,7 +79,6 @@ test('Fidelity 3: Mixed inline semantics (**State**<br>`code` and *italic*) rend
     assert.strictEqual(p.children[3].text, ' and ');
     assert.strictEqual(p.children[4].children[0].text, 'italic');
 
-    // HTML assertions
     assert.ok(html.includes('<strong>State</strong><br><code class="gem-inline-code">code</code> and <em>italic</em>'),
         'HTML contains all inline elements correctly typeset');
     assert.ok(!html.includes('**State**'), 'HTML does not leak **State**');
@@ -95,7 +92,6 @@ test('Fidelity 4: Emphasis wrapping code spans and math spans preserves nesting 
     const p = msg.content[0];
     assert.strictEqual(p.type, 'paragraph');
 
-    // First node is strong
     assert.strictEqual(p.children[0].type, 'strong');
     const strongChildren = p.children[0].children;
     assert.strictEqual(strongChildren[0].text, 'bold ');
@@ -103,7 +99,6 @@ test('Fidelity 4: Emphasis wrapping code spans and math spans preserves nesting 
     assert.strictEqual(strongChildren[1].code, 'code');
     assert.strictEqual(strongChildren[2].text, ' bold');
 
-    // HTML assertions
     assert.ok(html.includes('<strong>bold <code class="gem-inline-code">code</code> bold</strong>'),
         'HTML renders strong wrapping inline code');
     assert.ok(html.includes('<em>italic <code class="gem-inline-code">code</code> italic</em>'),
@@ -118,7 +113,6 @@ test('Fidelity 5: Emphasis wrapping links and links wrapping emphasis', async ()
     const { msg, html } = await normAndRender(md);
 
     const p = msg.content[0];
-    // First: strong containing link
     assert.strictEqual(p.children[0].type, 'strong');
     const link1 = p.children[0].children[0];
     assert.strictEqual(link1.type, 'link');
@@ -130,7 +124,6 @@ test('Fidelity 5: Emphasis wrapping links and links wrapping emphasis', async ()
     assert.strictEqual(p.children[2].children[0].type, 'strong');
     assert.strictEqual(p.children[2].children[0].children[0].text, 'nested bold');
 
-    // HTML assertions
     assert.ok(html.includes('<strong><a href="https://example.com/1"'), 'HTML renders strong wrapping <a>');
     const nestedLinkHtml = html.match(/<a\b[^>]*><strong>nested bold<\/strong><\/a>/)?.[0];
     assert.ok(nestedLinkHtml, 'HTML renders link wrapping emphasis');

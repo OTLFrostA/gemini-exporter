@@ -31,11 +31,9 @@ test('markdown body keeps block order and structure', async () => {
         'heading', 'paragraph', 'list', 'list', 'quote', 'thematicBreak', 'paragraph',
     ]);
 
-    // Heading.
     assert.strictEqual(user.content[0].level, 1);
     assert.strictEqual(textOf(user.content[0]), 'Shopping list');
 
-    // Inline emphasis in the paragraph.
     const inlineKinds = user.content[1].children.map((c: any) => c.type);
     assert.ok(inlineKinds.includes('strong'), 'bold survives');
     assert.ok(inlineKinds.includes('emphasis'), 'italic survives');
@@ -43,7 +41,6 @@ test('markdown body keeps block order and structure', async () => {
     const strong = user.content[1].children.find((c: any) => c.type === 'strong');
     assert.strictEqual(textOf(strong), 'milk');
 
-    // Unordered list with a nested list under the first item.
     const ul = user.content[2];
     assert.strictEqual(ul.ordered, false);
     assert.strictEqual(ul.items.length, 2);
@@ -54,7 +51,6 @@ test('markdown body keeps block order and structure', async () => {
         ['fuji', 'gala'],
     );
 
-    // Ordered list.
     const ol = user.content[3];
     assert.strictEqual(ol.ordered, true);
     assert.strictEqual(ol.start, 1);
@@ -113,7 +109,6 @@ test('citations have message-local Domain identities referenced by content nodes
     );
     assert.ok(!model.content.some((b: any) => b.type === 'citationGroup'), 'no citationGroup in blocks');
 
-    // [1]/[2] markers map to citationRef inlines pointing at the right ids.
     const para = model.content[0];
     const refs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(refs.length, 2);
@@ -129,7 +124,6 @@ test('citations have message-local Domain identities referenced by content nodes
     const link = model.content.find((b: any) => b.type === 'paragraph' && b.children.some((c: any) => c.type === 'link'));
     assert.ok(link.children.find((c: any) => c.type === 'link' && c.href === 'https://example.com/docs'));
 
-    // Code fence, table, display math.
     const code = model.content.find((b: any) => b.type === 'code');
     assert.strictEqual(code.language, 'python');
     assert.ok(code.code.includes('print("hello")'));
@@ -143,8 +137,6 @@ test('citations have message-local Domain identities referenced by content nodes
 
 test('attachments deduplicate semantic assets and prepare separate resource bindings', async () => {
     const { domain, document, resources, diagnostics } = await parseFixture(sample);
-    // receipt.png appears in both attachments[] and images[] -> one asset.
-    // Plus the inline markdown image in m-u1 -> one source-URI asset.
     assert.strictEqual(domain.detail.assets.length, 4);
     const byName: Map<string, any> = new Map(domain.detail.assets.map((a: any) => [a.name, a]));
     const receipt = byName.get('receipt.png');

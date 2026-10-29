@@ -17,8 +17,6 @@ const assert = require('node:assert');
 const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 
-// Mirrors the #636 Tier 2 gate: LaTeX macro followed by <em> means the parser
-// shattered a formula (e.g. \hat{H}<em>{JC}, \omega<em>a).
 const CORRUPTED_MATH_RE = /\\[a-zA-Z]+<em>[^<]+<\/em>/;
 
 const CASES = [
