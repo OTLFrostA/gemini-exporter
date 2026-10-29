@@ -1,6 +1,6 @@
 # Chrome Web Store Publication & Permissions Justification
 
-This document tracks and maintains all required metadata, permissions justification, and privacy declarations for submitting **Gemini Exporter** to the Chrome Web Store.
+Current Chrome Web Store listing copy and permission rationale. Verify the published wording and the release `manifest.json` before submitting changes.
 
 ---
 
@@ -20,7 +20,7 @@ This document tracks and maintains all required metadata, permissions justificat
 
 ## 🔒 Permissions Justification (Single-Purpose Policy)
 
-Chrome Web Store enforces a strict single-purpose policy requiring explicit justifications for all requested permissions in `manifest.json`:
+The release `manifest.json` declares these required browser permissions:
 
 | Permission | Justification / Usage in Extension |
 | :--- | :--- |
@@ -58,17 +58,9 @@ required permissions used for local staging must never enter a store package.
 
 ---
 
-## Product screenshots
-
-README/store screenshots in `store_assets/` were captured on October 25, 2026
-from version 2.0.0 in real Chrome on port 9222, using synced Gemini conversations.
-Workbench and Site access images are 1280 × 800; the actual action popup is
-360 × 296. The dark image shows local-folder settings before folder authorization,
-with Live Save off. Capture Site access before granting optional platform access.
-
 ## 🏷️ Title & Promotional Assets Policy Compliance (Red Nickel Prevention)
 
-In compliance with Chrome Web Store Developer Program Policies (*Ensuring Responsible Marketing and Monetization - Impersonation and Intellectual Property*):
+Store listing titles, descriptions and graphics must describe the extension accurately and avoid deceptive affiliation, ranking or endorsement claims:
 - **No Ranking or Status Claims**: The extension name, description, and promotional assets (`store_assets/promo_marquee_1400x560.png`, `store_assets/promo_tile_440x280.png`) must NEVER contain promotional buzzwords, ranking claims, or deceptive status indicators such as `Free`, `100% Free`, `#1`, `Best`, `Top`, `New`, `Recommended`, or `Premium`.
 - **Factual & Feature-Oriented**: Titles and descriptions focus strictly on factual functionality (e.g., `Save All Your Chats`, `Client-Side • Unlimited • Offline`).
 
