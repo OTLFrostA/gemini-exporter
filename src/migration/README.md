@@ -16,6 +16,9 @@ fake-indexeddb migration regressions. Runtime tests exercise readiness and lifec
 against real migration functions. These tests do not establish real profile upgrade
 behavior or cloning a historical native handle across browser restarts.
 
+The [Compatibility 03/03 closeout audit](../../docs/architecture/compatibility-03-closeout.md)
+records retired historical entrypoints and the isolated v1 profile upgrade boundary.
+
 Gemini source-version repair (`gemini_exporter_source_versions_v1`) runs once for
 already initialized profiles. Previous builds mixed Takeout activity dates and
 RPC update versions without provenance, so existing Gemini Index.updatedAt,
