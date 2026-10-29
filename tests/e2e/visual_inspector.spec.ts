@@ -70,14 +70,21 @@ async function verifyPopoverGeometry(page: import('@playwright/test').Page, targ
     }, { target, action })).toEqual({ present: true, clear: true, hittable: true });
 }
 
-test('the real seven-step v2 Tour uses platform authorization and has no target collisions', async ({ context, extensionId }) => {
+for (const theme of ['dark', 'light']) {
+ test(`the real seven-step v2 Tour has rounded cutouts without target collisions in ${theme} theme`, async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);
+    await page.evaluate(async theme => Reflect.get(globalThis, 'uiFixture').updateSettings({ theme }), theme);
+    await seedConversations(page, [
+        { id: 'tour-a', title: 'Conversation selected for export', updatedAt: 200 },
+        { id: 'tour-b', title: 'Another conversation', updatedAt: 100 },
+    ]);
     await page.locator('#btnTourGuide').click();
     for (const [i, [title, target]] of steps.entries()) {
         await expect(page.locator('.tour-popover h2')).toHaveText(title);
         const action = i === 0 ? 'Authorize' : i === steps.length - 1 ? 'Start using' : 'Next';
         await verifyPopoverGeometry(page, target, action);
-        await screenshot(page, 'v2_tour_step_' + (i + 1) + '.png');
+        if (i === steps.length - 1) await expect(page.locator('#tourSkipBtn')).toHaveCount(0);
+        await screenshot(page, 'v2_tour_' + theme + '_step_' + (i + 1) + '.png');
         if (i === 0) {
             await expect(page.locator('#tourNextBtn')).toBeEnabled();
             await connectTourGemini(page);
@@ -85,6 +92,8 @@ test('the real seven-step v2 Tour uses platform authorization and has no target 
     }
     await expect(page.locator('.tour-overlay-container')).toHaveCount(0);
 });
+
+}
 
 test('choosing PDF in the v2 Tour advances without querying local fonts', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);

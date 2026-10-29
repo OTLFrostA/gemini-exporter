@@ -417,13 +417,16 @@ for (const step of [{ index: 2, targets: ['#list .item', '#btnSelectAll'] }, { i
             }, step.targets);
             await page.waitForFunction(() => {
                 const spotlight = document.querySelector('.tour-spotlight')?.getBoundingClientRect();
-                const panels = [...document.querySelectorAll('.tour-backdrop')].map(panel => panel.getBoundingClientRect());
-                if (!spotlight || panels.length !== 4) return false;
-                const aligned = (a: number, b: number) => Math.abs(a - b) < 1;
-                return panels.some(panel => aligned(panel.bottom, spotlight.top) && panel.width === innerWidth) &&
-                    panels.some(panel => aligned(panel.right, spotlight.left) && aligned(panel.top, spotlight.top) && aligned(panel.bottom, spotlight.bottom)) &&
-                    panels.some(panel => aligned(panel.left, spotlight.right) && aligned(panel.top, spotlight.top) && aligned(panel.bottom, spotlight.bottom)) &&
-                    panels.some(panel => aligned(panel.top, spotlight.bottom) && panel.width === innerWidth);
+                const backdrop = document.querySelector('.tour-backdrop');
+                if (!spotlight || !(backdrop instanceof HTMLElement)) return false;
+                if (backdrop.getBoundingClientRect().width !== innerWidth) return false;
+                // Rounded corners stay dimmed and intercept clicks; the open area does not.
+                const at = (x: number, y: number) => document.elementFromPoint(x, y) === backdrop;
+                return getComputedStyle(backdrop).clipPath.startsWith('path(') &&
+                    at(spotlight.left + 0.5, spotlight.top + 0.5) &&
+                    !at(spotlight.left + spotlight.width / 2, spotlight.top + 3) &&
+                    at(spotlight.left - 1, spotlight.top + spotlight.height / 2);
+
             });
         }
     });

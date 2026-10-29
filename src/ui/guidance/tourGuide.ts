@@ -118,23 +118,23 @@ function overlay(
 
         // Only the highlighted UI and explicit related controls are physically clickable.
         const hole = interactive ? rect : null;
-        const holeHeight = hole ? hole.bottom - hole.top : 0;
-        const boxes = hole ? [
-            [0, 0, w, Math.max(0, hole.top)],
-            [0, hole.top, Math.max(0, hole.left), holeHeight],
-            [hole.right, hole.top, Math.max(0, w - hole.right), holeHeight],
-            [0, hole.bottom, w, Math.max(0, h - hole.bottom)],
-        ] : [[0, 0, w, h]];
-        for (const [left, top, width, height] of boxes) {
-            const panel = document.createElement('div');
-            panel.className = 'tour-backdrop';
-            Object.assign(panel.style, {
-                left: left + 'px', top: top + 'px', width: width + 'px', height: height + 'px',
-            });
-            panel.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); close(); });
-            container.prepend(panel);
-            backdrop.push(panel);
+        const panel = document.createElement('div');
+        panel.className = 'tour-backdrop';
+        Object.assign(panel.style, { left: '0px', top: '0px', width: w + 'px', height: h + 'px' });
+        if (hole) {
+            const { left, top, right, bottom } = hole;
+            const radius = Math.min(parseFloat(getComputedStyle(spotlight).borderTopLeftRadius),
+                (right - left) / 2, (bottom - top) / 2);
+            // One rounded cutout controls both paint and hit testing, matching the border.
+            panel.style.clipPath = `path(evenodd, "M0 0H${w}V${h}H0Z ` +
+                `M${left + radius} ${top}H${right - radius}A${radius} ${radius} 0 0 1 ${right} ${top + radius}` +
+                `V${bottom - radius}A${radius} ${radius} 0 0 1 ${right - radius} ${bottom}` +
+                `H${left + radius}A${radius} ${radius} 0 0 1 ${left} ${bottom - radius}` +
+                `V${top + radius}A${radius} ${radius} 0 0 1 ${left + radius} ${top}Z")`;
         }
+        panel.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); close(); });
+        container.prepend(panel);
+        backdrop.push(panel);
 
         // Respect the original per-step right/left/bottom placements; avoid collision.
         const width = popover.offsetWidth, height = popover.offsetHeight;
