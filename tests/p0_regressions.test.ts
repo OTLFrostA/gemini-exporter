@@ -56,12 +56,10 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
             },
         },
     };
-    // 伪造"页面能抓到 at"的信号（node 下没有真实页面）
     (global as any).document = { documentElement: { innerHTML: '' }, querySelectorAll: () => [] };
     (global as any).location = { pathname: '/app' };
     (globalThis as any).__gemExporterExtractAt = () => 'PAGE_AT_FRESH';
     try {
-        // map 里已有两个账号：首条目是缺 at 的半成品，第二条是好的
         await (global as any).chrome.storage.session.set({
             gemini_credentials_map: {
                 bad: { sid: 'bad', at: '', bl: 'BL_X', accountSlot: 'default', lastUsed: 1 },
