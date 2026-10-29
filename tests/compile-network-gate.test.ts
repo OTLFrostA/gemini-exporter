@@ -22,25 +22,21 @@ const {
 } = require('./helpers/compileNetworkGate.js');
 
 
-/** 干净的桩编译器: 纯计算, 不触碰任何网络 API。 */
 async function StubPdfCompiler(payload: any): Promise<Uint8Array> {
     const json = JSON.stringify(payload);
     let hash = 0;
     for (let i = 0; i < json.length; i++) hash = (hash * 31 + json.charCodeAt(i)) | 0;
-    return new Uint8Array([0x25, 0x50, 0x44, 0x46, hash & 0xff]); // "%PDF" + checksum
+    return new Uint8Array([0x25, 0x50, 0x44, 0x46, hash & 0xff]);
 }
 
-/** 故意作恶的 fake 编译器: 试图从 CDN 拉字体 (P0 红线场景: jsdelivr)。 */
 async function PhoningHomeCompiler(payload: any): Promise<Uint8Array> {
     try {
         await fetch('https://cdn.jsdelivr.net/npm/typst-fonts@1.0.0/NotoSansCJKsc.otf');
     } catch {
-        /* 编译器吞掉网络错误继续跑 —— 门禁看的是计数, 不是异常 */
     }
     return StubPdfCompiler(payload);
 }
 
-/** 最小 fake XHR (Node 默认没有 XMLHttpRequest, 自测时临时安装)。 */
 class FakeXMLHttpRequest {
     open(_method: string, _url: string): void { /* no-op */ }
     send(): void { /* no-op */ }
@@ -52,7 +48,7 @@ test('gate passes a clean StubPdfCompiler with zero violations', async () => {
     const gated = await withNetworkGate(() => StubPdfCompiler(payload));
     assert.strictEqual(gated.externalRequestCount, 0);
     assert.deepStrictEqual(gated.violations, []);
-    assertZeroExternalRequests(gated, 'stub-compiler'); // 不抛 = 通过
+    assertZeroExternalRequests(gated, 'stub-compiler');
     assert.ok(gated.result instanceof Uint8Array, 'compiler result must pass through untouched');
     assert.strictEqual(gated.result[0], 0x25);
 });
@@ -64,7 +60,6 @@ test('gate catches a compiler that phones home via fetch (assertion fails as exp
     assert.strictEqual(gated.violations[0].kind, 'fetch');
     assert.ok(gated.violations[0].url.includes('cdn.jsdelivr.net'), 'violation must record the URL');
 
-    // 门禁断言如预期失败, 且失败信息包含 URL 供排查。
     assert.throws(
         () => assertZeroExternalRequests(gated, 'phoning-home-compiler'),
         (err: any) => {
@@ -96,7 +91,6 @@ test('gate intercepts XMLHttpRequest when present', async () => {
         assert.strictEqual(gated.violations[0].kind, 'xhr');
         assert.ok(gated.violations[0].url.includes('fonts.googleapis.com'));
         assert.throws(() => assertZeroExternalRequests(gated, 'xhr-compiler'));
-        // 门禁恢复的是我们安装的 FakeXHR, 不是门禁替身。
         assert.strictEqual(g.XMLHttpRequest, FakeXMLHttpRequest);
     } finally {
         if (origXHR) Object.defineProperty(g, 'XMLHttpRequest', origXHR);
