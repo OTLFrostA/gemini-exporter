@@ -14,7 +14,6 @@ export function extractEmailFromText(text?: string | null): string | null {
 
 export function extractNameFromLabel(label: string, email: string): string {
     if (!label) return '';
-    // Strip common localized prefixes like "Google Account:", "Google 帐号：", "Google 帳號："
     const clean = label.replace(/^(?:Google\s*Account|Google\s*帐号|Google\s*帳號|Google-Konto|Compte Google|Cuenta de Google)[:：\s]*/i, '').trim();
     const lines = clean.split('\n');
     if (lines.length > 1 && lines[0].trim()) {
@@ -64,7 +63,6 @@ export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null 
             }
         }
     } catch {
-        /* ignore DOM query errors */
     }
 
     // Current Gemini bootstrap: qDCSke is Gaia, oPEP7c is the current account email.
@@ -83,7 +81,6 @@ export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null 
             }
         }
     } catch {
-        /* ignore */
     }
 
     if (!email && !gaiaId) {
