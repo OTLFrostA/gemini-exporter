@@ -65,7 +65,7 @@ test('Live Save: unavailable bytes write readable partial Markdown, remain retry
     assert.equal(Object.keys(await listExportRecords(liveKey(id).accountId)).length, 1);
 });
 
-test('Live Save: a later failed resource reacquisition overwrites the earlier ok status with retryable partial', async t => {
+test('Live Save: local attachments survive source failure, while deleted attachments remain retryable', async t => {
     const host = v2LiveSaveHost(t), id = 'source-regressed', url = 'https://example.test/dynamic.png';
     await seedLiveDetail(id, [png('fresh-image', url)]);
     host.source(url, Uint8Array.of(12, 34, 56));
@@ -77,9 +77,15 @@ test('Live Save: a later failed resource reacquisition overwrites the earlier ok
     host.source(url, null);
     const second = await runLiveSave(liveKey(id));
     assert.equal(second?.exported, 1, 'Live Save is triggered by accepted Detail changes, not by skipUnchanged');
-    assert.equal(second?.partial, 1);
+    assert.equal(second?.partial, 0);
+    assert.equal((await getExportRecord(liveKey(id)))?.status, 'ok');
+    assert.match(markdown(host.files), /assets\//, 'existing local bytes remain usable when their source expires');
+    assert.deepEqual(host.requests, [url], 'the existing file bypasses reacquisition');
+    for (const path of host.files.keys()) if (path.startsWith('assets/')) host.files.delete(path);
+    const missing = await runLiveSave(liveKey(id));
+    assert.equal(missing?.partial, 1);
     assert.equal((await getExportRecord(liveKey(id)))?.status, 'partial');
-    assert.doesNotMatch(markdown(host.files), /assets\//, 'a failed new acquisition must not reference stale on-disk bytes');
+    assert.doesNotMatch(markdown(host.files), /assets\//, 'a missing local file with an unavailable source cannot retain a dangling link');
     const pending = await runExport(request(id));
     assert.equal(pending.skipped, 0);
     assert.equal(pending.partial, 1);

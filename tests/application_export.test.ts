@@ -793,3 +793,20 @@ test('skipped targets and failed resources do not inflate ready or downloaded co
     assert.deepEqual(prepared, ['first']);
     assert.equal(downloads.at(-1), 1);
 });
+
+for (const format of ['markdown', 'html', 'json'] as const) {
+    test(`${format}: folder reuses existing attachments before acquisition and preserves bindings on partial failure`, async () => {
+        seed('first', { assets: true });
+        state.existingFiles.add('mock/image');
+        provider.acquireResource = async (_key, asset) => {
+            events.push('acquire:' + asset.id);
+            throw new Error('Source unavailable');
+        };
+        const result = await runExport(request({ format, delivery: 'folderWriter' }));
+        assert.equal(result.exported, 1);
+        assert.equal(result.partial, 1);
+        assert.ok(!events.includes('acquire:image'));
+        assert.equal(state.rendererCalls.at(-1)?.bindings.image, 'mock/image');
+        assert.ok(!records.get(address(key()))?.attachmentIssues?.some(issue => issue.resourceId === 'image'));
+    });
+}

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createExportPathPlanner, planExportPaths, buildExportFiles, buildResourceFiles, packageExportFiles } from '../src/l4/packaging/index.js';
-import { v2Conversation, v2Document } from './helpers/l4V2Fixtures.js';
+import { v2Account, v2Conversation, v2Document } from './helpers/l4V2Fixtures.js';
 import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
 import { __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 import { ZipWriter, isPrecompressedAsset } from '../src/l4/packaging/writers/zipWriter.js';
@@ -189,4 +189,23 @@ test('Packaging adds missing resource extensions and preserves existing ones', (
     const files = buildExportFiles('markdown', plan, 'body', resources);
     assert.equal(files[1].mimeType, 'image/png');
     assert.equal(files[4].mimeType, 'application/octet-stream');
+});
+
+test('folder attachment paths are stable across tasks, formats and batch order, with account and provider scopes', () => {
+    const c = conversation();
+    const account = v2Account();
+    const expected = new Set(['a', 'b']);
+    const first = createExportPathPlanner('markdown')(c, new Map(), new Set(), undefined, expected, account);
+    assert.deepEqual(Object.values(first.resources), [
+        `assets/gemini/${account.id}/same123456/Photo.png`,
+        `assets/gemini/${account.id}/same123456/photo_2.png`,
+    ]);
+    const next = createExportPathPlanner('html');
+    next(v2Conversation('Other', c.detail.assets, { conversationId: 'other123456' }), new Map(), new Set(), undefined, expected, account);
+    assert.deepEqual(next(c, new Map(), new Set(), undefined, expected, account).resources, first.resources);
+    assert.deepEqual(next(c, new Map(), new Set(), undefined, expected, account).resources, first.resources);
+    const secondAccount = v2Account('gemini', '10000000-0000-4000-8000-000000000002');
+    const other = v2Conversation('Other account', c.detail.assets, { accountId: secondAccount.id });
+    assert.notEqual(next(other, new Map(), new Set(), undefined, expected, secondAccount).resources.a, first.resources.a);
+    assert.match(next(c, new Map(), new Set(), undefined, expected, v2Account('chatgpt')).resources.a, /^assets\/chatgpt\//);
 });

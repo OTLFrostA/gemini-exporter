@@ -44,6 +44,7 @@ export const state = {
     failRecord: '', failDelivery: 0, failDelete: '', failPackage: false,
     failRender: '' as RenderFormat | '', failRenderKey: '' as string,
     directory: {} as FileSystemDirectoryHandle | null,
+    existingFiles: new Set<string>(),
     onDelivery: undefined as (() => void) | undefined,
     onPackage: undefined as ((archiveName?: string) => Promise<void>) | undefined,
     sourceContext: undefined as SourceResourceContext | undefined,
@@ -272,6 +273,7 @@ async function deliver(files: readonly ExportArtifact[]) {
     state.onDelivery?.();
 }
 stubModule('../../src/l4/delivery/index.js', {
+    folderFileExists: async (_directory: FileSystemDirectoryHandle, path: string) => state.existingFiles.has(path),
     startBrowserDownload: (file: ExportArtifact) => deliver([file]),
     writeToFolder: deliver,
 });
@@ -337,7 +339,7 @@ export function reset(): void {
     Object.assign(state, {
         failRead: false, failSettingsRead: false, failSettingsWrite: false,
         failRecord: '', failDelivery: 0, failDelete: '', failPackage: false, failRender: '', failRenderKey: '',
-        directory: {}, onDelivery: undefined, onPackage: undefined, sourceContext: undefined,
+        existingFiles: new Set<string>(), directory: {}, onDelivery: undefined, onPackage: undefined, sourceContext: undefined,
         releasedKeys: [], releasedContexts: 0,
         pdfPrepared: [], pdfBindings: {}, pdfDiagnostics: [], htmlDiagnostics: [],
         pdfLocale: undefined, pdfRenderKey: '', accountOverride: undefined, settingsReads: 0, disposed: 0,

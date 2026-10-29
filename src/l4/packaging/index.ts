@@ -1,3 +1,4 @@
+import type { Account } from '../../l2/accountRegistry.js';
 import type { ReadonlyDomain } from '../../l2/runtimeValidation.js';
 import type { ResourceBindings } from './resourceBindings.js';
 import type { PreparedResources } from '../../shared/resources/resourceResult.js';
@@ -27,9 +28,9 @@ const resourceExtensions: Readonly<Record<string, string>> = {
 /** Reuse one path namespace across a batch without retaining every resource byte. */
 export function createExportPathPlanner(format: ExportFormat, resourceScope?: string):
     (conversation: ReadonlyDomain, prepared: PreparedResources, fileIds: ReadonlySet<string>, fileBaseName?: string,
-        expectedIds?: ReadonlySet<string>) => ExportPathPlan {
+        expectedIds?: ReadonlySet<string>, folderAccount?: Account) => ExportPathPlan {
     const used = new Set<string>();
-    function reserve(directory: string, name: string): string {
+    function reserve(directory: string, name: string, names = used): string {
         // Percent is literal source text, never a second encoded path supplied to a writer.
         const clean = sanitizeFileName(name.replace(/%/g, '_'));
         const lastDot = clean.lastIndexOf('.');
@@ -41,15 +42,20 @@ export function createExportPathPlanner(format: ExportFormat, resourceScope?: st
             const candidate = directory + sanitizeFileName([...base].slice(0, 70 - suffix.length).join('') + suffix + ext);
             assertExportPath(candidate);
             const key = candidate.toLowerCase();
-            if (!used.has(key)) { used.add(key); return candidate; }
+            if (!names.has(key)) { names.add(key); return candidate; }
         }
     }
-    return (conversation, prepared, fileIds, fileBaseName, expectedIds) => {
+    return (conversation, prepared, fileIds, fileBaseName, expectedIds, folderAccount) => {
         const id = conversation.index.key.conversationId;
         const fileName = reserve('', fileBaseName ? `${fileBaseName}.${extensions[format]}`
             : buildExportFileName(conversation.index.title, id, extensions[format]));
         const resources: Record<string, string> = {};
         const externalResourceIds = new Set<string>();
+        // Folder attachments have stable, account-owned paths across tasks and formats.
+        const resourceNames = folderAccount ? new Set<string>() : used;
+        const scope = folderAccount
+            ? [folderAccount.providerId, folderAccount.id, id].map(value => sanitizeFileName(value.replace(/%/g, '_'))).join('/')
+            : resourceScope;
         for (const asset of conversation.detail.assets) {
             const result = prepared.get(asset.id);
             // Linked documents reserve paths from metadata before attachment acquisition.
@@ -61,7 +67,8 @@ export function createExportPathPlanner(format: ExportFormat, resourceScope?: st
             const baseName = sanitizeFileName(asset.name || asset.id);
             const name = asset.name && /\.[^.]+$/.test(baseName) ? baseName : `${baseName}.${extension}`;
             const directory = asset.kind === 'image' ? 'assets/' : 'files/';
-            resources[asset.id] = reserve(directory + (resourceScope ? `${resourceScope}/` : ''), shortScope(id) + name);
+            resources[asset.id] = reserve(directory + (scope ? `${scope}/` : ''),
+                (folderAccount ? '' : shortScope(id)) + name, resourceNames);
             const embeddedDocxImage = format === 'docx' && asset.kind === 'image'
                 && acquired !== undefined && docxImageInfo(mediaType, acquired.bytes) !== undefined;
             if ((format !== 'pdf' && !embeddedDocxImage) || fileIds.has(asset.id)) externalResourceIds.add(asset.id);

@@ -45,6 +45,23 @@ class FsWriter implements IExportWriter {
         return this.batchDirHandle;
     }
 
+    /** Only NotFound means absent; permission and filesystem errors must propagate. */
+    async exists(relativePath: string): Promise<boolean> {
+        assertExportPath(relativePath);
+        let directory = this.batchDirHandle ?? await this.init();
+        const parts = relativePath.split('/');
+        const name = parts.pop();
+        if (!name) throw new Error('Missing file name');
+        try {
+            for (const part of parts) directory = await directory.getDirectoryHandle(part, { create: false });
+            await directory.getFileHandle(name, { create: false });
+            return true;
+        } catch (error) {
+            if (error instanceof DOMException && error.name === 'NotFoundError') return false;
+            throw error;
+        }
+    }
+
     async writeFile(relativePath: string, content?: WriteFileContent | null, options?: WriteFileOptions): Promise<string> {
         // The legacy (subDirPath, fileName, content) overload was retired:
         // it had zero production callers (live-save uses the separate

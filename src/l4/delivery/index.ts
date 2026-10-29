@@ -34,3 +34,8 @@ export async function writeToFolder(files: readonly ExportArtifact[], directory:
         if (path !== file.fileName) throw new Error('Folder writer changed planned path');
     }
 }
+
+/** Read-only lookup inside the selected export root. */
+export function folderFileExists(directory: FileSystemDirectoryHandle, relativePath: string): Promise<boolean> {
+    return new FsWriter(directory).exists(relativePath);
+}
