@@ -74,7 +74,6 @@ test('capture v2 product screenshots from the real extension UI', async ({ conte
         await page.evaluate(() => document.fonts.ready);
     };
 
-    // First image: light English workbench with representative conversations.
     await reloadWorkbench('light');
     await page.screenshot({
         path: path.join(output, 'screenshot_1_1280x800.png'),
@@ -97,7 +96,6 @@ test('capture v2 product screenshots from the real extension UI', async ({ conte
         animations: 'disabled',
     });
 
-    // Third image: Chinese UI for the bilingual README/store listing.
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'uiFixture');
         await api.updateSettings({ language: 'zh', theme: 'light', defaultFormat: 'markdown',
@@ -110,7 +108,6 @@ test('capture v2 product screenshots from the real extension UI', async ({ conte
         animations: 'disabled',
     });
 
-    // Fourth image: real extension popup with an explicitly fixture-resolved chat.
     await page.evaluate(async () => {
         await Reflect.get(globalThis, 'uiFixture').updateSettings({ language: 'en', theme: 'light' });
     });

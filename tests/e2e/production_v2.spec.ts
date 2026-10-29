@@ -217,7 +217,6 @@ test('Tier 2 Skip preparation rejects stale, partial, wrong-format and unsafe ve
     await page.evaluate(tier2Scripts.probe);
     const eligible = await page.evaluate(() => Reflect.get(globalThis, '__tier2V2').skipEligibleIds());
     expect(eligible).toEqual(['current']);
-    // Run the actual two selection scripts from the Tier 2 case, in the browser.
     const selections = JSON.parse(execFileSync('python3', ['-c',
         "import ast,json; tree=ast.parse(open('scripts/framework/cases/export.py').read()); cls=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='FastSkipExportedCase'); print(json.dumps([n.value for n in ast.walk(cls) if isinstance(n,ast.Constant) and isinstance(n.value,str) and 'const items = Array.from' in n.value]))"], { encoding: 'utf8' })) as string[];
     for (const script of selections) {
