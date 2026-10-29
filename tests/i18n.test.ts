@@ -42,9 +42,12 @@ test('i18n - Settings observer handles local changes and removes its listener on
     const calls = await page.evaluate(() => {
         const settings = Reflect.get(window, 'testUi').settings, h = Reflect.get(window, 'harness'); let count = 0;
         const stop = settings.observeSettings(() => count++); h.fireSettingsChange('sync'); assertCount(0);
-        h.fireSettingsChange('local'); assertCount(1); stop(); h.fireSettingsChange('local'); return count;
+        h.fireSettingsChange('local', 'unrelated_key'); assertCount(0);
+        h.fireSettingsChange('local'); assertCount(1);
+        h.fireSettingsChange('local', 'gemini_suppress_direct_write_prompt'); assertCount(2);
+        stop(); h.fireSettingsChange('local'); return count;
         function assertCount(expected: number) { if (count !== expected) throw Error('Unexpected observer calls'); }
-    }); assert.equal(calls, 1);
+    }); assert.equal(calls, 2);
 });
 test('i18n - inline language attributes are not duplicated within a source element', () => {
     for (const kind of ['options', 'popup']) {

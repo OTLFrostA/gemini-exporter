@@ -173,7 +173,7 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
         w.showDirectoryPicker = async () => { w.harness.events.push('picker'); if (w.harness.cancelPicker) throw new DOMException('Picker cancelled', 'AbortError'); return directory(); };
         const listeners = new Set<(...args: unknown[]) => void>();
         const session = { openOptionsAccountId: w.harness.initialOpenOptionsAccountId ?? null };
-        w.harness.fireSettingsChange = (area = 'local') => { for (const listener of listeners) listener({}, area); };
+        w.harness.fireSettingsChange = (area = 'local', key = 'gemini_exporter_v2_settings') => { for (const listener of listeners) listener({[key]:{newValue:w.harness.settings}}, area); };
         const messageListeners = new Set<(...args: unknown[]) => void>();
         w.harness.fireRuntimeMessage = (message: unknown, sender = { id: 'ui-test-extension' }) => { for (const listener of messageListeners) listener(message, sender); };
         w.chrome = { runtime:{id:'ui-test-extension',getURL:(path: string)=>'chrome-extension://ui-test-extension/'+path,onMessage:{addListener:(listener: (...args: unknown[]) => void)=>messageListeners.add(listener),removeListener:(listener: (...args: unknown[]) => void)=>messageListeners.delete(listener)},getManifest:()=>({version:w.harness.manifestVersion||'1.8.1'}),openOptionsPage:async()=>w.harness.events.push('options'),sendMessage:async(message:any)=>{w.harness.messages.push(message);if(message.action==='getLocalIndexCount'){w.harness.countRequests=(w.harness.countRequests||0)+1;if(w.harness.holdCount)return new Promise(resolve=>w.harness.finishCount=resolve);return {ok:true,count:message.accountId===A?9:0};}w.harness.events.push(message.action);return {ok:true};}},

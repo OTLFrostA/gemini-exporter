@@ -77,3 +77,97 @@ test('completion of an old account refresh cannot remove the same conversation f
     state.selectAccount(B); await state.refresh(); state.selected.add('shared'); held.resolve([]); await pending;
     assert.deepEqual(state.keys(), [conversationKey(B, 'shared')]);
 });
+
+test('refresh suppresses unchanged and stale paints while detecting title, activity and export changes', async () => {
+    let rows = [row('one')];
+    let records: Record<string, ExportRecord> = {};
+    const state = new ConversationViewState({listAccounts: async () => accounts,
+        listIndexes: async () => structuredClone(rows), listExportRecords: async () => structuredClone(records)});
+    assert.equal(await state.refresh(), true);
+    state.selected.add('one');
+    assert.equal(await state.refresh(), false);
+    rows = [{...rows[0], title:'New title'}];
+    assert.equal(await state.refresh(), true);
+    rows = [{...rows[0], updatedAt:20}];
+    assert.equal(await state.refresh(), true);
+    records = {one:{status:'ok',format:'markdown',exportedAt:30,chatTime:20}};
+    assert.equal(await state.refresh(), true);
+    assert.equal(await state.refresh(), false);
+    assert.deepEqual([...state.selected], ['one']);
+});
+
+test('other-account invalidation refreshes account choices without reading current conversation stores', async () => {
+    let registry = accounts;
+    let rowReads = 0;
+    const state = new ConversationViewState({listAccounts: async () => structuredClone(registry),
+        listIndexes: async () => { rowReads++; return [row('one')]; }, listExportRecords: async () => ({})});
+    await state.refresh();
+    assert.equal(await state.refresh(B), false);
+    assert.equal(rowReads, 1);
+    registry = accounts.map(account => account.id === B ? {...account,displayName:'Renamed account'} : account);
+    assert.equal(await state.refresh(B), true);
+    assert.equal(rowReads, 1);
+    assert.equal(state.accounts[1].displayName, 'Renamed account');
+    registry = [accounts[1]];
+    assert.equal(await state.refresh(B), true);
+    assert.equal(rowReads, 2);
+    assert.equal(state.accountId, B);
+});
+
+test('first-account invalidation loads its rows and stale reads report no repaint', async () => {
+    let registry: typeof accounts = [];
+    const held = deferred<DomainConversationIndex[]>(), started = deferred<void>();
+    let delayed = false;
+    const state = new ConversationViewState({listAccounts: async () => registry,
+        listExportRecords: async () => ({}), listIndexes: async () => {
+            if (delayed) { started.resolve(); return held.promise; }
+            return [row('new')];
+        }});
+    assert.equal(await state.refresh(), false);
+    registry = accounts;
+    assert.equal(await state.refresh(A), true);
+    delayed = true;
+    const old = state.refresh(); await started.promise;
+    delayed = false;
+    assert.equal(await state.refresh(), false);
+    held.resolve([row('stale')]);
+    assert.equal(await old, false);
+    assert.equal(state.indexes[0].title, 'new');
+});
+
+test('an unrelated invalidation cannot discard current-account facts from an overlapping refresh', async () => {
+    const held = deferred<DomainConversationIndex[]>(), started = deferred<void>();
+    let reads = 0;
+    const state = new ConversationViewState({listAccounts: async () => accounts,
+        listExportRecords: async () => ({}), listIndexes: async () => {
+            if (++reads === 2) { started.resolve(); return held.promise; }
+            return [row(reads === 1 ? 'initial' : 'latest')];
+        }});
+    await state.refresh();
+    const pending = state.refresh(A); await started.promise;
+    assert.equal(await state.refresh(B), true);
+    held.resolve([row('stale')]);
+    assert.equal(await pending, false);
+    assert.equal(state.indexes[0].title, 'latest');
+});
+
+test('an invalidation starting during a read still replaces it when the stale read finishes first', async () => {
+    const heldRows = deferred<DomainConversationIndex[]>(), rowsStarted = deferred<void>();
+    const heldAccounts = deferred<typeof accounts>(), accountsStarted = deferred<void>();
+    let accountReads = 0, rowReads = 0;
+    const state = new ConversationViewState({listAccounts: async () => {
+        if (++accountReads === 3) { accountsStarted.resolve(); return heldAccounts.promise; }
+        return accounts;
+    }, listExportRecords: async () => ({}), listIndexes: async () => {
+        if (++rowReads === 2) { rowsStarted.resolve(); return heldRows.promise; }
+        return [row(rowReads === 1 ? 'initial' : 'latest')];
+    }});
+    await state.refresh();
+    const old = state.refresh(A); await rowsStarted.promise;
+    const next = state.refresh(B); await accountsStarted.promise;
+    heldRows.resolve([row('stale')]);
+    assert.equal(await old, false);
+    heldAccounts.resolve(accounts);
+    assert.equal(await next, true);
+    assert.equal(state.indexes[0].title, 'latest');
+});
