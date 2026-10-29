@@ -33,6 +33,7 @@ export async function readClaudeSource(path: string, expectedOrganization?: stri
             const results = await chrome.scripting.executeScript({
                 target: { tabId }, world: 'ISOLATED',
                 func: async (requestedPath: string, organization?: string): Promise<SourceExecutionResult> => {
+                    // This class lives inside the injected realm; serialize before returning to the extension.
                     class RequestFailure extends Error {
                         constructor(readonly code: OperationErrorCode, message: string, readonly httpStatus?: number) { super(message); }
                     }

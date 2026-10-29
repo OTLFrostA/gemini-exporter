@@ -684,6 +684,7 @@ class VisualPlayground:
             except Exception:
                 pass
 
+        # 导航处理：全新对话 或 指定会话 ID (100% 复用 Tier 2 网关与平台驱动，绝无私有 DOM innerHTML 篡改)
         clean_cid = None
         if norm_target == "gemini":
             from scripts.framework.actions import CDPActions

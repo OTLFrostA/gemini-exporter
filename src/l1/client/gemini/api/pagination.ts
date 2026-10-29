@@ -23,6 +23,7 @@ export interface GeminiDetailRequestOptions extends Omit<GeminiListRequestOption
     detailOnly?: boolean;
     altParams?: boolean;
 }
+// Gemini LIST RPC accepts only the known Recent/Pinned stream selector tuple.
 export type GeminiListFilter = readonly [0 | 1, null, 1];
 
 export interface GeminiPaginationListClient {
@@ -38,6 +39,7 @@ export interface PaginatedDetailResult extends SourceConversationParseResult {
 }
 interface GeminiClientPaginationModule { getConversationDetail: typeof getConversationDetail }
 
+// Match the list-sync runaway budget; ordinary long histories follow tokens to source end.
 const MAX_DETAIL_PAGES = 2000;
 
 /** Empty messages are trustworthy only when the native Detail body explicitly contains empty turns. */
@@ -71,6 +73,7 @@ async function getConversationDetail(client: GeminiPaginationDetailClient, conve
             signal?.throwIfAborted();
             const retry = await client.fetchConversationPage(conversationId, null, targetSid, { detailOnly: true, altParams: true, account, signal });
             if (retry.conversation.detail.messages.length || isExplicitlyEmptyDetail(retry)) {
+                // The retry replaces the original metadata-only source, including its transport evidence.
                 pages.splice(0, pages.length, retry);
                 first = retry;
                 seenTokens.clear();

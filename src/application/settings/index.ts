@@ -21,6 +21,7 @@ export async function getSettings(): Promise<GlobalSettings> {
     return { defaultFormat: 'markdown', skipExported: true,
         includeAssets: true, enabledDisk: false, developerMode: false,
         ...stored,
+        // Existing Live Save users continue in folder mode; new users default to browser download.
         exportDelivery: stored.exportDelivery ?? (stored.enabledDisk ? 'folderWriter' : 'browserDownload') };
 }
 export function updateSettings(patch: Partial<GlobalSettings>): Promise<void> {
