@@ -21,7 +21,7 @@ import { renderDocumentDocx } from '../../l4/format/docx/renderDocx.js';
 import { serializeDomainJson } from '../../l4/format/json/serializeDomainJson.js';
 import { createExportPathPlanner, planExportPaths, buildExportFiles, buildResourceFiles, packageExportFiles, type ExportPathPlan } from '../../l4/packaging/index.js';
 import type { ExportArtifact } from '../../l4/artifacts.js';
-import { startBrowserDownload, writeToFolder } from '../../l4/delivery/index.js';
+import { startBrowserDownload, writeToFolder, folderFileExists } from '../../l4/delivery/index.js';
 import { compileDocumentPdf } from '../../l4/format/pdf/compileDocumentPdf.js';
 import { TypstSandboxCompiler } from '../../l4/format/pdf/typst/typstSandboxCompiler.js';
 import { resolveLocalFonts } from '../../l4/format/pdf/typst/fonts/localFontProvider.js';
@@ -55,7 +55,7 @@ type ExportSource = PendingContent & {
     fileIds: ReadonlySet<string>;
     folderBaseName?: string;
 }
-type PendingExport = ExportSource & { prepared: PreparedResources };
+type PendingExport = ExportSource & { prepared: PreparedResources; reused: ReadonlySet<string> };
 interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'exportedAt'>; files: ExportArtifact[] }
 
 /** One task owns source reads, attachment acquisition, independent deliveries and final records. */
@@ -237,7 +237,7 @@ export async function runExport(request: ExportRequest, options: {
         const linked = request.format === 'markdown' || request.format === 'html' || request.format === 'json';
         const folderPlanner = !linked && directory ? createExportPathPlanner(request.format) : undefined;
         const resourceScope = crypto.randomUUID();
-        const linkedPlanner = linked ? createExportPathPlanner(request.format, resourceScope) : undefined;
+        const linkedPlanner = linked ? createExportPathPlanner(request.format, directory ? undefined : resourceScope) : undefined;
         const bodies: { group: ExportGroup; hasAttachments: boolean }[] = [];
         const attachments: ExportGroup[] = [];
         const attachmentArchiveName = `attachments_${Date.now()}.zip`;
@@ -324,28 +324,36 @@ export async function runExport(request: ExportRequest, options: {
                 };
                 const source = describeSource(conversation);
                 options.onConversationPrepared?.(key);
-                const prepare = async (source: ExportSource, previous?: PreparedResources): Promise<PendingExport> => {
+                const prepare = async (source: ExportSource, plan: ExportPathPlan | undefined, previous?: PreparedResources): Promise<PendingExport> => {
+                    const reused = new Set<string>();
+                    if (directory && plan) {
+                        for (const id of source.requiredIds) {
+                            signal.throwIfAborted();
+                            const path = plan.resources[id];
+                            if (path && await folderFileExists(directory, path)) reused.add(id);
+                        }
+                    }
                     // A refresh retries failed identities only; successful bytes remain task-owned.
-                    const requiredIds = previous ? new Set([...source.requiredIds].filter(id => !previous.get(id)?.ok)) : source.requiredIds;
+                    const requiredIds = new Set([...source.requiredIds].filter(id => !reused.has(id) && !previous?.get(id)?.ok));
                     const acquired = await prepareExportResources(source.conversation.detail.assets, requiredIds,
                         (asset, abort) => options.importedResources?.has(key, asset.id)
                             ? options.importedResources.acquire(key, asset, abort,
                                 () => providerFor(account.providerId).acquireResource(key, asset, abort))
                             : providerFor(account.providerId).acquireResource(key, asset, abort), signal, (completed, total, result) => {
                             if (result?.ok) downloadedResources.add(JSON.stringify([key.accountId, key.conversationId, result.resourceId]));
-                            options.onResourceProgress?.({ key, completed, total, downloaded: downloadedResources.size });
+                            options.onResourceProgress?.({ key, completed: completed + reused.size, total: total + reused.size, downloaded: downloadedResources.size });
                             diagnose({ key, stage: 'resource', severity: 'info', code: 'RESOURCE_ACQUISITION_PROGRESS',
                                 message: `Attachments ${completed}/${total}`, details: { completed, total, downloaded: downloadedResources.size } });
                         });
                     const prepared = new Map<string, ResourceResult>();
                     for (const id of source.requiredIds) {
                         const value = acquired.get(id) ?? previous?.get(id);
-                        if (value) prepared.set(id, value);
+                        if (value && !reused.has(id)) prepared.set(id, value);
                     }
-                    return { ...source, prepared };
+                    return { ...source, prepared, reused };
                 };
-                const plan = linkedPlanner?.(conversation, new Map(), source.fileIds, source.folderBaseName, source.requiredIds);
-                const body = plan ? await renderGroup({ ...source, prepared: new Map() },
+                const plan = linkedPlanner?.(conversation, new Map(), source.fileIds, source.folderBaseName, source.requiredIds, directory ? account : undefined);
+                const body = plan ? await renderGroup({ ...source, prepared: new Map(), reused: new Set() },
                     { ...plan, externalResourceIds: new Set() }) : undefined;
                 if (body) {
                     if (directory) {
@@ -360,7 +368,7 @@ export async function runExport(request: ExportRequest, options: {
                 }
                 downstream = downstream.then(async () => {
                     signal.throwIfAborted();
-                    let item = await prepare(source);
+                    let item = await prepare(source, plan);
                     let finalPlan = plan;
                     let sourceChanged = false;
                     // Body timestamps do not establish whether signed resource URLs remain usable.
@@ -389,19 +397,20 @@ export async function runExport(request: ExportRequest, options: {
                             refreshFailed = false;
                             const refreshedSource = describeSource(refreshedConversation);
                             const initial = item.prepared;
-                            item = await prepare(refreshedSource, initial);
+
                             if (body && plan && linkedPlanner
                                 && JSON.stringify(source.conversation) !== JSON.stringify(refreshedConversation)) {
                                 // A changed source can introduce new resource identities. Ship a corrected
                                 // document at the original filename with the attachment package; never
                                 // silently point an already delivered identity at unrelated bytes.
-                                const revised = linkedPlanner(refreshedConversation, new Map(), item.fileIds,
-                                    item.folderBaseName, refreshedSource.requiredIds);
+                                const revised = linkedPlanner(refreshedConversation, new Map(), refreshedSource.fileIds,
+                                    refreshedSource.folderBaseName, refreshedSource.requiredIds, directory ? account : undefined);
                                 finalPlan = { ...revised, fileName: plan.fileName,
                                     resources: Object.fromEntries(Object.entries(revised.resources).map(([id,path]) =>
                                         [id, plan.resources[id] ?? path])) };
                                 sourceChanged = true;
                             }
+                            item = await prepare(refreshedSource, finalPlan, initial);
                         }
                     }
                     const { prepared, fileIds } = item;
@@ -411,7 +420,7 @@ export async function runExport(request: ExportRequest, options: {
                         // failure placeholders without making that first delivery wait for bytes.
                         const correction = sourceChanged || Object.keys(failures).length
                             ? await renderGroup(item, { ...finalPlan,
-                                resources: Object.fromEntries(Object.entries(finalPlan.resources).filter(([id]) => prepared.get(id)?.ok)),
+                                resources: Object.fromEntries(Object.entries(finalPlan.resources).filter(([id]) => prepared.get(id)?.ok || item.reused.has(id))),
                                 externalResourceIds: new Set() }) : undefined;
                         const record = correction?.record ?? recordFor(item, finalPlan, failures, body.record.otherContentMissing ?? false);
                         const availablePlan = { ...finalPlan, externalResourceIds: new Set([...finalPlan.externalResourceIds]

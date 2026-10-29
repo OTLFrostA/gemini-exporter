@@ -33,8 +33,9 @@ export function v2LiveSaveHost(t: TestContext) {
         async queryPermission() { queried++; return permission; },
         async requestPermission() { requested++; permission = 'granted'; return permission; },
         async getDirectoryHandle(name: string) { return directory(prefix + name + '/'); },
-        async getFileHandle(name: string) {
+        async getFileHandle(name: string, options?: FileSystemGetFileOptions) {
             const fullPath = prefix + name;
+            if (!options?.create && !files.has(fullPath)) throw new DOMException('Missing file', 'NotFoundError');
             return {
                 kind: 'file', name,
                 async createWritable() {

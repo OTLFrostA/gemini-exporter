@@ -65,3 +65,36 @@ test('Browser Delivery clicks once, preserves filename/MIME and revokes the URL'
         assert.equal(removed, 2);
     } finally { globalThis.document = originalDocument; URL.createObjectURL = originalCreate; URL.revokeObjectURL = originalRevoke; }
 });
+
+test('FsWriter.exists only reads exact paths and propagates errors other than NotFound', async () => {
+    const calls: string[] = [];
+    let failure: DOMException | undefined;
+    const handle = {
+        async getDirectoryHandle(name: string, options?: FileSystemGetDirectoryOptions) {
+            assert.equal(options?.create, false);
+            calls.push(name);
+            if (failure) throw failure;
+            return handle;
+        },
+        async getFileHandle(name: string, options?: FileSystemGetFileOptions) {
+            assert.equal(options?.create, false);
+            calls.push(name);
+            if (failure) throw failure;
+            return {};
+        },
+    } as FileSystemDirectoryHandle;
+    const writer = new FsWriter(handle);
+    assert.equal(await writer.exists('assets/account/chat/photo.png'), true);
+    assert.deepEqual(calls, ['assets', 'account', 'chat', 'photo.png']);
+    for (const path of ['photo.png', 'assets/photo.png']) {
+        failure = new DOMException('Missing', 'NotFoundError');
+        assert.equal(await writer.exists(path), false);
+        for (const name of ['NotAllowedError', 'TypeMismatchError', 'InvalidStateError']) {
+            failure = new DOMException('Lookup failed', name);
+            await assert.rejects(writer.exists(path), error => error === failure);
+        }
+    }
+    calls.length = 0;
+    await assert.rejects(writer.exists('../photo.png'));
+    assert.equal(calls.length, 0);
+});

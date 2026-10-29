@@ -40,8 +40,14 @@ under `attachment-reports/`. A source refresh that changes a document or its
 resource identities includes the corrected document at its original filename in
 the attachment delivery. Merge it with the initial document download, replacing
 that earlier file. Successful attachment acquisitions are reused within the task.
-Each task uses its own attachment directory so a new document cannot display
-stale bytes from a previous export while acquisition is pending.
+Browser downloads use a separate attachment directory per task. Markdown, HTML
+and JSON folder exports use stable `assets/<provider>/<accountId>/<conversationId>/` and `files/...` paths.
+Before acquisition, Application asks L4 Delivery whether each planned file exists;
+existing files are reused by name without downloading or rewriting their bytes.
+Same-path content changes retain the local file; delete it to acquire it again.
+Folder document names and batch collision suffixes retain their existing rules.
+PDF/DOCX embedded media still require acquisition. Previous task-scoped folders
+are left untouched and are not searched for reusable attachments.
 Only completion of both deliveries commits the full ExportRecord; the transient
 body-delivery callback updates progress independently. Cancelling outstanding
 attachments cannot retract an already delivered document.
