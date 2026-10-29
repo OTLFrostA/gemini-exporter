@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// Run from the main checkout with its installed dependencies and ts_register.
 const fs = require('node:fs');
 const path = require('node:path');
 const main = process.cwd();
