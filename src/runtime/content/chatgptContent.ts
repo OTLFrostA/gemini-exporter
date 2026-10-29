@@ -88,7 +88,7 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
             let conversation;
             try { conversation = decodeChatGPTDetail(raw.responseBody, key.conversationId); }
             catch (error) {
-                if (error instanceof TypeError) return;
+                if (error instanceof TypeError) return; // Malformed or foreign source evidence.
                 throw error;
             }
             const parsed = parseChatGPTConversation({ account, conversation, assetsByNode: new Map() });

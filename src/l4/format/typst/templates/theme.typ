@@ -29,6 +29,7 @@
   "Noto Sans CJK SC",
   "Noto Sans",
   "DejaVu Sans",
+  // Reuse mounted code fonts for dotted circles and decomposed combining marks.
   "Courier New",
   "DejaVu Sans Mono",
   "Noto Sans Mono",
@@ -65,6 +66,7 @@
 #let metadata-size = visual.type.metadata.size * 0.625pt
 #let caption-size = small-size
 #let code-size = 8.15pt
+// PDF shares the content/prose hierarchy with visualContract.ts, in print units.
 #let content-width = layout-policy.page.contentWidthMm * 1mm
 #let prose-width = layout-policy.page.proseWidthMm * 1mm
 #let reading-width = prose-width
@@ -99,6 +101,7 @@
 #let attachment-single-max-ratio = 48%
 #let attachment-card-height = 38.6pt
 
+// Semantic rhythm shares HTML tokens; px becomes pt at 72/96.
 #let sp-inline = visual.spacing.inline * 0.75pt
 #let sp-paragraph = visual.spacing.paragraph * 0.75pt
 #let sp-block = visual.spacing.block * 0.75pt

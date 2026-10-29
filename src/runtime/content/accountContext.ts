@@ -33,6 +33,7 @@ export function invalidateAccountContext(): void {
     generation++;
 }
 
+/** Cached tab-local binding. Public queries refresh MAIN-world evidence first. */
 export function getAccountContext(): AccountContext | null {
     if (binding && binding.context.slot !== slotNow()) invalidateAccountContext();
     return binding ? { ...binding.context } : null;
@@ -80,6 +81,7 @@ export async function resolveCurrentAccount(observed?: Omit<Account, 'id'> | nul
         const before = generation;
         const fresh = await requestObservation(capturedSlot);
         if (capturedSlot !== slotNow()) return null;
+        // A newer unsolicited observation supersedes this query's reply.
         if (before !== generation) return pending ? pending.result : getAccountContext();
         return resolveCurrentAccount(fresh, capturedSlot);
     }

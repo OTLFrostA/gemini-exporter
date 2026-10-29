@@ -106,7 +106,7 @@ function convert(node: Element, depth = 0, inheritedVariant?: string): XmlCompon
         case 'mi': case 'mn': case 'mo': case 'mtext': {
             if (parts.length) return unsupported();
             const text = node.textContent || '';
-            if (node.localName === 'mo' && text === '\u2061') return [];
+            if (node.localName === 'mo' && text === '\u2061') return []; // invisible function application
             if (node.localName === 'mtext') return [new MathRun({ text, normalText: true })];
             switch (variant) {
                 case undefined: return [new MathRun({ text, ...(node.localName !== 'mi' || [...text].length > 1 ? { style: 'plain' } : {}) })];

@@ -230,6 +230,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
     private fontBytes: Uint8Array[] | null = null;
     private runtimeFontBytes: readonly Uint8Array[] = [];
     private mathFontAvailable: boolean | null = null;
+    /** Serializes compiles: the WASM compiler keeps mutable per-job state. */
     private compileQueue: Promise<void> = Promise.resolve();
     // Typst 0.7 retains WASM allocations across documents, including after reset().
     // A fresh iframe releases the entire WASM instance before it reaches its limit.
