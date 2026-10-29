@@ -71,7 +71,14 @@ export async function runExport(request: ExportRequest, options: {
 } = {}): Promise<ExportResult> {
     const failed: ConversationKey[] = [];
     const result: ExportResult = { exported: 0, skipped: 0, partial: 0, failed, aborted: false };
-    const signal = options.signal ?? new AbortController().signal;
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const cancel = (): void => controller.abort(options.signal?.reason);
+    if (options.signal?.aborted) cancel();
+    else options.signal?.addEventListener('abort', cancel, { once: true });
+    // One ordered consumer handles resources/rendering/delivery while source reads advance.
+    let downstream = Promise.resolve();
+    const queued: { key: ConversationKey; done: Promise<void> }[] = [];
     const resources = createSourceResourceContext();
     const providers = new Map<string, AIProvider>();
     let compiler: import('../../l4/format/pdf/typst/typstSandboxCompiler.js').TypstSandboxCompiler | undefined;
@@ -210,8 +217,14 @@ export async function runExport(request: ExportRequest, options: {
         const folderPlanner = directory ? createExportPathPlanner(request.format) : undefined;
         const pending: PendingExport[] = [];
         for (const [index, key] of request.keys.entries()) {
+            // Duplicate keys share task-owned readers; finish their earlier use first.
+            if (queued.some(item => item.key.accountId === key.accountId && item.key.conversationId === key.conversationId)) {
+                await downstream;
+                queued.length = 0;
+            }
             signal.throwIfAborted();
             options.onProgress?.({ current: index + 1, total: request.keys.length, key });
+            let handedOff = false;
             try {
                 // These local facts are independent; don't serialize three storage round trips.
                 const [account, localIndex, record] = await Promise.all([
@@ -260,63 +273,80 @@ export async function runExport(request: ExportRequest, options: {
                     if (refreshFailure) throw refreshFailure.error;
                     throw new OperationError('DETAIL_UNAVAILABLE', 'No usable local Detail');
                 }
-                const prepare = async (snapshot: ReadonlyDomain): Promise<PendingExport> => {
-                    const view: PendingContent = request.format === 'json' ? { format: 'json' }
-                        : { format: request.format, document: composeDomainDocument(snapshot, account) };
-                    const references = view.format === 'json'
-                        ? { referencedIds: new Set(snapshot.detail.assets.map(asset => asset.id)), fileIds: new Set<string>() }
-                        : collectDocumentResources(view.document);
-                    const requiredIds = request.includeAssets ? references.referencedIds : new Set<string>();
-                    // File nodes are exported as originals even for PDF; Image nodes may be embedded.
-                    const fileIds = references.fileIds;
-                    const prepared = await prepareExportResources(snapshot.detail.assets, requiredIds,
-                        (asset, abort) => options.importedResources?.has(key, asset.id)
-                            ? options.importedResources.acquire(key, asset, abort,
-                                () => providerFor(account.providerId).acquireResource(key, asset, abort))
-                            : providerFor(account.providerId).acquireResource(key, asset, abort), signal);
-                    return { ...view, key, account, conversation: snapshot, prepared, fileIds, refreshFailed,
-                        ...(record?.folderBaseName ? { folderBaseName: record.folderBaseName } : {}) };
-                };
-                let item = await prepare(conversation);
-                // Body timestamps do not establish whether signed resource URLs remain usable.
-                // Refresh once on an actual access/expiry response, then rebuild references from
-                // committed facts: a new source URI may also change the resource's identity.
-                if ([...item.prepared.values()].some(value => !value.ok
-                    && value.httpStatus !== undefined && [401, 403, 404, 410].includes(value.httpStatus))) {
-                    let refreshed = false;
-                    try {
-                        await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
-                            diagnostic => diagnose({ key, stage: 'source_parse', ...diagnostic }));
-                        refreshed = true;
-                    } catch (error) {
-                        if (cancelled(error) || (error instanceof Error && error.message === 'conversation_not_found')) throw error;
-                        diagnose({ key, stage: 'resource_refresh', severity: 'warning', code: 'RESOURCE_REFRESH_FAILED', issue: operationIssue(error),
-                            message: error instanceof Error ? error.message : String(error) });
-                        // Cached body freshness is unchanged; retain the original attachment failures.
-                    }
+                const snapshot = conversation;
+                downstream = downstream.then(async () => {
                     signal.throwIfAborted();
-                    if (refreshed) {
-                        conversation = await readLocal(key);
-                        if (!conversation) throw new OperationError('DETAIL_UNAVAILABLE', 'No usable local Detail after resource refresh');
-                        refreshFailed = false;
-                        item = await prepare(conversation);
+                    let conversation: ReadonlyDomain | null = snapshot;
+                    const prepare = async (snapshot: ReadonlyDomain): Promise<PendingExport> => {
+                        const view: PendingContent = request.format === 'json' ? { format: 'json' }
+                            : { format: request.format, document: composeDomainDocument(snapshot, account) };
+                        const references = view.format === 'json'
+                            ? { referencedIds: new Set(snapshot.detail.assets.map(asset => asset.id)), fileIds: new Set<string>() }
+                            : collectDocumentResources(view.document);
+                        const requiredIds = request.includeAssets ? references.referencedIds : new Set<string>();
+                        // File nodes are exported as originals even for PDF; Image nodes may be embedded.
+                        const fileIds = references.fileIds;
+                        const prepared = await prepareExportResources(snapshot.detail.assets, requiredIds,
+                            (asset, abort) => options.importedResources?.has(key, asset.id)
+                                ? options.importedResources.acquire(key, asset, abort,
+                                    () => providerFor(account.providerId).acquireResource(key, asset, abort))
+                                : providerFor(account.providerId).acquireResource(key, asset, abort), signal);
+                        return { ...view, key, account, conversation: snapshot, prepared, fileIds, refreshFailed,
+                            ...(record?.folderBaseName ? { folderBaseName: record.folderBaseName } : {}) };
+                    };
+                    let item = await prepare(conversation);
+                    // Body timestamps do not establish whether signed resource URLs remain usable.
+                    // Refresh once on an actual access/expiry response, then rebuild references from
+                    // committed facts: a new source URI may also change the resource's identity.
+                    if ([...item.prepared.values()].some(value => !value.ok
+                        && value.httpStatus !== undefined && [401, 403, 404, 410].includes(value.httpStatus))) {
+                        let refreshed = false;
+                        try {
+                            await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
+                                diagnostic => diagnose({ key, stage: 'source_parse', ...diagnostic }));
+                            refreshed = true;
+                        } catch (error) {
+                            if (cancelled(error) || (error instanceof Error && error.message === 'conversation_not_found')) throw error;
+                            diagnose({ key, stage: 'resource_refresh', severity: 'warning', code: 'RESOURCE_REFRESH_FAILED', issue: operationIssue(error),
+                                message: error instanceof Error ? error.message : String(error) });
+                            // Cached body freshness is unchanged; retain the original attachment failures.
+                        }
+                        signal.throwIfAborted();
+                        if (refreshed) {
+                            conversation = await readLocal(key);
+                            if (!conversation) throw new OperationError('DETAIL_UNAVAILABLE', 'No usable local Detail after resource refresh');
+                            refreshFailed = false;
+                            item = await prepare(conversation);
+                        }
                     }
-                }
-                const { prepared, fileIds } = item;
-                if (folderPlanner && directory) {
-                    const group = await renderGroup(item, folderPlanner(conversation, prepared, fileIds, item.folderBaseName));
-                    await writeToFolder(group.files, directory);
-                    await finalize([group]);
-                } else pending.push(item);
+                    const { prepared, fileIds } = item;
+                    if (folderPlanner && directory) {
+                        const group = await renderGroup(item, folderPlanner(conversation, prepared, fileIds, item.folderBaseName));
+                        await writeToFolder(group.files, directory);
+                        await finalize([group]);
+                    } else pending.push(item);
+                }).catch(error => {
+                    if (cancelled(error)) controller.abort(error);
+                    else {
+                        console.warn('[Gemini Exporter] Export item failed', key, error);
+                        fail([key], error);
+                    }
+                }).finally(() => {
+                    resources.releaseConversation(key);
+                });
+                handedOff = true;
+                queued.push({ key, done: downstream });
+                // Bound captured source readers: one consumer plus at most two queued snapshots.
+                if (queued.length >= 3) await queued.shift()?.done;
             } catch (error) {
                 if (cancelled(error)) throw error;
                 console.warn('[Gemini Exporter] Export item failed', key, error);
                 fail([key], error);
             } finally {
-                // Free captured inline/Takeout readers as soon as this Folder item settles.
-                if (folderPlanner) resources.releaseConversation(key);
+                if (!handedOff) resources.releaseConversation(key);
             }
         }
+        await downstream;
         signal.throwIfAborted();
         let plans: readonly ExportPathPlan[];
         try {
@@ -372,6 +402,9 @@ export async function runExport(request: ExportRequest, options: {
         result.aborted = true;
         return result;
     } finally {
+        controller.abort();
+        await downstream;
+        options.signal?.removeEventListener('abort', cancel);
         resources.release();
         compiler?.dispose();
     }

@@ -197,16 +197,19 @@ test('C4-v2-8: Browser staging reports prepared items without claiming delivery'
     assert.deepEqual(updates, ['prepared:first', 'prepared:second', 'exported:first', 'exported:second']);
 });
 
-test('C4-v2-9: Folder reports committed results before starting the next item', async () => {
+test('C4-v2-9: Folder reports committed results before delivering the next item', async () => {
     seed('first');
     seed('second');
     const updates: string[] = [];
+    let deliveryCount = 0;
+    state.onDelivery = () => {
+        if (++deliveryCount === 2) {
+            assert.deepEqual(updates, ['exported:first']);
+            assert.equal(records.has(address(key())), true);
+            assert.equal(records.has(address(key('second'))), false);
+        }
+    };
     const result = await runExport(request({ keys: [key(), key('second')], delivery: 'folderWriter' }), {
-        onProgress: progress => {
-            if (progress.key.conversationId === 'second') {
-                assert.deepEqual(updates, ['exported:first']);
-            }
-        },
         onItemUpdate: update => {
             updates.push(update.status + ':' + update.key.conversationId);
             assert.equal(update.status, 'exported');

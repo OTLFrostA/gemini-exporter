@@ -242,22 +242,96 @@ test('resource failure yields readable partial and no dangling binding', async (
     assert.deepEqual(state.rendererCalls[0].bindings, {});
     assert.equal(state.jsonInputs[0].detail.assets.length, 3);
 });
-test('Folder Writer finalizes and releases one conversation before preparing the next', async () => {
-    seed('first', { assets: true, savedAt: 90 });
-    seed('second', { assets: true, savedAt: 90 });
-    provider.fetchConversationDetail = async (_account, id) => {
-        if (id === 'second') {
-            assert.equal(deliveries.length, 1, 'first group delivered before next refresh');
-            assert.ok(events.includes('record:first'), 'first group recorded before next refresh');
-            assert.deepEqual(state.releasedKeys, ['first'], 'first reader released before next refresh');
-        }
-        seed(id, { assets: true });
+function gate() {
+    let release = (): void => {};
+    const promise = new Promise<void>(resolve => { release = resolve; });
+    return { promise, release };
+}
+for (const delivery of ['folderWriter', 'browserDownload'] as const) {
+    test(`${delivery} overlaps source reads with attachments and bounds queued snapshots`, { timeout: 5000 }, async () => {
+        const ids = ['first', 'second', 'third', 'fourth', 'fifth'];
+        for (const id of ids) seed(id, { assets: true, savedAt: 90 });
+        const sourceReads: string[] = [];
+        const thirdRead = gate();
+        const attachments = gate();
+        provider.fetchConversationDetail = async (_account, id) => {
+            sourceReads.push(id);
+            seed(id, { assets: true });
+            if (id === 'third') thirdRead.release();
+        };
+        provider.acquireResource = async (conversationKey) => {
+            if (conversationKey.conversationId === 'first') await attachments.promise;
+            return { bytes: Uint8Array.of(1) };
+        };
+        const exporting = runExport(request({ keys: ids.map(id => key(id)), delivery }));
+        try {
+            await thirdRead.promise;
+            await new Promise<void>(resolve => setImmediate(resolve));
+            assert.deepEqual(sourceReads, ids.slice(0, 3), 'source advances while attachments wait, then applies backpressure');
+            assert.equal(deliveries.length, 0);
+            assert.deepEqual(state.releasedKeys, [], 'readers remain alive until attachments settle');
+        } finally { attachments.release(); }
+        const result = await exporting;
+        assert.equal(result.exported, 5);
+        assert.deepEqual(state.releasedKeys, ids);
+        assert.equal(state.releasedContexts, 1);
+        const plans = delivery === 'folderWriter' ? state.folderPlans : state.browserPlans;
+        assert.deepEqual(plans.map(plan => plan.key), ids);
+        assert.deepEqual(events.filter(event => event.startsWith('record:')), ids.map(id => `record:${id}`));
+    });
+}
+test('attachment pool limits parallel downloads and preserves reference order after out-of-order completion', async () => {
+    const assets = Array.from({ length: 7 }, (_, i) => ({ id: `asset-${i}`, kind: 'file' as const }));
+    const firstWave = gate();
+    const finish = gate();
+    let active = 0;
+    let peak = 0;
+    const started: string[] = [];
+    const preparing = prepareExportResources(assets, new Set(assets.map(asset => asset.id)), async asset => {
+        active++;
+        peak = Math.max(peak, active);
+        started.push(asset.id);
+        if (started.length === 3) firstWave.release();
+        if (asset.id === 'asset-0') await finish.promise;
+        else await firstWave.promise;
+        active--;
+        return { bytes: Uint8Array.of(1) };
+    });
+    await firstWave.promise;
+    finish.release();
+    const result = await preparing;
+    assert.equal(peak, 3);
+    assert.equal(started.length, 7);
+    assert.deepEqual([...result.keys()], assets.map(asset => asset.id));
+});
+test('cancellation drains in-flight attachments before releasing readers and stops queued work', async () => {
+    for (const id of ['first', 'second', 'third']) seed(id, { assets: true });
+    const started = gate();
+    const finish = gate();
+    const controller = new AbortController();
+    let acquisitions = 0;
+    let active = 0;
+    provider.acquireResource = async () => {
+        acquisitions++;
+        active++;
+        if (active === 2) started.release();
+        await finish.promise;
+        assert.equal(state.releasedContexts, 0);
+        assert.deepEqual(state.releasedKeys, []);
+        active--;
+        return { bytes: Uint8Array.of(1) };
     };
-    const result = await runExport(request({ keys: [key(), key('second')], delivery: 'folderWriter' }));
-    assert.equal(result.exported, 2);
-    assert.deepEqual(state.releasedKeys, ['first', 'second']);
+    const exporting = runExport(request({ keys: [key(), key('second'), key('third')] }), { signal: controller.signal });
+    await started.promise;
+    controller.abort();
+    finish.release();
+    const result = await exporting;
+    assert.equal(result.aborted, true);
+    assert.equal(acquisitions, 2);
+    assert.equal(active, 0);
     assert.equal(state.releasedContexts, 1);
-    assert.deepEqual(state.folderPlans.map(plan => plan.key), ['first', 'second']);
+    assert.equal(deliveries.length, 0);
+    assert.equal(records.size, 0);
 });
 test('resource preparation passes ConversationKey independently for identical asset IDs', async () => {
     seed('first', { assets: true }); seed('second', { assets: true });
@@ -531,4 +605,43 @@ test('workbench ZIP readers supply offline bytes without a source refresh and st
     assert.equal(events.includes('refresh'), false);
     assert.deepEqual(acquired, ['image', 'file']);
     assert.equal(events.some(event => event.startsWith('acquire:')), false);
+});
+
+
+test('duplicate conversation keys wait for earlier readers and folder records before reacquisition', async () => {
+    seed('first', { assets: true });
+    let reads = 0;
+    provider.fetchConversationDetail = async () => {
+        if (reads++) {
+            assert.deepEqual(state.releasedKeys, ['first']);
+            assert.equal(records.has(address(key())), true);
+        }
+        seed('first', { assets: true });
+    };
+    const result = await runExport(request({ keys: [key(), key()], delivery: 'folderWriter' }), { refreshDetail: true });
+    assert.equal(result.exported, 2);
+    assert.equal(reads, 2);
+    assert.deepEqual(state.releasedKeys, ['first', 'first']);
+});
+
+test('a worker AbortError drains siblings without starting remaining attachment downloads', async () => {
+    const assets = Array.from({ length: 6 }, (_, i) => ({ id: `asset-${i}`, kind: 'file' as const }));
+    const siblings = gate();
+    const aborting = gate();
+    const started: string[] = [];
+    const preparing = prepareExportResources(assets, new Set(assets.map(asset => asset.id)), async asset => {
+        started.push(asset.id);
+        if (asset.id === 'asset-0') {
+            aborting.release();
+            throw new DOMException('Aborted', 'AbortError');
+        }
+        await siblings.promise;
+        return { bytes: Uint8Array.of(1) };
+    });
+    const rejected = assert.rejects(preparing, { name: 'AbortError' });
+    await aborting.promise;
+    await new Promise<void>(resolve => setImmediate(resolve));
+    siblings.release();
+    await rejected;
+    assert.deepEqual(started, ['asset-0', 'asset-1', 'asset-2']);
 });

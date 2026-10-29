@@ -9,17 +9,37 @@ export async function prepareExportResources(
     signal?: AbortSignal,
 ): Promise<PreparedResources> {
     const prepared = new Map<string, ResourceResult>();
-    for (const id of requiredIds) {
-        signal?.throwIfAborted();
-        const asset = assets.find(asset => asset.id === id);
-        const result = asset ? await attemptResource(id, async () => {
-            const value = await acquire(asset, signal);
-            if (!value.bytes.byteLength) throw new ResourceProcessingError('Empty resource');
-            return { ...value, mediaType: value.mediaType ?? asset.mediaType, name: value.name ?? asset.name };
-        }, signal) : missingResource(id, 'Asset metadata unavailable', 'RESOURCE_METADATA_UNAVAILABLE');
-        const sourceUri = asset?.sourceUri;
-        prepared.set(id, !result.ok && sourceUri && /^https:\/\//i.test(sourceUri)
-            ? { ...result, sourceUrl: sourceUri } : result);
+    const ids = [...requiredIds];
+    const results = new Map<string, ResourceResult>();
+    const remaining = ids.values();
+    let stopped = false;
+    const worker = async (): Promise<void> => {
+        try {
+            for (const id of remaining) {
+                if (stopped) return;
+                signal?.throwIfAborted();
+                const asset = assets.find(asset => asset.id === id);
+                const result = asset ? await attemptResource(id, async () => {
+                    const value = await acquire(asset, signal);
+                    if (!value.bytes.byteLength) throw new ResourceProcessingError('Empty resource');
+                    return { ...value, mediaType: value.mediaType ?? asset.mediaType, name: value.name ?? asset.name };
+                }, signal) : missingResource(id, 'Asset metadata unavailable', 'RESOURCE_METADATA_UNAVAILABLE');
+                const sourceUri = asset?.sourceUri;
+                results.set(id, !result.ok && sourceUri && /^https:\/\//i.test(sourceUri)
+                    ? { ...result, sourceUrl: sourceUri } : result);
+            }
+        } catch (error) {
+            stopped = true;
+            throw error;
+        }
+    };
+    // A single conversation consumer owns this pool, so the task-wide limit is three.
+    const settled = await Promise.allSettled(Array.from({ length: Math.min(3, ids.length) }, worker));
+    for (const result of settled) if (result.status === 'rejected') throw result.reason;
+    // Completion order must not affect filenames, bindings or rendered attachment order.
+    for (const id of ids) {
+        const result = results.get(id);
+        if (result) prepared.set(id, result);
     }
     return prepared;
 }
