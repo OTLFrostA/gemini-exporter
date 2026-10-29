@@ -92,7 +92,6 @@ test('real MAIN → isolated → background discovery deduplicates across slots 
     await options.reload();
     expect((await accounts(options))[0].id).toBe(account.id);
 
-    // A credential-bearing request uses the Registry UUID, including the default→u0 route.
     await pages[0].route('**/batchexecute*', route => route.fulfill({ body: geminiListGen('G_E2E_ACCOUNT_REGISTRY_EMPTY_BATCH_01') }));
     await pages[0].evaluate(() => fetch('/_/BardChatUi/data/batchexecute?f.sid=test-registry-sid&at=test-registry-token'));
     await expect.poll(async () => options.evaluate(async () => {
