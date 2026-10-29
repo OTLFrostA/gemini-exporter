@@ -125,7 +125,6 @@ test('Light first visible frame has no dark cards or initial background transiti
                 `${kind}: ${name} was initially dark: ${color}`).toBe(true);
         }
         await expect.poll(() => page.locator('html').getAttribute('data-theme-bootstrap')).toBeNull();
-        // Normal interaction animations are retained once initial appearance settles.
         expect(await page.locator('#btnThemeToggle').evaluate(node => getComputedStyle(node).transitionDuration)).not.toBe('0s');
         await page.close();
     }

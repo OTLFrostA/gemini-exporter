@@ -134,7 +134,6 @@ test('conversation row padding and gaps toggle selection without double-toggling
     await seedConversations(page, [{id:'click-target', title:'Click target'}]);
     const row = page.locator('[data-chat-id="click-target"]');
     const checkbox = row.locator('input');
-    // The row advertises a pointer over its padding, outside the inner body.
     await row.click({position:{x:2,y:2}});
     await expect(checkbox).toBeChecked();
     await expect(page.locator('#selectedStat')).toHaveText('1 of 1 selected');

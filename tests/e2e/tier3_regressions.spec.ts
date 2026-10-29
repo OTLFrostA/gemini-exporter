@@ -1,7 +1,4 @@
 import { geminiListPage } from '../fixtures/providers/geminiListCapture.js';
-/** Deterministic counterexamples from the 2026-10-21 Luna rerun.
- * These checks reproduce the original failures on the pre-fix revision.
- */
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
 import { extractPdfText } from '../helpers/pdfTextExtract';
