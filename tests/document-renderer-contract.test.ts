@@ -25,7 +25,6 @@ const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-// ---------------------------------------------------------------- builders
 
 const txt = (text: string) => ({ type: 'text', text });
 const para = (text: string) => ({ type: 'paragraph', children: [txt(text)] });
@@ -66,7 +65,6 @@ function assertNoSilentDrop(htmlDiags: any[], typstDiags: any[], feature: string
     }
 }
 
-// ---------------------------------------------------------------- fixtures
 
 test('contract: paragraph text survives in HTML and Typst', () => {
     const s = 'SENTINEL_PARA_A1B2';
