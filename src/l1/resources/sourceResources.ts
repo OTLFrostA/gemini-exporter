@@ -93,9 +93,20 @@ export async function acquireSourceResource(asset: DomainAsset, signal?: AbortSi
     const startedAt = Date.now();
     const origin = diagnosticOrigin(asset.sourceUri);
     let phase = 'fetch';
+    let credentials: RequestCredentials = 'include';
     let response: Response | undefined;
     try {
-        response = await fetch(asset.sourceUri, { credentials: 'include', signal });
+        try { response = await fetch(asset.sourceUri, { credentials, signal }); }
+        catch (error) {
+            signal?.throwIfAborted();
+            if (!(error instanceof TypeError)) throw error;
+            // Public images may allow wildcard CORS but reject credentialed reads.
+            // Preserve authenticated downloads; retry only a transport failure.
+            credentials = 'omit';
+            emitDiagnostic(onDiagnostic, { severity: 'info', code: 'RESOURCE_CREDENTIAL_FALLBACK',
+                message: 'Retrying source attachment without credentials', details: { origin } });
+            response = await fetch(asset.sourceUri, { credentials, signal });
+        }
         if (!response.ok) throw new ResourceHttpError(response.status);
         phase = 'read_body';
         const bytes = new Uint8Array(await response.arrayBuffer());
@@ -103,11 +114,11 @@ export async function acquireSourceResource(asset: DomainAsset, signal?: AbortSi
         if (!bytes.byteLength) throw new ResourceProcessingError('Empty source resource');
         const mediaType = asset.mediaType ?? response.headers.get('content-type')?.split(';')[0].trim();
         emitDiagnostic(onDiagnostic, { severity: 'info', code: 'RESOURCE_FETCH_COMPLETED', message: 'Source attachment bytes acquired',
-            details: { origin, httpStatus: response.status, byteLength: bytes.byteLength, elapsedMs: Date.now() - startedAt } });
+            details: { origin, credentials, httpStatus: response.status, byteLength: bytes.byteLength, elapsedMs: Date.now() - startedAt } });
         return { bytes, ...(mediaType ? { mediaType } : {}), ...(asset.name ? { name: asset.name } : {}) };
     } catch (error) {
         emitDiagnostic(onDiagnostic, { severity: 'info', code: 'RESOURCE_FETCH_FAILED', message: 'Source attachment request failed',
-            details: { phase, origin, credentials: 'include', httpStatus: response?.status ?? null,
+            details: { phase, origin, credentials, httpStatus: response?.status ?? null,
                 responseType: response?.type ?? null, redirected: response?.redirected ?? null,
                 errorName: error instanceof Error ? error.name : 'NonError', aborted: signal?.aborted ?? false,
                 elapsedMs: Date.now() - startedAt } });

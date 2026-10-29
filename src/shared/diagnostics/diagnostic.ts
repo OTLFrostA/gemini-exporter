@@ -30,3 +30,12 @@ export function diagnosticOrigin(uri: string): string | null {
     try { return new URL(uri).origin; }
     catch { return null; }
 }
+
+/** Describe a locator without retaining its path, query, fragment or credentials. */
+export function diagnosticUrlShape(uri: string) {
+    let scheme: string | null = null;
+    try { scheme = new URL(uri).protocol; } catch { /* Relative or malformed locator. */ }
+    return { kind: scheme ? 'absolute' : uri.startsWith('//') ? 'network_relative'
+        : uri.startsWith('/') ? 'root_relative' : 'relative_or_invalid',
+        scheme, length: uri.length, surroundingWhitespace: uri !== uri.trim() };
+}

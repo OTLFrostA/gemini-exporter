@@ -1,5 +1,5 @@
 import { readChatGPTSandboxLocator } from '../../resources/chatgptSandbox.js';
-import { diagnosticOrigin, emitDiagnostic, type Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
+import { diagnosticOrigin, diagnosticUrlShape, emitDiagnostic, type Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { OperationError, operationError } from '../../../shared/errors/operationError.js';
 import { abortableSleep, calculateBackoff } from '../../../shared/utils/retryUtils.js';
 import { ResourceHttpError, ResourceProcessingError } from '../../../shared/resources/resourceResult.js';
@@ -231,7 +231,9 @@ export class ChatGPTProvider implements AIProvider {
     }
     async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<void> {
         const account = await this.context(accountId);
+        const requestStartedAt = Date.now();
         const raw = await this.authedGet(`/conversation/${encodeURIComponent(conversationId)}`, account, signal);
+        const responseReceivedAt = Date.now();
         let parsed: ReturnType<typeof parseChatGPTConversation>;
         try {
             const conversation = decodeChatGPTDetail(raw, conversationId);
@@ -246,7 +248,8 @@ export class ChatGPTProvider implements AIProvider {
         const admission = await ingestDetail(account.id, conversationId, parsed.conversation.detail, index);
         emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_DETAIL_ADMISSION', message: 'Source detail admission completed',
             details: { accepted: admission.accepted, changed: admission.changed,
-                sourceVersion: parsed.sourceVersion ?? null, quality: parsed.conversation.detail.quality.status,
+                requestStartedAt, responseReceivedAt, sourceVersion: parsed.sourceVersion ?? null,
+                sourceCreatedAt: index.createdAt ?? null, quality: parsed.conversation.detail.quality.status,
                 messageCount: parsed.conversation.detail.messages.length, assetCount: parsed.conversation.detail.assets.length } });
         if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId }, parsed);
     }
@@ -290,6 +293,10 @@ export class ChatGPTProvider implements AIProvider {
                 phase = 'download_payload';
                 const exchange = parseFileDownloadPayload(raw);
                 if (!exchange) {
+                    const errorCode = raw && typeof raw === 'object' && 'error_code' in raw && typeof raw.error_code === 'string'
+                        && /^[\w.-]{1,100}$/.test(raw.error_code) ? raw.error_code : null;
+                    const errorType = raw && typeof raw === 'object' && 'error_type' in raw && typeof raw.error_type === 'string'
+                        && /^[\w.-]{1,100}$/.test(raw.error_type) ? raw.error_type : null;
                     emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_DOWNLOAD_PAYLOAD_INVALID',
                         message: 'Download exchange has no accepted download URL', details: {
                             locatorKind: sandbox ? 'sandbox' : uploadedFile ? 'uploaded_file' : 'file',
@@ -297,11 +304,21 @@ export class ChatGPTProvider implements AIProvider {
                             responseKeys: raw && typeof raw === 'object' && !Array.isArray(raw) ? Object.keys(raw).slice(0, 20) : [],
                             status: raw && typeof raw === 'object' && 'status' in raw && typeof raw.status === 'string' ? raw.status.slice(0, 100) : null,
                             downloadUrlPresent: !!(raw && typeof raw === 'object' && 'download_url' in raw && typeof raw.download_url === 'string' && raw.download_url),
+                            errorCode, errorType,
                         } });
+                    if (raw && typeof raw === 'object' && 'status' in raw && raw.status === 'error' && errorCode === 'ace_pod_expired') {
+                        throw new OperationError('RESOURCE_SOURCE_EXPIRED', 'ChatGPT code execution environment expired (ace_pod_expired)');
+                    }
                     throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'ChatGPT resource locator unavailable');
                 }
                 phase = 'resource_fetch';
                 origin = diagnosticOrigin(exchange.downloadUrl);
+                emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_DOWNLOAD_URL_SHAPE',
+                    message: 'Download locator shape before file request', details: {
+                        shape: diagnosticUrlShape(exchange.downloadUrl), origin,
+                        fetchBaseOrigin: typeof location === 'undefined' ? null : location.origin,
+                        locatorKind: sandbox ? 'sandbox' : uploadedFile ? 'uploaded_file' : 'file',
+                    } });
                 response = await this.fetchFn(exchange.downloadUrl, { signal });
                 if (!response.ok) throw new ResourceHttpError(response.status);
                 phase = 'read_body';

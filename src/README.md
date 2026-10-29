@@ -61,12 +61,22 @@ text, URLs and file tokens; they stay in diagnostic evidence beside the parse
 result, never in Domain/Document AST fields. Successful native parses do not
 collect these raw samples. Existing diagnostic count limits still apply.
 
-Diagnostic revision 3 adds the current browser online state and granted extension
+Diagnostic revision 4 includes the current browser online state and granted extension
 permissions, ChatGPT branch-coverage reasons and candidate admission outcomes,
 before/after persisted Detail versions, and resource request phases, origins,
 response status/type, elapsed time and exception names. Request routing evidence
 retains origins rather than signed URL paths or query parameters; rejected download
-exchanges record field names and status rather than the full response body.
+exchanges record field names, status and bounded error-code/type identifiers rather
+than the full response body. Download locator shapes omit their actual strings.
+Incomplete ChatGPT branches include node counts and up to eight tail/child node
+summaries (roles, recipients, content kinds, visibility and completion flags),
+without message text. Detail admission records request/response times alongside
+source versions. Folder-write errors include filename code points/UTF-8 length,
+permission-query results and the stage/name of each failed attempt.
+Source URL reads retain authenticated access first and retry transport TypeErrors
+without credentials for public wildcard-CORS images. Explicit HTTP failures and
+cancellation are not retried. Native `ace_pod_expired` responses are classified as
+expired resources, without inventing an HTTP 404.
 These observations stay outside Domain and do not add duplicate UI failure groups.
 Export-run evidence lives in the current Options page: reproduce the export and
 download diagnostics before reloading or closing that page. Stored partial records

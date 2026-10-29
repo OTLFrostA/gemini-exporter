@@ -6,9 +6,15 @@ interface FileDownloadResponse {
     file_name?: string;
     file_size_bytes?: number;
     mime_type?: string;
+    error_code?: string;
+    error_type?: string;
+    error_message?: string;
 }
 
 const fixtureMap = {
+    'C_DIAGNOSTIC_EXPIRED_SANDBOX_01': () => ({ status: 'error', error_code: 'ace_pod_expired',
+        error_type: 'GetDownloadLinkError', error_message: 'do-not-log private-path?token=secret' }),
+    'C_DIAGNOSTIC_RELATIVE_DOWNLOAD_01': () => ({ status: 'success', download_url: '/private-path?token=do-not-log' }),
     'C_DIAGNOSTIC_SIGNED_DOWNLOAD_01': () => ({ status: 'success', download_url: 'https://files.example/private-path?token=do-not-log' }),
     'C_ATTACHMENT_DOWNLOAD_ACQUIRE_01': () => ({ download_url: 'https://dl/img.png' }),
     'C_FILE_DOWNLOAD_HELPERS_01': () => ({

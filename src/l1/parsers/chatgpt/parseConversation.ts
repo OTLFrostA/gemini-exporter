@@ -181,13 +181,38 @@ function messageOfNode(
 
 /** A renderable branch is not necessarily a complete source chain. Missing
  * parents, cycles and absent current_node must never claim full body coverage. */
-function branchCoverage(conversation: ChatGPTApiConversationWithId, diagnostics: Diagnostic[]): 'complete' | 'partial' | 'unknown' {
+function branchCoverage(conversation: ChatGPTApiConversationWithId, nodes: readonly ChatGPTConversationNode[], diagnostics: Diagnostic[]): 'complete' | 'partial' | 'unknown' {
     const incomplete = (reason: string, nodeId?: string): 'partial' | 'unknown' => {
+        const rendered = new Set(nodes.map(node => node.id));
+        const summarize = (id: string) => {
+            const node = conversation.mapping.get(id);
+            const message = node?.message;
+            return { id, exists: !!node, rendered: rendered.has(id), role: message?.author.role ?? null,
+                recipient: message?.recipient ?? null, channel: message?.channel ?? null,
+                contentType: message?.content.content_type ?? null, status: message?.status ?? null,
+                endTurn: message?.end_turn ?? null, hidden: message?.metadata?.is_visually_hidden_from_conversation ?? false,
+                thinkingPreamble: message?.metadata?.is_thinking_preamble_message ?? false,
+                childCount: node?.children.length ?? 0 };
+        };
+        const seen = new Set<string>();
+        const tail: ReturnType<typeof summarize>[] = [];
+        let id: string | undefined = conversation.current_node;
+        let chainEnd = conversation.current_node ? 'root' : 'no_current_node';
+        while (id) {
+            if (seen.has(id)) { chainEnd = 'cycle'; break; }
+            const node = conversation.mapping.get(id);
+            if (!node) { chainEnd = 'missing'; break; }
+            seen.add(id);
+            if (tail.length < 8) tail.push(summarize(id));
+            id = node.parent;
+        }
         diagnostics.push({ severity: 'info', code: 'CHATGPT_BRANCH_COVERAGE_INCOMPLETE',
             message: 'Source branch cannot prove complete body coverage',
             details: { reason, currentNode: conversation.current_node ?? null, nodeId: nodeId ?? null,
                 mappingNodeCount: conversation.mapping.size, leafRole: leaf?.author.role ?? null,
-                leafStatus: leaf?.status ?? null, leafEndTurn: leaf?.end_turn ?? null } });
+                leafStatus: leaf?.status ?? null, leafEndTurn: leaf?.end_turn ?? null,
+                renderedNodeCount: nodes.length, branchNodeCount: seen.size, chainEnd, tail,
+                leafChildren: (conversation.mapping.get(conversation.current_node)?.children ?? []).slice(0, 8).map(summarize) } });
         return reason === 'current_node_missing' || reason === 'chain_unresolved' ? 'unknown' : 'partial';
     };
     const leaf = conversation.current_node ? conversation.mapping.get(conversation.current_node)?.message : undefined;
@@ -266,7 +291,7 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
     registerChatGPTMarkdownAssets({ assets, messages }, sourceMessageIds);
     // Source activity versions travel beside Detail; Index owns updatedAt.
     const sourceVersion = conversation.updatedAtMs;
-    const branchQuality = branchCoverage(conversation, contentDiagnostics);
+    const branchQuality = branchCoverage(conversation, nodes, contentDiagnostics);
     return {
         ...(sourceVersion !== undefined ? { sourceVersion } : {}),
         conversationId: conversation.id,
