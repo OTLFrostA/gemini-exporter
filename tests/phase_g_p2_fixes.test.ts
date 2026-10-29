@@ -2,7 +2,6 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-// Phase G (G4) P2 行为修复回归测试。
 
 // List completion belongs to the provider; its safety budget is internal.
 import { indexStorage } from './helpers/indexStorage.js';
@@ -28,7 +27,6 @@ test('P2-1: empty terminal page is a natural end', async () => {
     }finally{env.restore();}
 });
 
-// ---------- P2-3: 401 先刷新 at，刷新失败才删凭证 ----------
 function make401Deps(map: Record<string, any>, onWrite = () => {}) {
     return {
         updateCredential: async (sid: string | number, decide: () => { patch: { at?: string; bl?: string } | null }) => {
@@ -72,7 +70,7 @@ test('P2-3: 401 且页面无更新的 at → 删除过期凭证', async () => {
         await RetryPolicy.handleHttp401({
             cred: { at: 'stale-at', sid: 'sid1' },
             ...make401Deps(inner),
-            refreshAtFromPage: () => 'stale-at' // 页面 at 与存储一致，无更新
+            refreshAtFromPage: () => 'stale-at'
         });
     } finally {
         console.warn = origWarn;
@@ -169,7 +167,6 @@ test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值'
     try {
         delete require.cache[require.resolve('../src/l1/client/gemini/bootstrap.js')];
         require('../src/l1/client/gemini/bootstrap.js').initBootstrap();
-        // 预置旧 bl
         store['gemini_credentials_map'] = {
             sid1: { at: 'old-at', sid: 'sid1', bl: 'old-bl', accountSlot: 'u0', lastUsed: 1 }
         };
@@ -183,7 +180,6 @@ test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值'
                 payload: { sid: 'sid1', at: 'hook-at', bl: 'hook-bl', url: 'https://gemini.google.com/app' }
             }
         });
-        // runSerializedCredOp 是链式异步，等一拍
         for (let i = 0; i < 50 && store['gemini_credentials_map']?.sid1?.bl !== 'hook-bl'; i++) {
             await new Promise(r => setTimeout(r, 20));
         }

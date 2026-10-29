@@ -19,7 +19,6 @@ test('indexActivityTime: lastSeen-only chat has no authoritative time', () => {
     const chat = { id: 'c_lastseen_only', lastSeen: '2026-09-03T12:00:00.000Z' };
     assert.strictEqual(indexActivityTime(chat), undefined, 'lastSeen must not feed the authoritative timestamp');
 
-    // 数字型 lastSeen 也一样
     assert.strictEqual(indexActivityTime({ id: 'c2', lastSeen: 1788100000000 }), undefined);
 
     // A newer local observation must not override a known authoritative server timestamp.
