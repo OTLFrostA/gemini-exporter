@@ -51,7 +51,7 @@ export function resourceIssueKind(failure: ResourceFailure): ResourceIssueKind {
     if (failure.code === 'RESOURCE_ACCESS_RESTRICTED') return 'restricted';
     if (['RESOURCE_PROCESSING_FAILED', 'RESOURCE_SIZE_LIMIT', 'RESOURCE_SIZE_MISMATCH',
         'TYPST_ASSET_DECODE_FAILED', 'TYPST_ASSET_EMPTY'].includes(failure.code)) return 'processing';
-    if (failure.code === 'RESOURCE_DOWNLOAD_FAILED') return 'download';
+    if (failure.code === 'RESOURCE_DOWNLOAD_FAILED' || failure.code === 'SOURCE_REQUEST_TIMEOUT') return 'download';
     return 'unknown';
 }
 export function resourceFailureText(failure: ResourceFailure, locale: 'zh' | 'en'): string {

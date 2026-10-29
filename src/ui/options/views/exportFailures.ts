@@ -49,6 +49,7 @@ const LABELS: ReadonlyMap<string, readonly [string, string]> = new Map([
     ['PLATFORM_PERMISSION_REQUIRED', ['Site access is not authorized', '尚未授权访问该平台']],
     ['SOURCE_PAGE_UNAVAILABLE', ['No verified source page available', '没有可用且已验证的平台页面']],
     ['SOURCE_AUTH_UNAVAILABLE', ['Platform authentication information unavailable', '无法获取平台身份验证信息']],
+    ['SOURCE_REQUEST_TIMEOUT', ['Platform request timed out; please retry', '平台请求超时，请重试']],
     ['SOURCE_RESPONSE_INVALID', ['Source data could not be parsed or verified', '无法解析或验证平台返回的数据']],
     ['SOURCE_CHANGED', ['Conversation changed during acquisition', '获取过程中会话内容发生变化']],
     ['CONVERSATION_NOT_FOUND', ['Source confirmed the conversation no longer exists', '来源已确认会话不存在']],

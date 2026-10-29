@@ -24,3 +24,9 @@ API Markdown images and download links under `sandbox:/mnt/data/` retain their s
 A focused CDP-backed provider check used three existing test-account API resource descriptors: a generated PNG (1,470,923 bytes), Python script (6,398 bytes), and Markdown report (11,716 bytes). All were physically downloaded. PNG decoding, Python syntax parsing, and Markdown UTF-8 checks passed. This checks acquisition from known descriptors; it is not a full UI export or a retest of the diagnostic account’s 138 resource failures.
 
 Persistent folder write failures now include the native exception name, relative path, and failing lifecycle stage. The repeated failure in the supplied diagnostics has not been reproduced in this test profile; retaining that context supports a precise diagnosis on the next retry.
+
+## Long attachment preparation
+
+Diagnostics (5) recorded a 94.931-second manually cancelled folder export. Source parsing for the same conversation occurred at 3.2 and 50.7 seconds; its six attachment 404s were reported at 83.688 seconds. The previous diagnostic format recorded final failures but no per-resource start/completion timestamps, so it cannot establish an indefinitely hung request. It does establish a long interval without attachment progress and a second source parse consistent with the existing refresh/reacquisition flow.
+
+ChatGPT HTTP requests now have a 60-second deadline covering headers and body consumption; server-directed 429 cooldowns remain separate and retain their existing cancellation behavior. Timeout failures have their own operation code, distinct from user cancellation and HTTP status. Export preparation emits attachment completion counts to the workbench and diagnostic log, and records the start of an access-failure refresh. Freshly admitted source readers still replace previous readers; successful bytes are not reused across source refreshes based on asset ID alone.
