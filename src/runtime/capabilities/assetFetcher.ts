@@ -91,7 +91,6 @@ async function fetchGgChain(url: string, init?: RequestInit): Promise<Response> 
             const ct = (res.headers.get('content-type') || '').toLowerCase();
             if (ct.startsWith('image/')) return res;
 
-            // gg/rd-gg chain: text/plain or text/html body contains next redirect URL
             if (ct.includes('text/plain') || ct.includes('text/html')) {
                 let txt = '';
                 try {
@@ -267,7 +266,6 @@ export async function handleGetImageBlob(msg: AssetFetchRequest, sendResponse: (
                 const ct0 = (res.headers.get('content-type') || '').toLowerCase();
                 // if chain ended on text/plain without image, treat as failure to try next candidate
                 if (ct0.includes('text/plain') || ct0.includes('text/html')) {
-                    // try to see if it's actually an image mis-labelled - check blob type
                     const blobProbe = await res.clone().blob().catch(() => null);
                     if (!blobProbe || !blobProbe.type.startsWith('image/')) {
                         lastErr = `unexpected ct ${ct0}`;

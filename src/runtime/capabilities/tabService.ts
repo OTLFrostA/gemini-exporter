@@ -6,7 +6,6 @@ import { discoverChatGPTAccounts } from './chatgptDiscovery.js';
 import { discoverGrokAccounts } from './grokDiscovery.js';
 import { discoverClaudeAccounts } from './claudeDiscovery.js';
 
-/** A routed Content tab has a concrete ID, including the valid ID zero. */
 export interface AccountTab extends chrome.tabs.Tab { id: number }
 
 export async function sendTabMessage(tabId: number, message: unknown, timeout = 25000): Promise<unknown> {
