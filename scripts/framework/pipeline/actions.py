@@ -240,6 +240,7 @@ class UniversalInputAction:
         """)
         time.sleep(0.05)
 
+        # 2. 原生底层 CDP Input.insertText 插入文本（完全遵循物理级真实键盘事件，杜绝 execCommand 脱节）
         if text:
             cdp.call("Input.insertText", {"text": text})
             time.sleep(0.05)
@@ -329,6 +330,8 @@ class SingleClickSendAction(AtomicAction):
         return PipelineStage.DISPATCHED
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
+        # 严格执行唯一点击通道 (Single Channel of Truth)：
+        # 遍历所有候选发送按钮，等待解除禁用并完成单次派发 (最多等待 30 秒，消除 Angular 脏检查与输入渲染时序差)
         try:
             cdp.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
         except Exception:
@@ -387,6 +390,7 @@ class SingleClickSendAction(AtomicAction):
 
             time.sleep(0.5)
 
+        # 超时后收集 DOM 诊断详情，便于精准定位原因
         diag = cdp.eval(f"""
         (() => {{
             const btns = Array.from(document.querySelectorAll({selector_json})).map(b => ({{

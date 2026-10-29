@@ -473,6 +473,8 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
         # Record other-account indexes too; the page operation must be scoped to this account.
         other_before = self.options.eval("(async()=>{const accounts=await __tier2V2.listAccounts();return Promise.all(accounts.filter(a=>a.id!==document.getElementById('accountIdSelect').value).map(async a=>({id:a.id,account:await __tier2V2.getAccount(a.id)})))})()", await_promise=True)
         self.open_conversation(cid)
+        # The sidebar contains duplicate hidden mobile triggers. Use the current
+        # conversation toolbar and activate its tab through the extension API.
         self.options.eval("(async()=>{const tabs=await chrome.tabs.query({});const t=tabs.find(t=>t.url==="+json.dumps('https://chatgpt.com/c/'+cid)+");if(!t)throw Error('No deletion source tab');await chrome.windows.update(t.windowId,{focused:true});await chrome.tabs.update(t.id,{active:true})})()", await_promise=True)
         opener = "[...document.querySelectorAll('button')].find(e=>['更多','More'].includes(e.getAttribute('aria-label'))&&e.getBoundingClientRect().width>0)"
         # A hydrated composer can precede the toolbar's event handlers. Retry

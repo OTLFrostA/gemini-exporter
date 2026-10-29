@@ -98,6 +98,7 @@ class GeminiRuntime:
         self.target_features = target_features
         self.domain = domain
 
+        # 组装 DAG 调度器并解析目标子图与前置闭包
         self.dag = self._assemble_dag()
         self.target_ids = self._resolve_target_ids(self.target_features, self.domain)
 

@@ -76,6 +76,7 @@ class SafeInteractionGateway:
         except Exception:
             return False
 
+        # 允许扩展协议与 chrome 特殊页面
         if parsed.scheme in ("chrome-extension", "chrome"):
             return True
 
