@@ -26,6 +26,24 @@ const rows = [
 ];
 const records = { [A]: { one: { status: 'partial', format: 'markdown', exportedAt: 100 } } };
 
+test('sidebar support footer exposes separate localized feedback and Discord links', async () => {
+    for (const language of ['en', 'zh']) {
+        await open({ settings: { language } });
+        const feedback = page.locator('#feedbackBox');
+        const discord = page.locator('#discordBox');
+        assert.equal(await page.locator('.support-links > a').count(), 2);
+        assert.equal(await feedback.getAttribute('href'), 'https://tally.so/r/Y56ZBB');
+        assert.equal(await discord.getAttribute('href'), 'https://discord.gg/e3FgrXUZ8f');
+        for (const link of [feedback, discord]) {
+            assert.equal(await link.getAttribute('target'), '_blank');
+            assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');
+        }
+        assert.equal(await feedback.locator('.support-link-label').textContent(), language === 'en' ? 'Send Feedback' : '提交反馈');
+        assert.equal(await discord.locator('.support-link-label').textContent(), language === 'en' ? 'Join Discord' : '加入 Discord');
+        await page.close();
+    }
+});
+
 test('format and checkbox settings persist their own value types', async () => {
     await open({ settings: { developerMode: true } });
     await page.locator('#format').selectOption('json');
