@@ -68,7 +68,7 @@ test('Structured path is actively used and bypasses Markdown parser', async () =
                             nodeType: 18,
                             text: 'Authoritative structured text from RPC',
                             annotations: [
-                                { start: 14, end: 24, type: 0 }, // "structured" in bold
+                                { start: 14, end: 24, type: 0 },
                             ],
                         },
                         {
@@ -187,7 +187,7 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
         assert.strictEqual(tableBlockAlpha.rows[r].cells.length, 5, `Row ${r} must have 5 cells`);
     }
 
-    const cellAlpha = tableBlockAlpha.rows[1].cells[4]; // row 2 in 0-indexed data rows is index 1
+    const cellAlpha = tableBlockAlpha.rows[1].cells[4];
     const mathNodeAlpha = cellAlpha.children.find((c: any) => c.type === 'inlineMath' && c.source.includes('\\alpha'));
     assert.ok(mathNodeAlpha?.type === 'inlineMath');
     assert.ok(mathNodeAlpha, 'InlineMath node found in table cell');
@@ -310,7 +310,7 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
                             nodeType: 20,
                             items: [
                                 { children: [{ nodeType: 18, text: 'Item 1' }] },
-                                { children: [{ nodeType: 9999, weird: 'data' }] }, // Unsupported!
+                                { children: [{ nodeType: 9999, weird: 'data' }] },
                                 { children: [{ nodeType: 18, text: 'Item 3' }] },
                             ],
                         },
@@ -413,7 +413,7 @@ test('Unknown annotation shape/type fails closed and is never coerced to bold', 
                             nodeType: 18,
                             text: 'Text with unknown annotation',
                             annotations: [
-                                { start: 0, end: 4, type: 999 }, // Unknown type!
+                                { start: 0, end: 4, type: 999 },
                             ],
                         },
                     ],
@@ -454,7 +454,7 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
             null,
             null,
             null,
-            wirePsi, // turn[3][12] structured document
+            wirePsi,
         ],
     ];
 
@@ -593,7 +593,7 @@ test('Fallback: unknown nodeType triggers complete fallback to Markdown parser',
                 structuredContent: {
                     children: [
                         { nodeType: 18, text: 'Normal text' },
-                        { nodeType: 9999, weirdField: 'unknown' }, // Unknown nodeType!
+                        { nodeType: 9999, weirdField: 'unknown' },
                     ],
                 },
             },
@@ -623,8 +623,8 @@ test('Fallback: crossing overlap annotations trigger fallback to Markdown parser
                             nodeType: 18,
                             text: 'ABCDEFGHIJ',
                             annotations: [
-                                { start: 0, end: 6, type: 0 }, // 0..6
-                                { start: 3, end: 9, type: 2 }, // 3..9 (crosses 0..6!)
+                                { start: 0, end: 6, type: 0 },
+                                { start: 3, end: 9, type: 2 },
                             ],
                         },
                     ],

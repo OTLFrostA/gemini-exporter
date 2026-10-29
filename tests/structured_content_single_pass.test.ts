@@ -177,8 +177,6 @@ test('deep nesting complexity: depth-20 list confirms linear single-pass node ac
     const decoded = decodeGeminiStructuredNode(current);
     assert.ok(decoded);
 
-    // In exponential 2^d recursion, 20 levels would yield over 1,000,000 evaluations.
-    // In single-pass linear O(N) decoding, exactly 21 nodes are registered and each is accessed once.
     assert.strictEqual(accessCounts.size, 21, 'Total registered nodes must be 21');
     for (const [id, count] of accessCounts) {
         assert.strictEqual(count, 1, `Node ${id} must be evaluated exactly once`);
@@ -199,7 +197,7 @@ test('fail-closed semantics: invalid children at any depth or malformed containe
             {
                 children: [
                     { nodeType: 18, text: 'valid' },
-                    { nodeType: 999 } // invalid node type
+                    { nodeType: 999 }
                 ]
             }
         ]
