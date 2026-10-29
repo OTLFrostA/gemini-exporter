@@ -29,10 +29,16 @@ test('ChatGPT source branch to root yields keyless complete Detail and milliseco
 test('ChatGPT missing ancestors, cycles and unknown current node never fabricate full coverage', () => {
     const missing = parse(chatgptDetailGen('C_DETAIL_L1_SOURCE_02'));
     assert.equal(missing.conversation.detail.quality.status, 'partial');
+    assert.ok(missing.diagnostics.some(d => d.code === 'CHATGPT_BRANCH_COVERAGE_INCOMPLETE'
+        && d.details && typeof d.details === 'object' && !Array.isArray(d.details) && d.details.reason === 'ancestor_missing'));
     const cycle = parse(chatgptDetailGen('C_DETAIL_L1_SOURCE_03'));
     assert.equal(cycle.conversation.detail.quality.status, 'partial');
+    assert.ok(cycle.diagnostics.some(d => d.details && typeof d.details === 'object' && !Array.isArray(d.details)
+        && d.details.reason === 'ancestor_cycle'));
     const unknown = parse(chatgptDetailGen('C_DETAIL_L1_SOURCE_04'));
     assert.equal(unknown.conversation.detail.quality.status, 'unknown');
+    assert.ok(unknown.diagnostics.some(d => d.details && typeof d.details === 'object' && !Array.isArray(d.details)
+        && d.details.reason === 'current_node_missing'));
 });
 
 test('ChatGPT missing image bytes does not become missing body evidence', () => {

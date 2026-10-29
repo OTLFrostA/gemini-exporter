@@ -178,11 +178,15 @@ export async function runExport(request: ExportRequest, options: {
                 && conversation.detail.savedAt < conversation.index.updatedAt);
         if (conversation.detail.quality.status !== 'complete') diagnose({ key, stage: 'detail',
             severity: 'warning', code: 'DETAIL_NOT_COMPLETE', message: 'Persisted source detail is not complete',
-            details: { quality: conversation.detail.quality.status, messageCount: conversation.detail.messages.length } });
+            details: { quality: conversation.detail.quality.status, messageCount: conversation.detail.messages.length,
+                savedAt: conversation.detail.savedAt ?? null, indexUpdatedAt: conversation.index.updatedAt ?? null,
+                lastMessageId: conversation.detail.messages.at(-1)?.id ?? null,
+                lastMessageRole: conversation.detail.messages.at(-1)?.role ?? null } });
         if (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
             && conversation.detail.savedAt < conversation.index.updatedAt) diagnose({ key, stage: 'detail',
             severity: 'warning', code: 'DETAIL_STALE', message: 'Detail source timestamp is older than Index',
-            details: { savedAt: conversation.detail.savedAt, updatedAt: conversation.index.updatedAt } });
+            details: { savedAt: conversation.detail.savedAt, updatedAt: conversation.index.updatedAt,
+                lagMs: conversation.index.updatedAt - conversation.detail.savedAt } });
         const failures = Object.fromEntries([...prepared].filter((entry): entry is [string, ResourceFailure] => !entry[1].ok));
         for (const failure of Object.values(failures)) diagnose({ key, stage: 'resource', severity: 'warning',
             code: failure.code, message: failure.reason, issue: failure.issue,
@@ -284,6 +288,7 @@ export async function runExport(request: ExportRequest, options: {
                     !options.importedResources?.has(key, asset.id) && !/^https:\/\//i.test(asset.sourceUri ?? '') && !asset.document?.contentMarkdown
                     && providerFor(account.providerId).canAcquireResourceDirectly?.(asset) !== true);
                 if (options.refreshDetail || !conversation || !isFresh(conversation) || needsSourceReaders) {
+                    const before = conversation;
                     try { await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
                             diagnostic => diagnose({ key, stage: 'source_parse', ...diagnostic })); }
                     catch (error) {
@@ -301,6 +306,14 @@ export async function runExport(request: ExportRequest, options: {
                     }
                     // Even a failed refresh may have committed useful facts. Never export a response DTO.
                     conversation = await readLocal(key);
+                    diagnose({ key, stage: 'source_refresh', severity: 'info', code: 'DETAIL_REFRESH_RESULT',
+                        message: 'Persisted detail observed after source refresh', details: {
+                            refreshFailed, requestedExplicitly: options.refreshDetail ?? false, needsSourceReaders: needsSourceReaders ?? false,
+                            before: { savedAt: before?.detail.savedAt ?? null, indexUpdatedAt: before?.index.updatedAt ?? null,
+                                quality: before?.detail.quality.status ?? null, messageCount: before?.detail.messages.length ?? null },
+                            after: { savedAt: conversation?.detail.savedAt ?? null, indexUpdatedAt: conversation?.index.updatedAt ?? null,
+                                quality: conversation?.detail.quality.status ?? null, messageCount: conversation?.detail.messages.length ?? null },
+                        } });
                     if (conversation && refreshFailure) {
                         const issue = operationIssue(refreshFailure.error);
                         diagnose({ key, stage: 'source_refresh', severity: 'warning', code: 'SOURCE_REFRESH_FAILED', issue, message: issue.message });
@@ -336,10 +349,16 @@ export async function runExport(request: ExportRequest, options: {
                     // A refresh retries failed identities only; successful bytes remain task-owned.
                     const requiredIds = new Set([...source.requiredIds].filter(id => !reused.has(id) && !previous?.get(id)?.ok));
                     const acquired = await prepareExportResources(source.conversation.detail.assets, requiredIds,
-                        (asset, abort) => options.importedResources?.has(key, asset.id)
-                            ? options.importedResources.acquire(key, asset, abort,
-                                () => providerFor(account.providerId).acquireResource(key, asset, abort))
-                            : providerFor(account.providerId).acquireResource(key, asset, abort), signal, (completed, total, result) => {
+                        (asset, abort) => {
+                            const observe = (diagnostic: import('../../shared/diagnostics/diagnostic.js').Diagnostic) => diagnose({
+                                key, stage: 'resource', ...diagnostic,
+                                details: { resourceId: asset.id, providerId: account.providerId, observation: diagnostic.details ?? null },
+                            });
+                            return options.importedResources?.has(key, asset.id)
+                                ? options.importedResources.acquire(key, asset, abort,
+                                    () => providerFor(account.providerId).acquireResource(key, asset, abort, observe), observe)
+                                : providerFor(account.providerId).acquireResource(key, asset, abort, observe);
+                        }, signal, (completed, total, result) => {
                             if (result?.ok) downloadedResources.add(JSON.stringify([key.accountId, key.conversationId, result.resourceId]));
                             options.onResourceProgress?.({ key, completed: completed + reused.size, total: total + reused.size, downloaded: downloadedResources.size });
                             diagnose({ key, stage: 'resource', severity: 'info', code: 'RESOURCE_ACQUISITION_PROGRESS',

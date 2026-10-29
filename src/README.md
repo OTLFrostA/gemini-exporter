@@ -61,6 +61,17 @@ text, URLs and file tokens; they stay in diagnostic evidence beside the parse
 result, never in Domain/Document AST fields. Successful native parses do not
 collect these raw samples. Existing diagnostic count limits still apply.
 
+Diagnostic revision 3 adds the current browser online state and granted extension
+permissions, ChatGPT branch-coverage reasons and candidate admission outcomes,
+before/after persisted Detail versions, and resource request phases, origins,
+response status/type, elapsed time and exception names. Request routing evidence
+retains origins rather than signed URL paths or query parameters; rejected download
+exchanges record field names and status rather than the full response body.
+These observations stay outside Domain and do not add duplicate UI failure groups.
+Export-run evidence lives in the current Options page: reproduce the export and
+download diagnostics before reloading or closing that page. Stored partial records
+alone cannot reconstruct an earlier run's source responses or failure causes.
+
 `build.js` maps the relocated source entrypoints to the existing `dist/content`,
 `dist/background` and `dist/ui` bundle names. Manifest paths and sandbox resource
 URLs point to their owning module's source directory.

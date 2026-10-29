@@ -47,6 +47,6 @@ export interface AIProvider {
     fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<void>;
     /** Stable provider locators can reacquire bytes without refreshing the whole Detail. */
     canAcquireResourceDirectly?(asset: DomainAsset): boolean;
-    acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes>;
+    acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<ResourceBytes>;
     matchesUrl(url: string): boolean;
 }

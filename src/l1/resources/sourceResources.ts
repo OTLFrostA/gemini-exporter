@@ -4,8 +4,9 @@ import type { DomainAsset } from '../../l2/conversationDetail.js';
 import { readConversationKey, type ConversationKey } from '../../l2/conversationKey.js';
 import type { SourceConversationParseResult } from '../parsers/parsingResult.js';
 import type { ResourceBytes } from '../../shared/resources/resourceResult.js';
+import { diagnosticOrigin, emitDiagnostic, type Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 
-type ResourceReader = (signal?: AbortSignal) => Promise<ResourceBytes>;
+type ResourceReader = (signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void) => Promise<ResourceBytes>;
 const conversationIdentity = (key: ConversationKey) => JSON.stringify([key.accountId, key.conversationId]);
 
 /** The caller owns this context and releases it on completion. A workbench may
@@ -44,24 +45,31 @@ export function createSourceResourceContext() {
                         const bytes = Uint8Array.from(atob(raw), character => character.charCodeAt(0));
                         return { bytes, mediaType: asset.mediaType ?? hint.mimeType ?? hint.mime };
                     });
-                } else if (locator) selected.set(asset.id, signal => acquireSourceResource({ ...asset, sourceUri: locator }, signal));
+                } else if (locator) selected.set(asset.id, (signal, onDiagnostic) => acquireSourceResource({ ...asset, sourceUri: locator }, signal, onDiagnostic));
             }
             readers.set(conversationIdentity(key), selected);
         },
         has(key: ConversationKey, assetId: string): boolean {
             return !released && readers.get(conversationIdentity(key))?.has(assetId) === true;
         },
-        async acquire(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal, remote?: ResourceReader): Promise<ResourceBytes> {
+        async acquire(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal, remote?: ResourceReader,
+            onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<ResourceBytes> {
             readConversationKey(key);
             signal?.throwIfAborted();
             if (released) throw new Error('Resource context released');
             const read = readers.get(conversationIdentity(key))?.get(asset.id);
             let result: ResourceBytes | undefined;
             if (read) {
-                try { result = await read(signal); } catch { signal?.throwIfAborted(); }
+                try { result = await read(signal, onDiagnostic); }
+                catch (error) {
+                    signal?.throwIfAborted();
+                    emitDiagnostic(onDiagnostic, { severity: 'info', code: 'RESOURCE_READER_FALLBACK',
+                        message: 'Task reader failed; falling back to source acquisition',
+                        details: { errorName: error instanceof Error ? error.name : 'NonError' } });
+                }
             }
             signal?.throwIfAborted();
-            if (!result?.bytes.byteLength) result = await (remote ? remote(signal) : acquireSourceResource(asset, signal));
+            if (!result?.bytes.byteLength) result = await (remote ? remote(signal, onDiagnostic) : acquireSourceResource(asset, signal, onDiagnostic));
             signal?.throwIfAborted();
             if (!result.bytes.byteLength) throw new ResourceProcessingError('Empty source resource');
             const mediaType = result.mediaType ?? asset.mediaType, name = result.name ?? asset.name;
@@ -78,14 +86,31 @@ export function createSourceResourceContext() {
 export type SourceResourceContext = ReturnType<typeof createSourceResourceContext>;
 
 /** Bytes remain acquisition output, never a second Detail field. */
-export async function acquireSourceResource(asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
+export async function acquireSourceResource(asset: DomainAsset, signal?: AbortSignal,
+    onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<ResourceBytes> {
     signal?.throwIfAborted();
     if (!asset.sourceUri || !/^(https:\/\/|data:)/i.test(asset.sourceUri)) throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'No supported source locator');
-    const response = await fetch(asset.sourceUri, { credentials: 'include', signal });
-    if (!response.ok) throw new ResourceHttpError(response.status);
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    signal?.throwIfAborted();
-    if (!bytes.byteLength) throw new ResourceProcessingError('Empty source resource');
-    const mediaType = asset.mediaType ?? response.headers.get('content-type')?.split(';')[0].trim();
-    return { bytes, ...(mediaType ? { mediaType } : {}), ...(asset.name ? { name: asset.name } : {}) };
+    const startedAt = Date.now();
+    const origin = diagnosticOrigin(asset.sourceUri);
+    let phase = 'fetch';
+    let response: Response | undefined;
+    try {
+        response = await fetch(asset.sourceUri, { credentials: 'include', signal });
+        if (!response.ok) throw new ResourceHttpError(response.status);
+        phase = 'read_body';
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        signal?.throwIfAborted();
+        if (!bytes.byteLength) throw new ResourceProcessingError('Empty source resource');
+        const mediaType = asset.mediaType ?? response.headers.get('content-type')?.split(';')[0].trim();
+        emitDiagnostic(onDiagnostic, { severity: 'info', code: 'RESOURCE_FETCH_COMPLETED', message: 'Source attachment bytes acquired',
+            details: { origin, httpStatus: response.status, byteLength: bytes.byteLength, elapsedMs: Date.now() - startedAt } });
+        return { bytes, ...(mediaType ? { mediaType } : {}), ...(asset.name ? { name: asset.name } : {}) };
+    } catch (error) {
+        emitDiagnostic(onDiagnostic, { severity: 'info', code: 'RESOURCE_FETCH_FAILED', message: 'Source attachment request failed',
+            details: { phase, origin, credentials: 'include', httpStatus: response?.status ?? null,
+                responseType: response?.type ?? null, redirected: response?.redirected ?? null,
+                errorName: error instanceof Error ? error.name : 'NonError', aborted: signal?.aborted ?? false,
+                elapsedMs: Date.now() - startedAt } });
+        throw error;
+    }
 }
