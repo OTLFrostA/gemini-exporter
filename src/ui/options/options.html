@@ -420,10 +420,8 @@
       <div class="conversation-more">
         <button id="btnMoreActions" type="button" class="ghost small" aria-label="更多操作" aria-expanded="false" aria-controls="moreActionsMenu" title="更多操作">···</button>
         <div id="moreActionsMenu" class="conversation-more-menu" hidden>
-          <button id="btnImportTakeout" class="ghost small" data-i18n="btnImportTakeout" data-i18n-title="btnImportTakeoutTip" title="导入历史 Takeout ZIP">📥 导入 Takeout</button>
+          <button id="btnImportTakeout" class="ghost small" data-ui-en="📥 Import ZIP" data-ui-zh="📥 导入 ZIP" title="导入当前所选平台的 ZIP 压缩包">📥 导入 ZIP</button>
           <span id="takeoutAccountName" class="stat menu-account-note" title="Takeout import target"></span>
-          <button id="btnImportOpenAI" class="ghost small" data-ui-en="📥 Import OpenAI ZIP" data-ui-zh="📥 导入 OpenAI ZIP">📥 导入 OpenAI ZIP</button>
-          <span id="openaiImportHint" class="stat menu-account-note"></span>
           <div class="menu-divider"></div>
           <div id="localDataControls" aria-label="本地记录" data-i18n-aria-label="localRecords">
             <button id="btnClearScan" class="ghost small menu-danger" data-ui-en="Clear scan records" data-ui-zh="清除扫描记录" data-i18n-title="clearScanRecordsTip" title="清除当前账号扫描记录">清除扫描记录</button>
@@ -433,7 +431,6 @@
         </div>
       </div>
       <input type="file" id="takeoutFileInput" accept=".zip" hidden>
-      <input type="file" id="openaiFileInput" accept=".zip" hidden>
     </div>
     <div class="conversation-selection">
       <input id="btnSelectAll" type="checkbox" aria-label="全选当前可见会话">

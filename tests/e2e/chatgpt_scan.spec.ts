@@ -70,7 +70,7 @@ test('Connect ChatGPT selects its verified account and Sync All commits only its
                 .map((a: { id: string }) => api.listIndexes(a.id)))).flat().length };
     }, id)).toEqual({ provider: 'chatgpt', conversations: 1, geminiRows: 0 });
     expect(await page.evaluate(() => Reflect.get(window, 'chatgptHttpCalls'))).toContain('/backend-api/conversations');
-    await expect(page.locator('#btnImportTakeout')).toBeDisabled();
+    await expect(page.locator('#btnImportTakeout')).toBeEnabled();
     await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();
 });
 
