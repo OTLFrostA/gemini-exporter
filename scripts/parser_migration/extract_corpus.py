@@ -37,7 +37,6 @@ def extract_corpus():
     takeout_path = os.path.join(REPO_DIR, "tests", "fixtures", "gemini_takeout_clean.zip")
     sample_path = os.path.join(REPO_DIR, "tests", "fixtures", "provider", "conversation-sample.json")
 
-    # Math extraction regexes
     display_re = re.compile(r"\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]")
     inline_re = re.compile(r"(?<!\\)\$(.+?)(?<!\\)\$|\\\(([\s\S]+?)\\\)")
 
@@ -62,7 +61,6 @@ def extract_corpus():
             expr = m.group(1) or m.group(2)
             if expr:
                 s = expr.strip()
-                # Exclude plain currency numbers ($5, $10.50)
                 if s and not re.match(r"^\d+(?:\.\d{1,2})?$", s):
                     if (s, False) not in seen:
                         seen.add((s, False))
@@ -80,7 +78,6 @@ def extract_corpus():
     real_gemini_output_docs = []
     real_gemini_output_math = []
 
-    # 2. scenario_inputs (User prompts sent TO Gemini)
     scenario_input_docs = []
     scenario_input_math = []
 
@@ -109,14 +106,12 @@ def extract_corpus():
             for name in zf.namelist():
                 if name.endswith(".html"):
                     html = zf.read(name).decode("utf-8", errors="replace")
-                    # In MyActivity.html, user prompts are marked with 'Prompted ...'
                     chunks = re.findall(r'<div class="content-cell[^"]*">([\s\S]*?)</div>', html)
                     for idx, c in enumerate(chunks):
                         clean = re.sub(r'<br\s*/?>', '\n', c)
                         clean = re.sub(r'<[^>]+>', ' ', clean).strip()
                         if clean.startswith("Prompted"):
                             prompt_text = clean[len("Prompted"):].strip()
-                            # Strip trailing timestamp like 'Sep 2, 2026, 12:12:52 PM PDT'
                             prompt_text = re.sub(r'\s+[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4},.*$', '', prompt_text).strip()
                             if prompt_text and len(prompt_text) > 5:
                                 doc_id = f"takeout_user_prompt_{idx + 1}"
@@ -131,7 +126,6 @@ def extract_corpus():
                                 scenario_input_docs.append(doc)
                                 scenario_input_math.extend(extract_math(doc_id, prompt_text, "takeout_prompt"))
 
-    # 3. synthetic_fixtures (Hand-crafted test data)
     synthetic_docs = []
     synthetic_math = []
 

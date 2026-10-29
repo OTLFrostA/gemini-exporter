@@ -180,7 +180,6 @@ def _select_scenarios(pool, count, require_imagen=True):
         if img_cand_idx is not None:
             selected.append(pool.pop(img_cand_idx))
 
-    # 其余名额按顺序从池中抽取
     while len(selected) < count and pool:
         selected.append(pool.pop(0))
     return selected, pool

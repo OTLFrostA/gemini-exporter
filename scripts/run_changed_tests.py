@@ -39,7 +39,6 @@ def main():
     print("⚡ Gemini Exporter — Tier 1 依赖感知增量测试 (Incremental Test Runner)")
     print("=" * 70)
 
-    # 1. 影响分析
     changed_files = set(args.files) if args.files is not None else get_git_changed_files(base_ref=args.base, base_dir=REPO_DIR)
     graph = DependencyGraph(base_dir=REPO_DIR)
     impact = analyze_impact(changed_files, graph=graph, base_dir=REPO_DIR)
@@ -60,7 +59,6 @@ def main():
         print(f"📁 变更文件: {len(impact.changed_files)} 个 | 传递闭包影响: {len(impact.affected_files)} 个模块")
         print(f"🧪 受影响单元测试: {len(impact.target_unit_tests)} 个 | 🎭 受影响 E2E 规格: {len(impact.target_e2e_specs)} 个")
 
-    # 2. TypeScript 类型检查
     if not args.skip_typecheck:
         print("\n📘 [步骤 1/4] TypeScript 全局严格类型检查 (tsc --noEmit)...")
         res = subprocess.run(["npm", "run", "type-check"], cwd=REPO_DIR)
@@ -69,7 +67,6 @@ def main():
             sys.exit(res.returncode)
         print("  ✓ TypeScript strict check passed")
 
-    # 3. 受影响单元测试
     print("\n🧪 [步骤 2/4] 运行受影响的单元测试套件...")
     unit_cmd = [sys.executable, os.path.join(REPO_DIR, "tests", "run_tests.py"), "--changed"]
     if args.base:
@@ -81,14 +78,12 @@ def main():
         print("❌ 单元测试套件执行失败！")
         sys.exit(res.returncode)
 
-    # 4. 构建验证
     print("\n📦 [步骤 3/4] 构建 dist bundles (node build.js)...")
     res = subprocess.run(["node", "build.js"], cwd=REPO_DIR)
     if res.returncode != 0:
         print("❌ 打包构建失败！")
         sys.exit(res.returncode)
 
-    # 5. Playwright E2E 规格测试
     if not args.skip_e2e:
         if impact.target_e2e_specs:
             print(f"\n🎭 [步骤 4/4] 运行受影响的 Playwright E2E 规格 ({len(impact.target_e2e_specs)} 个)...")

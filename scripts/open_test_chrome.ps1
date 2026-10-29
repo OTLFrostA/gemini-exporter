@@ -4,18 +4,14 @@
 .DESCRIPTION
     Zero-personal-info script: dynamically resolves the user profile directory and repository root.
     Never exposes or hardcodes personal usernames, machine paths, or private data.
-#>
 
 $ErrorActionPreference = "Stop"
 
-# 1. Dynamically resolve repository root (parent of scripts/)
 $ScriptDir = $PSScriptRoot
 $RepoDir = (Resolve-Path (Join-Path $ScriptDir "..")).Path
 
-# 2. Dynamically resolve isolated test profile directory in user's home (outside the git repo)
 $ProfileDir = if ($env:GEMINI_EXPORTER_TEST_PROFILE) { $env:GEMINI_EXPORTER_TEST_PROFILE } else { Join-Path $env:USERPROFILE ".gemini-exporter-test-profile" }
 
-# 3. Search standard Chrome installation locations on Windows
 $CandidatePaths = @(
     (Join-Path $env:ProgramFiles "Google\Chrome\Application\chrome.exe"),
     (Join-Path ${env:ProgramFiles(x86)} "Google\Chrome\Application\chrome.exe"),
@@ -42,12 +38,10 @@ if (-not $ChromeBin) {
     exit 1
 }
 
-# 4. Ensure profile directory exists
 if (-not (Test-Path -LiteralPath $ProfileDir)) {
     New-Item -ItemType Directory -Path $ProfileDir -Force | Out-Null
 }
 
-# 4b. Ensure production bundles are fresh
 Write-Host "🔨 Building extension bundles (node build.js)..." -ForegroundColor Cyan
 Push-Location $RepoDir
 try {

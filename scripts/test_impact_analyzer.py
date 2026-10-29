@@ -23,7 +23,6 @@ from typing import Set, List, Dict, Tuple, Optional
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# 全局核心文件：任一文件变更均触发全量测试
 GLOBAL_FILES = {
     "package.json",
     "package-lock.json",
@@ -69,7 +68,6 @@ _CONTENT_PREFIXES = ("src/l1/sniffer/", "src/l1/client/gemini/bootstrap.ts",
 for _prefix in _CONTENT_PREFIXES:
     COMPONENT_E2E_MAP[_prefix] = COMPONENT_E2E_MAP["src/runtime/content"]
     COMPONENT_UNIT_MAP[_prefix] = COMPONENT_UNIT_MAP["src/runtime/content"]
-# Sandbox compilation and directory selection were formerly under src/ui.
 for _prefix in ("src/l4/format/pdf/sandbox/", "src/runtime/capabilities/dirHandleController.ts"):
     COMPONENT_E2E_MAP[_prefix] = COMPONENT_E2E_MAP["src/ui"]
     COMPONENT_UNIT_MAP[_prefix] = COMPONENT_UNIT_MAP["src/ui"]
@@ -95,7 +93,7 @@ def resolve_import_path(source_file: str, import_str: str, base_dir: str = REPO_
     支持 .js -> .ts 互转与 index.ts/js 解析。
     """
     if not import_str.startswith("."):
-        return None  # 外部包或内置库
+        return None
 
     src_dir = os.path.dirname(os.path.join(base_dir, source_file))
     target_base = os.path.normpath(os.path.join(src_dir, import_str))

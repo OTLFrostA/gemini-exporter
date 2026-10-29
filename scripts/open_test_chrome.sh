@@ -14,7 +14,6 @@ for arg in "$@"; do
   fi
 done
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# 跨平台自动探测 Google Chrome 路径
 CHROME_BIN=""
 if [ "$(uname)" = "Darwin" ]; then
   CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -26,7 +25,6 @@ elif [ "$(expr substr $(uname -s) 1 5 2>/dev/null)" = "Linux" ]; then
     fi
   done
 else
-  # Windows (Git Bash / MSYS / Cygwin)
   for candidate in \
     "/c/Program Files/Google/Chrome/Application/chrome.exe" \
     "/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" \

@@ -93,7 +93,6 @@ function canonicalizeSemanticAst(val: any): any {
     }
 
     if (Array.isArray(val)) {
-        // If this array contains inline text nodes, coalesce adjacent text
         const isInlineArray = val.some((item) => item && typeof item === 'object' && item.type === 'text');
         const list = isInlineArray ? coalesceInlines(val) : val;
         return list.map(canonicalizeSemanticAst);
@@ -108,10 +107,9 @@ function canonicalizeSemanticAst(val: any): any {
         }
         const v = val[key];
         if (v === undefined) {
-            continue; // undefined is equivalent to absent key
+            continue;
         }
 
-        // Minimal canonicalization for code block language
         if (key === 'language' && typeof v === 'string' && val.type === 'code') {
             cleaned[key] = v.trim().toLowerCase();
         } else {
@@ -128,9 +126,6 @@ interface DiffDetail {
     message: string;
 }
 
-/**
- * Deeply compares two canonicalized AST structures and detects the first discrepancy.
- */
 function deepCompareAst(path: string, a: any, b: any): DiffDetail | null {
     if (a === b) return null;
 
@@ -181,7 +176,6 @@ function deepCompareAst(path: string, a: any, b: any): DiffDetail | null {
         return null;
     }
 
-    // Both are objects
     const aType = a.type;
     const bType = b.type;
     if (aType && bType && aType !== bType) {
@@ -234,12 +228,10 @@ function deepCompareAst(path: string, a: any, b: any): DiffDetail | null {
         const valA = a[key];
         const valB = b[key];
 
-        // undefined is equivalent to absent
         if (valA === undefined && valB === undefined) continue;
 
         const subDiff = deepCompareAst(`${path}.${key}`, valA, valB);
         if (subDiff) {
-            // Refine kind based on key
             if (key === 'href' || aType === 'link') {
                 return { ...subDiff, kind: 'LINK_CORRUPTED' };
             }
@@ -259,9 +251,6 @@ function deepCompareAst(path: string, a: any, b: any): DiffDetail | null {
     return null;
 }
 
-/**
- * Recursively extracts human-readable text from an AST node for fingerprinting.
- */
 function extractText(node: any): string {
     if (!node) return '';
     if (typeof node === 'string') return node;
@@ -283,9 +272,6 @@ function extractText(node: any): string {
     return '';
 }
 
-/**
- * Extracts a simplified semantic fingerprint of Content AST blocks.
- */
 export function extractAstFingerprint(blocks: any[]): AstSemanticFingerprint {
 
     const summaries: BlockSummary[] = blocks.map((b) => {
@@ -356,10 +342,6 @@ export function compareMarkdownAst(
     };
 }
 
-/**
- * Compares two LaTeX math conversion results semantically.
- * Defaults diffs to 'D_CANNOT_DETERMINE'.
- */
 export function compareMathConversion(
     latex: string,
     baselineResult: { typst?: string; diagnostic?: any },
