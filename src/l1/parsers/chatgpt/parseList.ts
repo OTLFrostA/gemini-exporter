@@ -10,7 +10,6 @@ interface ChatGPTListParseResult {
     nextCursor: string | null;
 }
 
-/** Backend list metadata -> Domain; pagination controls remain explicit beside business facts. */
 export function parseChatGPTList(page: unknown): ChatGPTListParseResult {
     if (!page || typeof page !== 'object' || Array.isArray(page)) throw new TypeError('Invalid ChatGPT list payload');
     const items = 'items' in page ? page.items : undefined;

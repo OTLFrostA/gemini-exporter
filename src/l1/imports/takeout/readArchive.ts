@@ -54,7 +54,6 @@ async function decodeArchive(bytes: GeminiTakeoutZipRaw, context: GeminiTakeoutZ
     return { htmlText, activityPath, archiveFiles: files };
 }
 
-/** Import input IO: ZIP safety and reads precede the pure HTML source parser. */
 export async function parseGeminiTakeoutZipArchive(bytes: GeminiTakeoutZipRaw, context: GeminiTakeoutZipContext): Promise<GeminiTakeoutParseResult[]> {
     return parseGeminiTakeoutArchiveAsync(await decodeArchive(bytes, context), context, context.onProgress);
 }

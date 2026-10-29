@@ -16,7 +16,6 @@ function isTextContent(
     return message.content.content_type === 'text';
 }
 
-/** Tool/image messages that carry renderable images are kept; pure tool chatter is dropped. */
 function toolMessageHasImage(message: ChatGPTNodeMessage): boolean {
     const content = message.content;
     if (content.content_type === 'execution_output') {
@@ -226,10 +225,6 @@ type ChatGPTNodeSegment =
     | { kind: 'text'; text: string }
     | { kind: 'image'; pointer: string };
 
-/**
- * Ordered text and image segments of a node so mixed text+image turns
- * (`multimodal_text` and `execution_output`) preserve their in-place order.
- */
 export function chatGPTNodeSegments(node: ChatGPTConversationNode): ChatGPTNodeSegment[] {
     const content = node.message?.content;
     if (!content) return [];

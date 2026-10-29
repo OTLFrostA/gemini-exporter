@@ -8,7 +8,6 @@ import { TakeoutParseError } from '../../../shared/types/errors.js';
 
 export interface TakeoutParseResult { imported: number; status: 'ok' | 'partial' }
 
-/** UI/acquisition adapter: native parsing precedes the one-way storage projection. */
 export async function importTakeout(file: File, accountId: Account['id'], onProgress?: (percent: number) => void, resources?: SourceResourceContext): Promise<TakeoutParseResult> {
     if (!accountId) throw new TypeError('Takeout requires an account UUID');
     const account = await getAccount(accountId);

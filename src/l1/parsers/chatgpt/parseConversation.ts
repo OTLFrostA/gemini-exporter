@@ -197,7 +197,6 @@ function branchCoverage(conversation: ChatGPTApiConversationWithId): 'complete' 
     return 'unknown';
 }
 
-/** Linearize source messages; final Domain validation belongs to L2. */
 export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConversationParseResult {
     const { conversation } = input;
     const contentDiagnostics: Diagnostic[] = [];
@@ -251,7 +250,6 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
             { ...ctx, sourceRef: { ...ctx.sourceRef, providerMessageId: node.id } },
         ),
     );
-    // Source activity versions travel beside Detail; Index owns updatedAt.
     const sourceVersion = conversation.updatedAtMs;
     return {
         ...(sourceVersion !== undefined ? { sourceVersion } : {}),

@@ -6,7 +6,6 @@
 /** Author role used by ChatGPT mapping nodes. */
 export type ChatGPTAuthorRole = 'system' | 'assistant' | 'user' | 'tool';
 
-/** Minimal message content union needed for export (text-first). */
 export type ChatGPTMessageContent =
     | { content_type: 'text'; parts: string[] }
     | { content_type: 'code'; language: string; text: string }
@@ -26,7 +25,6 @@ export interface ChatGPTGalleryResult {
 export interface ChatGPTNodeMessage {
     author: { role: ChatGPTAuthorRole; name?: string };
     content: ChatGPTMessageContent;
-    /** Validated Unix milliseconds; raw seconds/strings are decoded at ingress. */
     createdAtMs?: number;
     id: string;
     metadata?: {
@@ -45,9 +43,7 @@ export interface ChatGPTNodeMessage {
             constants?: ReadonlyMap<string, string>;
             appData?: { opGenui?: { componentResults?: ReadonlyMap<string, ChatGPTGalleryResult> } };
         };
-        /** Tether web citations: each entry carries its source in metadata. */
         citations?: Array<{ metadata?: { title?: string; url?: string; text?: string } }>;
-        /** New-style grouped web references with item/source lists. */
         content_references?: Array<{
             items?: Array<{ title?: string; url?: string }>;
             sources?: Array<{ title?: string; url?: string }>;
@@ -71,7 +67,6 @@ export interface ChatGPTConversationNode {
 }
 
 export interface ChatGPTApiConversation {
-    /** Validated Unix milliseconds; raw seconds/strings are decoded at ingress. */
     createdAtMs?: number;
     updatedAtMs?: number;
     conversation_id?: string;
@@ -83,7 +78,6 @@ export interface ChatGPTApiConversation {
 
 export type ChatGPTApiConversationWithId = ChatGPTApiConversation & { id: string };
 
-/** Backend endpoint table. Mirrors pionxzh constants: origin -> backend-api. */
 export function chatGPTApiBase(origin: string): string {
     if (origin === 'https://chatgpt.com' || origin === 'https://chat.openai.com') {
         return `${origin}/backend-api`;

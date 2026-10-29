@@ -17,8 +17,6 @@ function projection(text: string): { text: string; offsets: number[]; ends: numb
         }
         if (/[\p{L}\p{N}]/u.test(value)) {
             chars.push(value);
-            // Anchor indexes use UTF-16 offsets, including supplementary letters
-            // and numeric entities that occupy several raw source characters.
             for (let i = 0; i < value.length; i++) {
                 offsets.push(match.index);
                 ends.push(match.index + match[0].length);
