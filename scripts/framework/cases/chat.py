@@ -182,6 +182,8 @@ description: "Dynamically created test attachment to verify multi-format user up
                     ctx.shared_data["uploaded_test_file"]["chat_id"] = session.chat_id
                 print(f"      🏁 第 {chat_idx + 1} 次对话完成！会话 ID: {session.chat_id}")
 
+                # 关键真实闭环：在完成会话 1 后，立即触发一次真实导出记录其初始导出时间戳基线，
+                # 这样后续在会话 1 进行追加提问时，其更新时间天然晚于导出时间，彻底告别假数据写库作弊！
                 if chat_idx == 0 and session.chat_id and ctx.ext_id:
                     print(f"      📦 触发会话 1 ({session.chat_id}) 真实导出建立时间基准线...")
                     try:

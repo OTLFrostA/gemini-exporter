@@ -825,6 +825,7 @@ class PdfExportDownloadCase(FeatureTestCase):
             name="PDF 真实编译 ZIP 导出与落盘核验",
             description="切换导出格式为 PDF (.pdf)，通过沙箱 Typst WASM 真实编译导出 ZIP，解压严格断言 %PDF- 二进制规范与非空",
             critical=True,
+            # 与 HTML 同理独立验证，不以 HTML 通过为必要条件。
             prerequisites=[],
             after=["feat_zip_export_download"]
         )
@@ -932,6 +933,7 @@ class PdfExportDownloadCase(FeatureTestCase):
                 if b"%%EOF" not in tail and b"/Root" not in header and b"/Root" not in tail:
                     return False, f"PDF 导出文件缺少标准结构体特征: {pf}", None
 
+                # 提取并严格断言 PDF 内部真实文本与消息渲染（物理杜绝空会话假通过）
                 pdf_info = self._extract_pdf_info(fpath)
                 pdf_text = pdf_info.get("text", "")
                 text_len = pdf_info.get("textLength", 0)
@@ -949,9 +951,11 @@ class PdfExportDownloadCase(FeatureTestCase):
                     if cjk_chars < 50:
                         return False, f"PDF 导出文件 [{pf}] 中文字符提取数量过低 ({cjk_chars} 字符)，疑似中文字体未正确嵌入导致字符丢失: text={pdf_text[:300]!r}", pdf_info
 
+                # 2. 乱码与字符替换断言（杜绝缺少字形时的替换字符 \ufffd 豆腐块）
                 if "\ufffd" in pdf_text:
                     return False, f"PDF 导出文件 [{pf}] 存在字符乱码/替换字符 (\\ufffd 豆腐块)", pdf_info
 
+                # 3. 内部元数据标签泄露断言（防 <Image ... image_agent_tag_...> 泄露）
                 if "image_agent_tag_" in pdf_text or re.search(r"<Image\s+[^>]*image_agent_tag", pdf_text):
                     return False, f"PDF 导出文件 [{pf}] 泄漏内部未清洗的 <Image ... image_agent_tag> 标签: text={pdf_text[:300]!r}", pdf_info
 

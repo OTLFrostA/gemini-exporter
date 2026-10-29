@@ -242,6 +242,7 @@ class ExtensionActions:
             input.blur();
         }})()
         """)
+        # 轮询等待列表过滤生效（optionsInit 包含 100ms 防抖及重绘周期）
         start = time.time()
         total_items = cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
 
@@ -271,6 +272,7 @@ class ExtensionActions:
             input.blur();
         }})()
         """)
+        # 轮询等待搜索防抖及全量列表恢复
         start = time.time()
         target_total = len((snapshot(cdp_opt, provider_id) or {}).get('rows', []))
 
