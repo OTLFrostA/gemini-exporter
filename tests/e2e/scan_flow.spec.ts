@@ -30,6 +30,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
       });
     });
 
+    // The initial, renamed and pinned List pages are immutable keyed wire samples.
     let renamed = false;
     const requestedKinds: string[] = [];
     await context.route('**/batchexecute*', async (route) => {

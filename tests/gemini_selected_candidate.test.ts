@@ -6,6 +6,8 @@ import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.j
 import { textOfBlocks } from './helpers/contentText.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 
+// Sanitized shape observed in the failing 2026-10-09 Tier 2 spray-dryer RPC:
+// one request, two answer drafts, turn[3][3] naming the displayed candidate.
 const ID = 'c_selected12345678';
 const candidates = [
     ['rc_displayed', [['## System Definition and Mass Balances\n\nDisplayed balance.']]],

@@ -149,7 +149,7 @@ test('UI v2: Dev switch uses left ON and right OFF beside its left label in both
         await expect(toggle).toBeEnabled();
         await label.click();
         await expect(toggle).toBeChecked();
-        await expect.poll(knobX).toBe(0);
+        await expect.poll(knobX).toBe(0); // ON: knob moves left, towards Dev.
         if (theme === 'light') {
             // Keep the original light gradient; dark mode deliberately uses a flat indigo accent.
             await expect(toggle).toHaveCSS('background-image', /linear-gradient/);
