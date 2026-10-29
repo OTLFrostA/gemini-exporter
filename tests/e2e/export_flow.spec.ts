@@ -64,3 +64,40 @@ test('large unchanged exports do not rebuild the conversation list for each skip
     expect(metrics.listRebuilds).toBeLessThanOrEqual(6);
     await expect(page.locator('#list input:checked')).toHaveCount(1343);
 });
+
+
+test('export progress keeps one cumulative three-counter message through source and attachment events', async ({context,extensionId}) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{id:'one'}, {id:'two'}]);
+    await page.evaluate(async accountId => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        for (const id of ['one', 'two']) await api.ingestDetail(accountId, id, {
+            savedAt: 100, quality: {status:'complete'},
+            assets: [{id:'file',kind:'file',name:'report.md',document:{contentMarkdown:`Report ${id}`}}],
+            messages: [{role:'user',content:[{type:'paragraph',children:[{type:'text',text:`Question ${id}`}]}]},
+                {role:'assistant',content:[{type:'file',assetId:'file'}]}],
+        }, {title:id,titleSource:'provider',updatedAt:100});
+        const messages: string[] = [];
+        Reflect.set(window, 'exportProgressMessages', messages);
+        const progress = document.getElementById('progText');
+        if (!progress) throw new Error('Missing export progress element');
+        new MutationObserver(() => {
+            if (progress?.textContent) messages.push(progress.textContent);
+        }).observe(progress, {childList:true,subtree:true,characterData:true});
+    }, accountId);
+    await page.locator('#btnSelectAll').click();
+    const download = page.waitForEvent('download');
+    await page.locator('#btnExport').click();
+    await download;
+    await expect(page.locator('body')).toHaveAttribute('data-busy','false');
+    const messages: string[] = await page.evaluate(() => Reflect.get(window, 'exportProgressMessages'));
+    expect(messages.length).toBeGreaterThan(2);
+    const counts = messages.map(message => {
+        const match = /^Prepared (\d+) conversations · exported (\d+) conversations · downloaded (\d+) attachments$/.exec(message);
+        if (!match) throw new Error(`Unexpected export progress: ${message}`);
+        return match.slice(1).map(Number);
+    });
+    for (let i=1;i<counts.length;i++) for (let metric=0;metric<3;metric++)
+        expect(counts[i][metric]).toBeGreaterThanOrEqual(counts[i-1][metric]);
+    expect(counts.at(-1)).toEqual([2,2,2]);
+});

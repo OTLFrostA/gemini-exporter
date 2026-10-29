@@ -68,7 +68,7 @@ export const conversationKey = (accountId, conversationId) => {
  if (!isAccountId(accountId) || !conversationId || conversationId !== conversationId.trim()) throw new TypeError('Invalid conversation key');
  return { accountId, conversationId };
 };
-export const runExport = async (request,options={}) => {h.exports.push(request);h.events.push('export');h.exportOptions=options;if(h.throwExport)throw new Error('Injected export failure');options.onProgress?.({current:1,total:request.keys.length,key:request.keys[0]});
+export const runExport = async (request,options={}) => {h.exports.push(request);h.events.push('export');h.exportOptions=options;if(h.throwExport)throw new Error('Injected export failure');options.onProgress?.({current:1,total:request.keys.length,key:request.keys[0]});options.onConversationPrepared?.(request.keys[0]);
  if(h.holdExport) await new Promise(resolve=>h.finishExport=resolve);
  const aborted = !!options.signal?.aborted;
  const failed = aborted ? [] : h.failExport ? request.keys.slice(h.partial ? 1 : 0) : [];

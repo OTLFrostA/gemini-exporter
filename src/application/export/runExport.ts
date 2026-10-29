@@ -60,7 +60,10 @@ interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'export
 /** One runtime task for every trigger and format. No sessions, checkpoints or delivery receipts. */
 export async function runExport(request: ExportRequest, options: {
     onProgress?: (progress: ExportProgress) => void;
-    onResourceProgress?: (progress: { key: ConversationKey; completed: number; total: number }) => void;
+    /** A usable body is ready for resource preparation; skipped targets do not count. */
+    onConversationPrepared?: (key: ConversationKey) => void;
+    /** downloaded counts distinct successful resource identities across this task, including refreshes. */
+    onResourceProgress?: (progress: { key: ConversationKey; completed: number; total: number; downloaded: number }) => void;
     /** Settled items and staged browser files; only 'exported' carries a committed record. */
     onItemUpdate?: (update: ExportItemUpdate) => void;
     onDiagnostic?: (diagnostic: ExportDiagnostic) => void;
@@ -82,6 +85,7 @@ export async function runExport(request: ExportRequest, options: {
     const queued: { key: ConversationKey; done: Promise<void> }[] = [];
     const resources = createSourceResourceContext();
     const providers = new Map<string, AIProvider>();
+    const downloadedResources = new Set<string>();
     let compiler: import('../../l4/format/pdf/typst/typstSandboxCompiler.js').TypstSandboxCompiler | undefined;
     let locale: 'zh' | 'en' = 'en';
     let fontDiagnostics: readonly import('../../shared/diagnostics/diagnostic.js').Diagnostic[] = [];
@@ -275,6 +279,7 @@ export async function runExport(request: ExportRequest, options: {
                     throw new OperationError('DETAIL_UNAVAILABLE', 'No usable local Detail');
                 }
                 const snapshot = conversation;
+                options.onConversationPrepared?.(key);
                 downstream = downstream.then(async () => {
                     signal.throwIfAborted();
                     let conversation: ReadonlyDomain | null = snapshot;
@@ -291,10 +296,11 @@ export async function runExport(request: ExportRequest, options: {
                             (asset, abort) => options.importedResources?.has(key, asset.id)
                                 ? options.importedResources.acquire(key, asset, abort,
                                     () => providerFor(account.providerId).acquireResource(key, asset, abort))
-                                : providerFor(account.providerId).acquireResource(key, asset, abort), signal, (completed, total) => {
-                                options.onResourceProgress?.({ key, completed, total });
+                                : providerFor(account.providerId).acquireResource(key, asset, abort), signal, (completed, total, result) => {
+                                if (result?.ok) downloadedResources.add(JSON.stringify([key.accountId, key.conversationId, result.resourceId]));
+                                options.onResourceProgress?.({ key, completed, total, downloaded: downloadedResources.size });
                                 diagnose({ key, stage: 'resource', severity: 'info', code: 'RESOURCE_ACQUISITION_PROGRESS',
-                                    message: `Attachments ${completed}/${total}`, details: { completed, total } });
+                                    message: `Attachments ${completed}/${total}`, details: { completed, total, downloaded: downloadedResources.size } });
                             });
                         return { ...view, key, account, conversation: snapshot, prepared, fileIds, refreshFailed,
                             ...(record?.folderBaseName ? { folderBaseName: record.folderBaseName } : {}) };
