@@ -101,6 +101,7 @@ export function renderExportFailures(container: HTMLElement, groups: readonly Ex
     container.replaceChildren();
     for (const group of groups) {
         const details = document.createElement('details');
+        details.dataset.severity = group.severity;
         const summary = document.createElement('summary');
         summary.textContent = failureGroupLabel(group);
         details.append(summary);

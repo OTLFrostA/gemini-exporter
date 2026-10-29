@@ -38,6 +38,12 @@
   .ghost:hover{background:#1f2233;border-color:var(--border-focus)}
   button.ok{background:var(--ok);color:#062419}
   .small{padding:4px 10px;font-size:12px;height:28px;border-radius:6px;}
+  .export-issues{--issue-color:var(--warn);margin-top:6px;padding:8px 10px;background:color-mix(in srgb,var(--issue-color) 8%,var(--card));border:1px solid color-mix(in srgb,var(--issue-color) 30%,var(--border));border-radius:8px;font-size:12px;}
+  .export-issues[data-severity="error"]{--issue-color:var(--danger,#f87171);}
+  .export-issues-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:4px;}
+  #exportFailureTitle{flex:1 1 160px;min-width:0;color:var(--issue-color);font-weight:600;}
+  #exportFailureList details[data-severity="warning"] > summary{color:var(--warn);}
+  #exportFailureList details[data-severity="error"] > summary{color:var(--danger,#f87171);}
   button:disabled{opacity:.45;pointer-events:none}
   .support-links{margin-top:auto;padding-top:6px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:2px;flex:none;}
   .support-link{display:flex;align-items:center;gap:10px;min-height:38px;padding:9px 10px;border-radius:8px;color:var(--muted);text-decoration:none;cursor:pointer;transition:background .15s ease,color .15s ease;}
@@ -363,11 +369,11 @@
     <p id="status" role="status" aria-live="polite" class="stat" style="margin:0;text-align:center;min-height:20px;line-height:1.5;overflow-wrap:anywhere;padding:2px 0;"></p>
     </div>
 
-    <div id="exportFailureCard" style="display:none; margin-top:6px; padding:8px 10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:8px; font-size:12px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-        <span id="exportFailureTitle" style="color:var(--danger, #f87171); font-weight:600;" data-i18n="exportFailureBannerTitle">部分会话导出失败</span>
+    <div id="exportFailureCard" class="export-issues" style="display:none;">
+      <div class="export-issues-header">
+        <span id="exportFailureTitle" data-i18n="exportFailureBannerTitle">导出提示</span>
         <div style="display:flex; gap:6px;">
-          <button id="btnCopyFailedLog" class="small ghost" style="padding:2px 8px; font-size:11px; border-color:var(--subtle-button-border, rgba(255,255,255,0.15)); color:var(--text);" data-i18n="btnCopyFailedLog">复制错误</button>
+          <button id="btnCopyFailedLog" class="small ghost" style="padding:2px 8px; font-size:11px; border-color:var(--subtle-button-border, rgba(255,255,255,0.15)); color:var(--text);" data-i18n="btnCopyFailedLog">复制诊断</button>
           <button id="btnRetryFailed" class="small ghost" style="padding:2px 8px; font-size:11px; border-color:rgba(239,68,68,0.4); color:var(--danger, #f87171);" data-i18n="btnRetryFailed">重试失败项</button>
           <button id="btnDismissFailure" class="small ghost" style="padding:2px 6px; font-size:11px; color:var(--text-muted);" title="关闭" data-i18n-title="btnCloseTip">✕</button>
         </div>

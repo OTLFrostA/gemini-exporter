@@ -118,11 +118,15 @@ export async function initWorkbench(): Promise<void> {
     const failureGroups = () => currentIssues.groups();
     const showFailures = () => {
         const card = el('exportFailureCard');
-        card.style.display = failureGroups().length && !dismissedFailures ? 'block' : 'none';
         const groups = failureGroups();
-        el('exportFailureTitle').textContent = text(
-            `${failed.length} conversations failed · Issue groups: ${groups.length}`,
-            `${failed.length} 条会话导出失败 · ${groups.length} 组问题`);
+        card.style.display = groups.length && !dismissedFailures ? 'block' : 'none';
+        const hasErrors = failed.length > 0 || groups.some(group => group.severity === 'error');
+        card.dataset.severity = hasErrors ? 'error' : 'warning';
+        el('exportFailureTitle').textContent = hasErrors
+            ? failed.length ? text(`${failed.length} conversations failed · Issue groups: ${groups.length}`,
+                `${failed.length} 条会话导出失败 · ${groups.length} 组问题`)
+                : text(`Export errors · Issue groups: ${groups.length}`, `导出错误 · ${groups.length} 组问题`)
+            : text(`Export warnings · Issue groups: ${groups.length}`, `导出警告 · ${groups.length} 组提示`);
         control('button', 'btnRetryFailed').hidden = !failed.length;
         renderExportFailures(el('exportFailureList'), groups);
     };
