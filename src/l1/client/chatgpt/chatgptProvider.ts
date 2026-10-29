@@ -26,6 +26,7 @@ import { CHATGPT_HOSTS, chatGPTApiBase } from '../../parsers/chatgpt/chatgptType
 import { parseChatGPTConversation } from '../../parsers/chatgpt/parseConversation.js';
 import { decodeChatGPTDetail } from '../../parsers/chatgpt/decodeDetail.js';
 import {
+    buildAttachmentDownloadPath,
     buildFileDownloadPath,
     fileIdFromPointer,
     parseFileDownloadPayload,
@@ -219,9 +220,21 @@ export class ChatGPTProvider implements AIProvider {
         readConversationKey(key);
         const account = await this.context(key.accountId);
         const remote = async () => {
-            const fileId = asset.sourceUri?.startsWith('file-download:') ? asset.sourceUri.slice(14) : fileIdFromPointer(asset.sourceUri ?? '');
+            const uploadedFile = asset.sourceUri?.startsWith('file-download:') === true;
+            const fileId = uploadedFile ? asset.sourceUri?.slice(14) : fileIdFromPointer(asset.sourceUri ?? '');
             if (!fileId) return acquireSourceResource(asset, signal);
-            const exchange = parseFileDownloadPayload(await this.authedGet(buildFileDownloadPath(fileId, key.conversationId), account, signal));
+            const path = uploadedFile ? buildAttachmentDownloadPath(fileId, key.conversationId)
+                : buildFileDownloadPath(fileId, key.conversationId);
+            let raw: unknown;
+            try { raw = await this.authedGet(path, account, signal); }
+            catch (error) {
+                // Library-backed files can still require the scoped file exchange.
+                // Older stored locators do not distinguish those from regular uploads.
+                if (!uploadedFile || !(error instanceof OperationError) || error.code !== 'SOURCE_HTTP_ERROR'
+                    || error.httpStatus !== 403 && error.httpStatus !== 404) throw error;
+                raw = await this.authedGet(buildFileDownloadPath(fileId, key.conversationId), account, signal);
+            }
+            const exchange = parseFileDownloadPayload(raw);
             if (!exchange) throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'ChatGPT resource locator unavailable');
             const response = await this.fetchFn(exchange.downloadUrl, { signal });
             if (!response.ok) throw new ResourceHttpError(response.status);

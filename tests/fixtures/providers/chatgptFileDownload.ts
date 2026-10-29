@@ -1,5 +1,5 @@
 import { describeFixtures, synthetic } from './provenance.js';
-/** Raw GET /backend-api/files/download/:id JSON responses. */
+/** Native image and conversation-attachment download exchange responses. */
 interface FileDownloadResponse {
     status?: string;
     download_url?: string;
@@ -9,6 +9,7 @@ interface FileDownloadResponse {
 }
 
 const fixtureMap = {
+    'C_ATTACHMENT_DOWNLOAD_ACQUIRE_01': () => ({ download_url: 'https://dl/img.png' }),
     'C_FILE_DOWNLOAD_HELPERS_01': () => ({
         status: 'success', download_url: 'https://x/dl', file_name: 'a.png', file_size_bytes: 10,
     }),

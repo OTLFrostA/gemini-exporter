@@ -20,6 +20,7 @@ import {
     shouldSkipChatGPTMessage,
 } from '../src/l1/parsers/chatgpt/conversationTree.js';
 import {
+    buildAttachmentDownloadPath,
     buildFileDownloadPath,
     fileIdFromPointer,
     parseFileDownloadPayload,
@@ -214,8 +215,11 @@ test('files/download helpers narrow signed-url payloads', () => {
     assert.equal(fileIdFromPointer('file-service://'), null);
     const opaque = 'prefix#file_abc#p_0.preview.jpg';
     const scoped = new URL(buildFileDownloadPath(opaque, 'conversation-id'), 'https://chatgpt.com');
-    assert.equal(decodeURIComponent(scoped.pathname.split('/').at(-1) ?? ''), opaque);
+    assert.equal(decodeURIComponent(scoped.pathname.split('/').at(-1) ?? ''), opaque.replaceAll('#', '*'));
     assert.equal(scoped.hash, '');
+    assert.equal(buildAttachmentDownloadPath('file_abc', 'conversation-id'), '/conversation/conversation-id/attachment/file_abc/download');
+    assert.deepEqual(parseFileDownloadPayload({ download_url: 'https://dl/upload.txt' }), { downloadUrl: 'https://dl/upload.txt' });
+    assert.equal(parseFileDownloadPayload({ status: 'retry', download_url: 'https://dl/upload.txt' }), null);
     assert.equal(scoped.searchParams.get('conversation_id'), 'conversation-id');
     assert.equal(scoped.searchParams.get('inline'), 'false');
     assert.equal(scoped.searchParams.get('download_intent'), 'true');
@@ -234,6 +238,17 @@ test('Detail submits image identities; bytes are acquired on demand without chan
             const u = String(url);
             if (u.endsWith('/api/auth/session')) {
                 return Promise.resolve(new Response(JSON.stringify(chatgptSessionGen('C_FILE_DOWNLOAD_SESSION_01')), { status: 200 }));
+            }
+            if (/\/conversation\/conv-img\/attachment\/file_fallback_(403|404)\/download$/.test(u)) {
+                const status = u.includes('file_fallback_403') ? 403 : 404;
+                return Promise.resolve(new Response(JSON.stringify(fileDownloadGen('C_FILE_DOWNLOAD_ACQUIRE_02')), { status }));
+            }
+            if (u.includes('/files/download/file_fallback_')) {
+                assert.equal(new URL(u).searchParams.get('conversation_id'), 'conv-img');
+                return Promise.resolve(new Response(JSON.stringify(fileDownloadGen('C_FILE_DOWNLOAD_ACQUIRE_01')), { status: 200 }));
+            }
+            if (u.endsWith('/conversation/conv-img/attachment/file_cat/download')) {
+                return Promise.resolve(new Response(JSON.stringify(fileDownloadGen('C_ATTACHMENT_DOWNLOAD_ACQUIRE_01')), { status: 200 }));
             }
             if (u.includes('/files/download/file_cat')) {
                 assert.equal(new URL(u).searchParams.get('conversation_id'), 'conv-img');
@@ -272,6 +287,10 @@ test('Detail submits image identities; bytes are acquired on demand without chan
     assert.deepEqual((await provider.acquireResource(key, legacy)).bytes, pngBytes);
     const upload = { id: 'uploaded-file', kind: 'file' as const, sourceUri: 'file-download:file_cat' };
     assert.deepEqual((await provider.acquireResource(key, upload)).bytes, pngBytes);
+    for (const status of [403, 404]) {
+        const library = { ...upload, id: `library-${status}`, sourceUri: `file-download:file_fallback_${status}` };
+        assert.deepEqual((await provider.acquireResource(key, library)).bytes, pngBytes);
+    }
     await assert.rejects(provider.acquireResource(key, detail.assets[1]), /404/);
     assert.equal(detail.quality.status, 'complete');
     const after = await getDetail(storageIdentity('chatgpt', account.id, 'conv-img'));
