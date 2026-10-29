@@ -71,31 +71,13 @@ export class ChatGPTProvider implements AIProvider {
         }
     }
 
-    /** Bound headers and body reads together; caller cancellation keeps its own reason. */
-    private async request<T>(url: string, init: RequestInit, read: (response: Response) => Promise<T>): Promise<T> {
-        const controller = new AbortController();
-        const cancel = (): void => controller.abort(init.signal?.reason);
-        if (init.signal?.aborted) cancel();
-        else init.signal?.addEventListener('abort', cancel, { once: true });
-        const timer = setTimeout(() => controller.abort(new OperationError('SOURCE_REQUEST_TIMEOUT',
-            `ChatGPT request exceeded 60 seconds: ${new URL(url).pathname}`)), 60000);
-        try {
-            return await read(await this.fetchFn(url, { ...init, signal: controller.signal }));
-        } catch (error) {
-            if (controller.signal.aborted) throw controller.signal.reason;
-            throw error;
-        } finally {
-            clearTimeout(timer);
-            init.signal?.removeEventListener('abort', cancel);
-        }
-    }
-
     private async context(accountId: string): Promise<Account> {
         const account = await getAccount(accountId);
         if (!account || account.providerId !== this.id) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Provider account mismatch');
         return account;
     }
-    private async authedGet(path: string, account: Account, signal?: AbortSignal): Promise<unknown> {
+    private async authedGet(path: string, account: Account, signal?: AbortSignal,
+        notFoundCode: 'SOURCE_HTTP_ERROR' | 'RESOURCE_LOCATOR_UNAVAILABLE' = 'SOURCE_HTTP_ERROR'): Promise<unknown> {
         for (let attempt = 0; ; attempt++) {
             // Account-scoped cooldown also applies to another request on this
             // provider. A cancelled export must not erase the server deadline.
@@ -107,20 +89,15 @@ export class ChatGPTProvider implements AIProvider {
             signal?.throwIfAborted();
             // Re-observe identity after every cooldown; a browser account can
             // change while the export is waiting.
-            const rawSession: unknown = await this.request(`${this.origin}/api/auth/session`, { credentials: 'include', signal }, async response => {
-                if (!response.ok) throw new OperationError('SOURCE_HTTP_ERROR', `ChatGPT session failed: ${response.status}`, response.status);
-                const raw: unknown = await response.json();
-                return raw;
-            });
+            const sessionResponse = await this.fetchFn(`${this.origin}/api/auth/session`, { credentials: 'include', signal });
+            if (!sessionResponse.ok) throw new OperationError('SOURCE_HTTP_ERROR', `ChatGPT session failed: ${sessionResponse.status}`, sessionResponse.status);
+            const rawSession: unknown = await sessionResponse.json();
             const { accessToken: token, observation: observed } = readChatGPTSession(rawSession);
             if (observed ? observed.providerAccountId !== account.providerAccountId : account.providerAccountId !== 'default') throw new OperationError('ACCOUNT_CHANGED', 'ChatGPT request account mismatch');
             if (!token) throw new OperationError('SOURCE_AUTH_UNAVAILABLE', 'ChatGPT session has no accessToken');
-            const res = await this.request(`${chatGPTApiBase(this.origin)}${path}`, {
+            const res = await this.fetchFn(`${chatGPTApiBase(this.origin)}${path}`, {
                 credentials: 'include', signal,
                 headers: { Authorization: `Bearer ${token}`, 'X-Authorization': `Bearer ${token}` },
-            }, async response => {
-                const raw: unknown = response.ok ? await response.json() : undefined;
-                return { ok: response.ok, status: response.status, headers: response.headers, raw };
             });
             if (res.status === 429) {
                 const header = res.headers.get('Retry-After');
@@ -131,19 +108,21 @@ export class ChatGPTProvider implements AIProvider {
                 this.cooldowns.set(account.id, Math.max(this.cooldowns.get(account.id) ?? 0, Date.now() + delay));
                 if (attempt < 3) continue;
             }
-            if (!res.ok) throw new OperationError('SOURCE_HTTP_ERROR', `HTTP ${res.status}: ChatGPT API ${path} failed`, res.status);
-            return res.raw;
+            if (!res.ok) throw new OperationError(res.status === 404 ? notFoundCode : 'SOURCE_HTTP_ERROR',
+                `HTTP ${res.status}: ChatGPT API ${path} failed`, res.status);
+            const raw: unknown = await res.json();
+            return raw;
         }
     }
 
     async checkReadiness(accountId: Account['id']): Promise<ProviderReadiness> {
         try {
             await this.context(accountId);
-            const rawSession: unknown = await this.request(`${this.origin}/api/auth/session`, { credentials: 'include' }, async response => {
-                if (!response.ok) throw new OperationError('SOURCE_HTTP_ERROR', `ChatGPT session HTTP ${response.status}`, response.status);
-                const raw: unknown = await response.json();
-                return raw;
+            const res = await this.fetchFn(`${this.origin}/api/auth/session`, {
+                credentials: 'include',
             });
+            if (!res.ok) return { ready: false, error: `ChatGPT session HTTP ${res.status}` };
+            const rawSession: unknown = await res.json();
             const { accessToken, accountName } = readChatGPTSession(rawSession);
             if (!accessToken) {
                 return { ready: false, error: 'ChatGPT 未登录：/api/auth/session 无 accessToken' };
@@ -256,23 +235,22 @@ export class ChatGPTProvider implements AIProvider {
                     : buildFileDownloadPath(fileId, key.conversationId);
             }
             let raw: unknown;
-            try { raw = await this.authedGet(path, account, signal); }
+            try { raw = await this.authedGet(path, account, signal, 'RESOURCE_LOCATOR_UNAVAILABLE'); }
             catch (error) {
                 // Library-backed files can still require the scoped file exchange.
                 // Older stored locators do not distinguish those from regular uploads.
-                if (!fileId || !uploadedFile || !(error instanceof OperationError) || error.code !== 'SOURCE_HTTP_ERROR'
+                if (!fileId || !uploadedFile || !(error instanceof OperationError) || (error.code !== 'SOURCE_HTTP_ERROR' && error.code !== 'RESOURCE_LOCATOR_UNAVAILABLE')
                     || error.httpStatus !== 403 && error.httpStatus !== 404) throw error;
-                raw = await this.authedGet(buildFileDownloadPath(fileId, key.conversationId), account, signal);
+                raw = await this.authedGet(buildFileDownloadPath(fileId, key.conversationId), account, signal, 'RESOURCE_LOCATOR_UNAVAILABLE');
             }
             const exchange = parseFileDownloadPayload(raw);
             if (!exchange) throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'ChatGPT resource locator unavailable');
-            const { bytes, contentType } = await this.request(exchange.downloadUrl, { signal }, async response => {
-                if (!response.ok) throw new ResourceHttpError(response.status);
-                return { bytes: new Uint8Array(await response.arrayBuffer()), contentType: response.headers.get('content-type') };
-            });
+            const response = await this.fetchFn(exchange.downloadUrl, { signal });
+            if (!response.ok) throw new ResourceHttpError(response.status);
+            const bytes = new Uint8Array(await response.arrayBuffer());
             signal?.throwIfAborted();
             if (!bytes.byteLength) throw new ResourceProcessingError('Empty ChatGPT resource');
-            const mediaType = asset.mediaType ?? exchange.mimeType ?? contentType?.split(';')[0].trim();
+            const mediaType = asset.mediaType ?? exchange.mimeType ?? response.headers.get('content-type')?.split(';')[0].trim();
             const name = asset.name ?? exchange.fileName;
             return { bytes, ...(mediaType ? { mediaType } : {}), ...(name ? { name } : {}) };
         };

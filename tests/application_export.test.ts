@@ -649,18 +649,23 @@ test('a worker AbortError drains siblings without starting remaining attachment 
 });
 
 
-test('a request timeout stays an attachment failure and does not cancel later work', async () => {
-    seed('first', { assets: true });
-    const progress: number[][] = [];
-    provider.acquireResource = async (_key, asset) => {
-        if (asset.id === 'image') throw new OperationError('SOURCE_REQUEST_TIMEOUT', 'ChatGPT request exceeded 60 seconds');
-        return { bytes: Uint8Array.of(1) };
-    };
-    const result = await runExport(request(), { onResourceProgress: value => progress.push([value.completed, value.total]) });
-    assert.equal(result.aborted, false);
-    assert.equal(result.exported, 1);
-    assert.equal(result.partial, 1);
-    assert.deepEqual(progress, [[0, 2], [1, 2], [2, 2]]);
-    assert.equal(records.get(address(key()))?.attachmentIssues?.[0].code, 'SOURCE_REQUEST_TIMEOUT');
-    assert.equal(events.includes('refresh'), false);
-});
+for (const code of ['RESOURCE_LOCATOR_UNAVAILABLE', 'RESOURCE_SOURCE_EXPIRED'] as const) {
+    test(`${code} distinguishes a missing native download locator from an expired signed response`, async () => {
+        seed('first', { assets: true });
+        const acquisitions: string[] = [];
+        provider.acquireResource = async (_key, asset) => {
+            acquisitions.push(asset.id);
+            if (asset.id === 'file') throw new OperationError(code, 'HTTP 404', 404);
+            return { bytes: Uint8Array.of(1) };
+        };
+        const result = await runExport(request());
+        assert.equal(result.exported, 1);
+        assert.equal(result.partial, 1);
+        assert.equal(result.aborted, false);
+        const attempts = code === 'RESOURCE_LOCATOR_UNAVAILABLE' ? 1 : 2;
+        assert.equal(events.filter(event => event === 'refresh').length, attempts - 1);
+        assert.equal(acquisitions.filter(id => id === 'image').length, attempts);
+        assert.equal(acquisitions.filter(id => id === 'file').length, attempts);
+        assert.equal(records.get(address(key()))?.attachmentIssues?.[0].code, code);
+    });
+}

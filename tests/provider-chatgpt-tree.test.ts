@@ -1,3 +1,4 @@
+import { ResourceHttpError } from '../src/shared/resources/resourceResult.js';
 import { chatGPTSandboxLocator, readChatGPTSandboxLocator } from '../src/l1/resources/chatgptSandbox.js';
 import { parseOpenAIConversation } from '../src/l1/parsers/chatgpt/parseExportConversation.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
@@ -928,49 +929,34 @@ test('sandbox files with the same path stay scoped to their provider message', (
     assert.ok(assets.every(asset => asset.name === 'report.csv'));
 });
 
-for (const phase of ['session headers', 'session body', 'api body', 'attachment body']) {
-    test(`ChatGPT ${phase} has a deadline covering the response body`, async t => {
-        t.mock.timers.enable({ apis: ['setTimeout'] });
-        const account = await getOrCreateAccount('chatgpt', JSON.stringify(['retry-user', 'retry-space']));
-        let stalled = false;
-        const provider = new ChatGPTProvider({ fetchFn: async (url, init) => {
-            const session = url.endsWith('/api/auth/session');
-            const api = url.includes('/backend-api/');
-            if ((phase.startsWith('session') && session) || (phase === 'api body' && api)
-                || (phase === 'attachment body' && !session && !api)) {
-                stalled = true;
-                if (phase === 'session headers') return new Promise((_resolve, reject) => {
-                    init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
-                });
-                return new Response(new ReadableStream({ start(controller) {
-                    init?.signal?.addEventListener('abort', () => controller.error(init.signal?.reason), { once: true });
-                } }));
-            }
-            return new Response(JSON.stringify(session ? chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_SESSION_01')
-                : fileDownloadGen('C_ATTACHMENT_DOWNLOAD_ACQUIRE_01')));
-        } });
-        const pending = phase === 'attachment body'
-            ? provider.acquireResource({ accountId: account.id, conversationId: 'conv-timeout' },
-                { id: 'file', kind: 'file', sourceUri: 'file-download:file_timeout' })
-            : provider.fetchConversationDetail(account.id, 'conv-timeout');
-        const rejected = assert.rejects(pending, { code: 'SOURCE_REQUEST_TIMEOUT' });
-        await new Promise(resolve => setImmediate(resolve));
-        assert.equal(stalled, true);
-        t.mock.timers.tick(60000);
-        await rejected;
+for (const sourceUri of ['sediment://file_missing', 'file-download:file_missing', chatGPTSandboxLocator('message', '/mnt/data/missing.zip')]) {
+    test(`fresh native locator 404 is distinct from a signed URL failure: ${sourceUri}`, async () => {
+        const account = await getOrCreateAccount('chatgpt', 'default');
+        const provider = new ChatGPTProvider({ fetchFn: async url => url.endsWith('/api/auth/session')
+            ? new Response(JSON.stringify(chatgptSessionGen('C_FILE_DOWNLOAD_SESSION_01')))
+            : new Response(null, { status: 404 }) });
+        await assert.rejects(provider.acquireResource({ accountId: account.id, conversationId: 'missing' },
+            { id: 'asset', kind: 'file', sourceUri }), { code: 'RESOURCE_LOCATOR_UNAVAILABLE', httpStatus: 404 });
     });
 }
 
-test('ChatGPT caller cancellation retains its reason instead of becoming a timeout', async () => {
+test('a successful native exchange followed by signed URL 404 remains refreshable', async () => {
     const account = await getOrCreateAccount('chatgpt', 'default');
-    const controller = new AbortController();
-    const reason = new DOMException('Stopped by user', 'AbortError');
-    const provider = new ChatGPTProvider({ fetchFn: async (_url, init) => new Promise((_resolve, reject) => {
-        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
-    }) });
-    const pending = provider.fetchConversationDetail(account.id, 'conv-cancel', controller.signal);
-    const rejected = assert.rejects(pending, error => error === reason);
-    await new Promise(resolve => setImmediate(resolve));
-    controller.abort(reason);
-    await rejected;
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify(chatgptSessionGen('C_FILE_DOWNLOAD_SESSION_01')));
+        if (url.includes('/backend-api/')) return new Response(JSON.stringify(fileDownloadGen('C_ATTACHMENT_DOWNLOAD_ACQUIRE_01')));
+        return new Response(null, { status: 404 });
+    } });
+    await assert.rejects(provider.acquireResource({ accountId: account.id, conversationId: 'missing' },
+        { id: 'asset', kind: 'file', sourceUri: 'file-download:file_missing' }),
+    error => error instanceof ResourceHttpError && error.httpStatus === 404);
+});
+
+
+test('a session endpoint 404 is not classified as a missing attachment locator', async () => {
+    const account = await getOrCreateAccount('chatgpt', 'default');
+    const provider = new ChatGPTProvider({ fetchFn: async () => new Response(null, { status: 404 }) });
+    await assert.rejects(provider.acquireResource({ accountId: account.id, conversationId: 'missing' },
+        { id: 'asset', kind: 'file', sourceUri: 'file-download:file_missing' }),
+    { code: 'SOURCE_HTTP_ERROR', httpStatus: 404 });
 });

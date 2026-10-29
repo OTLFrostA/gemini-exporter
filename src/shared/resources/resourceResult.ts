@@ -43,7 +43,7 @@ export class ResourceHttpError extends Error {
 }
 type ResourceIssueKind = 'expired' | 'restricted' | 'download' | 'processing' | 'unknown';
 export function resourceIssueKind(failure: ResourceFailure): ResourceIssueKind {
-    if (failure.code === 'SOURCE_HTTP_ERROR') {
+    if (failure.code === 'SOURCE_HTTP_ERROR' || failure.code === 'RESOURCE_LOCATOR_UNAVAILABLE' && failure.httpStatus !== undefined) {
         const status = failure.httpStatus ?? failure.issue?.httpStatus;
         return status === 401 || status === 403 ? 'restricted' : 'download';
     }
@@ -51,7 +51,7 @@ export function resourceIssueKind(failure: ResourceFailure): ResourceIssueKind {
     if (failure.code === 'RESOURCE_ACCESS_RESTRICTED') return 'restricted';
     if (['RESOURCE_PROCESSING_FAILED', 'RESOURCE_SIZE_LIMIT', 'RESOURCE_SIZE_MISMATCH',
         'TYPST_ASSET_DECODE_FAILED', 'TYPST_ASSET_EMPTY'].includes(failure.code)) return 'processing';
-    if (failure.code === 'RESOURCE_DOWNLOAD_FAILED' || failure.code === 'SOURCE_REQUEST_TIMEOUT') return 'download';
+    if (failure.code === 'RESOURCE_DOWNLOAD_FAILED') return 'download';
     return 'unknown';
 }
 export function resourceFailureText(failure: ResourceFailure, locale: 'zh' | 'en'): string {
