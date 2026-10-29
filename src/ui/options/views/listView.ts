@@ -102,6 +102,15 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
         const seen = date(indexActivityTime(index));
         meta.textContent = [seen, record ? `${text('Last export', '上次导出')} · ${record.format}` : ''].filter(Boolean).join(' · ');
         content.append(heading, meta);
+        if (record?.sourceTurn && record.sourceTurn !== 'finished') {
+            const note = document.createElement('div');
+            note.className = 'source-turn-status';
+            note.textContent = record.sourceTurn === 'unfinished' ? text('Source reply has not ended', '原回答尚未结束')
+                : record.sourceTurn === 'interrupted' ? text('Source reply was interrupted', '原回答已中断')
+                : record.sourceTurn === 'handoff' ? text('Source is at a handoff', '原对话停在交接步骤')
+                : text('Source reply completion is unknown', '原回答结束状态未知');
+            content.append(note);
+        }
         if (record?.attachmentIssues?.length) {
             const details = document.createElement('details'); details.className = 'attachment-issues';
             details.open = body.querySelector('details')?.open ?? false;

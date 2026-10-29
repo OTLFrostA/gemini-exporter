@@ -128,7 +128,7 @@ function sameAsset(a: DomainAsset, b: DomainAsset): boolean {
         && sameOptional(a.document, b.document, sameDocument));
 }
 function sameQuality(a: ContentQuality, b: ContentQuality): boolean {
-    return a === b || (sameFields(a, b) && a.status === b.status);
+    return a === b || (sameFields(a, b) && a.status === b.status && a.sourceTurn === b.sourceTurn);
 }
 
 /** Index deduplication. Object field insertion order never changes the stored facts. */
@@ -143,7 +143,7 @@ export function index(a: DomainConversationIndex | null | undefined, b: DomainCo
 export function material(a: DomainConversationDetail, b: DomainConversationDetail): boolean {
     return a === b || (sameArray(a.messages, b.messages, sameMessage)
         && sameArray(a.assets, b.assets, sameAsset)
-        && a.quality.status === b.quality.status);
+        && sameQuality(a.quality, b.quality));
 }
 
 /** Full persisted body equality: source version advances can commit without a Live Save change. */

@@ -1,3 +1,4 @@
+import type { SourceTurnStatus } from '../../l2/quality.js';
 import type { OperationIssue } from '../../shared/errors/operationError.js';
 import type { DiagnosticSeverity } from '../../shared/diagnostics/diagnostic.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
@@ -34,6 +35,7 @@ export interface ExportRecord {
     status: 'ok' | 'partial';
     chatTime?: number;
     otherContentMissing?: boolean;
+    sourceTurn?: SourceTurnStatus;
     attachmentIssues?: readonly ExportAttachmentIssue[];
 }
 export interface ExportProgress { current: number; total: number; key: ConversationKey }

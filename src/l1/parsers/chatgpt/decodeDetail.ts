@@ -135,8 +135,11 @@ function decodeMetadata(value: unknown): ChatGPTNodeMessage['metadata'] {
             ...(text(ref.url) !== undefined ? { url: text(ref.url) } : {}),
         }];
     }) : undefined;
+    const finish = record(source.finish_details);
     const dil = dilMetadata(source.model_dil_v2);
     return {
+        ...(finish && typeof finish.type === 'string' ? { finish_details: { type: finish.type,
+            ...(typeof finish.reason === 'string' ? { reason: finish.reason } : {}) } } : {}),
         ...(text(source.model_slug) !== undefined ? { model_slug: text(source.model_slug) } : {}),
         ...(typeof source.is_visually_hidden_from_conversation === 'boolean'
             ? { is_visually_hidden_from_conversation: source.is_visually_hidden_from_conversation } : {}),

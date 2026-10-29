@@ -2,6 +2,7 @@ import { registerChatGPTMarkdownAssets } from './registerMarkdownAssets.js';
 import type { chatGPTInteractiveSnapshot } from './interactiveSnapshot.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { ResourceAcquisitionHint } from '../../resources/resourceAcquisition.js';
+import type { SourceTurnStatus } from '../../../l2/quality.js';
 import { contentQuality } from '../qualityEvidence.js';
 import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 /**
@@ -179,6 +180,20 @@ function messageOfNode(
     };
 }
 
+/** Provider termination evidence does not establish missing exported body content. */
+function sourceTurnStatus(conversation: ChatGPTApiConversationWithId): SourceTurnStatus {
+    const leaf = conversation.mapping.get(conversation.current_node)?.message;
+    if (!leaf || leaf.author.role !== 'assistant') return 'unknown';
+    if (leaf.status === 'interrupted' || leaf.metadata?.finish_details?.type === 'interrupted') return 'interrupted';
+    if (leaf.recipient === 'local.handoff') return 'handoff';
+    if (leaf.recipient !== 'all' || leaf.metadata?.is_visually_hidden_from_conversation
+        || leaf.metadata?.is_thinking_preamble_message || ['thoughts', 'reasoning_recap'].includes(leaf.content.content_type)) return 'unknown';
+    if (leaf.status === 'in_progress') return 'unfinished';
+    if (leaf.end_turn === true && leaf.status === 'finished_successfully') return 'finished';
+    if (leaf.end_turn === false && (leaf.status === undefined || leaf.status === 'finished_successfully')) return 'unfinished';
+    return 'unknown';
+}
+
 /** A renderable branch is not necessarily a complete source chain. Missing
  * parents, cycles and absent current_node must never claim full body coverage. */
 function branchCoverage(conversation: ChatGPTApiConversationWithId, nodes: readonly ChatGPTConversationNode[], diagnostics: Diagnostic[]): 'complete' | 'partial' | 'unknown' {
@@ -217,8 +232,8 @@ function branchCoverage(conversation: ChatGPTApiConversationWithId, nodes: reado
     };
     const leaf = conversation.current_node ? conversation.mapping.get(conversation.current_node)?.message : undefined;
     if (!conversation.current_node) return incomplete('current_node_missing');
-    if (leaf?.author.role === 'assistant' && (leaf.end_turn === false
-        || leaf.status !== undefined && leaf.status !== 'finished_successfully')) return incomplete('assistant_not_finished', conversation.current_node);
+    // Turn termination is a separate fact: a stopped reply can still be fully saved.
+    if (leaf?.recipient === 'local.handoff') return incomplete('handoff_content_unrepresented', conversation.current_node);
     let id: string | undefined = conversation.current_node;
     const seen = new Set<string>();
     while (id) {
@@ -292,6 +307,14 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
     // Source activity versions travel beside Detail; Index owns updatedAt.
     const sourceVersion = conversation.updatedAtMs;
     const branchQuality = branchCoverage(conversation, nodes, contentDiagnostics);
+    const sourceTurn = sourceTurnStatus(conversation);
+    const leaf = conversation.mapping.get(conversation.current_node)?.message;
+    contentDiagnostics.push({ severity: 'info', code: 'CHATGPT_SOURCE_TURN_STATUS',
+        message: 'Source turn completion is independent of snapshot coverage',
+        details: { sourceTurn, snapshotCoverage: branchQuality, currentNode: conversation.current_node,
+            recipient: leaf?.recipient ?? null, channel: leaf?.channel ?? null,
+            contentType: leaf?.content.content_type ?? null, status: leaf?.status ?? null,
+            endTurn: leaf?.end_turn ?? null, finishType: leaf?.metadata?.finish_details?.type ?? null } });
     return {
         ...(sourceVersion !== undefined ? { sourceVersion } : {}),
         conversationId: conversation.id,
@@ -300,7 +323,7 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
                 title: conversation.title?.trim() || '', titleSource: 'provider',
                 createdAt: conversation.createdAtMs, updatedAt: sourceVersion,
                 messageCount: messages.length, url: `https://chatgpt.com/c/${conversation.id}` }),
-            detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), quality: contentQuality({ status: interactiveIncomplete ? 'partial' : branchQuality }), assets, messages },
+            detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), quality: contentQuality({ status: interactiveIncomplete ? 'partial' : branchQuality, sourceTurn }), assets, messages },
         },
         diagnostics: contentDiagnostics,
         acquisitionHints,

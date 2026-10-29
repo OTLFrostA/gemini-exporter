@@ -33,6 +33,7 @@ import type { ExportRequest, ExportRecord, ExportProgress, ExportResult, ExportI
 const comparable = (value: number | undefined): value is number => value !== undefined && Number.isSafeInteger(value);
 export function shouldSkipExport(record: ExportRecord | null, updatedAt: number | undefined, request: ExportRequest): boolean {
     if (!request.skipUnchanged || !record || record.format !== request.format) return false;
+    if (record.sourceTurn && record.sourceTurn !== 'finished' && record.sourceTurn !== 'interrupted') return false;
     const issues = record.attachmentIssues;
     const expiredOnly = record.status === 'partial' && record.otherContentMissing !== true
         && issues !== undefined && issues.length > 0
@@ -41,7 +42,9 @@ export function shouldSkipExport(record: ExportRecord | null, updatedAt: number 
         && comparable(updatedAt) && record.chatTime >= updatedAt;
 }
 function isFresh(conversation: ReadonlyDomain): boolean {
-    return conversation.detail.quality.status === 'complete' && comparable(conversation.detail.savedAt)
+    return conversation.detail.quality.status === 'complete'
+        && (!conversation.detail.quality.sourceTurn || ['finished', 'interrupted'].includes(conversation.detail.quality.sourceTurn))
+        && comparable(conversation.detail.savedAt)
         && comparable(conversation.index.updatedAt) && conversation.detail.savedAt >= conversation.index.updatedAt;
 }
 type PendingContent = { format: 'json'; document?: never }
@@ -161,6 +164,7 @@ export async function runExport(request: ExportRequest, options: {
             ...(request.delivery === 'folderWriter'
                 ? { folderBaseName: plan.fileName.replace(/\.[^.]+$/, '') }
                 : item.folderBaseName ? { folderBaseName: item.folderBaseName } : {}),
+            ...(conversation.detail.quality.sourceTurn ? { sourceTurn: conversation.detail.quality.sourceTurn } : {}),
             ...(partial ? { otherContentMissing } : {}),
             ...(Object.keys(failures).length ? { attachmentIssues: Object.values(failures).map(failure => {
                 const asset = conversation.detail.assets.find(asset => asset.id === failure.resourceId);
@@ -173,9 +177,14 @@ export async function runExport(request: ExportRequest, options: {
     };
     const renderGroup = async (item: PendingExport, plan: ExportPathPlan): Promise<ExportGroup> => {
         const { conversation, document, prepared, key, format } = item;
-        let otherContentMissing = item.refreshFailed || conversation.detail.quality.status !== 'complete'
-            || (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
-                && conversation.detail.savedAt < conversation.index.updatedAt);
+        // Index activity may advance without new body bytes. Keep timestamp disagreement
+        // as a freshness diagnostic; it does not establish missing snapshot content.
+        let otherContentMissing = item.refreshFailed || conversation.detail.quality.status !== 'complete';
+        const sourceTurn = conversation.detail.quality.sourceTurn;
+        if (sourceTurn && sourceTurn !== 'finished') diagnose({ key, stage: 'detail', severity: 'warning',
+            code: 'SOURCE_TURN_' + sourceTurn.toUpperCase(),
+            message: 'Available source content is exported independently of source turn completion',
+            details: { sourceTurn, snapshotCoverage: conversation.detail.quality.status } });
         if (conversation.detail.quality.status !== 'complete') diagnose({ key, stage: 'detail',
             severity: 'warning', code: 'DETAIL_NOT_COMPLETE', message: 'Persisted source detail is not complete',
             details: { quality: conversation.detail.quality.status, messageCount: conversation.detail.messages.length,

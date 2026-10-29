@@ -31,6 +31,7 @@ export interface ChatGPTNodeMessage {
     id: string;
     metadata?: {
         model_slug?: string;
+        finish_details?: { type: string; reason?: string };
         is_visually_hidden_from_conversation?: boolean;
         is_thinking_preamble_message?: boolean;
         reasoning_title?: string;
