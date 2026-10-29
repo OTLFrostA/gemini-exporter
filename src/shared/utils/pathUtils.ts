@@ -29,7 +29,6 @@ export function sanitizeFileName(name?: string | null, fallback: string = 'untit
         ext = s.slice(lastDot);
         s = s.slice(0, lastDot);
     }
-    // Windows file systems prohibit DOS device reserved names
     if (/^(con|prn|aux|nul|com\d{1,2}|lpt\d{1,2})$/i.test(s)) s = s + '_chat';
     if ([...s].length > 70) s = [...s].slice(0, 70).join('').trim();
     s = s.replace(/[\.\s_]+$/g, '').trim();

@@ -38,7 +38,6 @@ function modalOpen(): boolean { return isActive() || !!document.querySelector('d
 
 type Placement = 'top' | 'bottom' | 'left' | 'right';
 
-/** Render the original main Tour card and highlight, retaining v2's physical click cutout. */
 function overlay(
     target: HTMLElement | null | (() => HTMLElement | null), title: string, description: string | HTMLElement, interactive: boolean,
     related: HTMLElement[] = [], placement: Placement = 'bottom', badgeText?: string, hint?: string,
@@ -126,7 +125,6 @@ function overlay(
             const { left, top, right, bottom } = hole;
             const radius = Math.min(parseFloat(getComputedStyle(spotlight).borderTopLeftRadius),
                 (right - left) / 2, (bottom - top) / 2);
-            // One rounded cutout controls both paint and hit testing, matching the border.
             panel.style.clipPath = `path(evenodd, "M0 0H${w}V${h}H0Z ` +
                 `M${left + radius} ${top}H${right - radius}A${radius} ${radius} 0 0 1 ${right} ${top + radius}` +
                 `V${bottom - radius}A${radius} ${radius} 0 0 1 ${right - radius} ${bottom}` +

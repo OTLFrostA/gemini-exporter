@@ -1,4 +1,3 @@
-/** Resource namespaces written relative to the exported archive root. */
 const ARCHIVE_RESOURCE_NAMESPACES = ['assets', 'files'] as const;
 
 function safeDecodeURIComponent(str: string): string {

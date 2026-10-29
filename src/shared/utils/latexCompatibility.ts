@@ -1,4 +1,3 @@
-/** Evidence-backed notation adaptation for the MiTeX engine. */
 interface LatexCompatRule {
     readonly id: string;
     readonly domain: 'tex';
@@ -34,7 +33,6 @@ const TEXT_UNDERSCORE_COMPAT_RULE: LatexCompatRule = Object.freeze({
     transform: normalizeTextUnderscores,
 });
 
-/** Standard centered negation of implication, observed in live vector-clock replies. */
 export const CENTERED_NOT_IMPLIES_COMPAT_RULE: LatexCompatRule = Object.freeze({
     id: 'GM-TEX-004', domain: 'tex',
     evidence: 'tests/fixtures/provider/math/gm_tex_004_evidence.tex',
