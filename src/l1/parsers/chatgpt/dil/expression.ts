@@ -1,7 +1,9 @@
+/** Deliberately small data-expression interpreter. No provider code is executed. */
 export type Value = string | number | boolean | null | Value[] | { [key: string]: Value };
 export type Scope = Map<string, Value>;
 const forbidden = new Set(['__proto__', 'prototype', 'constructor']);
 const escapes: ReadonlyMap<string, string> = new Map([['n', '\n'], ['r', '\r'], ['t', '\t'], ['b', '\b'], ['f', '\f']]);
+// Long operators precede their prefixes; each token carries its own precedence.
 const operators: readonly (readonly [string, number])[] = [
     ['||', 1], ['&&', 2], ['===', 3], ['!==', 3], ['==', 3], ['!=', 3],
     ['<=', 4], ['>=', 4], ['<', 4], ['>', 4], ['+', 5], ['-', 5], ['*', 6], ['/', 6], ['%', 6],

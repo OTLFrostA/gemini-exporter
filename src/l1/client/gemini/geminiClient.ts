@@ -82,6 +82,7 @@ const pagination = GeminiClientPagination;
             let api = getApiUrl(cred.accountSlot || "default");
             const filter: GeminiListFilter = customFilter ?? [0, null, 1];
             const P = GeminiProtocol;
+            // JSPB request layout: [pageSize=50, pageToken, filter]
             let req = JSON.stringify([
                 [
                     [P.RPCS.LIST, JSON.stringify([50, pageToken || null, filter]), null, "generic"]
@@ -166,6 +167,9 @@ const pagination = GeminiClientPagination;
             const detailOnly = !!(opts && opts.detailOnly);
             const P = GeminiProtocol;
             const rpcids = detailOnly ? P.RPCS.DETAIL : `${P.RPCS.DETAIL},${P.RPCS.LIST}`;
+            // JSPB request layout:
+            // DETAIL: [convId, 10|null, pageToken, 1, [1], [4], null, 1]
+            // META: [1, null, [null, null, 1, null, 1, convId]]
 
             let innerDetail = (opts && opts.altParams)
                 ? JSON.stringify([id, null, pageToken || null, 1, [1], [4], null, 1])

@@ -24,6 +24,11 @@ function hasThinking(t: ChatGPTThinking): boolean {
     return t.thoughts.length > 0 || t.activities.length > 0;
 }
 
+/**
+ * Walk the raw mapping leaf->root (pionxzh attachThinkingToNodes) and collect
+ * hidden reasoning (thoughts / reasoning_recap / preamble / activity titles)
+ * onto the assistant node that follows them. Returns nodeId -> thinking.
+ */
 export function collectChatGPTThinking(
     mapping: ReadonlyMap<string, ChatGPTConversationNode>,
     resultNodeIds: Set<string>,

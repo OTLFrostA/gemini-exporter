@@ -250,6 +250,7 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
     return null;
 }
 
+/** One shared credential-map queue protects bootstrap hooks, messages and API writers. */
 export function ensureCreds(): Promise<BootstrapCredential | null> {
     return withCredMapLock(ensureCredsOnce);
 }
@@ -278,7 +279,7 @@ export function initBootstrap(): void {
             if (!isExtAlive()) return;
             const payload = 'payload' in data ? data.payload : undefined;
             if (!payload || typeof payload !== 'object' || !('observation' in payload) || !('slot' in payload) || typeof payload.slot !== 'string') return;
-            if ('requestId' in payload) return;
+            if ('requestId' in payload) return; // The requesting resolver owns this reply.
             // The same-window payload is untrusted and is validated before Registry access.
             try {
                 const observation = payload.observation === null ? null : readAccountParameters(payload.observation);

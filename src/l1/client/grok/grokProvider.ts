@@ -91,6 +91,7 @@ export class GrokProvider implements AIProvider {
             const previous = Array.isArray(row.capturedImages) ? row.capturedImages : [];
             row.capturedImages = [...previous, image];
         }
+        // A changing tree is a mixed snapshot; retry on the next operation.
         const after = await read(base + '/response-node?includeThreads=true');
         if (JSON.stringify(tree) !== JSON.stringify(after)) throw new OperationError('SOURCE_CHANGED', 'Grok conversation changed during acquisition');
         let parsed: ReturnType<typeof parseGrokConversation>;

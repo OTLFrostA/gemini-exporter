@@ -41,6 +41,8 @@ export function component(node: DilNode, content: string, scope: Scope, source: 
     if (node.name === 'AsyncImage') {
         const query = prop(node, 'query', scope);
         if (typeof query !== 'string') throw new Error('Missing literal image query');
+        // The existing gallery resolver binds this to approved componentResults
+        // and promotes the image to a Domain asset. No URL is invented here.
         return `\n\n\uE200image_group\uE202${JSON.stringify({ query: [query] })}\uE201\n\n`;
     }
     if (node.name === 'math') {

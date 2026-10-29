@@ -25,6 +25,7 @@ export interface ChatGPTGalleryResult {
 export interface ChatGPTNodeMessage {
     author: { role: ChatGPTAuthorRole; name?: string };
     content: ChatGPTMessageContent;
+    /** Validated Unix milliseconds; raw seconds/strings are decoded at ingress. */
     createdAtMs?: number;
     id: string;
     metadata?: {
@@ -43,6 +44,7 @@ export interface ChatGPTNodeMessage {
             constants?: ReadonlyMap<string, string>;
             appData?: { opGenui?: { componentResults?: ReadonlyMap<string, ChatGPTGalleryResult> } };
         };
+        /** Tether web citations: each entry carries its source in metadata. */
         citations?: Array<{ metadata?: { title?: string; url?: string; text?: string } }>;
         content_references?: Array<{
             items?: Array<{ title?: string; url?: string }>;
@@ -67,6 +69,7 @@ export interface ChatGPTConversationNode {
 }
 
 export interface ChatGPTApiConversation {
+    /** Validated Unix milliseconds; raw seconds/strings are decoded at ingress. */
     createdAtMs?: number;
     updatedAtMs?: number;
     conversation_id?: string;
