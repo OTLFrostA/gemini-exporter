@@ -94,7 +94,7 @@ test('v1 migration stays isolated to worker readiness and remains covered by the
     assert.ok(existsSync(resolve(core, 'migration/upgradeV1.ts')));
     assert.ok(existsSync(resolve(root, 'tests/upgrade_v1.test.cjs')));
     const wrapper = readFileSync(resolve(root, 'tests/upgrade_released_v17.test.ts'), 'utf8');
-    assert.match(wrapper, /require\\(['"]\\.\\/upgrade_v1\\.test\\.cjs['"]\\)/);
+    assert.ok(wrapper.includes("require('./upgrade_v1.test.cjs')"));
     const runtimeCallers = [...graph].filter(([, edges]) => edges.some(edge => edge.target === 'migration/upgradeV1.ts'))
         .map(([owner]) => owner).sort();
     assert.deepEqual(runtimeCallers, ['runtime/background/readiness.ts']);
