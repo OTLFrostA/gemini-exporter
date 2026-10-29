@@ -30,7 +30,6 @@ function consumerContract(input: Parameters<typeof composeDomainDocument>[0]) {
     void [verified, jsonInput];
 }
 
-/** The content-composition port is explicitly deeply readonly, including nested AST. */
 function contentContract(nodes: Parameters<ReturnType<typeof contentComposer>>[0]) {
     // @ts-expect-error A producer cannot add blocks through the L3b content port.
     nodes.push({ type: 'paragraph', children: [] });

@@ -6,7 +6,6 @@ const assert = require('node:assert/strict');
 const { historicalFixtureDomain, historicalFixture } = require('./helpers/nativeFixture.js');
 const { composeFixture } = require('./helpers/documentFixture.js');
 
-// Explicit plain-text AST expectations for the metadata-focused fixtures below.
 function plainContent(text: string): unknown[] {
     if (!text.trim()) return [];
     const children: unknown[] = [];
