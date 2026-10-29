@@ -174,15 +174,9 @@ npm run test:tier2 -- --platform claude --platform-option claude.golden=/path/go
 Claude Tier 2 selects **Haiku** before every new prompt, including lifecycle
 prompts and historical-conversation appends. It uses the native model menu
 (including “More models”) and confirms the selected family again at dispatch.
-Only an available model radio item is eligible: missing/locked Haiku blocks the
-send, without selecting an upgrade or another model. The report records the
-Haiku policy and each attempted prompt's selected model. Native model-menu checks
-on both an existing conversation and a new conversation passed without sending
-messages; this does not establish that the current account quota permits Haiku
-generation. Historical golden conversations keep their original models.
+Only an available model radio item is eligible: a missing or locked Haiku option blocks the send, rather than selecting another model or an upgrade. Historical golden conversations preserve their source model.
 
-Claude is registered alongside Gemini and ChatGPT; `--platforms all` selects these three suites. Grok does not yet have a registered Tier 2 platform plugin. Its 22-case plan uses the same scheduler, workbench cases, session
-finalization and CDP installation/download helpers. The golden JSON has a
+Claude is registered alongside Gemini and ChatGPT; `--platforms all` selects these three suites. Grok does not have a registered Tier 2 plugin. Claude's declared cases use the shared scheduler, workbench checks, finalization and CDP installation/download helpers. The golden JSON has a
 `conversationIds` array; the default identifies the test account's three-round
 backup conversation containing real AskUserQuestion and Write → Artifact tools.
 Golden source must actually contain these tools. Missing, inaccessible or
@@ -211,25 +205,7 @@ pixel fidelity and stale-tab attachment recovery are not part of this Claude
 plan; they must not be inferred from its text/Artifact checks. Its skip gate
 currently covers the all-unchanged case, not the mixed changed/unchanged case.
 
-Full-run gates include page badge, passive sidebar capture, explicit scan
-coverage, live disk save, older-chat promotion/receipt advancement, confirmed
-remote deletion, popup, local cleanup/rescan and uninstall/reinstall. Ordering
-edges let independent scan/export audits run after passive or coverage failures;
-those failures still make the complete suite fail. They are not waived or
-turned into supported-product claims. Claude's current list endpoint does not
-provide a trusted exhaustion marker, and its production integration lacks the
-passive capture and popup context needed by several gates. **A full Claude Tier 2
-pass is not claimed.** Fresh installation also clears the optional Claude grant;
-the real Connect Claude permission step remains required.
-
-Validation of this adapter used the existing authorized 9222 installation, one
-independent detail read and one real list scan. Five existing conversations were
-downloaded in all four formats; the six-message questionnaire/Artifact golden
-passed the physical oracle (three code blocks, six PDF pages). That targeted
-check exposed and fixed Workbench links incorrectly pointing Claude IDs at
-Gemini. It was not a clean-install 5/8-turn full run, and does not establish
-coverage of the remaining lifecycle gates. Local account response bodies and
-exported files remain ignored under `tests/output/`.
+Full Claude acceptance requires page badge, native sidebar observations, explicit source coverage, multi-turn generation and streamed completion, physical source-to-disk exports, Live Save, older-chat promotion, confirmed deletion, popup export, cleanup and uninstall/reinstall. The full suite is **not** certified by a partial or quota-blocked run; each required case must succeed with the configured test account.
 
 For local Claude iteration, use `npm run test:tier2 -- --platform claude`. The harness rebuilds an ignored unpacked copy under
 `temp/tier2-claude-required-hosts/` with `https://claude.ai/*` required. Shipping
