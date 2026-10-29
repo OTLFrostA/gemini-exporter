@@ -10,9 +10,11 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
     ready?: (authorized: boolean) => void;
     connected?: (accountId: string) => Promise<void>;
     selectedPlatforms?: readonly SourcePlatform[];
+    platforms?: readonly SourcePlatform[];
     granted?: (platforms: readonly SourcePlatform[]) => void;
     allAuthorized?: () => void;
 } = {}): () => void {
+    const targets = options.platforms ?? platforms;
     let active = true;
     let busy = false;
     let revision = 0;
@@ -32,7 +34,7 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
     // A granted platform is never a selectable request target, even during refresh.
     const selection = () => rows.filter(row => !row.row.hidden && row.input.checked).map(row => row.platform);
     const updateButton = () => { authorize.disabled = busy || !selection().length; };
-    const rows = platforms.map(platform => {
+    const rows = targets.map(platform => {
         const row = document.createElement('div');
         row.className = 'platform-permission-row';
         row.dataset.platform = platform;
@@ -81,19 +83,21 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
     hint.hidden = true;
     const refresh = async () => {
         const current = ++revision;
-        const granted = await Promise.all(platforms.map(hasPlatformAccess));
+        const granted = await Promise.all(targets.map(hasPlatformAccess));
         if (!active || current !== revision) return;
-        authorized = platforms.filter((_, index) => granted[index]);
+        authorized = targets.filter((_, index) => granted[index]);
         for (const { platform, row, state } of rows) {
             row.hidden = authorized.includes(platform);
             state.textContent = text('Not authorized', '未授权');
             state.dataset.authorized = 'false';
         }
-        const remaining = authorized.length < platforms.length;
+        const remaining = authorized.length < targets.length;
         list.hidden = !remaining;
         authorize.hidden = !remaining;
         hint.hidden = !remaining;
-        const completeText = text('All supported platforms are authorized.', '所有支持的平台均已授权。');
+        const completeText = options.platforms ? text(
+            'Website access is granted. Open the platform and sign in to the selected account, then retry sync.',
+            '网站访问权限已授予。请打开平台并登录所选账号，然后重试同步。') : text('All supported platforms have website access. This does not mean an account is connected. Open the platform and sign in to the selected account before syncing.', '所有支持的平台均已获得网站访问权限，但这不代表账号已连接。请打开对应平台并登录所选账号后同步。');
         if (!remaining) status.textContent = completeText;
         else if (status.textContent === completeText) status.textContent = '';
         updateButton();

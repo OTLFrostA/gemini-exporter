@@ -1,7 +1,7 @@
 import { STEPS } from './tourSteps.js';
 import { text } from '../shared/settings.js';
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
-import { SOURCE_PLATFORMS } from '../../shared/platformHosts.js';
+import { SOURCE_PLATFORMS, type SourcePlatform } from '../../shared/platformHosts.js';
 import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
 let root: HTMLElement | null = null;
 let stepIndex = 0;
@@ -304,6 +304,32 @@ function showPlatformAuthorization(connected?: (accountId: string) => Promise<vo
     relayout?.();
 }
 
+/** Recover the selected account without silently switching to another signed-in account. */
+function showAccountConnection(platform: SourcePlatform, accountLabel: string, retry: () => void): void {
+    if (modalOpen()) return;
+    destroy(); mode = 'authorization';
+    const names: Record<SourcePlatform, string> = { gemini: 'Gemini', chatgpt: 'ChatGPT', claude: 'Claude', grok: 'Grok' };
+    const urls: Record<SourcePlatform, string> = { gemini: 'https://gemini.google.com/', chatgpt: 'https://chatgpt.com/',
+        claude: 'https://claude.ai/', grok: 'https://grok.com/' };
+    const name = names[platform];
+    const popover = overlay(null, text(`Connect ${name} account`, `连接 ${name} 账号`),
+        text(`To sync ${accountLabel}, open ${name} and sign in to this account. If another account is signed in, switch accounts there first.`,
+            `要同步 ${accountLabel}，请打开 ${name} 登录该账号。如果网页上登录的是其他账号，请先切换账号。`),
+        false, [], 'bottom', text('Account connection', '账号连接'));
+    const bar = footer(popover);
+    const host = document.createElement('div');
+    popover.insertBefore(host, bar);
+    button(bar, text(`Open ${name} to sign in`, `打开 ${name} 登录`), () => {
+        window.open(urls[platform], '_blank', 'noopener,noreferrer');
+    }, 'btnOpenAccountPlatform', 'tour-nav-btn');
+    const retryButton = button(bar, text('Retry sync', '重试同步'), () => { close(); retry(); }, 'btnRetryAccountSync', 'tour-nav-btn primary');
+    retryButton.disabled = true;
+    cleanupStep = mountPlatformAuthorization(host, { platforms: [platform], selectedPlatforms: [platform],
+        ready: ready => { retryButton.disabled = !ready; },
+        granted: () => { close(); retry(); } });
+    relayout?.();
+}
+
 function startFeatureSpotlight(version: string, stepId: string, dismissed: () => void): boolean {
     if (modalOpen()) return false;
     const step = STEPS.find(item => item.id === stepId);
@@ -388,5 +414,5 @@ function showTakeoutPrompt(
     relayout?.();
     return true;
 }
-export const TourGuide = { showPlatformAuthorization, startTour, goToStep, nextStep, prevStep, finishTour, skipTour,
+export const TourGuide = { showAccountConnection, showPlatformAuthorization, startTour, goToStep, nextStep, prevStep, finishTour, skipTour,
     startFeatureSpotlight, showV2UpgradeSpotlight, dismissFeatureSpotlight, showTakeoutPrompt, isActive, destroy };

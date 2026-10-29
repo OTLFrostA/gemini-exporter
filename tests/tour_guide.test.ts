@@ -431,3 +431,57 @@ for (const step of [{ index: 2, targets: ['#list .item', '#btnSelectAll'] }, { i
         }
     });
 }
+
+for (const platform of ['chatgpt', 'claude', 'grok', 'gemini']) {
+    test(`Sync requests missing ${platform} access directly and resumes the selected account`, async () => {
+        await open({ accounts: [{ id: A, providerId: platform, providerAccountId: 'selected', email: 'selected@example.com' }],
+            [platform + 'Access']: false });
+        await page.locator('#btnSyncAll').click();
+        await page.locator('#btnAuthorizePlatforms').waitFor();
+        assert.equal(await page.locator('.platform-permission-row:visible').count(), 1);
+        assert.equal(await page.locator('#btnRetryAccountSync').isDisabled(), true);
+        assert.deepEqual(await read(page, 'scans'), []);
+        await page.locator('#btnAuthorizePlatforms').click();
+        await page.waitForFunction(() => Reflect.get(window, 'harness').scans.length === 1);
+        assert.deepEqual(await read(page, 'connectionRequests'), [[[platform], true]]);
+        assert.equal(await page.locator('#accountIdSelect').inputValue(), A);
+    });
+}
+
+test('Granted website access with a disconnected account offers login and retries without changing accounts', async () => {
+    await open({ accounts: [{ id: A, providerId: 'chatgpt', providerAccountId: 'selected', email: 'selected@example.com' }],
+        chatgptAccess: true, connectionFailure: 'chatgpt' });
+    await page.locator('#btnSyncAll').click();
+    await page.locator('#btnRetryAccountSync').waitFor();
+    assert.match(await page.locator('.tour-popover').textContent() ?? '', /selected@example.com/);
+    assert.match(await page.locator('.platform-authorization').textContent() ?? '', /Website access is granted/);
+    assert.equal(await page.locator('#btnAuthorizePlatforms').isVisible(), false);
+    assert.deepEqual(await read(page, 'connectionRequests'), []);
+    const popup = page.waitForEvent('popup');
+    await page.locator('#btnOpenAccountPlatform').click();
+    const login = await popup;
+    assert.match(login.url(), /^https:\/\/chatgpt.com\//);
+    await login.close();
+    await page.evaluate(() => { Reflect.get(window, 'harness').connectionFailure = null; });
+    await page.locator('#btnRetryAccountSync').click();
+    await page.waitForFunction(() => Reflect.get(window, 'harness').scans.length === 1);
+    assert.equal(await page.locator('#accountIdSelect').inputValue(), A);
+});
+
+test('Standalone access explains that website permission does not connect accounts', async () => {
+    await open({ geminiAccess: true, chatgptAccess: true, grokAccess: true, claudeAccess: true });
+    await page.locator('#btnPlatformPermissions').click();
+    await page.waitForFunction(() => document.querySelector('.platform-authorization')?.textContent?.includes('does not mean an account is connected'));
+    assert.equal(await page.locator('#btnAuthorizePlatforms').isVisible(), false);
+});
+
+test('Declining access keeps the selected account recovery open and does not scan', async () => {
+    await open({ accounts: [{ id: A, providerId: 'chatgpt', providerAccountId: 'selected' }],
+        chatgptAccess: false, permissionDenied: true });
+    await page.locator('#btnSyncAll').click();
+    await page.locator('#btnAuthorizePlatforms').click();
+    await page.waitForFunction(() => document.querySelector('.platform-authorization [role=status]')?.textContent?.includes('not granted'));
+    assert.equal(await page.locator('#btnRetryAccountSync').isDisabled(), true);
+    assert.deepEqual(await read(page, 'scans'), []);
+    assert.equal(await page.locator('#accountIdSelect').inputValue(), A);
+});

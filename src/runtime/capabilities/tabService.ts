@@ -1,3 +1,4 @@
+import { ScanConnectionError } from './scanConnection.js';
 import { getAccount } from '../../l3a/storageService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
 import { ensureV2Ready } from '../api/runtimeReady.js';
@@ -80,7 +81,7 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
     // A selected Gemini source needs no ChatGPT network access.
     if (preferred?.providerId === 'gemini') {
         if (accounts.has(preferred.id)) return preferred.id;
-        throw new Error('Open Gemini, log in and refresh the page before scanning.');
+        throw new ScanConnectionError('gemini', 'Open Gemini, log in and refresh the page before scanning.');
     }
     try {
         for (const account of await discoverChatGPTAccounts()) accounts.add(account.id);
@@ -95,10 +96,10 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
     try {
         for (const account of await discoverGrokAccounts()) accounts.add(account.id);
     } catch (error) { if (preferred?.providerId === 'grok') throw error; }
-    if (preferred?.providerId === 'grok' && !accounts.has(preferred.id)) throw new Error('Open Grok, log in and connect the selected account before scanning.');
+    if (preferred?.providerId === 'grok' && !accounts.has(preferred.id)) throw new ScanConnectionError('grok', 'Open Grok, log in and connect the selected account before scanning.');
     if (preferredAccountId && accounts.has(preferredAccountId)) return preferredAccountId;
-    if (preferred?.providerId === 'chatgpt') throw new Error('Open ChatGPT, log in and connect the selected account before scanning.');
-    if (preferred?.providerId === 'claude') throw new Error('Open Claude, log in and connect the selected account before scanning.');
+    if (preferred?.providerId === 'chatgpt') throw new ScanConnectionError('chatgpt', 'Open ChatGPT, log in and connect the selected account before scanning.');
+    if (preferred?.providerId === 'claude') throw new ScanConnectionError('claude', 'Open Claude, log in and connect the selected account before scanning.');
     if (accounts.size === 1) return [...accounts][0];
     throw new Error(accounts.size ? 'Multiple provider accounts are connected. Select the account to scan.'
         : 'Open Gemini, ChatGPT, Claude or Grok and connect an account before scanning.');
