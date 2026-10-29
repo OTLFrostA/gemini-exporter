@@ -5,6 +5,8 @@ import type { Download } from '@playwright/test';
 import { openOptions, seedConversations, accountId } from './uiFixture';
 const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS9sAAAAASUVORK5CYII=';
 test('physical archive bytes survive verified local deletion; missing bodies fail rather than fabricate content, and record cleanup stays nondestructive',async({context,extensionId})=>{
+    // Two exports, physical attachment checks and both cleanup paths share this budget on CI.
+    test.setTimeout(60000);
     await seedRegistryAccounts(context);const page=await openOptions(context,extensionId);await seedConversations(page,[{id:'archive_local',body:'Preserved local answer'}]);
     const source=await context.newPage();await source.route('https://gemini.google.com/**',route=>route.fulfill({contentType:'text/html',body:`<!doctype html><script>window.WIZ_global_data={qDCSke:'10000000001',SNlM0e:'token',cfb2h:'build'}</script><main>Offline source fixture</main>`}));await source.goto('https://gemini.google.com/app/archive_local');await expect(source.locator('#geminiExportBadge')).toBeVisible();
     await context.route('https://lh3.googleusercontent.com/archive-fixture.png',route=>route.fulfill({contentType:'image/png',body:Buffer.from(png,'base64')}));
