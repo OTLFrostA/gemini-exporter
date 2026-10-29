@@ -122,6 +122,7 @@ test('p1c - mergeAbortSignals: 空/单个/多个 signal 的合并语义', () => 
 test('p1c - postBatchexecute: 有调用方 signal 时内部 timeout 仍生效；调用方 abort 也穿透', async () => {
     const origFetch = (global as any).fetch;
     try {
+        // 永不 resolve 的 fetch，但遵循 signal（模拟真实 fetch 的 abort 行为）
         (global as any).fetch = (_url: string, _opts: any) => new Promise((_resolve, reject) => {
             const sig = _opts.signal as AbortSignal | undefined;
             assert.ok(sig instanceof AbortSignal, 'fetch must receive an AbortSignal');
@@ -158,6 +159,7 @@ test('p1c - postBatchexecute: 有调用方 signal 时内部 timeout 仍生效；
     }
 });
 
+// P1-035: getConversationList 15s 超时 + 429 退避快速取消
 
 test('p1c - getConversationList: 429 退避期间 abort 直接抛取消，不睡满退避', async () => {
     const origFetch = (global as any).fetch;

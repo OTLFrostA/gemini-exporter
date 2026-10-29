@@ -81,6 +81,7 @@ test('P1-062b: isTurn 经 candidate rc_ 前缀结构化识别（user payload 非
 
 test('P1-062c/d: 非 turn（坏 id 前缀；仅靠 "r_" 子串的假 turn）返回 false', () => {
     assert.strictEqual(detailDecoder.isTurn([["x_123"], [1, 0], [["u"]]]), false, 'id 无 c_/r_ 前缀');
+    // 旧代码 s.includes("r_") 近乎恒真，会把这种假 turn 判为真
     const fake: unknown[] = [["c_r_123", [1, 2], "music_tv", ["error_r_broken"]]];
     assert.strictEqual(detailDecoder.isTurn(fake), false, '仅含 "r_" 子串、无真实形态标记');
 });
@@ -105,6 +106,8 @@ test('P1-064b: 标准 [[text]] 形态的用户文本提取不变', () => {
 });
 
 test('P1-065a: 启发式跳过仅含 "c_" 子串的错误 chunk（decodeGeminiDetail）', () => {
+    // 触发条件：无标准 WRB 信封；错误 chunk 排在正确 chunk 之前；
+    // 错误 chunk 含 "c_" 子串（music_）但无完整会话 ID 格式，且内藏假 turn。
     const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_P1E_LEADING_DECOY_DETAIL_01'));
     assert.strictEqual(res.messages.length, 2, '应解析出正确 chunk 的 user+model 两条消息');
     assert.strictEqual(userMessageOf(res).content, "hello");

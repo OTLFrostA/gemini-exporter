@@ -183,6 +183,9 @@ test('D8-2: formulas compile to selectable text, not images', async () => {
         extracted.imageXObjectCount, 0,
         'no image XObjects: formulas are vector text, not rasterized images',
     );
+    // Selectable math: Typst sets variables in mathematical alphanumeric
+    // symbols (NewCMMath), which extract as real Unicode text, e.g.
+    // E=mc^2 -> "𝐸=𝑚𝑐2", a^2+b^2=c^2 -> "𝑎2+𝑏2=𝑐2".
     for (const needle of ['𝐸', '𝑚', '𝑐', '𝑎', '𝑏', '=', '2']) {
         assert.ok(extracted.text.includes(needle), `extracted text contains ${JSON.stringify(needle)}`);
     }
@@ -345,6 +348,7 @@ test('D8-5: 20 sequential compiles on one reused frame: timing + heap', async ()
     }
     const heapEnd = process.memoryUsage().heapUsed;
     assert.strictEqual(failures, 0, 'zero compile failures across 20 sessions');
+    // One frame for all 20 compiles, like production frame reuse.
     assert.strictEqual(host.stats.framesCreated, 1, 'single sandbox frame reused');
     const sorted = [...times].sort((a, b) => a - b);
     console.log(
