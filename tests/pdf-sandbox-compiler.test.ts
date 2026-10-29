@@ -45,7 +45,6 @@ const tick = (n = 5) => new Promise((resolve) => {
     step();
 });
 
-// Protocol validation
 
 test('protocol: accepts a well-formed compile message', () => {
     const r = parseProtocolMessage(
@@ -127,7 +126,6 @@ test('init: beforeBuild disables typst.ts remote font assets', () => {
     assert.strictEqual(remoteOptions.assets, false);
 });
 
-// MATH-table gate
 
 function fakeFontBytes(withMath: boolean): Uint8Array {
     const tags = withMath ? ['MATH', 'head'] : ['head', 'maxp'];
@@ -186,7 +184,6 @@ test('stripConvertedMath: removes typst fields, keeps latex', () => {
     assert.strictEqual('typst' in doc.messages[0].blocks[2].rows[0][0].children[0], false);
 });
 
-// Fake sandbox host for compiler tests
 
 function makeDomain(extra: any = {}) {
     return { index: { key: fixtureKey(String('c1'), 'gemini'),   title: 'Test convo', titleSource: "derived",   createdAt: Date.parse('2026-09-20T10:00:00Z') }, detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets: extra.assets ?? [], messages: extra.messages ?? [
@@ -296,7 +293,6 @@ async function driveInitHandshake(host: FakeHost): Promise<string> {
     return init.message.jobId;
 }
 
-// Cancellation
 
 test('compile: pre-aborted signal rejects with AbortError before touching the sandbox', async () => {
     const host = new FakeHost();
@@ -331,7 +327,6 @@ test('compile: mid-flight abort rejects with AbortError and notifies the sandbox
     assert.strictEqual(host.frame!.destroyed, true);
 });
 
-// Full fake-sandbox round trip
 
 test('compile: missing document rejects loudly instead of converting the domain internally', async () => {
     const host = new FakeHost();
@@ -481,7 +476,6 @@ test('compile: without a MATH font, converted math is stripped with a diagnostic
     compiler.dispose();
 });
 
-// Inline image bytes reach the sandbox (collectImagePaths covers image nodes)
 
 test('compile: inline image asset bytes are mounted as shadow files', async () => {
     const host = new FakeHost();

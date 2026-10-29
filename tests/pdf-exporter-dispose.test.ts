@@ -7,7 +7,6 @@ import { v2ExportHost, seedExportConversation, exportRequest } from './helpers/v
 import { buildMinimalValidPdf } from './helpers/stubPdfCompiler.js';
 import type { DocumentAst } from '../src/l3b/ast/ast.js';
 
-// Compiler lifetime moved from PdfExporter/UI controller into unified Export.
 const document: DocumentAst = { title: 'Owned compiler', metadata: { id: 'dispose', provider: 'gemini' }, messages: [] };
 const context = () => ({ signal: new AbortController().signal, reportProgress() {} });
 test('pure PDF format leaves an injected compiler owned by its caller on success and failure', async () => {

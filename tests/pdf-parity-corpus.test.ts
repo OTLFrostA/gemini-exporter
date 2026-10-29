@@ -61,7 +61,6 @@ function decodeEntities(s: string): string {
         .replace(/&#x([0-9a-fA-F]+);/g, (_m: string, n: string) => String.fromCodePoint(parseInt(n, 16)));
 }
 
-/** Collapse whitespace and drop insignificant spaces between CJK characters. */
 function normalizeLine(s: string): string {
     let t = s.replace(/\s+/g, ' ').trim();
     t = t.replace(new RegExp(`([${CJK_CLASS}])\\s+(?=[${CJK_CLASS}])`, 'g'), '$1');
@@ -74,9 +73,9 @@ function normalizeLine(s: string): string {
  * human-readable label, which is exactly what the PDF fallback shows.
  */
 function stripHtmlChrome(line: string): string | null {
-    if (line === '复制') return null; // code-block copy button
+    if (line === '复制') return null;
     const missing = /^(?:图片不可用|附件不可用):\s*(.*?)\s*MISSING$/.exec(line);
-    if (missing) return missing[1] || null; // missing attachment card keeps the asset label
+    if (missing) return missing[1] || null;
     return line; // Both backends retain the same localized inline unavailable text.
 }
 
@@ -129,7 +128,6 @@ async function htmlTextParts(html: string): Promise<TextParts> {
     } finally { await browser.close(); }
 }
 
-/** Flatten Typst inline nodes to the text the template typesets. */
 function typstInlineText(nodes: any[]): string {
     let s = '';
     for (const n of nodes ?? []) {
@@ -201,7 +199,6 @@ function typstTextParts(payload: any, document: any): TextParts {
                 return;
             case 'file':
                 emit(isAsset, b.name);
-                // The template renders authored descriptions below file cards.
                 if (b.description) emit(isAsset, typstInlineText(b.description));
                 return;
             case 'unknown':
@@ -275,7 +272,6 @@ async function parityInputs(name: string): Promise<ParityInputs> {
         html: string; diagnostics: Array<{ code: string }>;
     };
     const htmlParts = await htmlTextParts(html);
-    // Empty preparation exercises the visible unavailable-resource path.
     const { payload, diagnostics } = renderTypstFixture(document, {}, { locale: 'zh' }) as {
         payload: any; diagnostics: Array<{ code: string; severity: string }>;
     };
