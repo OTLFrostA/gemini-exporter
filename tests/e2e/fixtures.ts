@@ -16,6 +16,8 @@ export const test = base.extend<{
   grantGemini: boolean;
   extensionId: string;
 }>({
+  // Existing source-flow tests use a Gemini-authorized staging copy. Dedicated
+  // permission tests explicitly select the unchanged shipping manifest.
   grantGemini: [true, { option: true }],
   context: async ({ grantGemini }, use) => {
     let extensionPath = pathToExtension;
@@ -33,7 +35,7 @@ export const test = base.extend<{
     }
     if (grantGemini) extensionPath = authorizedExtensionPath!;
     const context = await chromium.launchPersistentContext('', {
-      channel: 'chromium',
+      channel: 'chromium', // Use full Chromium binary to support extensions in true headless
       headless: !isHeaded,
       args: [
         ...(isHeaded ? [] : ['--headless=new']),

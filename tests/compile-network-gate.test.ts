@@ -22,6 +22,7 @@ const {
 } = require('./helpers/compileNetworkGate.js');
 
 
+/** 干净的桩编译器: 纯计算, 不触碰任何网络 API。 */
 async function StubPdfCompiler(payload: any): Promise<Uint8Array> {
     const json = JSON.stringify(payload);
     let hash = 0;
@@ -29,14 +30,17 @@ async function StubPdfCompiler(payload: any): Promise<Uint8Array> {
     return new Uint8Array([0x25, 0x50, 0x44, 0x46, hash & 0xff]);
 }
 
+/** 故意作恶的 fake 编译器: 试图从 CDN 拉字体 (P0 红线场景: jsdelivr)。 */
 async function PhoningHomeCompiler(payload: any): Promise<Uint8Array> {
     try {
         await fetch('https://cdn.jsdelivr.net/npm/typst-fonts@1.0.0/NotoSansCJKsc.otf');
     } catch {
+        /* 编译器吞掉网络错误继续跑 —— 门禁看的是计数, 不是异常 */
     }
     return StubPdfCompiler(payload);
 }
 
+/** 最小 fake XHR (Node 默认没有 XMLHttpRequest, 自测时临时安装)。 */
 class FakeXMLHttpRequest {
     open(_method: string, _url: string): void { /* no-op */ }
     send(): void { /* no-op */ }
@@ -91,6 +95,7 @@ test('gate intercepts XMLHttpRequest when present', async () => {
         assert.strictEqual(gated.violations[0].kind, 'xhr');
         assert.ok(gated.violations[0].url.includes('fonts.googleapis.com'));
         assert.throws(() => assertZeroExternalRequests(gated, 'xhr-compiler'));
+        // 门禁恢复的是我们安装的 FakeXHR, 不是门禁替身。
         assert.strictEqual(g.XMLHttpRequest, FakeXMLHttpRequest);
     } finally {
         if (origXHR) Object.defineProperty(g, 'XMLHttpRequest', origXHR);
