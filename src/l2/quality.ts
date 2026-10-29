@@ -1,2 +1,7 @@
 /** Persisted semantic quality. Parser evidence belongs beside the Domain snapshot. */
-export interface ContentQuality { status: 'complete' | 'partial' | 'unknown' }
+export type SourceTurnStatus = 'finished' | 'unfinished' | 'interrupted' | 'handoff' | 'unknown';
+export interface ContentQuality {
+    /** Coverage of the source snapshot, independent of whether generation has ended. */
+    status: 'complete' | 'partial' | 'unknown';
+    sourceTurn?: SourceTurnStatus;
+}

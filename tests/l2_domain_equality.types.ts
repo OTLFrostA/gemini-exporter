@@ -23,7 +23,7 @@ type ComparisonFieldCoverage = [
     RequireNever<FieldsNotCompared<DomainCitation, 'id' | 'url' | 'title'>>,
     RequireNever<FieldsNotCompared<DomainDocumentMetadata, 'id' | 'contentMarkdown'>>,
     RequireNever<FieldsNotCompared<DomainGeneratedMediaIdentity, 'providerRequestId' | 'time' | 'prompt' | 'generationOrdinal' | 'imageCount' | 'imageOrdinal'>>,
-    RequireNever<FieldsNotCompared<ContentQuality, 'status'>>,
+    RequireNever<FieldsNotCompared<ContentQuality, 'status' | 'sourceTurn'>>,
     RequireNever<FieldsNotCompared<ListItem, 'blocks'>>,
     RequireNever<FieldsNotCompared<TableColumn, 'align'>>,
     RequireNever<FieldsNotCompared<TableCell, 'children' | 'colSpan' | 'rowSpan'>>,

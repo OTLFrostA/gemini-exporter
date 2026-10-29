@@ -134,3 +134,36 @@ test('ChatGPT optional legacy missing flag preserves absence and rejects malform
         assert.throws(() => parseChatGPTList(malformed), TypeError);
     }
 });
+
+test('source termination evidence survives decoding and storage independently of snapshot coverage', () => {
+    for (const variant of ['unfinished', 'interrupted', 'finished', 'tool', 'thoughts', 'handoff', 'unrecognized'] as const) {
+        const raw = chatgptDetailGen('C_DETAIL_L1_SOURCE_01');
+        const answer = raw.mapping.answer;
+        assert.ok(answer?.message);
+        const message = answer.message;
+        message.end_turn = false;
+        message.status = 'finished_successfully';
+        if (variant === 'unfinished') {
+            message.status = 'in_progress';
+            message.content = { content_type: 'text', parts: ['## 本批完成：Migration / Released 1.7\n\n已'] };
+        }
+        if (variant === 'interrupted') message.metadata = { finish_details: { type: 'interrupted', reason: 'client_stopped' } };
+        if (variant === 'finished') message.end_turn = true;
+        if (variant === 'tool') message.recipient = 'api_tool.call_tool';
+        if (variant === 'thoughts') message.content = { content_type: 'thoughts', thoughts: [] };
+        if (variant === 'handoff') message.recipient = 'local.handoff';
+        if (variant === 'unrecognized') message.status = 'unrecognized-status';
+        const result = parse(raw);
+        const expected = ['tool', 'thoughts', 'unrecognized'].includes(variant) ? 'unknown' : variant;
+        assert.deepEqual(result.conversation.detail.quality, {
+            status: variant === 'handoff' ? 'partial' : 'complete', sourceTurn: expected,
+        }, variant);
+        if (variant === 'unfinished') assert.match(JSON.stringify(result.conversation.detail.messages), /Migration \/ Released 1.7/);
+        const restored = restoreDomainDetail({ ...result.conversation.detail,
+            key: { accountId: '00000000-0000-4000-8000-000000000001', conversationId: raw.id } });
+        assert.equal(restored.quality.sourceTurn, expected);
+        // Turn state cannot hide missing ancestors.
+        answer.parent = 'missing';
+        assert.equal(parse(raw).conversation.detail.quality.status, 'partial', variant);
+    }
+});

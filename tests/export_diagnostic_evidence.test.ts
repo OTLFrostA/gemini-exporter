@@ -135,7 +135,7 @@ for (const origin of ['https://chatgpt.com', 'https://chat.openai.com']) test(`r
     assert.doesNotMatch(JSON.stringify(diagnostics), /private-path|do-not-log/);
 });
 
-test('unfinished branch evidence distinguishes tool nodes from rendered turns without body disclosure', () => {
+test('internal tool termination stays unknown without claiming missing snapshot content', () => {
     const raw = detailGen('C_DETAIL_L1_SOURCE_01');
     const conversation = decodeChatGPTDetail(raw, raw.id);
     const leaf = conversation.mapping.get(conversation.current_node);
@@ -144,17 +144,14 @@ test('unfinished branch evidence distinguishes tool nodes from rendered turns wi
     leaf.message.recipient = 'python';
     leaf.message.channel = 'analysis';
     const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
-    assert.equal(parsed.conversation.detail.quality.status, 'partial');
-    const observation = parsed.diagnostics.find(d => d.code === 'CHATGPT_BRANCH_COVERAGE_INCOMPLETE');
+    assert.deepEqual(parsed.conversation.detail.quality, { status: 'complete', sourceTurn: 'unknown' });
+    assert.ok(!parsed.diagnostics.some(d => d.code === 'CHATGPT_BRANCH_COVERAGE_INCOMPLETE'));
+    const observation = parsed.diagnostics.find(d => d.code === 'CHATGPT_SOURCE_TURN_STATUS');
     assert.ok(observation?.details && typeof observation.details === 'object' && !Array.isArray(observation.details));
-    assert.equal(observation.details.chainEnd, 'root');
-    assert.ok(Array.isArray(observation.details.tail));
-    const last = observation.details.tail[0];
-    assert.ok(last && typeof last === 'object' && !Array.isArray(last));
-    assert.equal(last.recipient, 'python');
-    assert.equal(last.channel, 'analysis');
-    assert.equal(last.rendered, false);
-    assert.equal('content' in last, false);
+    assert.equal(observation.details.recipient, 'python');
+    assert.equal(observation.details.channel, 'analysis');
+    assert.equal(observation.details.sourceTurn, 'unknown');
+    assert.equal('content' in observation.details, false);
 });
 
 test('diagnostic observers cannot break successful downloads or detail admission', async t => {

@@ -89,7 +89,7 @@ function block(v: unknown): v is BlockNode {
     }
 }
 const message = shape<DomainMessage>({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(sourceTime), attachmentIds: optional(array(text)), reasoning: optional(array(block)), citations: optional(array(citation)) });
-const quality = shape<ContentQuality>({ status: enumeration('complete', 'partial', 'unknown') });
+const quality = shape<ContentQuality>({ status: enumeration('complete', 'partial', 'unknown'), sourceTurn: optional(enumeration('finished', 'unfinished', 'interrupted', 'handoff', 'unknown')) });
 const domainFields: Fields<DomainConversationDetail> = { key: (v): v is ConversationKey => { try { readConversationKey(v); return true; } catch { return false; } }, savedAt: optional(sourceTime), assets: array(asset), messages: array(message), quality };
 const domain = shape<DomainConversationDetail>(domainFields);
 

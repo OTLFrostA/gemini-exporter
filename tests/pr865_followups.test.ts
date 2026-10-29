@@ -310,6 +310,10 @@ test('v2 Skip requires an ok record for the same format and a comparable body ve
     const record = { exportedAt: sourceTime + 10, format: 'markdown' as const,
         status: 'ok' as const, chatTime: sourceTime };
     assert.equal(shouldSkipExport(record, sourceTime, wanted), true);
+    assert.equal(shouldSkipExport({ ...record, sourceTurn: 'unfinished' }, sourceTime, wanted), false);
+    assert.equal(shouldSkipExport({ ...record, sourceTurn: 'unknown' }, sourceTime, wanted), false);
+    assert.equal(shouldSkipExport({ ...record, sourceTurn: 'handoff' }, sourceTime, wanted), false);
+    assert.equal(shouldSkipExport({ ...record, sourceTurn: 'finished' }, sourceTime, wanted), true);
     assert.equal(shouldSkipExport(record, sourceTime + 1, wanted), false);
     assert.equal(shouldSkipExport({ ...record, status: 'partial' }, sourceTime, wanted), false);
     assert.equal(shouldSkipExport({ ...record, format: 'json' }, sourceTime, wanted), false);

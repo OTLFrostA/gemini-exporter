@@ -112,14 +112,16 @@ test('missing ChatGPT ancestors and cyclic mappings never claim complete Detail 
     }
 });
 
-test('a linked but streaming or interrupted ChatGPT reply never claims complete coverage', () => {
+test('streaming and interrupted replies preserve complete available snapshots separately from termination', () => {
     for (const patch of [{ status: 'in_progress' }, { status: 'interrupted' }, { end_turn: false }]) {
         const leaf = textNode('a', 'root', 'assistant', 'unfinished body');
         Object.assign(leaf.message!, patch);
         const parsed = parseChatGPTConversation({ conversation: { id: 'streaming', current_node: 'a',
             mapping: new Map(Object.entries<ChatGPTConversationNode>({ root: { id: 'root', parent: null, children: ['a'] } as unknown as ChatGPTConversationNode, a: leaf })),
             title: 'Streaming', createdAtMs: 1000, updatedAtMs: 2000, is_archived: false }, assetsByNode: new Map() });
-        assert.equal(parsed.conversation.detail.quality.status, 'partial');
+        assert.equal(parsed.conversation.detail.quality.status, 'complete');
+        assert.equal(parsed.conversation.detail.quality.sourceTurn, patch.status === 'interrupted' ? 'interrupted' : 'unfinished');
+        assert.match(JSON.stringify(parsed.conversation.detail.messages), /unfinished body/);
     }
 });
 
@@ -741,7 +743,8 @@ test('Captured live DIL quiz parses nested questions/options before buttons, wit
     assert.ok(JSON.stringify(parsed.conversation.detail.messages).includes('COMPOST-END'));
     assert.equal((answer.message!.content as { parts: string[] }).parts[0], fixture.raw, 'source is not mutated');
     answer.message!.end_turn = false;
-    assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.quality.status, 'partial');
+    const unfinished = parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.quality;
+    assert.deepEqual(unfinished, { status: 'complete', sourceTurn: 'unfinished' });
     answer.message!.end_turn = true; answer.parent = 'missing';
     assert.equal(parseChatGPTConversation({ conversation, assetsByNode: new Map() }).conversation.detail.quality.status, 'partial');
 });

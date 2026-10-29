@@ -279,3 +279,40 @@ test('batch delivery failure carries the same diagnostic to every affected item'
         assert.equal(await getExportRecord(update.key), null);
     }
 });
+
+for (const sourceTurn of ['unfinished', 'interrupted', 'unknown'] as const) {
+    test(`${sourceTurn} source reply delivers all available text without marking missing body`, async t => {
+        const host = v2ExportHost(t);
+        const id = 'source-turn-' + sourceTurn;
+        await seedExportConversation(id);
+        const key = exportKey(id);
+        const snapshot = { ...body('Earlier complete reply\n\n本批完成：Migration / Released 1.7\n\n已'),
+            quality: { status: 'complete' as const, sourceTurn } };
+        await ingestDetail(account.id, id, snapshot, { updatedAt: 200 });
+        let refreshes = 0;
+        t.mock.method(GeminiProvider.prototype, 'fetchConversationDetail', async () => {
+            refreshes++; await ingestDetail(account.id, id, snapshot, { updatedAt: 200 });
+        });
+        const diagnostics: ExportDiagnostic[] = [];
+        const result = await runExport(exportRequest([id]), { onDiagnostic: event => diagnostics.push(event) });
+        assert.equal(result.exported, 1);
+        assert.equal(result.partial, 0);
+        assert.deepEqual(result.failed, []);
+        assert.equal(host.blobs.length, 1);
+        const markdown = await host.blobs[0].text();
+        assert.match(markdown, /Earlier complete reply/);
+        assert.match(markdown, /本批完成：Migration \/ Released 1.7/);
+        assert.match(markdown, /已/);
+        const record = await getExportRecord(key);
+        assert.equal(record?.status, 'ok');
+        assert.equal(record?.sourceTurn, sourceTurn);
+        assert.equal(record?.otherContentMissing, undefined);
+        assert.ok(diagnostics.some(d => d.code === 'SOURCE_TURN_' + sourceTurn.toUpperCase()));
+        assert.ok(!diagnostics.some(d => d.code === 'DETAIL_NOT_COMPLETE'));
+        // Timestamp disagreement is retained as freshness evidence, never fabricated body loss.
+        assert.ok(diagnostics.some(d => d.code === 'DETAIL_STALE'));
+        assert.equal(refreshes, 1);
+        await runExport(exportRequest([id], { skipUnchanged: true }));
+        assert.equal(refreshes, 2, 'unfinished/uncertain or stale source snapshots are refreshed on the next export');
+    });
+}

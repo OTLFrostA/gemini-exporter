@@ -123,3 +123,11 @@ test('Domain equality does not confuse changed nested AST node variants', () => 
         assert.equal(equal.material(body, altered), false);
     }
 });
+
+test('source turn completion changes are persisted and notify Live Save even with unchanged text', () => {
+    const a = sampleDetail(), b = structuredClone(a);
+    a.quality.sourceTurn = 'unfinished';
+    b.quality.sourceTurn = 'finished';
+    assert.equal(equal.detail(a, b), false);
+    assert.equal(equal.material(a, b), false);
+});

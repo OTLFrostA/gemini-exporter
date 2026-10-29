@@ -306,3 +306,14 @@ test('Export retry uses only current failed ConversationKeys and disables skip',
     assert.deepEqual(requests[1].keys, [{ accountId: A, conversationId: 'failed' }]);
     assert.equal(requests[1].skipUnchanged, false);
 });
+
+test('successful snapshot export shows source generation state separately from missing content', async () => {
+    await open({ settings: { language: 'zh' }, indexes: rows,
+        records: { [A]: { one: { status: 'ok', format: 'markdown', exportedAt: 100, chatTime: 10, sourceTurn: 'unfinished' },
+            two: { status: 'partial', otherContentMissing: true, format: 'markdown', exportedAt: 100, sourceTurn: 'interrupted' } } } });
+    assert.match(await page.locator('[data-chat-id="one"] .status-exported').innerText(), /导出成功/);
+    assert.equal(await page.locator('[data-chat-id="one"] .source-turn-status').innerText(), '原回答尚未结束');
+    assert.equal(await page.locator('[data-chat-id="one"] .status-partial').count(), 0);
+    assert.equal(await page.locator('[data-chat-id="two"] .status-partial').innerText(), '导出不完整');
+    assert.equal(await page.locator('[data-chat-id="two"] .source-turn-status').innerText(), '原回答已中断');
+});
