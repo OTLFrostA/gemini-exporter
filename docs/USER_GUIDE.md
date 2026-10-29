@@ -70,7 +70,7 @@ Takeout can supplement what Gemini exposes to an online scan. It cannot guarante
 
 **Why is an attachment missing?** Some source files and generated images may have expired or become inaccessible. The exporter reports resource problems when it detects them but cannot reconstruct bytes the source no longer serves.
 
-**Why does PDF ask to access local fonts?** The local PDF renderer may request Chrome's Local Font Access permission to use installed fonts, especially for non-Latin scripts. Your document is compiled locally.
+**Does PDF require access to my installed fonts?** PDF compiles locally. The renderer supports bundled offline fonts, so access to installed fonts is not a prerequisite for generating a PDF.
 
 **Can I back up ChatGPT, Claude, or Grok?** Source builds include experimental ChatGPT, Claude and Grok support. Authorize the platforms you need through onboarding or Site access. Chrome requests only the selected platforms’ conversation and attachment sites. Sign in on the platform websites, then select an account, sync and export. Keep a signed-in grok.com tab open for Grok synchronization and export. Missing attachments, unsupported tools and ambiguous branches may produce partial exports.
 
