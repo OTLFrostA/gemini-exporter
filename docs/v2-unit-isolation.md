@@ -7,7 +7,7 @@ Current source owners are L1, L2, L3a, L3b, L4, Application, Runtime, UI, Migrat
 1. Import the real implementation of the owner being tested. Replace calls into other owners with test doubles conforming to the **current exported TypeScript contract** (`import type`, `typeof import(...)`, `satisfies`), not a newly invented backward-compatible Facade.
 2. Keep mocks at the boundary: provide scripted facts or record decisions, rather than reproducing IndexedDB transaction logic, parser logic, AST composition, browser routing or rendering from another module.
 3. Shared pure utilities may be used by multiple owners. Tests exercising multiple real modules belong to integration suites and remain part of regression coverage.
-4. `scripts/v2UnitRealModuleGuard.cjs` guards against another owner's implementation being compiled into an isolated module test. A green ordinary `npm run test:unit` is **not** evidence of module isolation.
+4. `tests/helpers/v2UnitRealModuleGuard.cjs` guards against another owner's implementation being compiled into an isolated module test. A green ordinary `npm run test:unit` is **not** evidence of module isolation.
 5. A test of released v1/v1.7 migration is a real migration regression, not permission to restore a v1 production API. Preserve `tests/upgrade_v1.test.cjs` and its Tier 1 wrapper.
 
 ## Commands
