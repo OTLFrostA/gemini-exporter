@@ -9,6 +9,7 @@ import { text, useSettings, observeSettings } from '../shared/settings.js';
 let badge: HTMLElement | null = null;
 let accountId: string | null = null;
 let count: number | null = null;
+let extensionContextInvalidated = false;
 let feedback: 'ok' | 'partial' | 'failed' | 'unavailable' | null = null;
 let feedbackResult: ExportResult | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -34,7 +35,9 @@ function render(): void {
     if (!label) return;
     badge?.classList.toggle('live-save-warning', feedback === 'unavailable');
     if (badge) badge.title = feedbackResult ? exportSummary(feedbackResult) : '';
-    label.textContent = feedback === 'unavailable' ? text('Saved; source attachments unavailable', '已保存，部分来源附件无法获取')
+    label.textContent = extensionContextInvalidated || !chrome.runtime?.id
+        ? text('Extension updated. Refresh this page.', '插件已更新，请刷新页面')
+        : feedback === 'unavailable' ? text('Saved; source attachments unavailable', '已保存，部分来源附件无法获取')
         : feedback === 'ok' ? text('✓ Saved', '✓ 已保存')
         : feedback === 'partial' ? text('Some content was not saved', '部分内容未保存')
         : feedback === 'failed' ? text('Save failed', '保存失败')
@@ -69,7 +72,12 @@ async function refreshIndexCount(id: string): Promise<void> {
             || !('count' in response) || typeof response.count !== 'number'
             || !Number.isInteger(response.count) || response.count < 0) throw new Error('Invalid index count');
         count = response.count;
-    } catch { if (alive && accountId === id && getAccountContext()?.accountId === id) count = null; }
+    } catch (error) {
+        if (alive && accountId === id && getAccountContext()?.accountId === id) {
+            count = null;
+            if (error instanceof Error && error.message.includes('Extension context invalidated')) extensionContextInvalidated = true;
+        }
+    }
     render();
 }
 /** One final result per task. Null/skipped do not create a notification. */
@@ -163,7 +171,7 @@ function ensureBadgeImpl(): HTMLElement | null {
         alive = false; clearFeedback(); stopCountPolling(); stop(); window.removeEventListener('resize', resize);
         window.removeEventListener('gemini:locationchange', route); window.removeEventListener('popstate', route);
         document.removeEventListener('visibilitychange', visibility);
-        badge?.remove(); badge = null; accountId = null; count = null; positionChanged = false; dragging = false;
+        badge?.remove(); badge = null; accountId = null; count = null; extensionContextInvalidated = false; positionChanged = false; dragging = false;
     });
     void refreshSettings().catch(console.warn); route(); return badge;
 }
