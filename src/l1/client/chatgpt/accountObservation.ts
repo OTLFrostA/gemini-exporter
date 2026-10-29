@@ -4,12 +4,10 @@ function text(value: unknown): string | undefined {
     return typeof value === 'string' ? value.trim() || undefined : undefined;
 }
 
-/** Session evidence only. A ChatGPT archive scope is one login subject in one workspace. */
 export function chatgptAccountObservation(session: unknown): Omit<Account, 'id'> | null {
     return readChatGPTSession(session).observation;
 }
 
-/** Trust only the Session fields needed by the provider. */
 export function readChatGPTSession(session: unknown) {
     const raw = session !== null && typeof session === 'object' && !Array.isArray(session) ? session : null;
     const rawUser = raw && 'user' in raw ? raw.user : undefined;

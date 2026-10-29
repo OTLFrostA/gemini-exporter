@@ -57,16 +57,13 @@ type PendingExport = PendingContent & {
 }
 interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'exportedAt'>; files: ExportArtifact[] }
 
-/** One runtime task for every trigger and format. No sessions, checkpoints or delivery receipts. */
 export async function runExport(request: ExportRequest, options: {
     onProgress?: (progress: ExportProgress) => void;
-    /** Settled items and staged browser files; only 'exported' carries a committed record. */
     onItemUpdate?: (update: ExportItemUpdate) => void;
     onDiagnostic?: (diagnostic: ExportDiagnostic) => void;
     signal?: AbortSignal;
     /** A completed reply requires a new source snapshot even if cached timestamps match. */
     refreshDetail?: boolean;
-    /** User-selected ZIP readers owned by the open workbench, released by that page. */
     importedResources?: import('../../l1/resources/sourceResources.js').SourceResourceContext;
 } = {}): Promise<ExportResult> {
     const failed: ConversationKey[] = [];
@@ -76,7 +73,6 @@ export async function runExport(request: ExportRequest, options: {
     const cancel = (): void => controller.abort(options.signal?.reason);
     if (options.signal?.aborted) cancel();
     else options.signal?.addEventListener('abort', cancel, { once: true });
-    // One ordered consumer handles resources/rendering/delivery while source reads advance.
     let downstream = Promise.resolve();
     const queued: { key: ConversationKey; done: Promise<void> }[] = [];
     const resources = createSourceResourceContext();
@@ -217,7 +213,6 @@ export async function runExport(request: ExportRequest, options: {
         const folderPlanner = directory ? createExportPathPlanner(request.format) : undefined;
         const pending: PendingExport[] = [];
         for (const [index, key] of request.keys.entries()) {
-            // Duplicate keys share task-owned readers; finish their earlier use first.
             if (queued.some(item => item.key.accountId === key.accountId && item.key.conversationId === key.conversationId)) {
                 await downstream;
                 queued.length = 0;
@@ -336,7 +331,6 @@ export async function runExport(request: ExportRequest, options: {
                 });
                 handedOff = true;
                 queued.push({ key, done: downstream });
-                // Bound captured source readers: one consumer plus at most two queued snapshots.
                 if (queued.length >= 3) await queued.shift()?.done;
             } catch (error) {
                 if (cancelled(error)) throw error;

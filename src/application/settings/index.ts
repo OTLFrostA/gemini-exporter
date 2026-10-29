@@ -6,7 +6,6 @@ export interface GlobalSettings {
     skipExported: boolean;
     includeAssets: boolean;
     enabledDisk: boolean;
-    /** Manual export destination also gates background Live Save. */
     exportDelivery?: ExportDelivery;
     developerMode: boolean;
     theme?: 'dark' | 'light';
@@ -14,7 +13,6 @@ export interface GlobalSettings {
     badgePosition?: { left: number; top: number };
     lastSeenFeatureVersion?: string;
     takeoutPromptCompleted?: true;
-    /** Automatically suggested large-batch folder delivery has already been shown. */
     directWritePromptCompleted?: true;
 }
 
@@ -23,7 +21,6 @@ export async function getSettings(): Promise<GlobalSettings> {
     return { defaultFormat: 'markdown', skipExported: true,
         includeAssets: true, enabledDisk: false, developerMode: false,
         ...stored,
-        // Existing Live Save users continue in folder mode; new users default to browser download.
         exportDelivery: stored.exportDelivery ?? (stored.enabledDisk ? 'folderWriter' : 'browserDownload') };
 }
 export function updateSettings(patch: Partial<GlobalSettings>): Promise<void> {

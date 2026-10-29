@@ -8,7 +8,6 @@ import type { ResourceBytes } from '../../shared/resources/resourceResult.js';
 export type PageEvidence = PageObservationHead;
 export interface CommittedListPage { page: number; totalObserved: number; scanHead?: PageEvidence }
 export type ListEnd = 'source_end' | 'provider_limit' | 'max_pages' | 'stopped';
-/** Request-bound evidence for a failed list page, retained for explicit diagnostic export. */
 export interface ListFailureDiagnostics {
     providerId: string;
     streamId: string;
