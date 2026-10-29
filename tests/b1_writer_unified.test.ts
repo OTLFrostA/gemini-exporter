@@ -1,4 +1,3 @@
-// Retained writer behaviors on V2 Packaging and task-owned resource acquisition.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ZipWriter } from '../src/l4/packaging/writers/zipWriter.js';
