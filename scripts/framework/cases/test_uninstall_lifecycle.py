@@ -1,4 +1,3 @@
-# scripts/framework/cases/test_uninstall_lifecycle.py
 """
 Lifecycle Test Case: Extension Uninstall & Clean State Isolation.
 Verifies CDP Extensions.uninstall, graceful teardown, and clean reinstallation without state cross-talk.
@@ -49,12 +48,10 @@ class UninstallLifecycleCase(FeatureTestCase):
         print(f"   🗑️ 正在通过 CDP Extensions.uninstall 执行卸载: {curr_ext_id}...")
         cdp = CDPConnection(browser_ws)
         try:
-            # 1. 触发原生卸载
             removed = uninstall_extension(cdp, curr_ext_id, ctx.port)
             if removed.get("error"):
                 return False, f"扩展卸载请求失败: {removed['error']}", None
 
-            # 2. 验证扩展已从浏览器中完全移除 (轮询最多 6 秒，消除异步靶标注销时序差)
             uninstalled = False
             for _ in range(12):
                 time.sleep(0.5)
@@ -73,7 +70,6 @@ class UninstallLifecycleCase(FeatureTestCase):
 
             print("   ✓ 扩展已成功彻底卸载，验证 Chrome 扩展注册表已移除该安装")
 
-            # 3. 重新纯净安装，验证零污染恢复
             print("   📦 重新安装扩展以恢复测试基线并验证零污染加载...")
             reinstalled_id = CDPActions.reinstall_extension(ctx.port, repo_path=ctx.worktree_root)
             if not reinstalled_id:

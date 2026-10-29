@@ -1,4 +1,3 @@
-# scripts/framework/cases/takeout.py
 import os
 import time
 import json

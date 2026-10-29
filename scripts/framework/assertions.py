@@ -1,4 +1,3 @@
-# scripts/framework/assertions.py
 """
 Declarative Assertion Primitives for Gemini Exporter Test Automation.
 Verifies CDP DOM states, storage invariants, disk file structure, 0-byte guards, and specification rules.
@@ -516,7 +515,6 @@ class CDPAssertions:
         if not target_dir or not os.path.isdir(target_dir):
             return False, f"未指定或未找到有效的实时落盘目录 (target_dir: {target_dir})", {}
 
-        # 检查 target_dir 或其下的 gemini_export 子目录
         check_dir = target_dir
         sub_export = os.path.join(target_dir, "gemini_export")
         if os.path.isdir(sub_export):
@@ -560,7 +558,6 @@ class CDPAssertions:
         if len(valid_md_files) == 0:
             return False, f"落盘目录 {check_dir} 中未找到任何有效 .md 对话文件", summary
 
-        # 若指定了目标会话 ID，执行严格的 ID 匹配与修改时间门禁核验
         if target_chat_ids:
             missing_ids = []
             stale_files = []
@@ -653,7 +650,6 @@ class CDPAssertions:
         with zipfile.ZipFile(zip_path, 'r') as zf:
             zf.extractall(extract_dir)
 
-        # 检查 0 字节文件
         zero_byte_files = []
         all_files = []
         for root, _, files in os.walk(extract_dir):
@@ -674,7 +670,6 @@ class CDPAssertions:
         if malformed_files:
             return False, f"导出的 ZIP 解压后发现因 URL 伪装文件名导致的严重畸变文件: {malformed_files}", {"malformed_files": malformed_files}
 
-        # 校验文件名 cid6 统一命名
         all_mds = [
             f for f in all_files 
             if f.endswith(".md") 
@@ -686,7 +681,6 @@ class CDPAssertions:
         if invalid_naming:
             return False, f"发现未遵循 _<cid6>.md 命名规范的文件: {invalid_naming}", {"invalid_naming": invalid_naming}
 
-        # 校验现场会话轮次 100% 存在
         scenario_results = []
         if expected_scenarios:
             for idx, sc in enumerate(expected_scenarios, 1):
@@ -719,7 +713,6 @@ class CDPAssertions:
                     return False, f"场景 {idx} 存在缺失轮次: {missing_turns}", {"scenario": sc.get("title"), "missing": missing_turns}
                 scenario_results.append({"scenario": sc.get("title"), "turns_matched": len(turns_clean)})
 
-        # 运行 ExportSpecificationAsserter
         if ExportSpecificationAsserter:
             asserter = ExportSpecificationAsserter(extract_dir)
             spec_ok = asserter.run_all_assertions(

@@ -1,4 +1,3 @@
-# scripts/framework/cases/base.py
 """
 Base abstractions for Feature-Driven E2E test cases and DAG execution.
 Gemini test context; common case/scheduler APIs are re-exported for compatibility.

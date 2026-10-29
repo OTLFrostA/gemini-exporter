@@ -1,4 +1,3 @@
-# scripts/framework/cases/workbench.py
 import time
 from typing import Tuple, Optional, Dict, Any
 
@@ -53,7 +52,6 @@ class SearchIdCase(FeatureTestCase):
             ctx.shared_data["target_search_id"] = target_search_id
 
             CDPActions.search_workbench(cdp_opt, target_search_id)
-            # 固定测试数据：直接比较可见 ID 集合与预期集合（顺序无关），数量检查已被覆盖
             filter_id_ok, filter_id_msg, details = CDPAssertions.assert_search_filter(
                 cdp_opt, target_search_id, expected_ids=[target_search_id],
             )

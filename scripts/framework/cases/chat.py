@@ -107,7 +107,6 @@ class ChatGenerationCase(FeatureTestCase):
         try:
             driver = ctx.get_gemini_driver(cdp_gemini)
             baseline = prepare_activity_baseline(ctx, cdp_gemini)
-            # 模型前置门禁断言
             try:
                 driver.ensure_model(target_model="3.8 Flash", target_thinking=True, force_menu_check=True)
             except RuntimeError as e:
@@ -129,7 +128,6 @@ class ChatGenerationCase(FeatureTestCase):
                     preview = (p_text[:40] + "...") if len(p_text) > 40 else p_text
                     print(f"      ▶️ 轮次 {turn_no}/{len(turns)}: '{preview}'")
 
-                    # 在会话 2 的第 1 轮动态生成带随机尾缀与随机内容的测试附件进行真实上传闭环
                     current_attachment = None
                     if chat_idx == 1 and turn_no == 1:
                         ext_pool = [".json", ".txt", ".md", ".custom", ".log", ".yaml", ".csv"]
@@ -184,14 +182,11 @@ description: "Dynamically created test attachment to verify multi-format user up
                     ctx.shared_data["uploaded_test_file"]["chat_id"] = session.chat_id
                 print(f"      🏁 第 {chat_idx + 1} 次对话完成！会话 ID: {session.chat_id}")
 
-                # 关键真实闭环：在完成会话 1 后，立即触发一次真实导出记录其初始导出时间戳基线，
-                # 这样后续在会话 1 进行追加提问时，其更新时间天然晚于导出时间，彻底告别假数据写库作弊！
                 if chat_idx == 0 and session.chat_id and ctx.ext_id:
                     print(f"      📦 触发会话 1 ({session.chat_id}) 真实导出建立时间基准线...")
                     try:
                         cdp_opt_init = ctx.connect_options()
                         try:
-                            # 触发单项导出真实落盘
                             CDPActions.clear_search_workbench(cdp_opt_init)
                             CDPActions.toggle_select_none(cdp_opt_init)
                             if not CDPActions.select_workbench_item(cdp_opt_init, session.chat_id, True):

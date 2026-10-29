@@ -1,4 +1,3 @@
-# scripts/framework/cases/lifecycle.py
 import json
 import time
 from typing import Tuple, Optional, Dict, Any
