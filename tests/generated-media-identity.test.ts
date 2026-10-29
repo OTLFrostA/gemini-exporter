@@ -80,7 +80,7 @@ test('regression: extractImages suppresses 2x upscale derivative rendition (slot
     upscaleNode[2] = '8815680899422160530.jpeg';
     upscaleNode[3] = 'https://lh3.googleusercontent.com/gg/upscaled';
     upscaleNode[5] = '$token_upscale';
-    upscaleNode[8] = 2; // 2x upscale derivative rendition
+    upscaleNode[8] = 2;
     upscaleNode[11] = 'image/jpeg';
     upscaleNode[15] = [2816, 1536, 3435994];
 
@@ -95,10 +95,8 @@ test('regression: extractImages suppresses 2x upscale derivative rendition (slot
 test('regression: decodeTurn verifies request identity only in documented slots', () => {
     const extractTurnRequestId = (turn: unknown): string | undefined => decodeTurn(turn)?.rawProviderRequestId;
 
-    // Verify schema constant
     assert.equal(GEMINI_JSPB_SCHEMA.TURN.REQUEST_ID_SLOT, 1, 'REQUEST_ID_SLOT must be index 1 in ID_META');
 
-    // Case 1: Standard canonical slot: idMeta[1] carries "r_<hex>"
     const turnStandard = [
         ["c_d3226d9a046c1116", "r_1c81efe352c9ef8a"],
         [1725302200, 0],
@@ -116,7 +114,6 @@ test('regression: decodeTurn verifies request identity only in documented slots'
     ];
     assert.equal(extractTurnRequestId(turnStandalone), 'r_2b3c4d5e6f7a8b9c', 'Extract from slot 0 when convId is absent');
 
-    // Case 3: Direct string idMeta
     const turnStringId = [
         "r_9988776655443322",
         [1725302200, 0]

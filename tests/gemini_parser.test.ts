@@ -120,7 +120,6 @@ test('gemini_parser - detectTurnSchemaDrift detects malformed and healthy turns'
     assert.strictEqual(healthyCheck.isDrifted, false);
     assert.strictEqual(healthyCheck.warnings.length, 0);
 
-    // Drifting turn: missing turn ID meta and corrupted model payload
     const driftedTurn = [
         ["corrupted_meta"],
         null
@@ -147,7 +146,7 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     extractors.deepWalk([1, 2, [3, 4, [5, 6]]], (node: object) => {
         earlyCount++;
         if (Array.isArray(node) && node.length === 3) {
-            return false; // Stop descending
+            return false;
         }
     });
     assert.ok(earlyCount < 5, 'deepWalk should stop descending when visitor returns false');

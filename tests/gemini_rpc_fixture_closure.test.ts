@@ -34,8 +34,6 @@ test('Gemini native response constructors remain inside one-key provider fixture
         const path = relative(root, file).replaceAll('\\', '/');
         if (path.startsWith(generatorFolder) || excluded.has(path)) continue;
         const text = readFileSync(file, 'utf8');
-        // This catches direct synthetic wrb.fr frames, including multiline array literals.
-        // Plain "wrb.fr" expectations and protocol parsing assertions are permitted.
         const inlineFrame = /JSON\.stringify\(\s*\[\s*\[\s*['"]wrb\.fr['"]\s*,/g;
         for (const match of text.matchAll(inlineFrame)) {
             const line = text.slice(0, match.index).split('\n').length;
