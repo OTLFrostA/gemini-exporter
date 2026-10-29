@@ -57,7 +57,7 @@
 }
 /* Override only the OFF track. A checked switch must retain its accent gradient. */
 :root[data-theme="light"] input[type=checkbox].toggle:not(:checked) { background: #cbd5e1; }
-:root[data-theme="light"] .feedback-card:hover,
+:root[data-theme="light"] .support-link:hover,
 :root[data-theme="light"] .item:hover { background: #e9eef8; }
 :root[data-theme="light"] .progress { background: #e2e8f0; }
 :root[data-theme="light"] .badge {
@@ -197,7 +197,7 @@
   color: #a8a8ae;
 }
 :root[data-theme="dark"] .item:hover,
-:root[data-theme="dark"] .feedback-card:hover {
+:root[data-theme="dark"] .support-link:hover {
   background: #29292d;
 }
 
@@ -269,10 +269,6 @@
   background: #252529;
   border-color: #4a4b57;
   box-shadow: none;
-}
-:root[data-theme="dark"] .feedback-card {
-  background: #202023;
-  border-color: #2f2f33;
 }
 :root[data-theme="dark"] .progress {
   background: #303034;

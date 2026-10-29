@@ -5,7 +5,7 @@ from urllib.parse import urlsplit
 from scripts.cdp_client import CDPConnection, get_browser_ws_url, get_tabs
 
 
-# Keep in sync with FEEDBACK_URL in src/shared/utils/constants.ts.
+# Match the shared Tally form path for either source; is_feedback intentionally ignores query parameters.
 FEEDBACK_URL = 'https://tally.so/r/Y56ZBB'
 
 

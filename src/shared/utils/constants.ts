@@ -21,7 +21,8 @@ export const STORAGE_KEYS = {
 } as const;
 
 export const DIRECT_WRITE_THRESHOLD = 20;
-export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB';
+export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB?source=extension';
+export const UNINSTALL_FEEDBACK_URL = 'https://tally.so/r/Y56ZBB?source=uninstall';
 
 const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '';
 
