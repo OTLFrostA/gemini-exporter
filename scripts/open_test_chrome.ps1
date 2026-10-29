@@ -4,6 +4,7 @@
 .DESCRIPTION
     Zero-personal-info script: dynamically resolves the user profile directory and repository root.
     Never exposes or hardcodes personal usernames, machine paths, or private data.
+#>
 
 $ErrorActionPreference = "Stop"
 
