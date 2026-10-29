@@ -10,7 +10,6 @@ const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
-// Explicit owners: Settings data and the final Migration completion markers.
 const ALLOWED_STORAGE_FILES = new Set<string>([
     'src/l3a/settingsStore.ts',
     'src/migration/upgradeV1.ts',
