@@ -12,7 +12,7 @@ export interface GeminiAnnotation {
 export interface GeminiTextNode {
     nodeType: 18;
     text: string;
-    jJ?: number; // heading level 1..6, or 0/undefined for paragraph
+    jJ?: number;
     annotations?: GeminiAnnotation[];
 }
 
@@ -62,7 +62,7 @@ export interface GeminiUnorderedListNode {
 export interface GeminiOrderedListNode {
     nodeType: 14;
     items: GeminiListItem[];
-    VHa?: number; // 1-based start number
+    VHa?: number;
 }
 
 export interface GeminiQuoteNode {
@@ -195,9 +195,9 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
         const s0 = style[0];
         const flag = s0.length > 4 ? s0[4] : null;
         if (flag === 2) {
-            t = 0; // strong (bold)
+            t = 0;
         } else if (flag === 1) {
-            t = 5; // emphasis (subtle/italic)
+            t = 5;
         } else if (flag === 3) {
             t = 7; // inline code; captured RPC style flag, not internal annotation enum
         }

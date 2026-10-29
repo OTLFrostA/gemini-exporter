@@ -22,8 +22,6 @@ export function parseConfirmedGeminiDeletion(request: GeminiRequestContext, resp
         if (typeof reply[2] !== 'string' || reply[5] != null) return null;
         const confirmation = response.payload(GeminiProtocol.RPCS.DELETE).inner;
         if (!Array.isArray(confirmation)) return null;
-        // Native GzXR5e is a void RPC: a successful reply contains [] (captured live).
-        // The unique outgoing DELETE binds that acknowledgement to its target.
         const voidSuccess = confirmation.length === 0;
         const echoedSuccess = confirmation.length === 2 && confirmation[0] === null && confirmation[1] === sourceId;
         if (!voidSuccess && !echoedSuccess) return null;

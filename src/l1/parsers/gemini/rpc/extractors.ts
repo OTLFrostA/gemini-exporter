@@ -118,8 +118,6 @@ export interface DecodedGeminiCandidate {
     groundingCitationMarkers: string[];
 }
 
-/** Known fields read once from a Turn. Selected wire evidence stays within
- * the L1 decoder and is consumed by specialized resource decoders. */
 export interface DecodedGeminiTurn {
     userText: string;
     timestamp: number | null;
@@ -708,9 +706,9 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
     function extractTurnTimestamp(turnData: unknown): number | null {
         if (!Array.isArray(turnData)) return null;
         const candidateIndices = [
-            GEMINI_JSPB_SCHEMA.TURN.TIMESTAMP, // index 1 (primary)
-            4,                                  // known alternative
-            5,                                  // known alternative
+            GEMINI_JSPB_SCHEMA.TURN.TIMESTAMP,
+            4,
+            5,
             turnData.length - 1                 // last element fallback
         ];
         return extractCandidateValue(turnData, candidateIndices, val => payloadToMs(val));
