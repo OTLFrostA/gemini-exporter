@@ -7,7 +7,6 @@ import { ChatGPTProvider } from './chatgpt/chatgptProvider.js';
 import { GrokProvider } from './grok/grokProvider.js';
 import { ClaudeProvider } from './claude/claudeProvider.js';
 
-/** L1 owns platform-specific construction; Application owns the task lifetime. */
 export function createTaskProvider(providerId: string, resources: SourceResourceContext): AIProvider {
     switch (providerId) {
         case 'gemini': return new GeminiProvider(undefined, undefined, resources);

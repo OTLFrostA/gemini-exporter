@@ -10,7 +10,6 @@ export interface GrokCapturedImage {
     source: 'user_upload' | 'ai_generated';
 }
 
-/** Loominary's image selectors, with exact response ownership and account checks. */
 export async function readGrokImages(conversationId: string, owner: string): Promise<GrokCapturedImage[]> {
     if (!grokUuid(conversationId) || !grokUuid(owner)) throw new TypeError('Invalid Grok image context');
     if (!await hasGrokAccess()) throw new OperationError('PLATFORM_PERMISSION_REQUIRED', 'Grok host permission unavailable');
