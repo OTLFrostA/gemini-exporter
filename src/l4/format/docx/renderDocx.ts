@@ -23,7 +23,7 @@ function textRun(text: string, style: InlineStyle = {}): TextRun {
     });
 }
 
-const PAGE_WIDTH = 9360; // Letter, 1in margins, in twips.
+const PAGE_WIDTH = 9360;
 
 function inlineWidth(nodes: readonly DisplayInline[]): number {
     return Math.max(0, ...nodes.map(node => {
@@ -162,7 +162,7 @@ export async function renderDocumentDocx(
                     return [new Paragraph({ children: inlines(node.children), heading, keepNext: true })];
                 }
                 case 'list': {
-                    const level = Math.min(depth, 8); // OOXML allows nine numbering levels.
+                    const level = Math.min(depth, 8);
                     const reference: NumberingDefinition = {
                         reference: `docx-list-${listId++}`,
                         levels: [{
