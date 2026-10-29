@@ -84,7 +84,15 @@ for (const persistent of [false, true]) test(`fsWriter - stale snapshot retry is
             }) };
         },
     });
-    if (persistent) await assert.rejects(writer.writeFile('chat.md', 'body'), /File close failed for chat\.md \[InvalidStateError\]: Stale disk state/);
+    if (persistent) await assert.rejects(writer.writeFile('chat.md', 'body'), (error: unknown) => {
+        if (!(error instanceof Error)) return false;
+        assert.match(error.message, /File close failed for chat\.md \[InvalidStateError\]: Stale disk state/);
+        assert.match(error.message, /"permission":"unsupported"/);
+        assert.match(error.message, /"attemptErrors":\["close:InvalidStateError","close:InvalidStateError","close:InvalidStateError"\]/);
+        assert.match(error.message, /"fileNameUtf8Bytes":7/);
+        assert.match(error.message, /U\+63/);
+        return true;
+    });
     else assert.equal(await writer.writeFile('chat.md', 'body'), 'chat.md');
     assert.equal(opened, persistent ? 3 : 2);
     assert.equal(writes, opened);

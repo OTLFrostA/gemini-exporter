@@ -8,6 +8,9 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 import { sessionGen } from './fixtures/providers/chatgptSession.js';
 import { fileDownloadGen } from './fixtures/providers/chatgptFileDownload.js';
 import { detailGen } from './fixtures/providers/chatgptDetail.js';
+import { attemptResource, resourceIssueKind } from '../src/shared/resources/resourceResult.js';
+import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
+import { decodeChatGPTDetail } from '../src/l1/parsers/chatgpt/decodeDetail.js';
 
 useIndexStorage();
 
@@ -48,13 +51,105 @@ test('external request diagnostics preserve the original failure and redact URL 
     const diagnostics: Diagnostic[] = [];
     await assert.rejects(acquireSourceResource({ id: 'external', kind: 'image',
         sourceUri: 'https://images.example/private?signature=secret' }, undefined, d => diagnostics.push(d)), error => error === failure);
-    assert.equal(diagnostics.length, 1);
-    assert.ok(diagnostics[0].details && typeof diagnostics[0].details === 'object' && !Array.isArray(diagnostics[0].details));
-    assert.equal(diagnostics[0].details.origin, 'https://images.example');
-    assert.equal(diagnostics[0].details.phase, 'fetch');
-    assert.equal(diagnostics[0].details.errorName, 'TypeError');
-    assert.equal(diagnostics[0].details.httpStatus, null);
+    const failed = diagnostics.find(d => d.code === 'RESOURCE_FETCH_FAILED');
+    assert.ok(failed?.details && typeof failed.details === 'object' && !Array.isArray(failed.details));
+    assert.equal(failed.details.origin, 'https://images.example');
+    assert.equal(failed.details.phase, 'fetch');
+    assert.equal(failed.details.errorName, 'TypeError');
+    assert.equal(failed.details.httpStatus, null);
+    assert.equal(failed.details.credentials, 'omit');
     assert.doesNotMatch(JSON.stringify(diagnostics), /private|signature|secret/);
+});
+
+test('source images recover from wildcard CORS without breaking authenticated downloads', async t => {
+    const attempts: RequestCredentials[] = [];
+    t.mock.method(globalThis, 'fetch', async (_url: RequestInfo | URL, init?: RequestInit) => {
+        const credentials = init?.credentials ?? 'same-origin';
+        attempts.push(credentials);
+        if (credentials === 'include') throw new TypeError('Failed to fetch');
+        return new Response('public-image');
+    });
+    const result = await acquireSourceResource({ id: 'public', kind: 'image', sourceUri: 'https://raw.githubusercontent.com/image.png' });
+    assert.equal(new TextDecoder().decode(result.bytes), 'public-image');
+    assert.deepEqual(attempts, ['include', 'omit']);
+    t.mock.method(globalThis, 'fetch', async (_url: RequestInfo | URL, init?: RequestInit) => {
+        assert.equal(init?.credentials, 'include');
+        return new Response('authenticated-image');
+    });
+    assert.equal(new TextDecoder().decode((await acquireSourceResource({ id: 'private', kind: 'image',
+        sourceUri: 'https://lh3.googleusercontent.com/image' })).bytes), 'authenticated-image');
+});
+
+test('source acquisition never retries an HTTP error or a cancelled request without credentials', async t => {
+    const controller = new AbortController();
+    let calls = 0;
+    t.mock.method(globalThis, 'fetch', async () => { calls++; return new Response('', { status: 403 }); });
+    await assert.rejects(acquireSourceResource({ id: 'restricted', kind: 'image', sourceUri: 'https://images.example/image' }));
+    assert.equal(calls, 1);
+    t.mock.method(globalThis, 'fetch', async () => { calls++; controller.abort(); throw new TypeError('Failed to fetch'); });
+    await assert.rejects(acquireSourceResource({ id: 'cancelled', kind: 'image', sourceUri: 'https://images.example/image' }, controller.signal),
+        { name: 'AbortError' });
+    assert.equal(calls, 2);
+});
+
+test('native sandbox expiration remains distinct from HTTP 404 and does not disclose the error body', async () => {
+    const account = await getOrCreateAccount('chatgpt', 'default');
+    const diagnostics: Diagnostic[] = [];
+    const provider = new ChatGPTProvider({ fetchFn: async url => Response.json(url.endsWith('/api/auth/session')
+        ? sessionGen('C_FILE_DOWNLOAD_SESSION_01') : fileDownloadGen('C_DIAGNOSTIC_EXPIRED_SANDBOX_01')) });
+    const result = await attemptResource('expired', () => provider.acquireResource(
+        { accountId: account.id, conversationId: 'expired' }, { id: 'expired', kind: 'file', sourceUri: 'file-download:file_expired' },
+        undefined, d => diagnostics.push(d)));
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.code, 'RESOURCE_SOURCE_EXPIRED');
+    assert.equal(resourceIssueKind(result), 'expired');
+    assert.equal(result.httpStatus, undefined);
+    assert.match(result.reason, /ace_pod_expired/);
+    const invalid = diagnostics.find(d => d.code === 'CHATGPT_DOWNLOAD_PAYLOAD_INVALID');
+    assert.ok(invalid?.details && typeof invalid.details === 'object' && !Array.isArray(invalid.details));
+    assert.equal(invalid.details.errorCode, 'ace_pod_expired');
+    assert.equal(invalid.details.errorType, 'GetDownloadLinkError');
+    assert.doesNotMatch(JSON.stringify(diagnostics), /do-not-log|private-path|secret/);
+});
+
+test('relative download locator evidence records shape without signed paths', async () => {
+    const account = await getOrCreateAccount('chatgpt', 'default');
+    const diagnostics: Diagnostic[] = [];
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) return Response.json(sessionGen('C_FILE_DOWNLOAD_SESSION_01'));
+        if (url.includes('/backend-api/')) return Response.json(fileDownloadGen('C_DIAGNOSTIC_RELATIVE_DOWNLOAD_01'));
+        throw new TypeError('Failed to fetch');
+    } });
+    await assert.rejects(provider.acquireResource({ accountId: account.id, conversationId: 'relative' },
+        { id: 'relative', kind: 'file', sourceUri: 'file-download:file_relative' }, undefined, d => diagnostics.push(d)));
+    const shape = diagnostics.find(d => d.code === 'CHATGPT_DOWNLOAD_URL_SHAPE');
+    assert.ok(shape?.details && typeof shape.details === 'object' && !Array.isArray(shape.details));
+    assert.deepEqual(shape.details.shape, { kind: 'root_relative', scheme: null, length: 30, surroundingWhitespace: false });
+    assert.equal(shape.details.origin, null);
+    assert.doesNotMatch(JSON.stringify(diagnostics), /private-path|do-not-log/);
+});
+
+test('unfinished branch evidence distinguishes tool nodes from rendered turns without body disclosure', () => {
+    const raw = detailGen('C_DETAIL_L1_SOURCE_01');
+    const conversation = decodeChatGPTDetail(raw, raw.id);
+    const leaf = conversation.mapping.get(conversation.current_node);
+    assert.ok(leaf?.message);
+    leaf.message.end_turn = false;
+    leaf.message.recipient = 'python';
+    leaf.message.channel = 'analysis';
+    const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
+    assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    const observation = parsed.diagnostics.find(d => d.code === 'CHATGPT_BRANCH_COVERAGE_INCOMPLETE');
+    assert.ok(observation?.details && typeof observation.details === 'object' && !Array.isArray(observation.details));
+    assert.equal(observation.details.chainEnd, 'root');
+    assert.ok(Array.isArray(observation.details.tail));
+    const last = observation.details.tail[0];
+    assert.ok(last && typeof last === 'object' && !Array.isArray(last));
+    assert.equal(last.recipient, 'python');
+    assert.equal(last.channel, 'analysis');
+    assert.equal(last.rendered, false);
+    assert.equal('content' in last, false);
 });
 
 test('diagnostic observers cannot break successful downloads or detail admission', async t => {

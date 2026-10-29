@@ -103,6 +103,7 @@ class FsWriter implements IExportWriter {
         await prev;
         let stage = 'directory';
         let attempts = 0;
+        const attemptErrors: string[] = [];
         try {
             for (let attempt = 0; ; attempt++) {
                 attempts++;
@@ -128,6 +129,7 @@ class FsWriter implements IExportWriter {
                     }
                     break;
                 } catch (error) {
+                    attemptErrors.push(`${stage}:${error instanceof Error ? error.name : 'NonError'}`);
                     // A stale File System Access snapshot needs fresh handles and a new stream.
                     if (!(error instanceof DOMException) || error.name !== 'InvalidStateError' || attempt >= 2) throw error;
                 }
@@ -136,7 +138,14 @@ class FsWriter implements IExportWriter {
             const failure = operationError(error, error instanceof DOMException && error.name === 'NotAllowedError'
                 ? 'DIRECTORY_PERMISSION_REQUIRED' : 'FILE_WRITE_FAILED');
             const name = error instanceof Error || error instanceof DOMException ? error.name : 'Error';
-            throw new OperationError(failure.code, `File ${stage} failed for ${relativePath} [${name}]: ${failure.message} (attempts: ${attempts})`,
+            let permission = 'unsupported';
+            try { if (this.rootDirHandle.queryPermission) permission = await this.rootDirHandle.queryPermission({ mode: 'readwrite' }); }
+            catch (permissionError) { permission = permissionError instanceof Error ? permissionError.name : 'query_failed'; }
+            const evidence = { permission, attemptErrors,
+                fileNameUtf8Bytes: new TextEncoder().encode(cleanName).byteLength,
+                fileNameNfcChanged: cleanName !== cleanName.normalize('NFC'),
+                fileNameCodePoints: [...cleanName].slice(0, 255).map(char => `U+${char.codePointAt(0)?.toString(16).toUpperCase()}`) };
+            throw new OperationError(failure.code, `File ${stage} failed for ${relativePath} [${name}]: ${failure.message} (attempts: ${attempts}; evidence: ${JSON.stringify(evidence)})`,
                 failure.httpStatus, { cause: error });
         } finally {
             releaseGate();
