@@ -50,9 +50,6 @@ test('hookCredentials - unrelated fetch and XHR traffic does not rescan account 
     }
 });
 
-// ============================================================================
-// Section 1: Behavioral Locks & End-to-End Export Finalize
-// ============================================================================
 
 
 test('p0-lock: deletion sniffing requires the exact request-bound acknowledgement and ignores decoys', async () => {
@@ -276,9 +273,6 @@ test('regression: gemini_parser image naming must be globally unique across turn
     assert.strictEqual(r2.length, 2);
 });
 
-// ============================================================================
-// Section 4: Storage, Tabs & Slot Isolation
-// ============================================================================
 
 
 test('passive RPC lists bind captured UUID independently of the routing slot', async () => {

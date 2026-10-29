@@ -19,7 +19,7 @@ test('retryUtils - calculateBackoff computes deterministic exponential delays wh
 test('retryUtils - calculateBackoff applies jitter within [base, base + jitterMs)', () => {
     const opts = { initialDelayMs: 500, maxDelayMs: 10000, jitterMs: 300 };
     for (let i = 0; i < 20; i++) {
-        const delay = calculateBackoff(1, opts); // base = 500 * 2^1 = 1000
+        const delay = calculateBackoff(1, opts);
         assert.ok(delay >= 1000, `delay ${delay} >= 1000`);
         assert.ok(delay <= 1300, `delay ${delay} <= 1300`);
     }
@@ -44,7 +44,6 @@ test('retryUtils - calculateBackoff honors server Retry-After floor even beyond 
     const delayLow = calculateBackoff(3, { initialDelayMs: 1000, maxDelayMs: 10000, retryAfterMs: 2000, jitterMs: 0 });
     assert.strictEqual(delayLow, 8000, 'does not decrease natural backoff (8000ms)');
 
-    // Non-positive or undefined retryAfterMs is ignored
     const delayZero = calculateBackoff(0, { initialDelayMs: 1000, maxDelayMs: 10000, retryAfterMs: 0, jitterMs: 0 });
     assert.strictEqual(delayZero, 1000, 'zero retryAfterMs ignored');
     const delayNeg = calculateBackoff(0, { initialDelayMs: 1000, maxDelayMs: 10000, retryAfterMs: -500, jitterMs: 0 });

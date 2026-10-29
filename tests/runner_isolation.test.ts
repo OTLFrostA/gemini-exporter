@@ -26,7 +26,6 @@ const { runCorpus } = require('../scripts/parser_migration/run_corpus.ts');
 const ISOLATION_FIXTURE_PATH = path.join(__dirname, 'output/isolation_test_corpus.json');
 const ISOLATION_REPORT_PATH = path.join(__dirname, 'output/isolation_test_report.json');
 
-// Helper to write a controlled mini-corpus
 function setupMiniCorpus(docText = 'Test input text', mathLatex = 'x^2') {
     fs.mkdirSync(path.dirname(ISOLATION_FIXTURE_PATH), { recursive: true });
     const miniCorpus = {
@@ -88,7 +87,6 @@ test('Runner Isolation Matrix [2/8]: Baseline Fail (Fallback) / Candidate Succes
     assert.strictEqual(report.math.candidate?.converted, 1);
     assert.strictEqual(report.math.candidate?.conversionFailures, 0);
 
-    // Diff correctly flags candidate conversion gain
     assert.strictEqual(report.math.diffCount, 1);
     assert.strictEqual(report.math.diffsByCategory.D_CANNOT_DETERMINE, 1);
 });
@@ -110,7 +108,6 @@ test('Runner Isolation Matrix [3/8]: Baseline Success / Candidate Fail (Fallback
         }),
     });
 
-    // Baseline remains completely clean
     assert.strictEqual(report.markdown.baseline.parseFailures, 0);
     assert.strictEqual(report.markdown.baseline.fallbacks, 0);
     assert.strictEqual(report.markdown.parseFailures, 0);
@@ -138,7 +135,6 @@ test('Runner Isolation Matrix [4/8]: Baseline Throw (Crash) / Candidate Success'
         }),
     });
 
-    // Baseline records parse crash
     assert.strictEqual(report.markdown.baseline.parseFailures, 1);
     assert.strictEqual(report.markdown.parseFailures, 1);
 
@@ -146,7 +142,6 @@ test('Runner Isolation Matrix [4/8]: Baseline Throw (Crash) / Candidate Success'
     assert.strictEqual(report.markdown.candidate?.parseFailures, 0);
     assert.strictEqual(report.markdown.candidate?.blockDistribution['paragraph'], 1);
 
-    // Diff recorded for candidate recovery observation
     assert.strictEqual(report.markdown.diffCount, 1);
     assert.strictEqual(report.markdown.diffsByCategory.D_CANNOT_DETERMINE, 1);
 });
@@ -227,7 +222,6 @@ test('Runner Isolation Matrix [8/8]: Typst WASM Compile Gate Isolation', async (
         candidateConverter: () => ({ typst: '#sys.nonexistent_unknown_func()' }),
     });
 
-    // Baseline compiles cleanly in real Typst WASM compiler
     assert.strictEqual(report.math.baseline.compileFailures, 0, 'Baseline compile failures must be 0');
     assert.strictEqual(report.math.compileFailures, 0, 'Top-level baseline alias must be 0');
 

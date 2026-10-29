@@ -21,7 +21,6 @@ def test_json_files():
         with open(p, "r", encoding="utf-8") as f:
             data = json.load(f)
             print(f"  ✓ JSON valid: {jf}")
-    # 场景池运行时归档（temp/scenario_pool/archive.json）是 git-ignored 的，不在 tracked 校验之列
 
 def test_manifest_structure():
     with open(os.path.join(BASE_DIR, "manifest.json"), "r", encoding="utf-8") as f:
@@ -48,7 +47,6 @@ def test_build_pipeline():
         gi = f.read()
     assert re.search(r'^dist/?$', gi, re.MULTILINE), "dist/ build output must be gitignored"
 
-    # Phase 5: verify all 5 bundle entrypoints configured in build.js
     with open(os.path.join(BASE_DIR, "build.js"), "r", encoding="utf-8") as f:
         build_content = f.read()
     assert "content/content" in build_content, "build.js must configure content/content bundle"
@@ -57,7 +55,6 @@ def test_build_pipeline():
     assert "ui/popup" in build_content, "build.js must configure ui/popup bundle"
     assert "ui/options" in build_content, "build.js must configure ui/options bundle"
 
-    # Phase 5: verify bundle artifacts if dist/ has been built
     dist_dir = os.path.join(BASE_DIR, "dist")
     if os.path.isdir(dist_dir):
         expected_bundles = [
@@ -77,7 +74,6 @@ def test_html_includes():
     for opt_path in ["src/ui/options/options.html"]:
         with open(os.path.join(BASE_DIR, opt_path), "r", encoding="utf-8") as f:
             opt_html = f.read()
-            # PR 5: options.html uses JSZip (UMD global) + single bundled dist/ui/options.js
             assert '<script src="/lib/jszip.min.js"></script>' in opt_html, f"Missing /lib/jszip.min.js in {opt_path}"
             assert '<script src="/dist/ui/options.js"></script>' in opt_html, f"Missing /dist/ui/options.js in {opt_path}"
             # Ensure legacy 50-script scatter is removed (spot-check 2 legacy entries must NOT be present)
@@ -86,7 +82,6 @@ def test_html_includes():
     for pop_path in ["src/ui/popup/popup.html"]:
         with open(os.path.join(BASE_DIR, pop_path), "r", encoding="utf-8") as f:
             pop_html = f.read()
-            # Phase 3: popup.html uses single bundled dist/ui/popup.js
             assert '<script src="/dist/ui/popup.js"></script>' in pop_html, f"Missing /dist/ui/popup.js in {pop_path}"
             # Ensure legacy per-file scripts are removed
             assert '/dist/core/protocol/protocol.js' not in pop_html or pop_html.count('<script') == 1, f"Legacy per-file scripts must be removed in {pop_path}"
@@ -323,7 +318,6 @@ def test_scenario_pool_pipeline():
             assert len(json.load(f)) == 20
         assert not os.path.exists(archive_path)
 
-        # Consume, archive, and top up entirely within the temporary directory.
         consumed, remaining = consume_scenarios(
             pool_path, count=2, archive_path=archive_path, dry_run=False, require_imagen=True
         )
@@ -358,7 +352,6 @@ def test_online_scenario_provider_and_lifecycle_tracker():
     from framework.scenario_provider import OnlineScenarioProvider
     from framework.lifecycle_tracker import SessionLifecycleTracker
 
-    # 1. Test OnlineScenarioProvider
     OnlineScenarioProvider.reset()
     mock_pool = [
         {"id": "sc_img", "title": "Imagen Test", "features": ["imagen", "creative"], "turns": ["draw a cat", "draw a dog"]},
@@ -377,19 +370,15 @@ def test_online_scenario_provider_and_lifecycle_tracker():
         assert status["count"] == 2
         assert status["has_imagen"] == 1
 
-        # Suppress live-run messages emitted for synthetic fixture scenarios.
         with contextlib.redirect_stdout(io.StringIO()):
-            # Pop imagen
             sc1 = prov.pop_scenario(required_features=["imagen"])
             assert sc1["id"] == "sc_img"
             assert prov.get_status()["count"] == 1
 
-            # Pop next
             sc2 = prov.pop_scenario()
             assert sc2["id"] == "sc_code"
             assert prov.get_status()["count"] == 0
 
-        # Archive check
         with open(a_path, "r", encoding="utf-8") as af:
             archived = json.load(af)
         assert len(archived) == 2
@@ -399,7 +388,6 @@ def test_online_scenario_provider_and_lifecycle_tracker():
         eq = prov.pop_ephemeral_query()
         assert "瞬态一致性" in eq or len(eq) > 10
 
-        # Exhaused pool raises RuntimeError
         try:
             prov.pop_scenario()
             assert False, "Should raise RuntimeError on exhausted pool"
@@ -411,7 +399,6 @@ def test_online_scenario_provider_and_lifecycle_tracker():
             if os.path.isfile(p):
                 os.remove(p)
 
-    # 2. Test SessionLifecycleTracker
     tracker = SessionLifecycleTracker()
     with contextlib.redirect_stdout(io.StringIO()):
         tracker.track("chat_abc_1")
@@ -419,7 +406,6 @@ def test_online_scenario_provider_and_lifecycle_tracker():
         tracker.track("chat_abc_1")  # duplicate
     assert len(tracker._tracked_chat_ids) == 2
 
-    # mark one deleted (e.g. from ephemeral deletion test)
     tracker.mark_deleted("chat_abc_1")
     assert "chat_abc_1" in tracker._deleted_chat_ids
 
@@ -438,8 +424,6 @@ def test_tour_status_indicator_styling():
     # The current Spotlight uses a cutout and dialog, not old connection lamps.
     with open(os.path.join(BASE_DIR, "src/ui/guidance/tourGuide.css"), encoding="utf-8") as f:
         css = f.read()
-    # The final v2 cutout CSS rule overrides the earlier generic overlay rule.
-    # Inspect the effective cascade; popover attributes span two rule blocks.
     containers = re.findall(r'\.tour-overlay-container\s*\{([^}]+)', css)
     popovers = re.findall(r'\.tour-popover\s*\{([^}]+)', css)
     assert containers and popovers, 'Tour overlay and popover CSS must exist'
@@ -469,8 +453,6 @@ def test_takeout_limit_modal_and_wall_detection():
     assert "scanAll" in sync and "AbortSignal" in sync, "Scan is a local typed Application invocation"
     for old in ("deepScan", "hitGoogleLimit", "gemini_pending_takeout_prompt"):
         assert old not in sync, f"UI must not reconstruct provider limits with {old}"
-    # Threshold, acknowledgement, import and cancellation behavior run against
-    # actual handlers in tour_guide.test.ts and takeout_limit_prompt.spec.ts.
     print("  ✓ Takeout guidance uses Application counters, current Settings and File import")
 
 
@@ -727,7 +709,6 @@ def run_all():
                 print(f"🧪 即将执行 {len(result.target_unit_tests)} 个受影响单元测试套件...")
 
                 affected = result.affected_files
-                # 执行关联的 Python 规格断言套件
                 if any("manifest.json" in f or "package.json" in f for f in affected):
                     test_json_files()
                     test_manifest_structure()
