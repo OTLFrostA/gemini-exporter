@@ -21,15 +21,19 @@ export function fileIdFromPointer(pointer: string): string | null {
 
 export function buildFileDownloadPath(fileId: string, conversationId: string): string {
     // File access can depend on the conversation scope, including Project uploads.
-    // Keep the opaque file pointer intact; encode it as one path segment.
+    // The native frontend maps composite image separators to stars before routing.
     const query = new URLSearchParams({ conversation_id: conversationId, inline: 'false', download_intent: 'true' });
-    return `/files/download/${encodeURIComponent(fileId)}?${query}`;
+    return `/files/download/${encodeURIComponent(fileId.replaceAll('#', '*'))}?${query}`;
 }
 
-/** Narrow the files/download payload without ever upgrading unknown data. */
+export function buildAttachmentDownloadPath(fileId: string, conversationId: string): string {
+    return `/conversation/${encodeURIComponent(conversationId)}/attachment/${encodeURIComponent(fileId)}/download`;
+}
+
+/** Both native download exchanges return a signed URL; status may be omitted. */
 export function parseFileDownloadPayload(value: unknown): ChatGPTParsedDownload | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-    if (!('status' in value) || value.status !== 'success') return null;
+    if ('status' in value && value.status !== 'success') return null;
     const downloadUrl = 'download_url' in value ? value.download_url : undefined;
     if (typeof downloadUrl !== 'string' || !downloadUrl) return null;
     const parsed: ChatGPTParsedDownload = { downloadUrl };
