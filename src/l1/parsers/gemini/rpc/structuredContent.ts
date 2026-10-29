@@ -1,5 +1,5 @@
 import { extractImageEvidence, type ImageAttachment } from "./sourceAttachments.js";
-import { isJsonValue } from "../../../../shared/utils/jsonTypes.js";
+import { isJsonValue, type JsonValue } from "../../../../shared/utils/jsonTypes.js";
 
 export interface GeminiAnnotation {
     start: number;
@@ -103,12 +103,15 @@ export interface GeminiStructuredDocument {
     children: GeminiStructuredNode[];
 }
 
-/** Shape-only rejection evidence: never includes source text, URLs or file tokens. */
+/** Local diagnostic evidence. Raw values may contain source text, URLs and file tokens. */
 export interface GeminiStructuredDecodeIssue {
     kind: 'annotation' | 'node' | 'payload';
     nodeType?: number;
     fields?: number[];
     styleFlag?: number;
+    rawValue?: JsonValue;
+    /** JSON Pointer relative to rawDocument; the empty string denotes its root. */
+    path?: string;
 }
 
 type DecodeIssues = GeminiStructuredDecodeIssue[];
@@ -135,7 +138,8 @@ export function decodeGeminiAnnotation(wa: unknown, issues?: DecodeIssues): Gemi
     const decoded = decodeAnnotation(wa);
     if (!decoded && issues && !issues.length) {
         const flag = isWireArray(wa) && isWireArray(wa[2]) && isWireArray(wa[2][0]) ? wa[2][0][4] : undefined;
-        issues.push({ kind: 'annotation', ...(typeof flag === 'number' ? { styleFlag: flag } : {}) });
+        issues.push({ kind: 'annotation', ...(typeof flag === 'number' ? { styleFlag: flag } : {}),
+            ...(isJsonValue(wa) ? { rawValue: wa } : {}) });
     }
     return decoded;
 }
@@ -225,6 +229,7 @@ export function decodeGeminiStructuredNode(w: unknown, issues?: DecodeIssues): G
         issues.push({ kind: 'node',
             ...(typeof nodeType === 'number' ? { nodeType } : {}),
             ...(isWireArray(w) ? { fields: w.flatMap((value, index) => value == null ? [] : [index]) } : {}),
+            ...(isJsonValue(w) ? { rawValue: w } : {}),
         });
     }
     return decoded;
@@ -657,7 +662,19 @@ export function decodeGeminiStructuredPayload(raw: unknown, issues?: DecodeIssue
 export type GeminiStructuredExtraction =
     | { status: 'decoded'; document: GeminiStructuredDocument }
     | { status: 'missing' | 'candidate_unmatched' }
-    | { status: 'decode_rejected'; issue: GeminiStructuredDecodeIssue };
+    | { status: 'decode_rejected'; issue: GeminiStructuredDecodeIssue; rawDocument?: JsonValue };
+
+/** Find the rejected object by identity, keeping its original parent/wire positions.
+ * Primitive equality cannot establish a unique source location. */
+function rejectedValuePath(document: JsonValue, target: JsonValue, path = ''): string | undefined {
+    if (document === target) return path;
+    if (document === null || typeof document !== 'object') return undefined;
+    for (const [key, value] of Object.entries(document)) {
+        const found = rejectedValuePath(value, target, `${path}/${key.replace(/~/g, '~0').replace(/\//g, '~1')}`);
+        if (found !== undefined) return found;
+    }
+    return undefined;
+}
 
 /** Source ownership comes from decodeTurn; never re-interpret the raw Turn. */
 interface GeminiStructuredEvidenceInput {
@@ -671,6 +688,12 @@ export function inspectStructuredContent(input: GeminiStructuredEvidenceInput): 
     if (input.candidateIndex !== 0) return { status: 'candidate_unmatched' };
     const issues: DecodeIssues = [];
     const document = decodeGeminiStructuredPayload(input.turnDocument, issues);
-    return document ? { status: 'decoded', document }
-        : { status: 'decode_rejected', issue: issues[0] ?? { kind: 'payload' } };
+    if (document) return { status: 'decoded', document };
+    const issue = issues[0] ?? { kind: 'payload' };
+    if (!isJsonValue(input.turnDocument)) return { status: 'decode_rejected', issue };
+    if (!issues.length) { issue.rawValue = input.turnDocument; issue.path = ''; }
+    else if (issue.rawValue !== null && typeof issue.rawValue === 'object') {
+        issue.path = rejectedValuePath(input.turnDocument, issue.rawValue);
+    }
+    return { status: 'decode_rejected', issue, rawDocument: input.turnDocument };
 }

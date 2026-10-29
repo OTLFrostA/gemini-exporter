@@ -66,14 +66,22 @@ test('source IDs share one validated grammar for object and wire annotations', (
     assert.equal(decodeGeminiAnnotation([0, 6, [null, null, null, [null, sourceIds], ['unvalidated']]]), null);
 });
 
-test('unknown nested annotation rejects whole document and reports only shape evidence', () => {
+test('unknown nested annotation retains replay evidence outside Domain content', () => {
     const result = parse('G_STRUCTURED_COVERAGE_02');
     assert.ok(JSON.stringify(result.conversation.detail.messages[1].content).includes(fallback));
     const diagnostic = result.diagnostics.find(d => d.code === 'GEMINI_STRUCTURED_FALLBACK');
     assert.equal(diagnostic?.severity, 'warning');
-    assert.deepEqual(diagnostic?.details, { reason: 'decode_rejected', issue: { kind: 'annotation', styleFlag: 999 } });
+    const leaf = textNode('PRIVATE_SOURCE_TEXT', 999);
+    const list = Object.assign(Array(12).fill(null), { 11: [[[[leaf]]]] });
+    const rawDocument = [[[textNode('known', 3), list]]];
+    assert.deepEqual(diagnostic?.details, { reason: 'decode_rejected',
+        issue: { kind: 'annotation', styleFlag: 999, rawValue: [0, 19, [[null, null, null, null, 999]]],
+            path: '/0/0/1/11/0/0/0/0/1/3/0' },
+        rawDocument, documentSource: 'turn[3][12]', candidateIndex: 0, fallbackMarkdown: fallback });
     assert.ok(diagnostic?.sourceRef?.providerMessageId);
-    assert.ok(!JSON.stringify(diagnostic).includes('PRIVATE_SOURCE_TEXT'));
+    assert.ok(JSON.stringify(diagnostic).includes('PRIVATE_SOURCE_TEXT'));
+    assert.ok(!JSON.stringify(result.conversation).includes('PRIVATE_SOURCE_TEXT'));
+    assert.equal(decodeGeminiStructuredPayload(rawDocument), null, 'saved evidence reproduces rejection');
 });
 
 test('unknown wire fields, absent payload, and uncorrelated candidate have distinct outcomes', () => {
@@ -81,7 +89,8 @@ test('unknown wire fields, absent payload, and uncorrelated candidate have disti
     assert.deepEqual(inspectStructuredContent({
         turnDocument: [[[unknown]]], candidateIndex: 0
     }), {
-        status: 'decode_rejected', issue: { kind: 'node', fields: [13] },
+        status: 'decode_rejected', issue: { kind: 'node', fields: [13], rawValue: unknown, path: '/0/0/0' },
+        rawDocument: [[[unknown]]],
     });
     const missing = parse('G_STRUCTURED_COVERAGE_03').diagnostics.find(d => d.code === 'GEMINI_STRUCTURED_FALLBACK');
     assert.deepEqual(missing?.details, { reason: 'missing' });
@@ -102,7 +111,21 @@ test('unknown wire fields, absent payload, and uncorrelated candidate have disti
     // Unsupported Turn documents must not be treated as absent or successfully decoded.
     assert.deepEqual(inspectStructuredContent({
         turnDocument: { unsupported: true }, candidateIndex: 0
-    }), { status: 'decode_rejected', issue: { kind: 'payload' } });
+    }), { status: 'decode_rejected', issue: { kind: 'payload', rawValue: { unsupported: true }, path: '' },
+        rawDocument: { unsupported: true } });
+});
+
+test('unknown field 6 retains its full payload and parent document through JSON export', () => {
+    const rejectedNode = [null, null, null, null, null, null,
+        { label: 'Synthetic shop', url: 'https://example.com/shop', nested: ['营业时间', 23, true] }];
+    const rawDocument = [[[textNode('known', 3), rejectedNode]]];
+    const extraction = inspectStructuredContent({ turnDocument: rawDocument, candidateIndex: 0 });
+    assert.deepEqual(JSON.parse(JSON.stringify(extraction)), { status: 'decode_rejected',
+        issue: { kind: 'node', fields: [6], rawValue: rejectedNode, path: '/0/0/1' }, rawDocument });
+    assert.equal(decodeGeminiStructuredPayload(rawDocument), null);
+    const supported = { children: [{ nodeType: 18, text: 'supported' }] };
+    assert.deepEqual(inspectStructuredContent({ turnDocument: supported, candidateIndex: 0 }),
+        { status: 'decoded', document: supported }, 'successful decoding adds no raw evidence');
 });
 
 test('adapter rejection remains visible and preserves complete Markdown body', () => {
@@ -110,7 +133,13 @@ test('adapter rejection remains visible and preserves complete Markdown body', (
     const malformed: GeminiStructuredDocument = { children: [{ nodeType: 18, text: 'abc', annotations: [{ start: 0, end: 99, type: 7 }] }] };
     const content = parseGeminiBody(fallback, malformed, { diagnostics, sourceRef: { providerId: 'gemini', providerMessageId: 'rc_bad' } });
     assert.ok(JSON.stringify(content).includes(fallback));
-    assert.deepEqual(diagnostics[0].details, { reason: 'adapter_rejected' });
+    assert.deepEqual(diagnostics[0].details, { reason: 'adapter_rejected',
+        structuredDocumentJson: JSON.stringify(malformed), fallbackMarkdown: fallback });
+    const replay: GeminiStructuredDocument = JSON.parse(JSON.stringify(malformed));
+    const replayDiagnostics: Diagnostic[] = [];
+    assert.deepEqual(parseGeminiBody(fallback, replay, { diagnostics: replayDiagnostics,
+        sourceRef: { providerId: 'gemini' } }), content);
+    assert.equal(replayDiagnostics[0].code, 'GEMINI_STRUCTURED_FALLBACK');
     assert.equal(diagnostics[0].sourceRef?.providerMessageId, 'rc_bad');
 });
 
