@@ -1,6 +1,5 @@
 import type { DomainAssetKind, DomainMessageRole } from '../../l2/conversationDetail.js';
 
-/** Format-neutral logical presentation tree. Styles, output controls and geometry live in backends. */
 export type DisplayInline =
     | { type: 'text'; text: string }
     | { type: 'strong' | 'emphasis' | 'strikethrough'; children: DisplayInline[] }
