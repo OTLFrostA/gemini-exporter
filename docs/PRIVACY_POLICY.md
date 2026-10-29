@@ -1,6 +1,6 @@
 # Privacy Policy for Gemini Exporter
 
-**Last Updated: October 28, 2026**
+**Last Updated: October 29, 2026**
 
 <p align="left">
   <b>English</b> | <a href="#隐私权政策-中文版">简体中文</a>
@@ -39,6 +39,7 @@ The Extension requests minimal permissions strictly necessary to perform its adv
 | **ChatGPT optional sites (`chatgpt.com`, `chat.openai.com`, `images.openai.com`)** | Requested together when ChatGPT is selected for authorization to identify the signed-in user/workspace and read conversations and images. |
 | **Grok optional sites (`grok.com`, `assets.grok.com`)** | Requested together when Grok is selected for authorization to read conversations and download attachments. |
 | **Claude optional site (`claude.ai`)** | Requested when Claude is selected for authorization to identify the current organization and read conversations and attachments. |
+| **External image optional site (`cdn.sanity.io`)** | Requested separately when you click the download authorization button beside a failed image. Allows the browser to read that image directly when ordinary cross-origin access is unavailable; granting it does not start an export. |
 
 No platform has mandatory host access or automatically injected source scripts at installation. Connecting one platform does not authorize another. No platform password or session token is saved in the local conversation database.
 
@@ -89,7 +90,7 @@ If you have questions, concerns, or bug reports regarding this Privacy Policy, p
 
 <h2 id="隐私权政策-中文版">隐私权政策 (中文版)</h2>
 
-**最近更新日期：2026 年 10 月 28 日**
+**最近更新日期：2026 年 10 月 29 日**
 
 Gemini Exporter（以下简称“本扩展”）深知用户隐私的重要性。本隐私政策旨在向您说明本扩展如何处理与保护您的数据。
 
@@ -112,6 +113,7 @@ Gemini、ChatGPT、Claude、Grok 的网站访问权限均为可选项，按平�
 - **ChatGPT 可选网站权限**：`chatgpt.com`、`chat.openai.com`、`images.openai.com`，勾选 ChatGPT 并授权时一组申请，用于确认用户/工作区并读取会话和图片。
 - **Grok 可选网站权限**：`grok.com`、`assets.grok.com`，勾选 Grok 并授权时一组申请，用于读取会话和可获取的附件。
 - **Claude 可选网站权限**：`claude.ai`，勾选 Claude 并授权时申请，用于确认组织并读取会话和附件。
+- **外部图片可选网站权限**：`cdn.sanity.io`，仅在您点击失败图片旁的下载授权按钮时单独申请，用于普通跨域读取受限时直接读取该来源图片。授权本身不启动导出。
 
 安装时不强制授予任何平台的网站访问权，也不自动注入来源脚本。连接一个平台不会授权其他平台。平台密码和会话令牌不会写入本地会话数据库。
 

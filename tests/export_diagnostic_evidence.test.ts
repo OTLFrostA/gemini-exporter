@@ -50,7 +50,7 @@ test('external request diagnostics preserve the original failure and redact URL 
     t.mock.method(globalThis, 'fetch', async () => { throw failure; });
     const diagnostics: Diagnostic[] = [];
     await assert.rejects(acquireSourceResource({ id: 'external', kind: 'image',
-        sourceUri: 'https://images.example/private?signature=secret' }, undefined, d => diagnostics.push(d)), error => error === failure);
+        sourceUri: 'https://images.example/private?signature=secret' }, undefined, d => diagnostics.push(d)), error => error instanceof Error && error.cause === failure && 'code' in error && error.code === 'RESOURCE_DOWNLOAD_FAILED');
     const failed = diagnostics.find(d => d.code === 'RESOURCE_FETCH_FAILED');
     assert.ok(failed?.details && typeof failed.details === 'object' && !Array.isArray(failed.details));
     assert.equal(failed.details.origin, 'https://images.example');
@@ -59,6 +59,11 @@ test('external request diagnostics preserve the original failure and redact URL 
     assert.equal(failed.details.httpStatus, null);
     assert.equal(failed.details.credentials, 'omit');
     assert.doesNotMatch(JSON.stringify(diagnostics), /private|signature|secret/);
+    const result = await attemptResource('external', () => acquireSourceResource({ id: 'external', kind: 'image',
+        sourceUri: 'https://images.example/private?signature=secret' }));
+    if (result.ok) assert.fail('browser transport failure cannot produce attachment bytes');
+    assert.equal(result.code, 'RESOURCE_DOWNLOAD_FAILED');
+    assert.equal(resourceIssueKind(result), 'download');
 });
 
 test('source images recover from wildcard CORS without breaking authenticated downloads', async t => {

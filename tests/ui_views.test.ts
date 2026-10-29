@@ -317,3 +317,23 @@ test('successful snapshot export shows source generation state separately from m
     assert.equal(await page.locator('[data-chat-id="two"] .status-partial').innerText(), '导出不完整');
     assert.equal(await page.locator('[data-chat-id="two"] .source-turn-status').innerText(), '原回答已中断');
 });
+
+test('failed external image offers an explicit origin grant without auto-authorizing or exporting', async () => {
+    const sourceUrl = 'https://cdn.sanity.io/images/project/preview.png?q=100';
+    await open({ settings: { language: 'zh' }, indexes: [rows[0]], resourcePermissionDenied: true,
+        records: { [A]: { one: { status: 'partial', format: 'markdown', exportedAt: 100, otherContentMissing: false,
+            attachmentIssues: [{ resourceId: 'image', name: 'preview.png', code: 'RESOURCE_UNAVAILABLE', sourceUrl }] } } } });
+    await page.locator('.attachment-issues summary').click();
+    const allow = page.locator('.authorize-resource');
+    await allow.waitFor({ state: 'visible' });
+    assert.equal(await allow.innerText(), '允许从 cdn.sanity.io 下载');
+    assert.deepEqual(await read(page, 'resourceRequests'), undefined);
+    await allow.click();
+    assert.deepEqual(await read(page, 'resourceRequests'), [[sourceUrl, true]]);
+    assert.equal(await allow.isEnabled(), true, 'a declined grant can be retried');
+    await page.evaluate(() => { Reflect.get(window, 'harness').resourcePermissionDenied = false; });
+    await allow.click();
+    await page.waitForFunction(() => document.querySelector('.authorize-resource')?.textContent === '已授权，请重新导出此会话');
+    assert.equal(await allow.isDisabled(), true);
+    assert.deepEqual(await read(page, 'exports'), [], 'permission approval alone does not start an export');
+});

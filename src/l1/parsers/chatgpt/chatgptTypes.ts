@@ -57,6 +57,8 @@ export interface ChatGPTNodeMessage {
             title?: string;
         }>;
     };
+    /** Validated visible explanation of a local Work handoff; excludes its hidden prompt. */
+    handoffReason?: string;
     recipient: string;
     channel?: string | null;
     status?: string;

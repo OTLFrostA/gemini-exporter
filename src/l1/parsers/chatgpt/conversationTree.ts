@@ -34,11 +34,11 @@ function toolMessageHasImage(message: ChatGPTNodeMessage): boolean {
 /** Mirrors pionxzh shouldSkipMessageInExport: keep only user-visible turns. */
 export function shouldSkipChatGPTMessage(message?: ChatGPTNodeMessage): boolean {
     if (!message || !message.content) return true;
+    if (message.metadata?.is_visually_hidden_from_conversation || message.metadata?.is_thinking_preamble_message) return true;
+    if (message.recipient === 'local.handoff') return message.author.role !== 'assistant' || !message.handoffReason;
     if (message.recipient !== 'all') return true;
     const ct = message.content.content_type;
     if (ct === 'thoughts' || ct === 'reasoning_recap') return true;
-    if (message.metadata?.is_visually_hidden_from_conversation) return true;
-    if (message.metadata?.is_thinking_preamble_message) return true;
     if (
         message.author.role === 'assistant'
         && isTextContent(message)
@@ -111,6 +111,10 @@ function dilGalleryParts(text: string, message: ChatGPTNodeMessage): Array<strin
 function copyChatGPTNode(node: ChatGPTConversationNode, snapshots?: Map<string, ReturnType<typeof chatGPTInteractiveSnapshot>>): ChatGPTConversationNode {
     const message = node.message;
     if (!message) return { ...node };
+    if (message.recipient === 'local.handoff' && message.handoffReason) {
+        return { ...node, message: { ...message, recipient: 'all',
+            content: { content_type: 'text', parts: ['Continue in ChatGPT Work\n\n' + message.handoffReason] } } };
+    }
     if (isTextContent(message)) {
         const snapshot = message.metadata?.model_dil_v2
             ? chatGPTInteractiveSnapshot(message.content.parts.join(''), message.metadata.model_dil_v2.fallbackMarkdown)
