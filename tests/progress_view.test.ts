@@ -88,7 +88,7 @@ test('Folder export updates persisted item badges and the bar before the full ba
         assert.match(await page.locator('[data-chat-id="one"] .status-exported').textContent() ?? '', /^Export successful \(.+\)$/);
         assert.equal(await page.locator('[data-chat-id="two"] .status-exported').count(), 0);
         assert.match(await page.locator('#bar').getAttribute('style') ?? '', /width:\s*50%/);
-        assert.match(await page.locator('#status').textContent() ?? '', /saved 1/);
+        assert.equal(await page.locator('#status').textContent(), 'Prepared 1 conversations · exported 1 conversations · downloaded 0 attachments');
 
         await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
         await page.waitForFunction(() => document.body.dataset.busy !== 'true');

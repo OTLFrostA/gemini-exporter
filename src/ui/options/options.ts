@@ -308,13 +308,26 @@ export async function initWorkbench(): Promise<void> {
             && state.indexes.find(index => index.key.accountId === key.accountId
                 && index.key.conversationId === key.conversationId)?.title;
         failed = []; dismissedFailures = false; preparedExportKeys.clear(); render();
-        status(() => text('Preparing export…', '正在准备导出…'));
+        const processed = new Set<string>();
+        const prepared = new Set<string>();
+        let saved = 0;
+        let downloaded = 0;
+        const exportProgressMessage = () => text(
+            `Prepared ${prepared.size} conversations · exported ${saved} conversations · downloaded ${downloaded} attachments`,
+            `已准备 ${prepared.size} 条会话 · 已导出 ${saved} 条会话 · 已下载 ${downloaded} 个附件`);
+        const paintExportProgress = () => {
+            const total = request.keys.length;
+            // Browser batches reserve their last 10% for the final ZIP handoff.
+            const percent = total ? Math.round(processed.size / total *
+                (request.delivery === 'browserDownload' ? 90 : 100)) : 100;
+            progress(exportProgressMessage, percent);
+        };
+        status(exportProgressMessage);
+        paintExportProgress();
         try {
             await fonts;
             if (request.delivery === 'folderWriter' && !await Directory.verifyDirPermission(Directory.getDirHandle()))
                 throw new Error('Authorize a folder first');
-            const processed = new Set<string>();
-            let saved = 0;
             const result = await runExport(request, { signal, importedResources,
                 onDiagnostic: diagnostic => {
                     // Failed items carry their own diagnostic; count each failure once via onItemUpdate.
@@ -322,10 +335,14 @@ export async function initWorkbench(): Promise<void> {
                     if (run.diagnostics.length >= 10000) { run.droppedDiagnostics++; return; }
                     run.diagnostics.push({ ...diagnostic, at: Date.now(), title: titleFor(diagnostic.key) });
                 },
-                onProgress: p => progress(() => text(`Processing ${p.current}/${p.total}`, `正在处理 ${p.current}/${p.total}`)),
-                onResourceProgress: p => progress(() => text(
-                    `Downloading attachments ${p.completed}/${p.total} · ${titleFor(p.key)}`,
-                    `正在下载附件 ${p.completed}/${p.total} · ${titleFor(p.key)}`)),
+                onConversationPrepared: key => {
+                    prepared.add(`${key.accountId}/${key.conversationId}`);
+                    paintExportProgress();
+                },
+                onResourceProgress: p => {
+                    downloaded = p.downloaded;
+                    paintExportProgress();
+                },
                 onItemUpdate: update => {
                     if (update.status === 'failed') run.issues.add(update.diagnostic, titleFor(update.key));
                     run.items.push({ ...update, at: Date.now(), title: titleFor(update.key) });
@@ -342,15 +359,7 @@ export async function initWorkbench(): Promise<void> {
                         else preparedExportKeys.delete(update.key.conversationId);
                         if (update.status === 'exported') state.records[update.key.conversationId] = update.record;
                     }
-                    const total = request.keys.length;
-                    // Reserve the last 10% for Browser batch delivery; staging is not a receipt.
-                    const percent = total ? Math.round(processed.size / total *
-                        (request.delivery === 'browserDownload' ? 90 : 100)) : 100;
-                    progress(() => request.delivery === 'browserDownload'
-                        ? text(`Processed ${processed.size}/${total} · prepared ${preparedExportKeys.size} for download`,
-                            `已处理 ${processed.size}/${total} · 已准备 ${preparedExportKeys.size} 条待下载`)
-                        : text(`Processed ${processed.size}/${total} · saved ${saved}`,
-                            `已处理 ${processed.size}/${total} · 已保存 ${saved}`), percent);
+                    paintExportProgress();
                     // Skipping changes progress only; the row's stored outcome and selection are unchanged.
                     if (update.status !== 'skipped') renderConversations();
                 }

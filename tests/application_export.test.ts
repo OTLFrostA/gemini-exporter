@@ -669,3 +669,48 @@ for (const code of ['RESOURCE_LOCATOR_UNAVAILABLE', 'RESOURCE_SOURCE_EXPIRED'] a
         assert.equal(records.get(address(key()))?.attachmentIssues?.[0].code, code);
     });
 }
+
+
+test('export counters track ready bodies and successful attachments across conversations and recovery', async () => {
+    seed('first', { assets: true }); seed('second', { assets: true });
+    const prepared: string[] = [];
+    const downloads: number[] = [];
+    let firstImage = true;
+    provider.acquireResource = async (conversationKey, asset) => {
+        if (conversationKey.conversationId === 'first' && asset.id === 'image' && firstImage) {
+            firstImage = false;
+            throw new ResourceHttpError(403);
+        }
+        return { bytes: Uint8Array.of(1) };
+    };
+    const result = await runExport(request({ keys: [key(), key('second')] }), {
+        onConversationPrepared: value => prepared.push(value.conversationId),
+        onResourceProgress: value => downloads.push(value.downloaded),
+    });
+    assert.equal(result.exported, 2);
+    assert.equal(result.partial, 0);
+    assert.deepEqual(prepared, ['first', 'second']);
+    assert.equal(downloads[0], 0);
+    assert.equal(downloads.at(-1), 4, 'equal asset IDs in different conversations count separately, retries count once');
+    assert.ok(downloads.every((count, index) => index === 0 || count >= downloads[index - 1]));
+    assert.equal(events.filter(event => event === 'refresh').length, 1);
+});
+
+test('skipped targets and failed resources do not inflate ready or downloaded counters', async () => {
+    seed('first', { assets: true }); seed('second');
+    records.set(address(key('second')), previous);
+    const prepared: string[] = [];
+    const downloads: number[] = [];
+    provider.acquireResource = async (_key, asset) => {
+        if (asset.id === 'image') throw new ResourceHttpError(500);
+        return { bytes: Uint8Array.of(1) };
+    };
+    const result = await runExport(request({ keys: [key(), key('second')], skipUnchanged: true }), {
+        onConversationPrepared: value => prepared.push(value.conversationId),
+        onResourceProgress: value => downloads.push(value.downloaded),
+    });
+    assert.equal(result.skipped, 1);
+    assert.equal(result.partial, 1);
+    assert.deepEqual(prepared, ['first']);
+    assert.equal(downloads.at(-1), 1);
+});
