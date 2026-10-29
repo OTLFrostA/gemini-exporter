@@ -29,7 +29,6 @@ const trustedTypes = new Set(['TrustedDomain', 'ConversationParseResult', 'Resou
 // No production owner may manufacture a Domain type with a cast.
 function walk(node: Node, visit: (node: Node) => void): void { visit(node); node.forEachChild(child => { walk(child, visit); }); }
 
-/** Inspect real compiler nodes, retaining aliases and excluding comment/string contents. */
 export function trustBoundaryViolations(source: SourceFile, owner: string, checker?: Checker): string[] {
     const nodes: Node[] = []; walk(source, n => nodes.push(n));
     const aliases = new Map<string, string>();
