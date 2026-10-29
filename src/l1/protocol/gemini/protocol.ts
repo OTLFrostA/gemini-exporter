@@ -104,6 +104,9 @@ const DELETION_ANCHORS: RegExp[] = [
 // frontend when rotating protocol profiles.
 const BL_FALLBACK = 'boq_assistant-bard-web-server_20260802.09_p1';
 
+// Conversation count limits. 500 is Google's sliding-window size: counts
+// reaching it trigger the Takeout guidance flow. SERVER_LIMIT_TEXT is the
+// (localized-ish) marker inside the server-side error message.
 const LIMITS: ProtocolLimits = {
     SLIDING_WINDOW: 500,
     SERVER_LIMIT_TEXT: '600条'

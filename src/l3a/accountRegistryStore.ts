@@ -21,6 +21,7 @@ export function insertAccountIfAbsent(account: Account): Promise<Account> {
     });
 }
 
+/** One Account admission transaction; L2 supplies the complete synchronous selection. */
 export function admitAccountAtomically(providerId: Account['providerId'],
     decide: (existing: readonly Account[]) => Account): Promise<Account> {
     return inStores<Account>(['accounts'], 'readwrite', (tx, done, fail) => {

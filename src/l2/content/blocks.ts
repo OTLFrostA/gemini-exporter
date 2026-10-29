@@ -95,6 +95,7 @@ export interface ThematicBreakBlock {
     type: 'thematicBreak';
 }
 
+/** Unsupported content remains visible as plain text. */
 export interface UnknownBlock {
     type: 'unknown';
     sourceType: string;

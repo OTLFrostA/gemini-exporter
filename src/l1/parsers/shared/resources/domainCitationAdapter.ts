@@ -8,6 +8,8 @@ export function closeSourceCitations(message: DomainMessage, markers?: readonly 
     const grounding = new Map<string, { citation: { id: string }; displayLabel: string }[]>();
     for (const raw of markers ?? []) {
         const marker = raw.trim();
+        // A combined marker such as [cite:1,2] names one citation per number,
+        // in order; duplicates within the marker collapse to a single entry.
         const numbers = [...new Set([...marker.matchAll(/\d+/g)].map(match => Number(match[0])))];
         if (!numbers.length || numbers.some(number => !Number.isSafeInteger(number))) continue;
         const entries = numbers.map(number => {

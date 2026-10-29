@@ -1,6 +1,6 @@
-const MAX_ZIP_SIZE = 500 * 1024 * 1024;
-const MAX_ENTRY_COUNT = 10000;
-const MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024;
+const MAX_ZIP_SIZE = 500 * 1024 * 1024; // 500MB compressed size
+const MAX_ENTRY_COUNT = 10000; // 10,000 files
+const MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024; // 1GB uncompressed estimate
 
 type ZipGuardTranslator = (key: string, ...args: unknown[]) => string;
 

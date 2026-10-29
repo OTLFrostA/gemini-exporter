@@ -11,6 +11,7 @@ export interface DomainConversation {
     detail?: DomainConversationBody;
 }
 
+/** Parser/acquisition results have a body, including an explicitly empty one. */
 export interface DomainConversationWithDetail extends DomainConversation {
     detail: DomainConversationDetail;
 }

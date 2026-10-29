@@ -1,5 +1,6 @@
 import type { DisplayBlock, DisplayInline, DocumentAst } from './ast.js';
 
+/** Walk the logical tree, including rich captions and nested metadata. Placement determines binary needs. */
 export function collectDocumentResources(document: DocumentAst): {
     referencedIds: Set<string>;
     imageIds: Set<string>;
