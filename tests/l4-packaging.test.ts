@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createExportPathPlanner, planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
+import { createExportPathPlanner, planExportPaths, buildExportFiles, buildResourceFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import { v2Conversation, v2Document } from './helpers/l4V2Fixtures.js';
 import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
 import { __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
@@ -14,6 +14,39 @@ const prepared: PreparedResources = new Map([
     ['b', { ok: true, resourceId: 'b', value: { bytes: new Uint8Array([3]), mediaType: 'image/png' } }],
     ['failed', { ok: false, resourceId: 'failed', reason: 'missing', code: 'MISSING' }],
 ]);
+test('linked document paths are reserved before bytes arrive and attachment ZIP preserves them', async () => {
+    __setZipConstructor(JSZip);
+    const c = conversation();
+    const planner = createExportPathPlanner('markdown');
+    const plan = planner(c, new Map(), new Set(), undefined, new Set(['a', 'b']));
+    const bodyPlan = { ...plan, externalResourceIds: new Set<string>() };
+    const [body] = buildExportFiles('markdown', bodyPlan, 'body', new Map());
+    assert.equal(body.fileName, plan.fileName);
+    const attachments = buildResourceFiles(plan, prepared);
+    const [archive] = await packageExportFiles([attachments], 'browserDownload', 'attachments.zip');
+    assert.equal(archive.fileName, 'attachments.zip');
+    const zip = await JSZip.loadAsync(await (archive.content as Blob).arrayBuffer());
+    for (const path of Object.values(plan.resources)) assert.ok(zip.file(path), path);
+    assert.deepEqual(Object.values(plan.resources), ['assets/123456_Photo.png', 'assets/123456_photo_2.png']);
+});
+test('one nested attachment is still delivered as a root-level ZIP', async () => {
+    __setZipConstructor(JSZip);
+    const [archive] = await packageExportFiles([[{fileName:'files/report.md',mimeType:'text/markdown',content:'report'}]],
+        'browserDownload', 'attachments.zip');
+    assert.equal(archive.fileName, 'attachments.zip');
+    const zip = await JSZip.loadAsync(await (archive.content as Blob).arrayBuffer());
+    assert.equal(await zip.file('files/report.md').async('string'), 'report');
+});
+test('independent tasks cannot bind a new document to stale attachment paths from a previous task', () => {
+    const c = conversation();
+    const expected = new Set(['a']);
+    const first = createExportPathPlanner('markdown','task-one')(c,new Map(),new Set(),undefined,expected);
+    const second = createExportPathPlanner('markdown','task-two')(c,new Map(),new Set(),undefined,expected);
+    assert.equal(first.fileName,second.fileName,'folder document names remain stable');
+    assert.notEqual(first.resources.a,second.resources.a);
+    assert.match(first.resources.a,/^assets\/task-one\//);
+    assert.match(second.resources.a,/^assets\/task-two\//);
+});
 function conversation(title = 'Chat') {
     // Fake L2's frozen v2 ReadonlyDomain input, never invoke L2 validation.
     return v2Conversation(title, [

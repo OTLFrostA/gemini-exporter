@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readDeliveredFiles } from './helpers/v2ExportHost.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { sourceDetail, sourceList } from './helpers/l1SourceFixture.js';
@@ -47,9 +48,11 @@ test('six modules: real L1 admission, IDB reload, Application scan/export, ZIP b
     const env = environment();
     const oldDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
     const deliveries: Promise<Blob>[] = [];
+    const filenames: string[] = [];
     const recordsAtClick: ReturnType<typeof storage.getExportRecord>[] = [];
     Object.defineProperty(globalThis, 'document', { configurable: true, value: {
         body: { appendChild() {} }, createElement() { return { href: '', download: '', remove() {}, click() {
+            filenames.push(this.download);
             deliveries.push(fetch(this.href).then(response => response.blob()));
             recordsAtClick.push(storage.getExportRecord(key));
         } }; }
@@ -70,12 +73,13 @@ test('six modules: real L1 admission, IDB reload, Application scan/export, ZIP b
         const result = await runExport({ keys: [key], format: 'markdown', delivery: 'browserDownload', includeAssets: true, skipUnchanged: false });
         assert.equal(result.exported, 1); assert.deepEqual(result.failed, []);
         assert.equal(await recordsAtClick[0], null, 'delivery precedes Record commit');
-        const blob = await deliveries[0];
-        const zip = await require('../lib/jszip.min.js').loadAsync(await blob.arrayBuffer());
-        const names: string[] = Object.keys(zip.files).filter(name => !zip.files[name].dir);
-        const main = names.find(name => name.endsWith('.md'))!, image = names.find(name => name.endsWith('.png'))!;
-        assert.ok((await zip.file(main).async('string')).includes(image));
-        assert.deepEqual(await zip.file(image).async('uint8array'), Uint8Array.from(atob(png), c => c.charCodeAt(0)));
+        const files = await readDeliveredFiles({filenames,blobs:await Promise.all(deliveries)});
+        assert.equal(deliveries.length,2);
+        const main = files.find(file=>file.name.endsWith('.md'));
+        const image = files.find(file=>file.name.endsWith('.png'));
+        assert.ok(main && image);
+        assert.ok(String(await main.async('string')).includes(image.name));
+        assert.deepEqual(await image.async('uint8array'), Uint8Array.from(atob(png), c => c.charCodeAt(0)));
         const detail = await storage.getDetail(key), record = await storage.getExportRecord(key);
         assert.equal(record?.chatTime, detail?.savedAt);
         assert.ok(!JSON.stringify(detail).includes(png));

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { __getZipConstructor, __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 import assert from 'node:assert/strict';
 import { admitFixture } from './helpers/admitFixture.js';
 import { bindFixture, fixtureAccount } from './helpers/domainFixture.js';
@@ -180,7 +181,10 @@ test('a transient refresh failure exports a stale snapshot as partial, retries S
     }
 });
 
-test('unavailable resources mark delivered content partial; explicitly excluding assets is not a failure', async () => {
+test('unavailable resources mark delivered content partial; explicitly excluding assets is not a failure', async t => {
+    const previousZip = __getZipConstructor();
+    __setZipConstructor(require('../lib/jszip.min.js'));
+    t.after(()=>__setZipConstructor(previousZip));
     const id = 'missing_resource';
     const source = historicalFixture({
         id, title: id, updatedAt: sourceTime,

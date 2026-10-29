@@ -51,7 +51,7 @@ test('active export locks scan, settings and selection through cancellation and 
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
     await expect.poll(async () => (await read(page, 'settings')).language).toBe('zh');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'true');
-    await expect(page.locator('#status')).toHaveText('已准备 1 条会话 · 已导出 0 条会话 · 已下载 0 个附件');
+    await expect(page.locator('#status')).toHaveText('已准备 1 条会话 · 已交付正文 0 条 · 已下载 0 个附件');
     await expect(page.locator('#log')).toHaveText(originalLog!);
     await expect(page.locator('#format')).toBeDisabled();
     expect(await read(page, 'exports')).toEqual([request]);

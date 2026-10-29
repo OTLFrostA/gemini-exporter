@@ -8,7 +8,7 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { fixtureAccount } from './helpers/domainFixture.js';
-import { v2ExportHost, exportKey, exportRequest } from './helpers/v2ExportHost.js';
+import { v2ExportHost, readDeliveredFiles, exportKey, exportRequest } from './helpers/v2ExportHost.js';
 import { ingestDetail } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { getExportRecord } from '../src/l3a/storageService.js';
@@ -54,12 +54,6 @@ function useZip(t: TestContext) {
     const old = __getZipConstructor();
     __setZipConstructor(JSZip);
     t.after(() => __setZipConstructor(old));
-}
-async function zipContents(blob: Blob) {
-    const zip = await JSZip.loadAsync(await blob.arrayBuffer());
-    return Object.values(zip.files).filter((f: any) => !f.dir) as Array<{
-        name: string; async(type: string): Promise<string | Uint8Array>;
-    }>;
 }
 function network(t: TestContext, get: (url: string, signal?: AbortSignal) => Response | Promise<Response>) {
     const previousFetch = globalThis.fetch;
@@ -116,9 +110,9 @@ for (const format of ['markdown', 'html', 'json'] as const) for (const failure o
             'the L1 provider acquires only requested resources');
         assert.equal(requests.filter(url => url.startsWith('https://gemini.google.com/')).length, failure === 'http' ? 1 : 0,
             'only an actual expiry response triggers one background refresh; failed refresh preserves healthy bytes');
-        assert.equal(host.clicks(), 1);
-        assert.match(host.filenames[0], /\.zip$/);
-        const files = await zipContents(host.blobs[0]);
+        assert.equal(host.clicks(), 2);
+        assert.match(host.filenames[1], /^attachments_.*\.zip$/);
+        const files = await readDeliveredFiles(host);
         const main = files.find(file => file.name.endsWith(format === 'markdown' ? '.md' : format === 'html' ? '.html' : '.json'));
         assert.ok(main);
         const body = String(await main.async('string'));
@@ -130,7 +124,7 @@ for (const format of ['markdown', 'html', 'json'] as const) for (const failure o
             const archive = JSON.parse(body);
             assert.equal(archive.conversation.detail.quality.status, 'complete');
             assert.ok(archive.resources.good);
-            assert.equal(archive.resources.bad, undefined, 'only confirmed assets have destination bindings');
+            assert.equal(archive.resources.bad, undefined, 'the final corrected document excludes failed bindings');
         } else {
             assert.ok(body.includes(sidecars[0].name), 'body references an actually packaged image');
             assert.match(body, {throw:/Attachment failed: Unknown error/,empty:/Attachment could not be processed/,http:/Source attachment unavailable.*HTTP 404/}[failure]);
@@ -195,9 +189,9 @@ for (const format of ['markdown', 'json'] as const) {
         assert.equal(result.partial, 0);
         assert.deepEqual(result.failed, []);
         assert.deepEqual(requests, format === 'json' ? [goodUri, orphanUri] : [goodUri]);
-        assert.equal(host.clicks(), 1);
-        assert.match(host.filenames[0], /\.zip$/);
-        const files = await zipContents(host.blobs[0]);
+        assert.equal(host.clicks(), 2);
+        assert.match(host.filenames[1], /^attachments_.*\.zip$/);
+        const files = await readDeliveredFiles(host);
         const main = files.find(file => file.name.endsWith(format === 'json' ? '.json' : '.md'));
         assert.ok(main);
         const body = String(await main.async('string'));
@@ -251,7 +245,7 @@ test('a file companion uses its original L1 bytes in the real ZIP files/ namespa
     assert.equal(result.exported, 1);
     assert.equal(result.partial, 0);
     assert.deepEqual(calls, [uri]);
-    const files = await zipContents(host.blobs[0]);
+    const files = await readDeliveredFiles(host);
     const original = files.find(file => file.name.startsWith('files/') && file.name.endsWith('notes.md'));
     assert.ok(original);
     assert.deepEqual(await original.async('uint8array'), bytes);
@@ -275,7 +269,7 @@ test('failed Browser Download start does not commit an ExportRecord', async t =>
     assert.equal(result.partial, 0);
     assert.deepEqual(result.failed, [exportKey(id)]);
     assert.deepEqual(requests, [goodUri]);
-    assert.equal(host.clicks(), 1);
+    assert.equal(host.clicks(), 2);
     assert.equal(await getExportRecord(exportKey(id)), null);
 });
 
@@ -284,7 +278,7 @@ test('ordinary transport exceptions remain per-asset failures', async () => {
     assert.deepEqual(result, missingResource('rejected', 'Resource request failed'));
 });
 
-test('cancel during real L1 resource acquisition makes no download and no ExportRecord', async t => {
+test('cancel during L1 acquisition preserves the delivered body without committing a full ExportRecord', async t => {
     const host = v2ExportHost(t), id = 'cancel-media';
     await seed(id, [image('pending', badUri)]);
     let started!: () => void;
@@ -295,15 +289,18 @@ test('cancel during real L1 resource acquisition makes no download and no Export
             signal?.addEventListener('abort', () => reject(signal.reason ?? new DOMException('Cancelled', 'AbortError')), { once: true });
         });
     });
+    let bodyReady = ():void=>{};
+    const bodyDelivered = new Promise<void>(resolve=>{bodyReady=resolve;});
     const controller = new AbortController();
-    const pending = runExport(exportRequest([id], { includeAssets: true }), { signal: controller.signal });
-    await awaited;
+    const pending = runExport(exportRequest([id], { includeAssets: true }), { signal: controller.signal, onBodyDelivered:bodyReady });
+    await Promise.all([awaited,bodyDelivered]);
     controller.abort();
     const result = await pending;
     assert.equal(result.aborted, true);
     assert.equal(result.exported, 0);
     assert.deepEqual(result.failed, []);
-    assert.equal(host.clicks(), 0);
+    assert.equal(host.clicks(), 1);
+    assert.match(await host.blobs[0].text(), /Conversation survives resource failure/);
     assert.equal(await getExportRecord(exportKey(id)), null);
 });
 
@@ -321,7 +318,7 @@ test('long near-colliding media names get distinct actual ZIP paths and correct 
     assert.equal(result.exported, 1);
     assert.equal(result.partial, 0);
     assert.equal(calls.length, 2);
-    const files = await zipContents(host.blobs[0]);
+    const files = await readDeliveredFiles(host);
     const assetsWritten = files.filter(file => file.name.startsWith('assets/'));
     assert.equal(assetsWritten.length, 2);
     assert.equal(new Set(assetsWritten.map(file => file.name.toLowerCase())).size, 2);

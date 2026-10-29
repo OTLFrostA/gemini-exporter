@@ -15,7 +15,7 @@ import { readConversation } from '../src/l2/readConversation.js';
 import { getIndex, getDetail, getExportRecord, putExportRecord } from '../src/l3a/storageService.js';
 import { runExport } from '../src/application/export/runExport.js';
 import { __getZipConstructor, __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
-import { v2ExportHost, exportKey, exportRequest, seedExportConversation, seedExportIndexOnly } from './helpers/v2ExportHost.js';
+import { v2ExportHost, readDeliveredFiles, exportKey, exportRequest, seedExportConversation, seedExportIndexOnly } from './helpers/v2ExportHost.js';
 
 const JSZip = require('../lib/jszip.min.js');
 const P = (text: string) => ({ type: 'paragraph' as const, children: [{ type: 'text' as const, text }] });
@@ -31,6 +31,9 @@ async function contents(blob: Blob) {
         name: string; dir: boolean; async(type: string): Promise<string | Uint8Array>;
     }>;
     return { zip, files: files.filter(file => !file.dir) };
+}
+async function deliveredContents(host: {blobs: readonly Blob[]; filenames: readonly string[]}) {
+    return {files:await readDeliveredFiles(host)};
 }
 async function seedAssets(id: string, assets: DomainAsset[], opts: {
     savedAt?: number; updatedAt?: number; quality?: 'complete' | 'partial';
@@ -93,8 +96,8 @@ function sourceTransport(t: { after(fn: () => void): void }, entries: Record<str
     return requested;
 }
 
-// The shipped export pipeline stages all browser files, skips failures per Key,
-// delivers once and writes a minimal record only for successfully delivered Keys.
+// Linked documents and attachments have independent browser deliveries.
+// A full record still requires every participating delivery to succeed.
 test('S-2: a missing Detail fails its Key while two native v2 conversations land in one ZIP', async t => {
     const host = v2ExportHost(t); realZip(t);
     await seedExportConversation('accounting-one');
@@ -328,20 +331,25 @@ test('includeAssets=false keeps a referenced image readable without fetching or 
     assert.equal((await getExportRecord(exportKey('no-resources')))?.status, 'ok');
 });
 
-test('an unavailable referenced resource gives a readable partial and no invented sidecar', async t => {
-    const host = v2ExportHost(t);
+test('an unavailable resource leaves its document intact and delivers a failure report without fabricated image bytes', async t => {
+    const host = v2ExportHost(t); realZip(t);
     const asset = source('lost-image', 'image', 'https://resources.example.test/missing.png');
     await seedAssets('resource-fails', [asset]);
     const result = await runExport(exportRequest(['resource-fails'], { includeAssets: true }));
     assert.equal(result.exported, 1);
     assert.equal(result.partial, 1);
     assert.deepEqual(result.failed, []);
-    assert.equal(host.clicks(), 1);
+    assert.equal(host.clicks(), 2);
     assert.match(host.filenames[0], /\.md$/);
     const markdown = await host.blobs[0].text();
     assert.match(markdown, /Answer for resource-fails/);
-    assert.match(markdown, /\[Open source\]\(https:\/\/resources\.example\.test\/missing\.png\)/);
+    assert.match(markdown, /!\[[^\]]*\]\(assets\//);
     assert.doesNotMatch(markdown, /!\[[^\]]*\]\(https:/);
+    const {files} = await deliveredContents(host);
+    assert.equal(files.filter(file=>file.name.startsWith('assets/')).length,0);
+    const report = files.find(file=>file.name.startsWith('attachment-reports/'));
+    assert.ok(report);
+    assert.match(String(await report.async('string')), /resources\.example\.test\/missing\.png/);
     assert.equal((await getExportRecord(exportKey('resource-fails')))?.status, 'partial');
 });
 
@@ -356,9 +364,10 @@ test('real Gemini L1 bytes follow the L4 resource binding while Domain asset ide
     assert.equal(result.exported, 1);
     assert.equal(result.partial, 0);
     assert.deepEqual(calls, [uri]);
-    assert.equal(host.clicks(), 1);
-    assert.match(host.filenames[0], /\.zip$/);
-    const { files } = await contents(host.blobs[0]);
+    assert.equal(host.clicks(), 2);
+    assert.match(host.filenames[0], /\.md$/);
+    assert.match(host.filenames[1], /^attachments_.*\.zip$/);
+    const { files } = await deliveredContents(host);
     const image = files.find(file => file.name.startsWith('assets/') && file.name.endsWith('.png'));
     assert.ok(image, 'planned asset path is present in the actual ZIP');
     assert.deepEqual(await image.async('uint8array'), raw);
@@ -380,7 +389,7 @@ test('native file attachment is written as original L1 bytes under its planned f
     const result = await runExport(exportRequest(['with-document'], { includeAssets: true }));
     assert.equal(result.exported, 1);
     assert.equal(result.partial, 0);
-    const { files } = await contents(host.blobs[0]);
+    const { files } = await deliveredContents(host);
     const attachment = files.find(file => file.name.startsWith('files/') && file.name.endsWith('notes.md'));
     assert.ok(attachment);
     assert.deepEqual(await attachment.async('uint8array'), bytes);
@@ -401,7 +410,7 @@ test('a captured document without a remote locator exports its semantic source a
     assert.equal(result.exported, 1);
     assert.equal(result.partial, 0);
     assert.deepEqual(calls, []);
-    const { files } = await contents(host.blobs[0]);
+    const { files } = await deliveredContents(host);
     const attachment = files.find(file => file.name.startsWith('files/') && file.name.endsWith('notes.md'));
     assert.ok(attachment);
     assert.equal(await attachment.async('string'), markdown);
@@ -421,8 +430,8 @@ test('two v2 conversations with identical asset IDs never share bytes or packagi
     assert.equal(result.exported, 2);
     assert.equal(result.partial, 0);
     assert.deepEqual(calls, [firstUri, secondUri]);
-    assert.equal(host.clicks(), 1);
-    const { files } = await contents(host.blobs[0]);
+    assert.equal(host.clicks(), 2);
+    const { files } = await deliveredContents(host);
     const images = files.filter(file => file.name.startsWith('assets/') && file.name.endsWith('.png'));
     assert.equal(images.length, 2);
     assert.notEqual(images[0].name, images[1].name);
@@ -444,10 +453,10 @@ test('resource failure makes only the affected v2 conversation partial, not its 
     assert.equal(result.exported, 2);
     assert.equal(result.partial, 1);
     assert.deepEqual(result.failed, []);
-    assert.equal(host.clicks(), 1);
+    assert.equal(host.clicks(), 2);
     assert.equal((await getExportRecord(exportKey('one-good')))?.status, 'ok');
     assert.equal((await getExportRecord(exportKey('one-bad')))?.status, 'partial');
-    const { files } = await contents(host.blobs[0]);
+    const { files } = await deliveredContents(host);
     assert.equal(files.filter(file => file.name.startsWith('assets/')).length, 1);
     assert.equal(files.filter(file => file.name.endsWith('.md')).length, 2);
 });
@@ -522,10 +531,14 @@ test('404 and retryable attachment failures deliver text, persist reasons and ne
     const record = await getExportRecord(exportKey('mixed-resources'));
     assert.deepEqual(record?.attachmentIssues?.map(issue => issue.httpStatus), [404,503]);
     assert.equal(record?.attachmentIssues?.[0].sourceUrl, 'https://example.test/expired');
-    const {files} = await contents(host.blobs[0]);
+    const {files} = await deliveredContents(host);
     for (const file of files.filter(file => file.name.endsWith('.md'))) {
         const body = await file.async('string') as string;
         assert.match(body, /HTTP 404/);
         assert.match(body, /Answer for/);
     }
+    const reports = files.filter(file=>file.name.startsWith('attachment-reports/'));
+    assert.equal(reports.length,2);
+    const issues = (await Promise.all(reports.map(async file=>JSON.parse(String(await file.async('string'))).failures))).flat();
+    assert.deepEqual(issues.map(issue=>issue.httpStatus).sort(),[404,404,503]);
 });

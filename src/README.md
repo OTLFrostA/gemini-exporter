@@ -26,6 +26,26 @@ Live Save sends a ConversationKey to Background, then uses the same Application
 Markdown export workflow. Business bodies and directory handles do not travel in
 Chrome JSON messages.
 
+Markdown, HTML and JSON use independent document and attachment deliveries.
+The source pipeline composes documents and reserves local attachment paths from
+Domain metadata before any attachment bytes are required. Folder export writes
+each document immediately and fills its attachment paths separately. Browser
+export downloads the documents and an `attachments_*.zip` independently; extract
+both into the same directory. PDF and DOCX retain a single complete delivery
+after their embedded media has been prepared.
+
+Attachment failures preserve the initial document and produce a corrected document
+with failure placeholders, together with a JSON report
+under `attachment-reports/`. A source refresh that changes a document or its
+resource identities includes the corrected document at its original filename in
+the attachment delivery. Merge it with the initial document download, replacing
+that earlier file. Successful attachment acquisitions are reused within the task.
+Each task uses its own attachment directory so a new document cannot display
+stale bytes from a previous export while acquisition is pending.
+Only completion of both deliveries commits the full ExportRecord; the transient
+body-delivery callback updates progress independently. Cancelling outstanding
+attachments cannot retract an already delivered document.
+
 The explicit UI diagnostic JSON download includes conversation titles and IDs.
 Gemini structured-body rejection diagnostics also retain the full failed native
 document, rejected node/annotation and its JSON Pointer, and the matching Markdown

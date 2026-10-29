@@ -104,6 +104,9 @@ test('a failed ExportRecord write is reported only after real delivery; retry su
 
 test('a missing companion resource leaves a readable main file and a partial record after delivery', async t => {
     const host = v2ExportHost(t);
+    const previousZip = __getZipConstructor();
+    __setZipConstructor(JSZip);
+    t.after(()=>__setZipConstructor(previousZip));
     const account = fixtureAccount('custom');
     const id = 'missing-companion';
     const key = { accountId: account.id, conversationId: id };
@@ -138,9 +141,9 @@ test('a missing companion resource leaves a readable main file and a partial rec
     assert.equal(result.exported, 1);
     assert.equal(result.partial, 1);
     assert.deepEqual(result.failed, []);
-    assert.equal(host.clicks(), 1);
+    assert.equal(host.clicks(), 2);
     assert.match(host.filenames[0], /\.md$/);
-    assert.equal(host.blobs.length, 1, 'missing sidecar is never falsely packaged');
+    assert.equal(host.blobs.length, 2, 'a failure report replaces the unavailable companion bytes');
     assert.match(await host.blobs[0].text(), /Readable main answer/);
     assert.equal((await getExportRecord(key))?.status, 'partial');
     assert.deepEqual(await readConversation(key), before, 'resource acquisition never alters the trusted Domain');

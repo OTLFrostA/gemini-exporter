@@ -71,15 +71,21 @@ for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
         assert.equal(result.exported, 1);
         assert.deepEqual(events.filter(event => event.startsWith('acquire:')), format === 'json'
             ? ['acquire:image', 'acquire:file', 'acquire:unused'] : ['acquire:image', 'acquire:file']);
-        assert.deepEqual(state.browserPlans.map(plan => plan.preparedIds), [format === 'json'
-            ? ['image', 'file', 'unused'] : ['image', 'file']]);
-        assert.deepEqual(state.browserPlans[0].fileIds, format === 'json' ? [] : ['file']);
+        if (format === 'pdf') {
+            assert.deepEqual(state.browserPlans[0].preparedIds, ['image', 'file']);
+            assert.deepEqual(state.browserPlans[0].fileIds, ['file']);
+        } else {
+            assert.deepEqual(state.folderPlans[0].preparedIds, [], 'linked paths are planned without bytes');
+            assert.deepEqual(state.folderPlans[0].fileIds, format === 'json' ? [] : ['file']);
+            assert.deepEqual(Object.keys(state.rendererCalls[0].bindings), format === 'json' ? ['image','file','unused'] : ['image','file']);
+        }
         if (format === 'pdf') {
             assert.deepEqual(state.pdfPrepared, ['image', 'file']);
             assert.ok(state.pdfBindings.image); assert.ok(state.pdfBindings.file);
         }
-        assert.equal(state.packages.length, 1);
+        assert.equal(state.packages.length, format === 'pdf' ? 1 : 2);
         assert.deepEqual(state.packages[0], { delivery: 'browserDownload', groups: 1, files: 1 });
+        if (format !== 'pdf') assert.match(deliveries[1][0].fileName, /^attachments_.*\.zip$/);
     });
 }
 test('PDF supplies L4 the referenced original-file IDs and all prepared bytes', async () => {
@@ -234,13 +240,15 @@ test('missing Detail fails only that target and preserves old record', async () 
     assert.deepEqual(result.failed, [key()]); assert.equal(result.exported, 1);
     assert.equal(records.get(address(key())), previous);
 });
-test('resource failure yields readable partial and no dangling binding', async () => {
+test('failed attachments preserve delivered links and produce an explicit report', async () => {
     seed('first', { assets: true });
     provider.acquireResource = async () => { throw new Error('unavailable'); };
     const result = await runExport(request({ format: 'json' }));
     assert.equal(result.partial, 1);
-    assert.deepEqual(state.rendererCalls[0].bindings, {});
+    assert.deepEqual(Object.keys(state.rendererCalls[0].bindings), ['image','file','unused']);
     assert.equal(state.jsonInputs[0].detail.assets.length, 3);
+    assert.equal(deliveries.length, 2, 'body and failure report are independently delivered');
+    assert.equal(result.attachmentIssues?.length, 3);
 });
 function gate() {
     let release = (): void => {};
@@ -248,34 +256,40 @@ function gate() {
     return { promise, release };
 }
 for (const delivery of ['folderWriter', 'browserDownload'] as const) {
-    test(`${delivery} overlaps source reads with attachments and bounds queued snapshots`, { timeout: 5000 }, async () => {
+    test(`${delivery} delivers all bodies while the first conversation attachments remain blocked`, { timeout: 5000 }, async () => {
         const ids = ['first', 'second', 'third', 'fourth', 'fifth'];
         for (const id of ids) seed(id, { assets: true, savedAt: 90 });
         const sourceReads: string[] = [];
-        const thirdRead = gate();
+        const bodiesDelivered = gate();
+        const bodyReceipts: string[] = [];
         const attachments = gate();
         provider.fetchConversationDetail = async (_account, id) => {
             sourceReads.push(id);
             seed(id, { assets: true });
-            if (id === 'third') thirdRead.release();
+
         };
         provider.acquireResource = async (conversationKey) => {
             if (conversationKey.conversationId === 'first') await attachments.promise;
             return { bytes: Uint8Array.of(1) };
         };
-        const exporting = runExport(request({ keys: ids.map(id => key(id)), delivery }));
+        const exporting = runExport(request({ keys: ids.map(id => key(id)), delivery }), {
+            onBodyDelivered: value => { bodyReceipts.push(value.conversationId); if (bodyReceipts.length === ids.length) bodiesDelivered.release(); },
+        });
         try {
-            await thirdRead.promise;
+            await bodiesDelivered.promise;
             await new Promise<void>(resolve => setImmediate(resolve));
-            assert.deepEqual(sourceReads, ids.slice(0, 3), 'source advances while attachments wait, then applies backpressure');
-            assert.equal(deliveries.length, 0);
+            assert.deepEqual(sourceReads, ids, 'a slow attachment never stops later source reads');
+            assert.deepEqual(bodyReceipts, ids);
+            assert.equal(state.compositions.length, ids.length, 'all bodies have been composed and rendered independently');
+            assert.equal(deliveries.length, delivery === 'folderWriter' ? ids.length : 1);
+            assert.equal(records.size, 0, 'body delivery alone must not claim successful attachment delivery');
             assert.deepEqual(state.releasedKeys, [], 'readers remain alive until attachments settle');
         } finally { attachments.release(); }
         const result = await exporting;
         assert.equal(result.exported, 5);
         assert.deepEqual(state.releasedKeys, ids);
         assert.equal(state.releasedContexts, 1);
-        const plans = delivery === 'folderWriter' ? state.folderPlans : state.browserPlans;
+        const plans = state.folderPlans;
         assert.deepEqual(plans.map(plan => plan.key), ids);
         assert.deepEqual(events.filter(event => event.startsWith('record:')), ids.map(id => `record:${id}`));
     });
@@ -305,6 +319,69 @@ test('attachment pool limits parallel downloads and preserves reference order af
     assert.equal(peak, 3);
     assert.equal(started.length, 7);
     assert.deepEqual([...result.keys()], assets.map(asset => asset.id));
+});
+test('PDF keeps its complete document behind attachment completion', {timeout:5000}, async () => {
+    seed('first', {assets:true});
+    const started = gate();
+    const finish = gate();
+    const bodyReceipts: string[] = [];
+    provider.acquireResource = async () => { started.release(); await finish.promise; return {bytes:Uint8Array.of(1)}; };
+    const exporting = runExport(request({format:'pdf'}), {onBodyDelivered:value=>bodyReceipts.push(value.conversationId)});
+    await started.promise;
+    assert.equal(deliveries.length, 0);
+    assert.deepEqual(bodyReceipts, []);
+    assert.equal(state.pdfRenderKey, '');
+    finish.release();
+    assert.equal((await exporting).exported, 1);
+    assert.deepEqual(bodyReceipts, ['first']);
+    assert.equal(deliveries.length, 1);
+});
+test('attachment delivery does not wait for a slow body ZIP writer', {timeout:5000}, async () => {
+    seed('first', {assets:true});
+    const bodyWriter = gate();
+    const attachmentsDelivered = gate();
+    state.onPackage = async archiveName => { if (!archiveName) await bodyWriter.promise; };
+    state.onDelivery = () => {
+        if (deliveries.at(-1)?.[0].fileName.startsWith('attachments_')) attachmentsDelivered.release();
+    };
+    const receipts: string[] = [];
+    const exporting = runExport(request(), {onBodyDelivered:value=>receipts.push(value.conversationId)});
+    try {
+        await attachmentsDelivered.promise;
+        assert.equal(deliveries.length, 1);
+        assert.deepEqual(receipts, []);
+        assert.equal(records.size, 0, 'both deliveries must succeed before the full ExportRecord');
+    } finally { bodyWriter.release(); await exporting; }
+    assert.deepEqual(receipts, ['first']);
+    assert.equal(records.get(address(key()))?.status, 'ok');
+});
+for (const delivery of ['browserDownload','folderWriter'] as const) {
+    test(`${delivery}: attachment delivery failure leaves the body delivered without claiming full success`, async () => {
+        seed('first', {assets:true});
+        records.set(address(key()), previous);
+        state.failDelivery = 2;
+        const delivered: string[] = [];
+        const result = await runExport(request({delivery}), {onBodyDelivered:value=>delivered.push(value.conversationId)});
+        assert.deepEqual(delivered, ['first']);
+        assert.equal(deliveries.length, 2);
+        assert.equal(result.exported, 0);
+        assert.deepEqual(result.failed, [key()]);
+        assert.equal(records.get(address(key())), previous);
+    });
+}
+test('cancelling after browser body delivery preserves that receipt and cancels only outstanding attachments', {timeout:5000}, async () => {
+    seed('first', {assets:true});
+    const finish = gate();
+    const controller = new AbortController();
+    const receipts: string[] = [];
+    provider.acquireResource = async () => { await finish.promise; return {bytes:Uint8Array.of(1)}; };
+    const result = await runExport(request(), {signal:controller.signal, onBodyDelivered:value=>{
+        receipts.push(value.conversationId); controller.abort(); finish.release();
+    }});
+    assert.equal(result.aborted, true);
+    assert.deepEqual(receipts, ['first']);
+    assert.equal(deliveries.length, 1);
+    assert.equal(records.size, 0);
 });
 test('cancellation drains in-flight attachments before releasing readers and stops queued work', async () => {
     for (const id of ['first', 'second', 'third']) seed(id, { assets: true });
@@ -356,8 +433,8 @@ test('AST resource reference selection is delegated to L3b and forwarded by Appl
     const result = await runExport(request({ format: 'markdown' }));
     assert.equal(result.exported, 1);
     assert.deepEqual(events.filter(event => event.startsWith('acquire:')), ['acquire:file']);
-    assert.deepEqual(state.browserPlans[0].fileIds, ['file']);
-    assert.deepEqual(state.browserPlans[0].preparedIds, ['file']);
+    assert.deepEqual(state.folderPlans[0].fileIds, ['file']);
+    assert.deepEqual(Object.keys(state.rendererCalls[0].bindings), ['file']);
 });
 test('resource preparation retains failure results and propagates Abort', async () => {
     const controller = new AbortController();
@@ -386,12 +463,12 @@ for (const delivery of ['browserDownload', 'folderWriter'] as const) {
         assert.equal(result.aborted, true); assert.equal(result.exported, delivery === 'browserDownload' ? 2 : 1); assert.deepEqual(result.failed, []);
     });
 }
-test('Browser uses one L4 batch plan and one final delivery for multiple prepared conversations', async () => {
+test('Browser with no attachments incrementally plans bodies and uses one document delivery', async () => {
     seed(); seed('second');
     const result = await runExport(request({ keys: [key(), key('second')] }));
     assert.equal(result.exported, 2);
-    assert.deepEqual(state.browserPlans.map(plan => plan.key), ['first', 'second']);
-    assert.equal(state.folderPlannerCreations.length, 0);
+    assert.deepEqual(state.folderPlans.map(plan => plan.key), ['first', 'second']);
+    assert.equal(state.folderPlannerCreations.length, 1);
     assert.deepEqual(state.packages, [{ delivery: 'browserDownload', groups: 2, files: 2 }]);
     assert.deepEqual(events, ['delivery', 'record:first', 'record:second']);
     assert.equal(deliveries.length, 1);
@@ -527,9 +604,11 @@ for (const status of [401, 403, 404, 410]) {
         assert.equal(result.partial, 0);
         assert.equal(records.get(address(key()))?.status, 'ok');
         assert.equal(events.filter(event => event === 'refresh').length, 1);
-        assert.deepEqual(state.browserPlans[0].preparedIds, ['replacement', 'file']);
-        assert.ok(state.rendererCalls[0].bindings.replacement);
-        assert.equal(state.rendererCalls[0].bindings.image, undefined);
+        assert.ok(state.rendererCalls[0].bindings.image, 'initial document can be delivered immediately');
+        assert.ok(state.rendererCalls.at(-1)?.bindings.replacement);
+        assert.equal(state.rendererCalls.at(-1)?.bindings.image, undefined);
+        assert.equal(state.builtFiles[0].plan.fileName, state.builtFiles.at(-1)?.plan.fileName, 'correction replaces the original document when packages are merged');
+        assert.equal(deliveries.length, 2);
     });
 }
 test('persistent resource restriction stays partial after one refresh; server failures do not refresh', async () => {
@@ -554,7 +633,7 @@ for (const reason of ['offline', 'conversation_not_found', 'abort']) {
         assert.equal(result.partial, reason === 'offline' ? 1 : 0);
         assert.equal(result.otherPartial ?? 0, 0);
         assert.equal(result.aborted, reason === 'abort');
-        assert.equal(deliveries.length, reason === 'offline' ? 1 : 0);
+        assert.equal(deliveries.length, reason === 'offline' ? 2 : 1, 'attachment failure cannot take back the delivered body');
     });
 }
 
@@ -664,7 +743,7 @@ for (const code of ['RESOURCE_LOCATOR_UNAVAILABLE', 'RESOURCE_SOURCE_EXPIRED'] a
         assert.equal(result.aborted, false);
         const attempts = code === 'RESOURCE_LOCATOR_UNAVAILABLE' ? 1 : 2;
         assert.equal(events.filter(event => event === 'refresh').length, attempts - 1);
-        assert.equal(acquisitions.filter(id => id === 'image').length, attempts);
+        assert.equal(acquisitions.filter(id => id === 'image').length, 1, 'successful attachments are never downloaded again');
         assert.equal(acquisitions.filter(id => id === 'file').length, attempts);
         assert.equal(records.get(address(key()))?.attachmentIssues?.[0].code, code);
     });
