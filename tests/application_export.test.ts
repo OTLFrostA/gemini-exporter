@@ -746,6 +746,16 @@ for (const code of ['RESOURCE_LOCATOR_UNAVAILABLE', 'RESOURCE_SOURCE_EXPIRED'] a
         assert.equal(acquisitions.filter(id => id === 'image').length, 1, 'successful attachments are never downloaded again');
         assert.equal(acquisitions.filter(id => id === 'file').length, attempts);
         assert.equal(records.get(address(key()))?.attachmentIssues?.[0].code, code);
+        assert.equal(result.expiredConversations, 1);
+        assert.equal(result.otherPartial, 0);
+        acquisitions.length = 0;
+        const repeated = await runExport(request({ skipUnchanged: true }));
+        assert.equal(repeated.skipped, 1);
+        assert.equal(repeated.exported, 0);
+        assert.equal(acquisitions.length, 0, 'attachment 404 warnings do not trigger downloads on unchanged exports');
+        const forced = await runExport(request({ skipUnchanged: false }));
+        assert.equal(forced.exported, 1);
+        assert.ok(acquisitions.includes('file'), 'disabling Skip permits retrying unavailable attachments');
     });
 }
 

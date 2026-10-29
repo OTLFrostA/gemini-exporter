@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ExportIssueCollector, copyExportFailures, failureGroupLabel } from '../src/ui/options/views/exportFailures.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
+import { exportSummary } from '../src/ui/shared/exportSummary.js';
+import type { OperationIssue } from '../src/shared/errors/operationError.js';
 
 const accountId = fixtureAccount('gemini').id;
 const key = (conversationId: string) => ({ accountId, conversationId });
@@ -48,4 +50,17 @@ test('cancellation, confirmed empty source and ordinary informational diagnostic
     for (const code of ['EXPORT_CANCELLED', 'SOURCE_CONVERSATION_EMPTY']) collector.add({ stage: 'run', code, message: code });
     collector.add({ stage: 'pdf', code: 'TYPST_LOCAL_FONTS_RESOLVED', severity: 'info', message: 'resolved' });
     assert.deepEqual(collector.groups(), []);
+});
+
+test('attachment locator 404 is a source-unavailable warning in diagnostics and the final summary', () => {
+    const issue: OperationIssue = { code: 'RESOURCE_LOCATOR_UNAVAILABLE', httpStatus: 404, message: 'HTTP 404' };
+    const collector = new ExportIssueCollector();
+    collector.add({ key: key('missing'), stage: 'resource', code: issue.code, severity: 'warning', message: issue.message, issue });
+    assert.equal(collector.groups()[0].severity, 'warning');
+    assert.match(failureGroupLabel(collector.groups()[0]), /Source attachment unavailable.*404/);
+    const summary = exportSummary({ exported: 1, partial: 1, skipped: 0, failed: [], aborted: false,
+        expiredConversations: 1, otherPartial: 0,
+        attachmentIssues: [{ ...issue, resourceId: 'missing', name: 'report.md' }] });
+    assert.match(summary, /1 conversations contain unavailable source attachments \(1 attachments\)/);
+    assert.doesNotMatch(summary, /Attachment download failed|retry later|Other incomplete/);
 });

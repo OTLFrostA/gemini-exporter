@@ -42,7 +42,8 @@ export class ResourceHttpError extends Error {
     constructor(readonly httpStatus: number) { super(`Resource request failed: HTTP ${httpStatus}`); }
 }
 type ResourceIssueKind = 'expired' | 'restricted' | 'download' | 'processing' | 'unknown';
-export function resourceIssueKind(failure: ResourceFailure): ResourceIssueKind {
+export function resourceIssueKind(failure: Pick<ResourceFailure, 'code' | 'httpStatus' | 'issue'>): ResourceIssueKind {
+    if (failure.code === 'RESOURCE_LOCATOR_UNAVAILABLE' && failure.httpStatus === 404) return 'expired';
     if (failure.code === 'SOURCE_HTTP_ERROR' || failure.code === 'RESOURCE_LOCATOR_UNAVAILABLE' && failure.httpStatus !== undefined) {
         const status = failure.httpStatus ?? failure.issue?.httpStatus;
         return status === 401 || status === 403 ? 'restricted' : 'download';

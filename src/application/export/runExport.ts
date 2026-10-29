@@ -13,7 +13,7 @@ import { createSourceResourceContext } from '../../l1/resources/sourceResources.
 import { composeDomainDocument } from '../../l3b/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../../l3b/ast/resourceReferences.js';
 import type { DocumentAst } from '../../l3b/ast/ast.js';
-import { missingResource, type ResourceFailure } from '../../shared/resources/resourceResult.js';
+import { missingResource, resourceIssueKind, type ResourceFailure } from '../../shared/resources/resourceResult.js';
 import type { PreparedResources, ResourceResult } from '../../shared/resources/resourceResult.js';
 import { renderDocumentMarkdown } from '../../l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../../l4/format/html/renderHtml.js';
@@ -36,7 +36,7 @@ export function shouldSkipExport(record: ExportRecord | null, updatedAt: number 
     const issues = record.attachmentIssues;
     const expiredOnly = record.status === 'partial' && record.otherContentMissing !== true
         && issues !== undefined && issues.length > 0
-        && issues.every(issue => issue.code === 'RESOURCE_SOURCE_EXPIRED' && issue.httpStatus === 404);
+        && issues.every(issue => resourceIssueKind(issue) === 'expired' && issue.httpStatus === 404);
     return (record.status === 'ok' || expiredOnly) && comparable(record.chatTime)
         && comparable(updatedAt) && record.chatTime >= updatedAt;
 }
@@ -143,7 +143,7 @@ export async function runExport(request: ExportRequest, options: {
                 result.exported++;
                 if (group.record.status === 'partial') { result.partial++; result.otherPartial ??= 0; }
                 if (group.record.attachmentIssues?.length) result.attachmentIssues = [...(result.attachmentIssues ?? []), ...group.record.attachmentIssues];
-                if (group.record.attachmentIssues?.some(issue => issue.code === 'RESOURCE_SOURCE_EXPIRED')) result.expiredConversations = (result.expiredConversations ?? 0) + 1;
+                if (group.record.attachmentIssues?.some(issue => resourceIssueKind(issue) === 'expired')) result.expiredConversations = (result.expiredConversations ?? 0) + 1;
                 if (group.record.status === 'partial' && (!group.record.attachmentIssues?.length
                     || group.record.otherContentMissing)) result.otherPartial = (result.otherPartial ?? 0) + 1;
                 report({ key: group.key, status: 'exported', record });

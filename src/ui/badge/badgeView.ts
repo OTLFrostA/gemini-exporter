@@ -1,4 +1,5 @@
 import { exportSummary } from '../shared/exportSummary.js';
+import { resourceIssueKind } from '../../shared/resources/resourceResult.js';
 import { getSettings } from '../../application/settings/index.js';
 import type { ExportResult } from '../../application/export/types.js';
 import { getAccountContext, resolveCurrentAccount } from '../../runtime/content/accountContext.js';
@@ -31,8 +32,9 @@ const startCountPolling = () => {
 function render(): void {
     const label = badge?.querySelector('#geminiExportBadgeText');
     if (!label) return;
+    badge?.classList.toggle('live-save-warning', feedback === 'unavailable');
     if (badge) badge.title = feedbackResult ? exportSummary(feedbackResult) : '';
-    label.textContent = feedback === 'unavailable' ? text('Saved; source attachments unavailable', '已保存，含来源失效附件')
+    label.textContent = feedback === 'unavailable' ? text('Saved; source attachments unavailable', '已保存，部分来源附件无法获取')
         : feedback === 'ok' ? text('✓ Saved', '✓ 已保存')
         : feedback === 'partial' ? text('Some content was not saved', '部分内容未保存')
         : feedback === 'failed' ? text('Save failed', '保存失败')
@@ -74,7 +76,7 @@ async function refreshIndexCount(id: string): Promise<void> {
 function showLiveSaveResultImpl(result: ExportResult | null, id: string): void {
     if (!result || !alive || !id || id !== accountId) return;
     const outcome = result.failed.length || result.aborted ? 'failed'
-        : result.exported && result.partial ? (result.attachmentIssues?.length && result.attachmentIssues.every(issue => issue.code === 'RESOURCE_SOURCE_EXPIRED') && result.otherPartial === 0 ? 'unavailable' : 'partial') : result.exported ? 'ok' : null;
+        : result.exported && result.partial ? (result.attachmentIssues?.length && result.attachmentIssues.every(issue => resourceIssueKind(issue) === 'expired') && result.otherPartial === 0 ? 'unavailable' : 'partial') : result.exported ? 'ok' : null;
     if (!outcome) return;
     clearFeedback(); feedback = outcome; feedbackResult = result; render();
     timer = setTimeout(() => { feedback = null; feedbackResult = null; timer = undefined; render(); }, 3000);
