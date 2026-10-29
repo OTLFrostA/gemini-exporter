@@ -5,7 +5,6 @@ const assert = require('node:assert');
 const { isInternalChipUrl, stripInternalChipMarkdown } = require('../src/l1/parsers/shared/chipUtils.js');
 
 test('chipUtils - isInternalChipUrl detects all Google internal chip URLs', () => {
-    // Both long and short variants
     assert.strictEqual(isInternalChipUrl('https://googleusercontent.com/deep_research/abc'), true);
     assert.strictEqual(isInternalChipUrl('https://googleusercontent.com/deep_research_confirmation_content/xyz'), true);
     assert.strictEqual(isInternalChipUrl('https://googleusercontent.com/map_content/1'), true);
@@ -19,7 +18,6 @@ test('chipUtils - isInternalChipUrl detects all Google internal chip URLs', () =
     assert.strictEqual(isInternalChipUrl('https://googleusercontent.com/generated_image/art'), true);
     assert.strictEqual(isInternalChipUrl('https://googleusercontent.com/workspace_content/doc'), true);
 
-    // Negative cases
     assert.strictEqual(isInternalChipUrl(null), false);
     assert.strictEqual(isInternalChipUrl(''), false);
     assert.strictEqual(isInternalChipUrl('https://google.com'), false);

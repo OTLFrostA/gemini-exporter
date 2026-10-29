@@ -28,7 +28,6 @@ function testSources(dir: string): string[] {
 test('ChatGPT native HTTP response mocks use their endpoint-keyed fixtures', () => {
     const violations: string[] = [];
     const inlineMocks = [
-        // Session, List, Detail, and signed-download JSON constructed directly as fetch replies.
         /Response\.json\(\s*\{\s*(?:user|accessToken|items|conversation_id|download_url)\s*:/g,
         /new\s+Response\(\s*JSON\.stringify\(\s*\{\s*(?:user|accessToken|items|conversation_id|mapping|download_url)\s*:/g,
         /Response\.json\(\s*\{\s*id:\s*[^,]+,\s*mapping:\s*\{/g,
