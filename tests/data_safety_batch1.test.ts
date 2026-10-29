@@ -38,7 +38,6 @@ test('D2: target-bound verified NotFound removes Index, Detail and ExportRecord 
     assert.ok(await getDetail(otherKey));
 });
 
-// Explicit scan reset clears all account-local conversation facts.
 test('D4: clearStoredAccountScanRecords clears all account-local records and preserves another account', async () => {
     const { indexStorage } = require('./helpers/indexStorage.js');
     const storage = require('../src/l3a/storageService.js');

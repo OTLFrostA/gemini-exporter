@@ -46,7 +46,6 @@ test('1. BL extraction precedence and cache: HTML sources only', (t: TestContext
         else delete globals.document;
     });
 
-    // Both blCfb2hFromHtml and blAssistantFromHtml present: blCfb2hFromHtml wins
     const docBoth = {
         documentElement: {
             innerHTML: 'start "cfb2h":"bl_primary" middle "bl":"boq_assistant-secondary" end'
@@ -79,7 +78,6 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
         else delete globals.document;
     });
 
-    // A. __gemExporterExtractAt wins over everything
     const origExtractAt = (globalThis as Record<string, unknown>).__gemExporterExtractAt;
     try {
         (globalThis as Record<string, unknown>).__gemExporterExtractAt = () => 'at_from_extract_fn';
@@ -88,7 +86,6 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
         delete (globalThis as Record<string, unknown>).__gemExporterExtractAt;
     }
 
-    // B. _WIZ_global_data wins over WIZ_global_data and scripts
     const origWiz = (globalThis as Record<string, unknown>)._WIZ_global_data;
     const origWiz2 = (globalThis as Record<string, unknown>).WIZ_global_data;
     try {
@@ -104,7 +101,6 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
         delete (globalThis as Record<string, unknown>).WIZ_global_data;
     }
 
-    // C. WIZ_global_data wins over scripts
     try {
         (globalThis as Record<string, unknown>).WIZ_global_data = { [P.TOKENS.AT]: 'at_wiz_plain' };
         const doc = {
@@ -117,7 +113,6 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
         delete (globalThis as Record<string, unknown>).WIZ_global_data;
     }
 
-    // D. script scan wins over full HTML scan
     const docScript = {
         documentElement: { innerHTML: '<html>"SNlM0e":"at_in_html_tail"</html>' },
         querySelectorAll: () => [{ textContent: 'var a = 1; "SNlM0e":"at_from_query_script";' }]
@@ -166,11 +161,9 @@ test('External Wiz globals reject malformed token values before cache admission'
 test('3. Slot detection: explicit path -> pathname -> u0 to default -> catch to default', () => {
     const credManager = getFreshCredManager();
 
-    // explicit path
     assert.strictEqual(credManager.detectSlot('https://gemini.google.com/u/2/app'), 'u2', 'detects u2 from explicit url');
     assert.strictEqual(credManager.detectSlot('/u/3/app'), 'u3', 'detects u3 from pathname');
 
-    // u0 maps to default
     assert.strictEqual(credManager.detectSlot('/u/0/app'), 'default', 'u0 maps to default');
     assert.strictEqual(credManager.detectSlot('https://gemini.google.com/u/0/'), 'default', 'u0 maps to default');
 
@@ -304,7 +297,6 @@ test('11. Page fallback only for matching slot', async () => {
     (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
     const P = require('../src/l1/protocol/gemini/protocol.js').default;
 
-    // Simulate page on slot 'default' with page AT token and mock document
     (globalThis as Record<string, unknown>).document = {
         documentElement: { innerHTML: 'page content' }
     };
@@ -383,7 +375,6 @@ test('13. Resolve queue survives prior failure without deadlock', async () => {
         const res1 = await call1;
         assert.ok(res1, 'first call resolves even on storage error with fallback');
 
-        // Subsequent call succeeds and loads healthy credentials
         const res2 = await credManager.resolveCred('healthy_sid');
         assert.strictEqual(res2.sid, 'healthy_sid');
         assert.strictEqual(res2.at, 'healthy_at');
