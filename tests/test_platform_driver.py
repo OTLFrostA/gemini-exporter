@@ -1,4 +1,3 @@
-# tests/test_platform_driver.py
 """
 Unit Tests for ChatPlatformDriver Abstraction and GeminiPlatformDriver Implementation.
 Validates abstract contract enforcement, capability declarations, selector exposure,
@@ -121,7 +120,6 @@ class TestPlatformDriver(unittest.TestCase):
         self.assertTrue(turn_res.success)
         self.assertEqual(turn_res.model_response, "Mock Response")
 
-        # Optional methods default behavior
         self.assertTrue(driver.ensure_model("gpt-4"))
         self.assertFalse(driver.delete_chat_via_web("c1"))
         self.assertEqual(driver.get_selectors(), {"input": "#mock-input"})
@@ -142,7 +140,6 @@ class TestPlatformDriver(unittest.TestCase):
         self.assertTrue(driver.capabilities.supports_stream_events)
         self.assertEqual(driver.capabilities.base_url, "https://gemini.google.com")
 
-        # Check alias equality
         self.assertIs(GeminiDriver, GeminiPlatformDriver)
 
     def test_gemini_driver_selectors_and_strategies(self):
@@ -168,7 +165,6 @@ class TestPlatformDriver(unittest.TestCase):
         """Test ExtensionActions and CDPActions hierarchy and method exposure."""
         self.assertTrue(issubclass(CDPActions, ExtensionActions))
 
-        # Check that extension-level actions are defined on ExtensionActions
         ext_methods = [
             "reinstall_extension",
             "verify_onboarding_tour",
@@ -186,7 +182,6 @@ class TestPlatformDriver(unittest.TestCase):
             self.assertTrue(hasattr(ExtensionActions, m), f"ExtensionActions missing {m}")
             self.assertTrue(hasattr(CDPActions, m), f"CDPActions missing inherited {m}")
 
-        # Check that Gemini-specific platform actions are defined on CDPActions
         platform_methods = [
             "wait_for_gemini_ready",
             "get_current_chat_id",
@@ -209,26 +204,22 @@ class TestPlatformDriver(unittest.TestCase):
             NavigateChatAction
         )
 
-        # 1. AssertIdleAction
         default_idle = AssertIdleAction()
         self.assertEqual(default_idle.stop_btn_selector, GeminiSelectors.STOP_BTN)
         custom_idle = AssertIdleAction(stop_btn_selector="#chatgpt-stop", streaming_indicators_selector=".result-streaming")
         self.assertEqual(custom_idle.stop_btn_selector, "#chatgpt-stop")
         self.assertEqual(custom_idle.streaming_indicators_selector, ".result-streaming")
 
-        # 2. StagePromptAction
         default_stage = StagePromptAction("hello")
         self.assertEqual(default_stage.editor_selector, GeminiSelectors.EDITOR)
         custom_stage = StagePromptAction("hello", editor_selector="#prompt-textarea")
         self.assertEqual(custom_stage.editor_selector, "#prompt-textarea")
 
-        # 3. SingleClickSendAction
         default_send = SingleClickSendAction()
         self.assertEqual(default_send.send_btn_selector, GeminiSelectors.SEND_BTN)
         custom_send = SingleClickSendAction(send_btn_selector='button[data-testid="send-button"]')
         self.assertEqual(custom_send.send_btn_selector, 'button[data-testid="send-button"]')
 
-        # 4. ClickNewChatAction
         default_new = ClickNewChatAction()
         self.assertEqual(default_new.new_chat_selector, GeminiSelectors.NEW_CHAT_BTN)
         self.assertEqual(default_new.new_chat_url, "https://gemini.google.com/app")
@@ -236,7 +227,6 @@ class TestPlatformDriver(unittest.TestCase):
         self.assertEqual(custom_new.new_chat_selector, "a#new-chat")
         self.assertEqual(custom_new.new_chat_url, "https://chatgpt.com")
 
-        # 5. NavigateChatAction
         default_nav = NavigateChatAction("c_123")
         self.assertEqual(default_nav.url_template, "https://gemini.google.com/app/{chat_id}")
         custom_nav = NavigateChatAction("c_123", url_template="https://chatgpt.com/c/{chat_id}")
@@ -249,7 +239,6 @@ class TestPlatformDriver(unittest.TestCase):
         mock_cdp = MagicMock()
         mock_ctx.get_gemini_driver = lambda cdp: TestContext.get_gemini_driver(mock_ctx, cdp)
 
-        # Test real TestContext methods bound to mock
         driver = TestContext.get_platform_driver(mock_ctx, mock_cdp)
         self.assertIsInstance(driver, ChatPlatformDriver)
         self.assertIsInstance(driver, GeminiPlatformDriver)

@@ -1,4 +1,3 @@
-# tests/test_serial_pipeline.py
 """
 Unit tests for the Serial Action Pipeline & Single-Flight Executor.
 Validates state machine invariants, concurrency violation prevention,

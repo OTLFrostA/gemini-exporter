@@ -1,4 +1,3 @@
-# tests/test_pipeline_decoupling.py
 """
 Unit tests for Phase 4: Pipeline atomic action platform strategy decoupling,
 StreamSettledConfig parametrization, and ChatPlatformDriver turn pipeline orchestration.
@@ -264,15 +263,13 @@ class TestPipelineDecoupling(unittest.TestCase):
         })
         driver = GeminiPlatformDriver(mock_cdp)
 
-        # 1. Test build_turn_pipeline
         actions = driver.build_turn_pipeline("Test Gemini Prompt", max_wait=60, cooldown_seconds=0.0)
-        self.assertEqual(len(actions), 4)  # AssertIdle, StagePrompt, SingleClickSend, AwaitStreamSettled
+        self.assertEqual(len(actions), 4)
         self.assertIsInstance(actions[0], AssertIdleAction)
         self.assertIsInstance(actions[1], StagePromptAction)
         self.assertIsInstance(actions[2], SingleClickSendAction)
         self.assertIsInstance(actions[3], AwaitStreamSettledAction)
 
-        # 2. Test extract_turn_result
         turn_res = driver.extract_turn_result("Test Gemini Prompt", duration=3.5)
         self.assertTrue(turn_res.success)
         self.assertEqual(turn_res.prompt, "Test Gemini Prompt")

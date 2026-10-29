@@ -1,4 +1,3 @@
-# tests/test_visual_sandbox.py
 """
 Unit tests for Tier 3 Visual Sandbox and Autonomous QA Agent:
 - VisualSandbox physical mouse/keyboard actuation, pure screenshot observation, and wait_on primitives
@@ -91,17 +90,15 @@ class TestVisualSandbox(unittest.TestCase):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_viewport_normalization(self):
-        # 1. 归一化坐标转换 (0.5, 0.5) -> (640, 400)
         px_x, px_y = self.sandbox._to_pixel(0.5, 0.5)
         self.assertEqual(px_x, 640)
         self.assertEqual(px_y, 400)
 
         # 2. 边界约束测试
         px_x, px_y = self.sandbox._to_pixel(1.5, -0.2)
-        self.assertEqual(px_x, 2)  # round(1.5) -> 2
-        self.assertEqual(px_y, 0)  # clamped to 0
+        self.assertEqual(px_x, 2)
+        self.assertEqual(px_y, 0)
 
-        # 3. 绝对像素坐标
         px_x, px_y = self.sandbox._to_pixel(100.0, 200.0)
         self.assertEqual(px_x, 100)
         self.assertEqual(px_y, 200)
@@ -113,7 +110,6 @@ class TestVisualSandbox(unittest.TestCase):
         self.assertTrue(os.path.isfile(obs.file_path))
         self.assertEqual(obs.viewport, (1280, 800))
 
-        # 验证历史记录中不包含 DOM 树信息
         self.assertEqual(len(self.sandbox.history), 1)
         self.assertEqual(self.sandbox.history[0]["action"], "capture_screen")
         self.assertNotIn("dom", self.sandbox.history[0])
@@ -141,7 +137,6 @@ class TestVisualSandbox(unittest.TestCase):
         self.assertEqual(calls[0]["params"]["deltaY"], 250)
 
     def test_input_text_hardware_typing(self):
-        # 带有清空原内容与硬件剪贴板粘贴
         with patch.object(self.mock_cdp, "eval", side_effect=AssertionError("Tier 3 must not inspect or mutate DOM")) as page_js:
             self.sandbox.input_text(x=0.5, y=0.5, text="Hello AI", clear_first=True, use_insert=True)
             page_js.assert_not_called()
@@ -150,15 +145,13 @@ class TestVisualSandbox(unittest.TestCase):
         self.assertEqual(len(insert_calls), 1)
         self.assertEqual(insert_calls[0]["params"]["text"], "Hello AI")
 
-        # 验证派发了清空快捷键事件 (rawKeyDown KeyA / Backspace)
         key_calls = [c for c in self.mock_cdp.call_history if c["method"] == "Input.dispatchKeyEvent"]
         self.assertTrue(len(key_calls) >= 4)
 
     def test_wait_on_zip_downloaded(self):
-        # 预先在输出目录创建一个合格的 ZIP 文件
         fake_zip = os.path.join(self.temp_dir, "gemini_export_2026.zip")
         with open(fake_zip, "wb") as f:
-            f.write(b"PK\x05\x06" + b"\x00" * 18)  # 最小空 zip 标头
+            f.write(b"PK\x05\x06" + b"\x00" * 18)
 
         res = self.sandbox.wait_on("zip_downloaded", timeout=2, download_dir=self.temp_dir)
         self.assertTrue(res.success)
@@ -313,12 +306,10 @@ class TestVisualQAAgent(unittest.TestCase):
         self.assertTrue(res)
         self.assertTrue(verified[0])
 
-        # 校验物理鼠标事件已被派遣
         mouse_calls = [c for c in self.mock_cdp.call_history if c["method"] == "Input.dispatchMouseEvent"]
         self.assertEqual(len(mouse_calls), 3)
 
     def test_execute_visual_step_self_healing(self):
-        # 第一次点击未满足 verify_fn，第二次重试满足
         provider = MockCustomVisionProvider([
             VisualAction(action_type=VisualActionType.CLICK, x=0.2, y=0.2, thought="Attempt 1"),
             VisualAction(action_type=VisualActionType.CLICK, x=0.25, y=0.25, thought="Attempt 2")
@@ -334,7 +325,6 @@ class TestVisualQAAgent(unittest.TestCase):
         self.assertTrue(res)
         self.assertEqual(attempts[0], 2)
 
-        # 检查是否忠实记录了自愈轨迹
         self.assertEqual(len(self.scorecard.self_healing_events), 1)
         event = self.scorecard.self_healing_events[0]
         self.assertEqual(event.step_name, "step_retry")
@@ -374,7 +364,6 @@ class TestVisualQAAgent(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(self.temp_dir, "visual_audit_report.html")))
 
     def test_switch_page_options(self):
-        # 默认静默切换，绝不抢占操作系统焦点 (bring_to_front=False)
         ok = self.sandbox.switch_page("options")
         self.assertTrue(ok)
         self.assertEqual(self.sandbox.active_target, "options")
@@ -384,7 +373,6 @@ class TestVisualQAAgent(unittest.TestCase):
         self.assertEqual(tgt, "options")
         self.assertIsNone(cid)
 
-        # 显式传参 bring_to_front=True 时调用 Page.bringToFront
         self.mock_cdp.call_history.clear()
         ok2 = self.sandbox.switch_page("options", bring_to_front=True)
         self.assertTrue(ok2)
@@ -392,22 +380,18 @@ class TestVisualQAAgent(unittest.TestCase):
         self.assertIn("Page.bringToFront", methods2)
 
     def test_to_pixel_retina_scaling(self):
-        # 默认情况 (MockCDP eval 返回 None 时回退到 self.width=1280, self.height=800)
         px_x, px_y = self.sandbox._to_pixel(0.5, 0.5)
         self.assertEqual(px_x, 640)
         self.assertEqual(px_y, 400)
 
-        # 模拟 macOS Retina 屏幕 (DPR = 1.5, CSS innerWidth=853, innerHeight=533)
         self.mock_cdp.layout_metrics = {
             "cssLayoutViewport": {"clientWidth": 853, "clientHeight": 533},
             "layoutViewport": {"clientWidth": 1279.5, "clientHeight": 799.5},
         }
-        # 归一化输入测试: 0.873, 0.848 应精确缩放到 CSS 像素 (745, 452)
         rx, ry = self.sandbox._to_pixel(0.873, 0.848)
         self.assertEqual(rx, 745)
         self.assertEqual(ry, 452)
 
-        # 绝对物理像素输入测试: 1117, 678 (超出 CSS 范围但在图像范围内) 应除以 DPR 转换为 CSS 像素
         px_abs_x, px_abs_y = self.sandbox._to_pixel(1117, 678)
         self.assertEqual(px_abs_x, 745)
         self.assertEqual(px_abs_y, 452)
@@ -473,7 +457,6 @@ tags:
         with zipfile.ZipFile(zip_path, "w") as zf:
             zf.writestr("火星宇航员_123456.md", md_content)
 
-        # 1. Targeted check with matching chat_id passes
         ok, msg, details = self.sandbox.evaluate_export(zip_path, min_conversations=1, chat_id="c_mars123456")
         self.assertTrue(ok, msg)
         self.assertIn("mars123456", msg)
@@ -535,7 +518,6 @@ tags:
         self.assertTrue(any("目标" in n for n in names))
 
     def test_run_objective_verify_fn_self_healing(self):
-        # 第一次 DONE 时验收未达成，触发自愈，第二次达成
         verify_state = [False]
         def check_verified():
             return verify_state[0]
@@ -546,7 +528,6 @@ tags:
             VisualAction(action_type=VisualActionType.DONE, thought="Real DONE")
         ])
 
-        # 在第二次调用时改变状态
         original_decide = provider.decide_action
         def wrapped_decide(*args, **kwargs):
             action = original_decide(*args, **kwargs)
@@ -559,7 +540,6 @@ tags:
         res = agent.run_objective("测试客观断言防虚假达成", verify_fn=check_verified, max_steps=5)
 
         self.assertTrue(res.success)
-        # 校验是否成功记录了防虚假自愈事件
         self.assertGreaterEqual(len(self.scorecard.self_healing_events), 1)
         self.assertIn("verify_fn", self.scorecard.self_healing_events[0].reason)
 
@@ -590,19 +570,16 @@ tags:
 
 class TestCustomAIVisionProvider(unittest.TestCase):
     def test_endpoint_and_model_resolution(self):
-        # 1. 默认模型与空 endpoint
         with patch.dict(os.environ, {}, clear=True):
             p1 = CustomAIVisionProvider()
             self.assertEqual(p1.model, "default-vlm")
             self.assertIsNone(p1.endpoint)
 
-        # 2. 从环境变量继承
         with patch.dict(os.environ, {"CUSTOM_AI_ENDPOINT": "http://mock-ai:8000/v1", "CUSTOM_AI_MODEL": "test-vlm-v1"}):
             p2 = CustomAIVisionProvider()
             self.assertEqual(p2.endpoint, "http://mock-ai:8000/v1")
             self.assertEqual(p2.model, "test-vlm-v1")
 
-        # 3. 构造参数覆盖环境变量
         with patch.dict(os.environ, {"CUSTOM_AI_MODEL": "test-vlm-v1"}):
             p3 = CustomAIVisionProvider(endpoint="http://custom:9000", model="override-vlm")
             self.assertEqual(p3.endpoint, "http://custom:9000")

@@ -104,7 +104,6 @@ test('Test Provenance Manifest: All registered suites and tests have valid class
         assert.ok(suite.testCount > 0, `Suite ${suite.file} must declare at least 1 test`);
         assert.strictEqual(suite.tests.length, suite.testCount, `Mismatch in testCount for ${suite.file}`);
 
-        // Validate each test item
         for (const t of suite.tests) {
             assert.strictEqual(typeof t.name, 'string', `Test in ${suite.file} must have a name string`);
             assert.ok(t.name.length > 0, `Test in ${suite.file} must have a non-empty name`);

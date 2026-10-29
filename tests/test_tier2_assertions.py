@@ -387,7 +387,7 @@ class DiskContentTests(unittest.TestCase):
                              'response': 'Reserve enough headroom for peak traffic and verify it with representative load measurements.',
                              'has_images': False}]
         before = document()
-        self.assertFalse(self.check(newer, before))  # old, nonempty file
+        self.assertFalse(self.check(newer, before))
         self.md.write_text(document(newer))
         self.assertTrue(self.check(newer, before))
         self.assertFalse(self.check(newer, document(newer)))
@@ -483,13 +483,11 @@ class DiskContentTests(unittest.TestCase):
         cdp_message_only.call.return_value = {'error': {'message': 'denied'}}
         self.assertIsNone(CDPActions.trigger_export_zip(cdp_message_only, str(self.root), max_wait=1))
         cdp_message_only.eval.assert_not_called()
-        # 1. 模拟 CDP 返回错误响应
         cdp_err = MagicMock()
         cdp_err.call.return_value = {'error': {'code': -32000, 'message': 'Browser.setDownloadBehavior denied'}}
         self.assertIsNone(CDPActions.trigger_export_zip(cdp_err, str(self.root), max_wait=1))
         cdp_err.eval.assert_not_called()
 
-        # 2. 模拟 CDP 调用抛出连接或协议异常
         cdp_exc = MagicMock()
         cdp_exc.call.side_effect = RuntimeError("WebSocket connection dropped")
         self.assertIsNone(CDPActions.trigger_export_zip(cdp_exc, str(self.root), max_wait=1))
@@ -1394,11 +1392,11 @@ class SearchSelectionCounterexamples(unittest.TestCase):
 
     def test_id_set_mode_rejects_wrong_extra_missing(self):
         cases = [
-            ([self.item(OTHER, "t " + CID)], False),  # 错误 ID
-            ([self.item(CID, "t " + CID), self.item(OTHER, "t " + CID + " collision")], False),  # 额外命中
-            ([], False),  # 遗漏结果
-            ([self.item(CID, "t " + CID)], True),  # 正确唯一命中
-            ([self.item("c_" + CID, "t " + CID)], True),  # c_ 前缀归一化后一致
+            ([self.item(OTHER, "t " + CID)], False),
+            ([self.item(CID, "t " + CID), self.item(OTHER, "t " + CID + " collision")], False),
+            ([], False),
+            ([self.item(CID, "t " + CID)], True),
+            ([self.item("c_" + CID, "t " + CID)], True),
         ]
         for i, (items, expected) in enumerate(cases):
             with self.subTest(i=i):
@@ -1443,9 +1441,9 @@ class SearchSelectionCounterexamples(unittest.TestCase):
 
     def test_search_id_case_rejects_failed_selection(self):
         good = [self.item(CID, "t " + CID)]
-        self.assertFalse(self.run_search_id(good, False, True)[0])  # 勾选操作失败
-        self.assertFalse(self.run_search_id(good, True, False)[0])  # 实际未选中
-        self.assertFalse(self.run_search_id([self.item(OTHER, "t " + CID)], True, True)[0])  # 错误命中
+        self.assertFalse(self.run_search_id(good, False, True)[0])
+        self.assertFalse(self.run_search_id(good, True, False)[0])
+        self.assertFalse(self.run_search_id([self.item(OTHER, "t " + CID)], True, True)[0])
         self.assertTrue(self.run_search_id(good, True, True)[0])
 
     def run_selection(self, none_snapshot, all_snapshot):
@@ -1472,7 +1470,6 @@ class SearchSelectionCounterexamples(unittest.TestCase):
         # 全选后列表为空（可选集合为空）→ FAIL，杜绝空集恒等误通过
         self.assertFalse(self.run_selection(
             self.sel(["a", "b", "c"], []), self.sel([], []))[0])
-        # 禁用项不参与：可选集之外的禁用已选项不影响判定
         self.assertTrue(self.run_selection(
             self.sel(["a", "b"], []), self.sel(["a", "b"], ["a", "b"]))[0])
 

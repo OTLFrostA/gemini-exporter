@@ -1,4 +1,3 @@
-# tests/test_selectors_and_gateway.py
 """
 Unit tests for GeminiSelectors, WorkbenchSelectors, and SafeInteractionGateway.
 Validates central selector registry consistency, URL allowlist filtering,
