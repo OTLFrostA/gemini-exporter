@@ -31,6 +31,7 @@ class ArchiveResourcesTest(unittest.TestCase):
             self.assertEqual(validate_archive_resources(self.root, 'chat.html' if html else 'chat.md', content.replace('assets/files/', 'files/'), html), [])
 
     def test_real_attachment_reference_regressions(self):
+        # Reference strings from the archived cb8bd7 and 2b4994 exports.
         for filename in ('cb8bd7_test_config.json', '2b4994_============================================================.md'):
             (self.root / 'files' / filename).write_text('nonempty attachment')
             broken = f'<a href="assets/files/{filename}">attachment</a>'
@@ -60,6 +61,7 @@ class ArchiveResourcesTest(unittest.TestCase):
         self.assertEqual(oracle.errors, [])
 
     def test_math_function_application_is_not_an_attachment(self):
+        # Real Tier2 STA response contains \left[...\right](\mathbf{t}) inside $$.
         for formula in (r'$$\left[W(k)\right](\mathbf{t})$$',
                         r'$\left[W(k)\right](\mathbf{t})$'):
             with self.subTest(formula=formula):
