@@ -83,8 +83,9 @@ test('opening logged-in Gemini after Options allows scanning without reloading e
     await expect(page.locator('#status')).toContainText('Open Gemini, log in and refresh the page before scanning.');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
     // Badge presence is an observable content-script readiness signal, not a sleep.
+    await expect(page.locator('.tour-popover h2')).toHaveText('Connect Gemini account');
     await attachLoggedInGemini(context);
-    await page.locator('#btnSyncAll').click();
+    await page.locator('#btnRetryAccountSync').click();
     await expect(page.locator('[data-chat-id="0000000000000452"]')).toContainText('Captured conversation 0452');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
     await expect(page.locator('#status')).not.toContainText('Open Gemini, log in and refresh the page before scanning.');

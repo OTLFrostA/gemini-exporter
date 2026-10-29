@@ -136,7 +136,8 @@ test('ChatGPT discovery resolves the selected provider and never falls back to G
     await assert.rejects(route.resolveScanTarget(), /Multiple provider accounts/);
     assert.equal(await route.resolveScanTarget(B), B);
     available = false;
-    await assert.rejects(route.resolveScanTarget(B), /Open ChatGPT/);
+    await assert.rejects(route.resolveScanTarget(B), { name: 'ScanConnectionError', platform: 'chatgpt',
+        message: 'Open ChatGPT, log in and connect the selected account before scanning.' });
 });
 
 test('Content operation fixes target Account once and never fails over after send failure', async t => {

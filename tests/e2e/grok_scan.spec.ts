@@ -75,7 +75,10 @@ test('an unavailable selected Gemini account stays selected while Grok is connec
     await page.locator('#tourSkipBtn').click();
     await page.locator('#accountIdSelect').selectOption(accountId);
     await page.locator('#btnSyncAll').click();
-    await expect(page.locator('#status')).toContainText('Open Gemini, log in and refresh the page before scanning.');
+    await expect(page.locator('.tour-popover h2')).toHaveText('Connect Gemini account');
+    await expect(page.getByRole('checkbox', { name: 'Gemini', exact: true })).toBeChecked();
+    await expect(page.locator('.platform-permission-row:visible')).toHaveCount(1);
+    await expect(page.locator('#btnRetryAccountSync')).toBeDisabled();
     await expect(page.locator('#accountIdSelect')).toHaveValue(accountId);
     expect((await page.evaluate(() => Reflect.get(window, 'grokHttpCalls'))).some((path: string) => path.includes('pageSize=60'))).toBe(false);
 });

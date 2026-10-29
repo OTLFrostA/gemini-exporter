@@ -1,3 +1,6 @@
+import { SOURCE_PLATFORMS } from '../../shared/platformHosts.js';
+import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
+import { ScanConnectionError } from '../../runtime/capabilities/scanConnection.js';
 import { elementById as el, requiredElement as control } from '../shared/elements.js';
 import { observeDomainChanges } from '../../runtime/api/domainChanges.js';
 import { exportSummary } from '../shared/exportSummary.js';
@@ -259,7 +262,8 @@ export async function initWorkbench(): Promise<void> {
         if (id !== state.accountId) { lastRequest = null; failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false; }
         state.selectAccount(id); render(); await refresh();
     };
-    const perform = async (kind: Action, task: (signal: AbortSignal) => Promise<void>, cancellable = false) => {
+    const perform = async (kind: Action, task: (signal: AbortSignal) => Promise<void>, cancellable = false,
+        recoverConnection?: (failure: ScanConnectionError) => void) => {
         if (busy) return;
         busy = true; action = kind;
         const taskController = new AbortController();
@@ -273,9 +277,11 @@ export async function initWorkbench(): Promise<void> {
         el('status').textContent = '';
         el('status').style.display = 'block';
         render();
+        let connectionFailure: ScanConnectionError | undefined;
         try { await task(taskController.signal); }
         catch (error) {
             statusError(error);
+            if (kind === 'scan' && error instanceof ScanConnectionError) connectionFailure = error;
             if (kind === 'scan' && error instanceof Error &&
                 (error.message === 'Open Gemini, ChatGPT, Claude or Grok and connect an account before scanning.'
                     || error.message === 'Open Gemini, log in and refresh the page before scanning.'))
@@ -284,6 +290,7 @@ export async function initWorkbench(): Promise<void> {
         finally {
             try { await refresh(); } catch (error) { statusError(error); }
             busy = false; action = null; controller = null; render();
+            if (connectionFailure) recoverConnection?.(connectionFailure);
         }
     };
     const exportRequest = (request: UIExportRequest, fonts: Promise<void>) => perform('export', async (signal) => {
@@ -352,6 +359,15 @@ export async function initWorkbench(): Promise<void> {
         } finally { run.finishedAt = Date.now(); }
      }, true);
     const scan = (forceFull = false) => perform('scan', async (signal) => {
+        const selected = state.accounts.find(a => a.id === state.accountId);
+        const platform = SOURCE_PLATFORMS.find(platform => platform === selected?.providerId);
+        const access = platform ? await hasPlatformAccess(platform) : true;
+        signal.throwIfAborted();
+        if (platform && !access) {
+            TourGuide.showAccountConnection(platform, selected?.email || selected?.displayName || platform,
+                () => { void scan(forceFull); });
+            return;
+        }
         const startedAt = Date.now();
         status(() => text('Resolving conversation source…', '正在确认会话来源…'));
         const slowHint = el('scanSlowHint');
@@ -392,7 +408,11 @@ export async function initWorkbench(): Promise<void> {
                 void updateSettings({ takeoutPromptCompleted: true }).catch(e => statusError(e));
             }
         }
-    }, true);
+    }, true, failure => {
+        const account = state.accounts.find(a => a.id === state.accountId);
+        TourGuide.showAccountConnection(failure.platform, account?.email || account?.displayName || failure.platform,
+            () => { void scan(forceFull); });
+    });
     const moreActionsButton = control('button', 'btnMoreActions');
     const moreActionsMenu = el('moreActionsMenu');
     const closeMoreActions = () => {
