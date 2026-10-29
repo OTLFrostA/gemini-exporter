@@ -69,6 +69,10 @@ const DISPLAY_LATEX_OK = '\\frac{a}{b} + \\sqrt{x}';
 /** P0 报告同款故意不可转换公式: mathshim 子集拒收 operatormame。 */
 const DISPLAY_LATEX_UNCONVERTIBLE = '\\operatorname{erf}(x) = \\frac{2}{\\sqrt{\\pi}}\\int_0^x e^{-t^2}\\,dt';
 
+/**
+ * 最小受控转换器 (模拟 P0 实验 mathshim): 只认 frac/sqrt 子集,
+ * 其余返回 undefined -> adapter 走原文回退。
+ */
 function fakeConvertMath(source: string, _display: boolean): string | undefined {
     if (source.includes('\\operatorname')) return undefined;
     if (source.includes('\\frac') || source.includes('\\sqrt')) return `TYPST(${source})`;
@@ -136,6 +140,7 @@ function collectImageNodes(payload: any): any[] {
     return out;
 }
 
+/** 递归收集对象里所有字符串值 (用于 JSON 往返后的可见性断言)。 */
 function collectAllStrings(o: any): string[] {
     const out: string[] = [];
     const walk = (v: any): void => {
@@ -170,6 +175,8 @@ test('P0 gate (a): math travels as TEXT in the payload, never an image placehold
     assert.strictEqual(displayOk.latex, DISPLAY_LATEX_OK);
     assert.ok(typeof displayOk.typst === 'string' && displayOk.typst.includes('TYPST('));
 
+    // 绝不是图片占位: payload 里没有任何 image 节点携带公式, 也没有任何
+    // data:image URI (P0: 4 份 PDF 嵌入图片数 = 0, 公式为可选文本)。
     const images = collectImageNodes(payload);
     assert.deepStrictEqual(images, [], 'no image nodes may appear for math content');
     const json = JSON.stringify(payload);
@@ -222,6 +229,7 @@ test('P0 gate (c): unconvertible formula degrades to visible source fallback, ne
     assert.strictEqual(failed.latex, DISPLAY_LATEX_UNCONVERTIBLE, 'failed formula source must be preserved verbatim');
     assert.ok(!('typst' in failed), 'no fabricated typst output for failed conversion');
 
+    // 可见性: 源码全文在 JSON 往返后仍以文本存在 (模板侧渲染为可见注释, 见 payload.ts 模块注释)。
     const allText = collectAllStrings(JSON.parse(JSON.stringify(payload))).join('\n');
     assert.ok(allText.includes(DISPLAY_LATEX_UNCONVERTIBLE), 'failed formula source must be visible in payload as text');
 

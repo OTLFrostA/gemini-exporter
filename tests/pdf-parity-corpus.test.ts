@@ -75,7 +75,7 @@ function normalizeLine(s: string): string {
 function stripHtmlChrome(line: string): string | null {
     if (line === '复制') return null;
     const missing = /^(?:图片不可用|附件不可用):\s*(.*?)\s*MISSING$/.exec(line);
-    if (missing) return missing[1] || null;
+    if (missing) return missing[1] || null; // missing attachment card keeps the asset label
     return line; // Both backends retain the same localized inline unavailable text.
 }
 

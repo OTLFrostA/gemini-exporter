@@ -151,6 +151,10 @@ function makeBatchConversation(n: number): any {
     };
 }
 
+// 1. 长会话压力：121 消息 normalize + payload
+// 预算 60s 的依据：本机实测 ~1.1s（P0 预处理阶段秒级）；取约 55 倍余量，
+// 防 CI 机器慢 + 未来 normalizer 增重。10 分钟是整链路（含真编译）预算，
+// 真编译器落地后此处预算要收紧为端到端口径。
 
 test('stress: 121-message conversation normalizes and converts well under budget', async () => {
     const raw = makeStressConversation();
@@ -174,6 +178,10 @@ test('stress: 121-message conversation normalizes and converts well under budget
     );
 });
 
+// 2. 100 会话 batch 压力：总耗时有明确上界
+// 预算 120s 的依据：本机实测 100 会话 × 8 消息 = 800 消息共 ~1.9s；
+// P0 的 50.6s 是含 WASM 真编译的口径，此处只测预处理。120s ≈ 60 倍余量，
+// 留给 CI 机器抖动。真编译器落地后升级为端到端 batch 门。
 
 test('stress: 100-conversation batch has bounded total preprocessing time', async () => {
     const batch = Array.from({ length: 100 }, (_, n) => makeBatchConversation(n));
@@ -194,6 +202,11 @@ test('stress: 100-conversation batch has bounded total preprocessing time', asyn
     );
 });
 
+// 3. 内存无泄漏信号：50 次 normalize+payload 循环，heapUsed 增长有界
+// 实测（本机，3 轮）：+1.0 / +0.0 / +0.1 MB → 断言 < 100MB。
+// 诚实标注：这是"无泄漏信号"门，不是精确泄漏证明——WASM 堆内内存无法从
+// 外部单独归因（P0 REPORT.md §3）；且本环境未暴露 gc，断言的是含惰性 GC 的
+// 堆增长上界。
 
 test('memory: repeated normalize+payload shows no leak signal', async () => {
     const raw = makeStressConversation();

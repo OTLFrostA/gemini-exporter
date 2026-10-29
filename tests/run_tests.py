@@ -21,6 +21,7 @@ def test_json_files():
         with open(p, "r", encoding="utf-8") as f:
             data = json.load(f)
             print(f"  ✓ JSON valid: {jf}")
+    # 场景池运行时归档（temp/scenario_pool/archive.json）是 git-ignored 的，不在 tracked 校验之列
 
 def test_manifest_structure():
     with open(os.path.join(BASE_DIR, "manifest.json"), "r", encoding="utf-8") as f:
@@ -424,6 +425,8 @@ def test_tour_status_indicator_styling():
     # The current Spotlight uses a cutout and dialog, not old connection lamps.
     with open(os.path.join(BASE_DIR, "src/ui/guidance/tourGuide.css"), encoding="utf-8") as f:
         css = f.read()
+    # The final v2 cutout CSS rule overrides the earlier generic overlay rule.
+    # Inspect the effective cascade; popover attributes span two rule blocks.
     containers = re.findall(r'\.tour-overlay-container\s*\{([^}]+)', css)
     popovers = re.findall(r'\.tour-popover\s*\{([^}]+)', css)
     assert containers and popovers, 'Tour overlay and popover CSS must exist'

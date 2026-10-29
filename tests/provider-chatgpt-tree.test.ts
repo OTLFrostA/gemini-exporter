@@ -323,6 +323,7 @@ test('thinking walk attaches hidden reasoning to the following assistant node', 
 });
 
 test('dialect preprocessing shields code and normalizes math/citations', () => {
+    // Exact marker shapes captured live via 9222 (2026-10-14).
     const cite = '\ue200cite\ue202turn388160search0\ue202turn388160search1\ue201';
     const url = '\ue200url\ue202ChatGPT \u6a21\u578b\ue202https://help.openai.com/en/a\ue201';
     const src = '费用是 $5。公式 \\(x^2\\) 行内。引用' + cite + '结尾。看' + url + '。\n\n\\[y = mx\\]\n\n`代码 \\(不动\\) $10`。<br>换行';
