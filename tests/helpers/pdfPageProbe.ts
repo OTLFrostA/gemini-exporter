@@ -61,6 +61,7 @@ interface TextRun {
     x: number;
     y: number;
     size: number;
+    /** Estimated advance width in points (heuristic, see file header). */
     width: number;
 }
 
@@ -103,6 +104,7 @@ function parseResourceMap(section: string): Map<string, number> {
     return map;
 }
 
+/** Heuristic advance width for a decoded string at the given font size. */
 function estimateWidth(text: string, size: number): number {
     let w = 0;
     for (const ch of text) {

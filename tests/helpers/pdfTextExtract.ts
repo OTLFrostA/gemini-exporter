@@ -74,6 +74,7 @@ export function parseLiteralPdfString(s: string): number[] {
         if (s[i] === '\\' && i + 1 < s.length) {
             const n = s[i + 1];
             if (n >= '0' && n <= '7') {
+                // Octal escape: up to 3 octal digits (Typst emits \000\001 for 2-byte codes).
                 let oct = '';
                 let j = i + 1;
                 while (j < s.length && oct.length < 3 && s[j] >= '0' && s[j] <= '7') {
@@ -399,6 +400,7 @@ export function extractPdfText(pdfBytes: Uint8Array, honorActualText = true): Ex
                         stack.length = 0;
                     } else if (t === 'EMC') {
                         const entry = markedContentStack.at(-1);
+                        // An outer ActualText replaces the entire nested marked sequence.
                         if (entry?.actualText != null && !markedContentStack.slice(0, -1).some(m => m.actualText != null))
                             append(entry.actualText);
                         markedContentStack.pop();

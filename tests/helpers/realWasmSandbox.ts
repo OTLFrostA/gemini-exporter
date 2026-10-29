@@ -53,6 +53,8 @@ const TEMPLATE_FILES: ReadonlyArray<readonly [string, string]> = [
     ['/render-inline.typ', 'render-inline.typ'],
     ['/render-message.typ', 'render-message.typ'],
     ['/mitex-scope.typ', 'mitex-scope.typ'],
+    // Referenced by components.typ as theme: "quiet-light.tmTheme",
+    // resolved relative to /components.typ.
     ['/quiet-light.tmTheme', 'quiet-light.tmTheme'],
 ];
 
@@ -106,6 +108,7 @@ class RealWasmSandboxFrame {
     onMessage(handler: MessageHandler): () => void {
         this.stats.listenersAttached += 1;
         this.handler = handler;
+        // The real sandbox page posts READY on load.
         queueMicrotask(() => this.emit({ type: SANDBOX_TO_HOST.READY }));
         return () => {
             this.stats.listenersDetached += 1;
