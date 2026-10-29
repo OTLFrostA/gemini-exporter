@@ -25,7 +25,9 @@ export async function readSettings(): Promise<GlobalSettings> {
     const settings = await getSettings(); useSettings(settings); return settings;
 }
 export function observeSettings(refresh: () => void): () => void {
-    const listener = (_changes: { [key: string]: chrome.storage.StorageChange }, area: string) => { if (area === 'local') refresh(); };
+    const listener = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
+        if (area === 'local' && (changes.gemini_exporter_v2_settings || changes.gemini_suppress_direct_write_prompt)) refresh();
+    };
     chrome.storage.onChanged.addListener(listener);
     return () => chrome.storage.onChanged.removeListener(listener);
 }

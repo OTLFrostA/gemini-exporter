@@ -180,3 +180,55 @@ for (const target of ['.chat-title', 'input']) test(`a background refresh betwee
     await page.mouse.up();
     await expect(row.locator('input')).toBeChecked();
 });
+
+test('focus and unrelated storage changes avoid unchanged paints; notification bursts read once', async ({context, extensionId}) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{id:'refresh-count',title:'Initial title'}]);
+    await page.evaluate(() => {
+        const metrics = {paints:0,accountReads:0,indexReads:0};
+        Reflect.set(globalThis, 'refreshMetrics', metrics);
+        const replace = Element.prototype.replaceChildren;
+        Element.prototype.replaceChildren = function(...nodes) {
+            if (this.id === 'accountIdSelect') metrics.paints++;
+            return replace.apply(this, nodes);
+        };
+        const getAll = IDBObjectStore.prototype.getAll;
+        IDBObjectStore.prototype.getAll = function(...args) {
+            if (this.transaction.mode === 'readonly') {
+                if (this.name === 'accounts') metrics.accountReads++;
+                if (this.name === 'indexes') metrics.indexReads++;
+            }
+            return getAll.apply(this, args);
+        };
+    });
+    const metrics = () => page.evaluate(() => ({...Reflect.get(globalThis, 'refreshMetrics')}));
+    await page.evaluate(async () => {
+        await chrome.storage.local.set({unrelated_refresh_probe:'changed'});
+        await Reflect.get(globalThis, 'uiFixture').updateSettings({badgePosition:{left:10,top:20}});
+        window.dispatchEvent(new Event('focus'));
+    });
+    await expect.poll(async () => (await metrics()).accountReads).toBeGreaterThan(0);
+    await page.waitForTimeout(100);
+    expect(await metrics()).toEqual({paints:0,accountReads:1,indexReads:1});
+
+    await context.serviceWorkers()[0].evaluate(async () => {
+        await Promise.all(Array.from({length:20}, () => chrome.runtime.sendMessage({action:'domainChanged',accountId:'10000000-0000-4000-8000-000000000002'})));
+    });
+    await expect.poll(async () => (await metrics()).accountReads).toBe(2);
+    await page.waitForTimeout(100);
+    expect(await metrics()).toEqual({paints:0,accountReads:2,indexReads:1});
+
+    await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        const accountId = '10000000-0000-4000-8000-000000000001';
+        await api.putIndexes([{key:{accountId,conversationId:'refresh-count'},title:'Updated title',titleSource:'provider',updatedAt:100}]);
+        Object.assign(Reflect.get(globalThis, 'refreshMetrics'), {paints:0,accountReads:0,indexReads:0});
+        window.dispatchEvent(new Event('focus'));
+    });
+    await expect(page.locator('[data-chat-id="refresh-count"] .chat-title')).toHaveText('Updated title');
+    expect(await metrics()).toEqual({paints:1,accountReads:1,indexReads:1});
+    await page.locator('#btnThemeToggle').click();
+    await expect(page.locator('#btnThemeToggle')).toBeEnabled();
+    // Theme's optimistic paint and unlock paint are enough; its own storage echo adds none.
+    expect((await metrics()).paints).toBe(3);
+});

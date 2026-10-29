@@ -245,8 +245,8 @@ export async function initWorkbench(): Promise<void> {
         control('button', 'btnExport').disabled ||= !settings || folderSuggestionPending;
         showFailures();
     };
-    const refresh = async () => {
-        await state.refresh(); render();
+    const refresh = async (changedAccountId?: string) => {
+        if (await state.refresh(changedAccountId)) render();
         const previousError = connectionError;
         const accountId = state.accountId;
         if (!previousError || busy || !accountId) return;
@@ -672,29 +672,61 @@ export async function initWorkbench(): Promise<void> {
             void applyOpenedAccount(changes.openOptionsAccountId.newValue).catch(error => statusError(error));
     };
     const stopSettings = observeSettings(() => {
-        void readSettings().then(next => { settings = next; render(); }).catch(e => statusError(e));
+        void readSettings().then(next => {
+            const changed = !settings || ([
+                'defaultFormat', 'skipExported', 'includeAssets', 'enabledDisk',
+                'exportDelivery', 'developerMode', 'theme', 'language',
+            ] as const).some(field => settings[field] !== next[field]);
+            settings = next;
+            if (changed) render();
+        }).catch(e => statusError(e));
     });
     const onFocus = () => {
         if (busy) return;
         void (async () => {
             await refresh();
+            const previous = directoryAvailable;
             try { directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle()); }
             catch (error) { directoryAvailable = false; statusError(error, 'warn'); }
-            render();
+            if (directoryAvailable !== previous) render();
         })().catch(e => statusError(e));
     };
-    const stopDomainChanges = observeDomainChanges(() => refresh().catch(e => statusError(e)));
+    const pendingDomainAccounts = new Set<string>();
+    let domainRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let domainRefreshing = false;
+    const scheduleDomainRefresh = () => {
+        if (!pendingDomainAccounts.size || domainRefreshTimer !== undefined || domainRefreshing) return;
+        domainRefreshTimer = setTimeout(() => {
+            domainRefreshTimer = undefined;
+            domainRefreshing = true;
+            void (async () => {
+                // Notifications during a read request one trailing read, never parallel reads.
+                while (pendingDomainAccounts.size) {
+                    const accounts = [...pendingDomainAccounts]; pendingDomainAccounts.clear();
+                    await refresh(accounts.includes(state.accountId ?? '') ? undefined : accounts[0]);
+                }
+            })().catch(e => statusError(e)).finally(() => {
+                domainRefreshing = false;
+                scheduleDomainRefresh();
+            });
+        }, 16);
+    };
+    const stopDomainChanges = observeDomainChanges(accountId => {
+        pendingDomainAccounts.add(accountId); scheduleDomainRefresh();
+    });
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
         importedResources.release();
         stopSettings(); stopDomainChanges(); chrome.storage.onChanged.removeListener(onOpenedAccountChange);
+        clearTimeout(domainRefreshTimer); pendingDomainAccounts.clear();
         window.removeEventListener('focus', onFocus); TourGuide.destroy();
     }, { once: true });
     renderLog(); render();
     await ensureV2Ready();
     settings = await readSettings();
     renderLog(); // Localize initial 'Ready' once; subsequent toggles never retranslate the log.
-    await refresh();
+    // First paint must unlock Settings even when the account registry is empty.
+    await state.refresh(); render();
     chrome.storage.onChanged.addListener(onOpenedAccountChange);
     await applyOpenedAccount((await chrome.storage.session.get('openOptionsAccountId')).openOptionsAccountId);
     try {
