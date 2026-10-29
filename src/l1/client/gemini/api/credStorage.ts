@@ -2,7 +2,6 @@ let sessionAccessFailed = false;
 let credentialWriteChain: Promise<void> = Promise.resolve();
 const CREDENTIAL_MAP_LOCK = 'gemini-exporter:write:credential-map';
 
-/** Serialize complete credential-map read/modify/write cycles across contexts. */
 export function withCredMapLock<T>(fn: () => Promise<T>): Promise<T> {
     const run = () => {
         try {
