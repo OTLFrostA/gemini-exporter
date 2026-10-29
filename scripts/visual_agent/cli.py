@@ -1,4 +1,3 @@
-# scripts/visual_agent/cli.py
 """
 Gemini Exporter — Visual Playground CLI Interface.
 Enables any AI Agent or human operator to interact directly with the Visual Playground:
@@ -31,11 +30,9 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Gemini Exporter Visual Playground CLI", parents=[common_parser])
     subparsers = parser.add_subparsers(dest="command", help="Playground command")
 
-    # 1. screenshot
     p_shot = subparsers.add_parser("screenshot", help="Capture screen", parents=[common_parser])
     p_shot.add_argument("--name", type=str, default=None, help="Optional step name for the screenshot")
 
-    # 2. click
     p_click = subparsers.add_parser("click", help="Physical mouse click", parents=[common_parser])
     p_click.add_argument("--x", type=float, required=True, help="Normalized X coordinate (0.0 - 1.0)")
     p_click.add_argument("--y", type=float, required=True, help="Normalized Y coordinate (0.0 - 1.0)")
@@ -43,7 +40,6 @@ def parse_args(argv=None):
     p_click.add_argument("--timeout", type=int, default=60, help="Download wait timeout in seconds")
     p_click.add_argument("--button", type=str, default="left", choices=["left", "right"], help="Mouse button")
 
-    # 3. type
     p_type = subparsers.add_parser("type", help="Physical keyboard input", parents=[common_parser])
     type_input = p_type.add_mutually_exclusive_group(required=True)
     type_input.add_argument("--text", type=str, help="Text to type")
@@ -52,13 +48,11 @@ def parse_args(argv=None):
     p_type.add_argument("--y", type=float, default=None, help="Optional click Y to focus")
     p_type.add_argument("--no-clear", action="store_true", help="Do not clear existing input first")
 
-    # 4. scroll
     p_scroll = subparsers.add_parser("scroll", help="Physical mouse wheel", parents=[common_parser])
     p_scroll.add_argument("--delta", type=int, default=300, help="Scroll delta Y in pixels")
     p_scroll.add_argument("--x", type=float, default=0.5, help="Normalized X coordinate (default: 0.5)")
     p_scroll.add_argument("--y", type=float, default=0.5, help="Normalized Y coordinate (default: 0.5)")
 
-    # 5. wait-on
     p_wait = subparsers.add_parser("wait-on", help="Deterministic blocking wait", parents=[common_parser])
     p_wait.add_argument("--condition", type=str, required=True, help="Condition to await: stream_settled, download_complete, zip_downloaded, ui_idle, dom_pruned")
     p_wait.add_argument("--timeout", type=int, default=120, help="Timeout in seconds")
@@ -67,21 +61,17 @@ def parse_args(argv=None):
     p_wait.add_argument("--pattern", type=str, default=None, help="Optional downloaded filename pattern")
     p_wait.add_argument("--min-mtime", type=float, default=0.0, help="Min mtime for download completion")
 
-    # 6. switch-page
     p_switch = subparsers.add_parser("switch-page", help="Switch active page / tab silently in background", parents=[common_parser])
     p_switch.add_argument("--to", dest="switch_to", required=True, choices=["options", "gemini", "chat", "workbench"], help="Target page to switch to")
     p_switch.add_argument("--chat", dest="chat_id", default=None, help="Optional Gemini conversation ID (e.g. c_xxx or xxx)")
     p_switch.add_argument("--new", action="store_true", help="Start a clean new conversation on Gemini (navigates to /app and resets input)")
     p_switch.add_argument("--bring-to-front", action="store_true", help="Physically bring Chrome window to OS front (may steal OS desktop focus)")
 
-    # 7. reset
     p_reset = subparsers.add_parser("reset", help="Reset environment to initial state", parents=[common_parser])
     p_reset.add_argument("--reinstall", action="store_true", help="Also cleanly reinstall extension from workspace")
 
-    # 8. reinstall
     p_reinstall = subparsers.add_parser("reinstall", help="Cleanly reinstall extension from current workspace", parents=[common_parser])
 
-    # 9. evaluate-export
     p_eval = subparsers.add_parser("evaluate-export", help="Evaluate ZIP or standalone Markdown specification", parents=[common_parser])
     p_eval.add_argument("--file", "--zip", dest="zip", type=str, required=True, help="Path to ZIP or standalone Markdown file")
     p_eval.add_argument("--min", type=int, default=1, help="Expected minimum conversations (default: 1)")

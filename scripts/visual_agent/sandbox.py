@@ -1,4 +1,3 @@
-# scripts/visual_agent/sandbox.py
 """
 Backward compatibility proxy for VisualPlayground.
 """

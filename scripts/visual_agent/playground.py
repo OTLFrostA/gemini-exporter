@@ -1,4 +1,3 @@
-# scripts/visual_agent/playground.py
 """
 Gemini Exporter — Visual Playground Environment.
 Acts as an interactive, hardware-isolated playground for Autonomous AI Agents:
@@ -669,7 +668,6 @@ class VisualPlayground:
         if not target_tab:
             raise RuntimeError(f"无法定位或创建目标标签页: {target}")
 
-        # 切换活动 CDP 连接
         target_ws = target_tab.get("webSocketDebuggerUrl")
         current_ws = getattr(self.cdp, "ws_url", None)
         if target_ws and target_ws != current_ws:
@@ -686,7 +684,6 @@ class VisualPlayground:
             except Exception:
                 pass
 
-        # 导航处理：全新对话 或 指定会话 ID (100% 复用 Tier 2 网关与平台驱动，绝无私有 DOM innerHTML 篡改)
         clean_cid = None
         if norm_target == "gemini":
             from scripts.framework.actions import CDPActions

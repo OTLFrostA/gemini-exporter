@@ -1,4 +1,3 @@
-# scripts/visual_agent/providers/base.py
 """
 Base interface for Vision Providers in Tier 3 Pure Visual Agent Testing.
 """
@@ -26,8 +25,8 @@ class VisualActionType(Enum):
 @dataclass
 class VisualAction:
     action_type: VisualActionType
-    x: Optional[float] = None  # Normalized (0.0 - 1.0) or absolute pixel
-    y: Optional[float] = None  # Normalized (0.0 - 1.0) or absolute pixel
+    x: Optional[float] = None
+    y: Optional[float] = None
     text: Optional[str] = None
     key: Optional[str] = None
     target: Optional[str] = None

@@ -1,4 +1,3 @@
-# scripts/visual_agent/providers/subagent_provider.py
 """
 SubAgent Vision Provider for IDE-integrated AI Agents.
 Enables Antigravity subagent coordination for visual inspection.
@@ -26,7 +25,6 @@ class SubAgentVisionProvider(VisionProvider):
         if callable(self.callback):
             return self.callback(screenshot_bytes, instruction, history, context)
 
-        # 默认使用通用推理逻辑（当外部注入 subagent handler 时委派）
         return VisualAction(
             action_type=VisualActionType.WAIT,
             thought=f"SubAgent provider 待处理指令: '{instruction}'"

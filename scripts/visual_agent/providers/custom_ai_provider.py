@@ -1,4 +1,3 @@
-# scripts/visual_agent/providers/custom_ai_provider.py
 """
 Custom AI Vision Provider for Tier 3 Autonomous Visual Agent Testing.
 Connects to external/custom multimodal AI endpoints (e.g., OpenAI-compatible vision APIs or custom VLMs)
@@ -119,10 +118,8 @@ class CustomAIVisionProvider(VisionProvider):
                 result = json.loads(resp.read().decode("utf-8"))
 
             raw_text = ""
-            # Support OpenAI chat completions structure
             if "choices" in result and result["choices"]:
                 raw_text = result["choices"][0].get("message", {}).get("content", "")
-            # Support generic / direct output structure
             elif "output" in result:
                 raw_text = result["output"] if isinstance(result["output"], str) else json.dumps(result["output"])
             elif "candidates" in result and result["candidates"]:
@@ -137,7 +134,6 @@ class CustomAIVisionProvider(VisionProvider):
             action_str = parsed.get("action", "CLICK").upper()
             thought = parsed.get("thought", "")
 
-            # Coordinate normalization
             norm_x, norm_y = None, None
             box = parsed.get("box_2d")
             if box and len(box) == 4:

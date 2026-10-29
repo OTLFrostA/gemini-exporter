@@ -1,4 +1,3 @@
-# scripts/visual_agent/providers/heuristic_provider.py
 """
 Heuristic Vision Provider for Offline & CI Execution.
 Extracts visual layout bounding boxes via CDP DOM/Accessibility snapshot without direct element manipulation.
@@ -27,7 +26,6 @@ class HeuristicVisionProvider(VisionProvider):
 
         inst_lower = instruction.lower()
 
-        # 匹配已知视觉目标
         for target_key, coords in visual_targets.items():
             if target_key in inst_lower:
                 return VisualAction(
@@ -37,7 +35,6 @@ class HeuristicVisionProvider(VisionProvider):
                     thought=f"视觉定位到目标 '{target_key}' 位于 ({coords.get('x')}, {coords.get('y')})"
                 )
 
-        # 匹配阻塞等待指令
         if "wait_on" in inst_lower or "等待流式" in inst_lower or "等待回复" in inst_lower:
             return VisualAction(
                 action_type=VisualActionType.WAIT_ON,
@@ -57,7 +54,6 @@ class HeuristicVisionProvider(VisionProvider):
                 thought="主动挂起等待页面 UI 进入空闲状态"
             )
 
-        # 默认完成或等待
         if "wait" in inst_lower or "等待" in inst_lower:
             return VisualAction(action_type=VisualActionType.WAIT, thought="等待界面渲染完成")
 

@@ -1,4 +1,3 @@
-# scripts/visual_agent/scorecard.py
 """
 Structured UX Scorecard and Self-Healing Report Generator.
 Outputs Markdown and HTML reports covering feature flow, visual clipping risks, and self-healing trails.
@@ -26,7 +25,7 @@ class SelfHealingEvent:
 class VisualRisk:
     category: str
     element_description: str
-    risk_level: str  # "LOW", "MEDIUM", "HIGH"
+    risk_level: str
     details: str
     screenshot_ref: Optional[str] = None
 
