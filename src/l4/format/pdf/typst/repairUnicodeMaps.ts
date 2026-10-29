@@ -87,7 +87,6 @@ export async function repairUnicodeMaps(bytes: Uint8Array): Promise<Uint8Array> 
                     const span = spans.pop();
                     if (span) record(span);
                 } else if (name === 'Tj' || name === 'TJ' || name === "'" || name === '"') {
-                    // The outermost ActualText replaces nested marked sequences.
                     const active = spans.find(span => span.text !== undefined);
                     if (!active || !font) continue;
                     const last = args.at(-1);
@@ -119,7 +118,7 @@ export async function repairUnicodeMaps(bytes: Uint8Array): Promise<Uint8Array> 
         }
         let updated = false;
         for (const [cid, text] of proposed) {
-            if (text === null) continue; // Conflicting aliases still use the original ActualText.
+            if (text === null) continue;
             const key = cid.toString(16).padStart(4, '0').toUpperCase();
             const hex = unicodeHex(text);
             if (map.get(key) !== hex) { map.set(key, hex); updated = true; }
