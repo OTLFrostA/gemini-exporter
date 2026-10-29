@@ -97,7 +97,7 @@ test('a workbench opened without an account refreshes when the first account is 
 
 test('specific attachment failures retain details beneath one concise badge', async ({context, extensionId}, testInfo) => {
     const page = await openOptions(context, extensionId);
-    const expired = {resourceId:'missing',name:'photo.png',code:'RESOURCE_SOURCE_EXPIRED',httpStatus:404,sourceUrl:'https://example.test/photo'};
+    const expired = {resourceId:'missing',name:'photo.png',code:'RESOURCE_LOCATOR_UNAVAILABLE',httpStatus:404,sourceUrl:'https://example.test/photo'};
     const download = {resourceId:'retry',name:'retry.png',code:'RESOURCE_DOWNLOAD_FAILED',httpStatus:503};
     const restricted = {resourceId:'private',name:'private.png',code:'RESOURCE_ACCESS_RESTRICTED',httpStatus:403};
     await seedConversations(page, [{id:'expired-only'}, {id:'mixed'}, {id:'restricted'}, {id:'text-incomplete'}, {id:'legacy-partial'}], {
@@ -109,6 +109,9 @@ test('specific attachment failures retain details beneath one concise badge', as
     });
     const row = page.locator('[data-chat-id="expired-only"]');
     await expect(row.locator('.status-unavailable')).toHaveText('Some source attachments unavailable');
+    await expect(row.locator('.status-partial')).toHaveCount(0);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(row.locator('.status-unavailable')).toHaveCSS('color', 'rgb(225, 189, 133)');
     await row.locator('summary').click();
     await expect(row.locator('input')).not.toBeChecked();
     await expect(row.locator('details')).toContainText('photo.png: Source attachment unavailable');

@@ -1,6 +1,7 @@
 import type { ConversationKey } from '../../../l2/conversationKey.js';
 import type { ExportDiagnostic } from '../../../application/export/types.js';
 import { text } from '../../shared/settings.js';
+import { resourceIssueKind } from '../../../shared/resources/resourceResult.js';
 
 interface AffectedConversation { key: ConversationKey; title?: string }
 export interface ExportIssueGroup {
@@ -83,7 +84,8 @@ const LABELS: ReadonlyMap<string, readonly [string, string]> = new Map([
     ['UNKNOWN_ERROR', ['Unknown error', '未知错误']],
 ]);
 export function failureGroupLabel(group: ExportIssueGroup): string {
-    let label = LABELS.get(group.category);
+    let label = LABELS.get(resourceIssueKind({ code: group.category, httpStatus: group.httpStatus }) === 'expired'
+        ? 'RESOURCE_SOURCE_EXPIRED' : group.category);
     if (group.category === 'SOURCE_HTTP_ERROR') {
         label = group.httpStatus === 401 ? ['Platform authentication failed', '平台身份验证失败']
             : group.httpStatus === 403 ? ['Platform access restricted', '平台访问受限']

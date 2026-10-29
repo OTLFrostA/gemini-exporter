@@ -197,14 +197,14 @@ test('delivery summary separates unavailable source attachments from retryable f
 });
 
 test('ChatGPT attachment API HTTP failures retain status and a useful summary', async () => {
-    for (const status of [403, 404]) {
+    for (const status of [403, 404, 503]) {
         const result = await attemptResource('upload', async () => {
-            throw new OperationError('SOURCE_HTTP_ERROR', `File exchange HTTP ${status}`, status);
+            throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', `File exchange HTTP ${status}`, status);
         });
         assert.equal(result.ok, false);
         if (result.ok) throw new Error('Expected resource failure');
         assert.equal(result.httpStatus, status);
-        assert.equal(resourceIssueKind(result), status === 403 ? 'restricted' : 'download');
+        assert.equal(resourceIssueKind(result), status === 404 ? 'expired' : status === 403 ? 'restricted' : 'download');
         assert.match(resourceFailureText(result, 'zh'), new RegExp(`HTTP ${status}`));
         assert.doesNotMatch(resourceFailureText(result, 'zh'), /未知/);
     }

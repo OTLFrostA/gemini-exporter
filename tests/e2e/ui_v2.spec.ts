@@ -23,6 +23,23 @@ test('Content Badge passes its current account when opening Options', async ({ p
     await expect.poll(async () => read(page, 'messages')).toContainEqual({ action: 'openOptions', accountId: B });
 });
 
+test('Content Badge presents unavailable attachments as a warning and clears it after a successful save', async ({ page }) => {
+    await mount(page, 'badge');
+    await page.evaluate(() => {
+        Reflect.get(window, 'badge').showLiveSaveResult({ exported: 1, partial: 1, failed: [], skipped: 0,
+            aborted: false, otherPartial: 0, expiredConversations: 1,
+            attachmentIssues: [{ resourceId: 'missing', name: 'report.md', code: 'RESOURCE_SOURCE_EXPIRED', httpStatus: 404 }] },
+        Reflect.get(window, 'harness').source);
+    });
+    const badge = page.locator('#geminiExportBadge');
+    await expect(badge).toHaveClass(/live-save-warning/);
+    await expect(badge).toContainText('Saved; source attachments unavailable');
+    await page.evaluate(() => Reflect.get(window, 'badge').showLiveSaveResult({ exported: 1, partial: 0,
+        failed: [], skipped: 0, aborted: false }, Reflect.get(window, 'harness').source));
+    await expect(badge).not.toHaveClass(/live-save-warning/);
+    await expect(badge).toContainText('✓ Saved');
+});
+
 test('Options applies a one-time source handoff on load and reuse, but not while exporting', async ({ page }) => {
     await mount(page, 'options', { initialOpenOptionsAccountId: B, holdExport: true });
     const selector = page.locator('#accountIdSelect');
