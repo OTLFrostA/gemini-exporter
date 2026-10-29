@@ -379,6 +379,33 @@ test('UI v2: Badge isolates account counts, rejects delayed old count, partial p
     expect(await read(page,'countRequests')).toBe(2);
     await page.locator('#geminiExportBadge').focus(); await page.keyboard.press('Enter'); expect(await read(page,'events')).toContain('openOptions');
 });
+test('UI v2: Badge distinguishes an invalidated extension from an ordinary count failure', async ({ page }) => {
+    await mount(page, 'badge', { holdCount: true });
+    const badge = page.locator('#geminiExportBadge');
+    await expect(badge).toContainText('Count unavailable');
+    await page.evaluate(() => (window as any).harness.finishCount({ ok: false }));
+    await expect(badge).toContainText('Count unavailable');
+    await page.evaluate(() => {
+        const w = window as any;
+        const originalSendMessage = w.chrome.runtime.sendMessage;
+        w.chrome.runtime.sendMessage = async (message: { action: string }) => {
+            if (message.action === 'getLocalIndexCount') throw new Error('Extension context invalidated');
+            return originalSendMessage(message);
+        };
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(badge).toContainText('Extension updated. Refresh this page.');
+});
+test('UI v2: Badge gives a localized refresh hint when the extension context disappears', async ({ page }) => {
+    await mount(page, 'badge', { settings: { language: 'zh' } });
+    const badge = page.locator('#geminiExportBadge');
+    await expect(badge).toContainText('已收录 9 条对话');
+    await page.evaluate(() => {
+        (window as any).chrome.runtime.id = undefined;
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(badge).toContainText('插件已更新，请刷新页面');
+});
 test('UI v2: Badge owns visibility-triggered count Pull without exposing a Runtime push callback', async ({ page }) => {
     await mount(page, 'badge');
     await expect(page.locator('#geminiExportBadge')).toContainText('9 conversations indexed');
