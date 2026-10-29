@@ -61,6 +61,6 @@ required permissions used for local staging must never enter a store package.
 ## 🏷️ Title & Promotional Assets Policy Compliance (Red Nickel Prevention)
 
 Store listing titles, descriptions and graphics must describe the extension accurately and avoid deceptive affiliation, ranking or endorsement claims:
-- **No Ranking or Status Claims**: The extension name, description, and promotional assets (`store_assets/promo_marquee_1400x560.png`, `store_assets/promo_tile_440x280.png`) must NEVER contain promotional buzzwords, ranking claims, or deceptive status indicators such as `Free`, `100% Free`, `#1`, `Best`, `Top`, `New`, `Recommended`, or `Premium`.
+- **No misleading status or endorsement**: Avoid unsupported superlatives or official-affiliation claims (such as `#1`, `Best`, `Official`, or `Recommended`). A factual statement about free pricing is not a ranking or endorsement claim; it must remain accurate.
 - **Factual & Feature-Oriented**: Titles and descriptions focus strictly on factual functionality (e.g., `Save All Your Chats`, `Client-Side • Unlimited • Offline`).
 
