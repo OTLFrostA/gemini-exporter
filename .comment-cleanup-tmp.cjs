@@ -125,7 +125,7 @@ async function runBatch(tools, repo, branch, offset, size = 15, sourceRef = bran
   });
   const info = JSON.parse(infoResponse.result.content).commit;
   const head = info.sha, base = info.commit.tree.sha;
-  const paths = module.exports.paths.slice(offset, offset + size);
+  const paths = module.exports.paths.slice(offset, offset + size).filter(path => path !== '.comment-cleanup-tmp.cjs');
   if (!paths.length) return {offset, scanned:0, done:true};
   const responses = await Promise.all(paths.map(path =>
     tools.mcp__GitHub__fetch_file({repository_full_name:repo,path,ref:sourceRef})
