@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { A, mount, read } from '../helpers/uiPortHarness';
+import { parseGeminiRpcConversation } from '../../src/l1/parsers/gemini/rpc/parseConversation';
+import { detailGen } from '../fixtures/providers/geminiDetail';
+import { fixtureAccount } from '../helpers/domainFixture';
 
 test('100 failed conversations collapse into one group, copy the reason once, and retry only failures', async ({ page }) => {
     const indexes = Array.from({ length: 101 }, (_, i) => ({
@@ -84,4 +87,31 @@ test('preflight folder authorization is a status prompt, not a batch failure', a
     await expect(page.locator('#status')).toHaveText('Authorize a folder first');
     await expect(page.locator('#exportFailureCard')).toBeHidden();
     expect(await read(page, 'exports')).toHaveLength(0);
+});
+
+test('diagnostic download preserves native rejection evidence for offline replay', async ({ page }) => {
+    const parsed = parseGeminiRpcConversation(detailGen('G_STRUCTURED_COVERAGE_02'),
+        { account: fixtureAccount('gemini'), providerId: 'gemini' });
+    const diagnostic = parsed.diagnostics.find(item => item.code === 'GEMINI_STRUCTURED_FALLBACK');
+    if (!diagnostic) throw new Error('Fixture must produce a native rejection');
+    await mount(page, 'options', { holdExport: true });
+    await page.locator('#devToggle').check();
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+    await page.evaluate(diagnosticJson => {
+        const h = Reflect.get(window, 'harness');
+        h.exportOptions.onDiagnostic({ ...JSON.parse(diagnosticJson), key: h.exports[0].keys[0], stage: 'source_parse' });
+        h.finishExport();
+    }, JSON.stringify(diagnostic));
+    await expect(page.locator('#exportFailureList summary')).toContainText('Some source content required fallback parsing');
+    const downloaded = page.waitForEvent('download');
+    await page.locator('#btnExportDiag').focus();
+    await page.locator('#btnExportDiag').press('Enter');
+    const filePath = await (await downloaded).path();
+    if (!filePath) throw new Error('Diagnostic download missing');
+    const { readFile } = await import('node:fs/promises');
+    const report = JSON.parse(await readFile(filePath, 'utf8'));
+    expect(report.exportRuns[0].diagnostics[0].details).toEqual(diagnostic.details);
+    expect(report.exportRuns[0].issues[0].diagnostic.details).toEqual(diagnostic.details);
+    expect(JSON.stringify(report)).toContain('PRIVATE_SOURCE_TEXT');
 });

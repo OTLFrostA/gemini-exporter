@@ -26,6 +26,15 @@ Live Save sends a ConversationKey to Background, then uses the same Application
 Markdown export workflow. Business bodies and directory handles do not travel in
 Chrome JSON messages.
 
+The explicit UI diagnostic JSON download includes conversation titles and IDs.
+Gemini structured-body rejection diagnostics also retain the full failed native
+document, rejected node/annotation and its JSON Pointer, and the matching Markdown
+body for local replay. Adapter failures retain the decoded document as JSON text
+and the matching Markdown body. These samples may include private conversation
+text, URLs and file tokens; they stay in diagnostic evidence beside the parse
+result, never in Domain/Document AST fields. Successful native parses do not
+collect these raw samples. Existing diagnostic count limits still apply.
+
 `build.js` maps the relocated source entrypoints to the existing `dist/content`,
 `dist/background` and `dist/ui` bundle names. Manifest paths and sandbox resource
 URLs point to their owning module's source directory.

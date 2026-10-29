@@ -91,7 +91,10 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             code: 'GEMINI_STRUCTURED_FALLBACK',
             message: 'Native structured body unavailable; using Markdown fallback',
             sourceRef,
-            details: { reason: extraction.status, ...(extraction.status === 'decode_rejected' ? { issue: { ...extraction.issue } } : {}) },
+            details: { reason: extraction.status, ...(extraction.status === 'decode_rejected' ? {
+                issue: { ...extraction.issue }, rawDocument: extraction.rawDocument,
+                documentSource: 'turn[3][12]', candidateIndex: 0, fallbackMarkdown: message.content,
+            } : {}) },
         });
         const reasoning = parseSourceReasoning(message.thoughts, { diagnostics: contentDiagnostics, sourceRef });
         const { citations, legacyCitations, sourceCitations } = citationsOf(message);
