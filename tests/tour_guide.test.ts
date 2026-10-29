@@ -432,40 +432,80 @@ for (const step of [{ index: 2, targets: ['#list .item', '#btnSelectAll'] }, { i
     });
 }
 
+
 for (const platform of ['chatgpt', 'claude', 'grok', 'gemini']) {
-    test(`Sync requests missing ${platform} access directly and resumes the selected account`, async () => {
+    test(`A single ${platform} action grants access, opens login, and waits for explicit continuation`, async () => {
         await open({ accounts: [{ id: A, providerId: platform, providerAccountId: 'selected', email: 'selected@example.com' }],
             [platform + 'Access']: false });
         await page.locator('#btnSyncAll').click();
-        await page.locator('#btnAuthorizePlatforms').waitFor();
-        assert.equal(await page.locator('.platform-permission-row:visible').count(), 1);
-        assert.equal(await page.locator('#btnRetryAccountSync').isDisabled(), true);
-        assert.deepEqual(await read(page, 'scans'), []);
-        await page.locator('#btnAuthorizePlatforms').click();
-        await page.waitForFunction(() => Reflect.get(window, 'harness').scans.length === 1);
+        const action = page.locator('#btnAccountConnection');
+        await action.waitFor();
+        assert.equal(await page.locator('.tour-footer button').count(), 1);
+        await action.click();
+        await page.waitForFunction(() => (Reflect.get(window, 'harness').openedUrls ?? []).length === 1);
         assert.deepEqual(await read(page, 'connectionRequests'), [[[platform], true]]);
+        assert.deepEqual(await read(page, 'scans'), []);
+        await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+        await page.getByRole('button', { name: 'Continue sync', exact: true }).waitFor();
+        assert.equal(await page.locator('.tour-popover').count(), 1);
+        assert.deepEqual(await read(page, 'scans'), []);
+        await action.click();
+        await page.waitForFunction(() => Reflect.get(window, 'harness').scans.length === 1);
         assert.equal(await page.locator('#accountIdSelect').inputValue(), A);
     });
 }
 
-test('Granted website access with a disconnected account offers login and retries without changing accounts', async () => {
+test('Returning with the selected account changes the single action to Continue without syncing or closing', async () => {
     await open({ accounts: [{ id: A, providerId: 'chatgpt', providerAccountId: 'selected', email: 'selected@example.com' }],
         chatgptAccess: true, connectionFailure: 'chatgpt' });
     await page.locator('#btnSyncAll').click();
-    await page.locator('#btnRetryAccountSync').waitFor();
-    assert.match(await page.locator('.tour-popover').textContent() ?? '', /selected@example.com/);
-    assert.match(await page.locator('.platform-authorization').textContent() ?? '', /Website access is granted/);
-    assert.equal(await page.locator('#btnAuthorizePlatforms').isVisible(), false);
+    const action = page.locator('#btnAccountConnection');
+    await page.getByRole('button', { name: 'Go to ChatGPT', exact: true }).waitFor();
+    await action.click();
+    await page.waitForFunction(() => (Reflect.get(window, 'harness').openedUrls ?? []).length === 1);
+    assert.deepEqual(await read(page, 'openedUrls'), ['https://chatgpt.com/']);
     assert.deepEqual(await read(page, 'connectionRequests'), []);
-    const popup = page.waitForEvent('popup');
-    await page.locator('#btnOpenAccountPlatform').click();
-    const login = await popup;
-    assert.match(login.url(), /^https:\/\/chatgpt.com\//);
-    await login.close();
-    await page.evaluate(() => { Reflect.get(window, 'harness').connectionFailure = null; });
-    await page.locator('#btnRetryAccountSync').click();
+    await page.evaluate(() => {
+        Reflect.get(window, 'harness').connectionFailure = null;
+        document.dispatchEvent(new Event('visibilitychange'));
+        window.dispatchEvent(new Event('focus'));
+    });
+    await page.getByRole('button', { name: 'Continue sync', exact: true }).waitFor();
+    assert.equal(await page.locator('.tour-footer button').count(), 1);
+    assert.deepEqual(await read(page, 'scans'), []);
+    await action.click();
     await page.waitForFunction(() => Reflect.get(window, 'harness').scans.length === 1);
+    assert.equal(await page.locator('.tour-popover').count(), 0);
     assert.equal(await page.locator('#accountIdSelect').inputValue(), A);
+});
+
+test('Returning with a different account never enables continuation or changes the selected account', async () => {
+    await open({ accounts: [{ id: A, providerId: 'chatgpt', providerAccountId: 'selected' }],
+        chatgptAccess: true, connectionFailure: 'chatgpt' });
+    await page.locator('#btnSyncAll').click();
+    await page.getByRole('button', { name: 'Go to ChatGPT', exact: true }).waitFor();
+    await page.evaluate(({ source }) => {
+        const h = Reflect.get(window, 'harness'); h.connectionFailure = null; h.source = source;
+        window.dispatchEvent(new Event('focus'));
+    }, { source: B });
+    await page.waitForFunction(() => document.querySelector('.tour-popover [role=status]')?.textContent?.includes('not connected'));
+    assert.equal(await page.getByRole('button', { name: 'Go to ChatGPT', exact: true }).count(), 1);
+    assert.equal(await page.locator('#accountIdSelect').inputValue(), A);
+    assert.deepEqual(await read(page, 'scans'), []);
+});
+
+test('Continue verifies the selected account again instead of using stale connected state', async () => {
+    await open({ accounts: [{ id: A, providerId: 'chatgpt', providerAccountId: 'selected' }],
+        chatgptAccess: true, connectionFailure: 'chatgpt' });
+    await page.locator('#btnSyncAll').click();
+    await page.locator('#btnAccountConnection').waitFor();
+    await page.evaluate(() => { Reflect.get(window, 'harness').connectionFailure = null; window.dispatchEvent(new Event('focus')); });
+    await page.getByRole('button', { name: 'Continue sync', exact: true }).waitFor();
+    await page.evaluate(() => { Reflect.get(window, 'harness').connectionFailure = 'chatgpt'; });
+    await page.locator('#btnAccountConnection').click();
+    await page.getByRole('button', { name: 'Go to ChatGPT', exact: true }).waitFor();
+    assert.deepEqual(await read(page, 'scans'), []);
+    assert.equal(await page.locator('.tour-popover').count(), 1);
 });
 
 test('Standalone access explains that website permission does not connect accounts', async () => {
@@ -475,13 +515,44 @@ test('Standalone access explains that website permission does not connect accoun
     assert.equal(await page.locator('#btnAuthorizePlatforms').isVisible(), false);
 });
 
-test('Declining access keeps the selected account recovery open and does not scan', async () => {
+test('Declining access keeps the single Go action available and never scans or opens a site', async () => {
     await open({ accounts: [{ id: A, providerId: 'chatgpt', providerAccountId: 'selected' }],
         chatgptAccess: false, permissionDenied: true });
     await page.locator('#btnSyncAll').click();
-    await page.locator('#btnAuthorizePlatforms').click();
-    await page.waitForFunction(() => document.querySelector('.platform-authorization [role=status]')?.textContent?.includes('not granted'));
-    assert.equal(await page.locator('#btnRetryAccountSync').isDisabled(), true);
+    await page.locator('#btnAccountConnection').click();
+    await page.waitForFunction(() => document.querySelector('.tour-popover [role=status]')?.textContent?.includes('not granted'));
+    assert.equal(await page.getByRole('button', { name: 'Go to ChatGPT', exact: true }).isEnabled(), true);
     assert.deepEqual(await read(page, 'scans'), []);
-    assert.equal(await page.locator('#accountIdSelect').inputValue(), A);
+    assert.deepEqual(await read(page, 'openedUrls') ?? [], []);
+});
+
+test('Returning during an older connection check refreshes after it settles', async () => {
+    await open({ accounts: [{ id: A, providerId: 'chatgpt', providerAccountId: 'selected' }],
+        chatgptAccess: true, connectionFailure: 'chatgpt' });
+    await page.locator('#btnSyncAll').click();
+    await page.getByRole('button', { name: 'Go to ChatGPT', exact: true }).waitFor();
+    await page.evaluate(() => { const h = Reflect.get(window, 'harness'); h.holdConnectionCheck = true; window.dispatchEvent(new Event('focus')); });
+    await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishConnectionCheck === 'function');
+    await page.evaluate(() => {
+        const h = Reflect.get(window, 'harness'); h.holdConnectionCheck = false; h.connectionFailure = null;
+        window.dispatchEvent(new Event('focus')); h.finishConnectionCheck();
+    });
+    await page.getByRole('button', { name: 'Continue sync', exact: true }).waitFor();
+    assert.deepEqual(await read(page, 'scans'), []);
+});
+
+test('Closing during connection detection ignores the pending result', async () => {
+    await open({ accounts: [{ id: A, providerId: 'chatgpt', providerAccountId: 'selected' }],
+        chatgptAccess: true, connectionFailure: 'chatgpt' });
+    await page.locator('#btnSyncAll').click();
+    await page.getByRole('button', { name: 'Go to ChatGPT', exact: true }).waitFor();
+    await page.evaluate(() => {
+        const h = Reflect.get(window, 'harness'); h.holdConnectionCheck = true; h.connectionFailure = null;
+        window.dispatchEvent(new Event('focus'));
+    });
+    await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishConnectionCheck === 'function');
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => Reflect.get(window, 'harness').finishConnectionCheck());
+    assert.equal(await page.locator('.tour-popover').count(), 0);
+    assert.deepEqual(await read(page, 'scans'), []);
 });

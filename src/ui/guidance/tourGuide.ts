@@ -2,7 +2,8 @@ import { STEPS } from './tourSteps.js';
 import { text } from '../shared/settings.js';
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
 import { SOURCE_PLATFORMS, type SourcePlatform } from '../../shared/platformHosts.js';
-import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
+import { hasPlatformAccess, requestPlatformAuthorization, activatePlatformAccess, openPlatformSignIn } from '../../runtime/capabilities/platformAuthorization.js';
+import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
 let root: HTMLElement | null = null;
 let stepIndex = 0;
 let mode: 'tour' | 'spotlight' | 'takeout' | 'authorization' | null = null;
@@ -305,28 +306,105 @@ function showPlatformAuthorization(connected?: (accountId: string) => Promise<vo
 }
 
 /** Recover the selected account without silently switching to another signed-in account. */
-function showAccountConnection(platform: SourcePlatform, accountLabel: string, retry: () => void): void {
+function showAccountConnection(platform: SourcePlatform, accountId: string, accountLabel: string, retry: () => void): void {
     if (modalOpen()) return;
     destroy(); mode = 'authorization';
     const names: Record<SourcePlatform, string> = { gemini: 'Gemini', chatgpt: 'ChatGPT', claude: 'Claude', grok: 'Grok' };
-    const urls: Record<SourcePlatform, string> = { gemini: 'https://gemini.google.com/', chatgpt: 'https://chatgpt.com/',
-        claude: 'https://claude.ai/', grok: 'https://grok.com/' };
     const name = names[platform];
     const popover = overlay(null, text(`Connect ${name} account`, `连接 ${name} 账号`),
-        text(`To sync ${accountLabel}, open ${name} and sign in to this account. If another account is signed in, switch accounts there first.`,
-            `要同步 ${accountLabel}，请打开 ${name} 登录该账号。如果网页上登录的是其他账号，请先切换账号。`),
+        text(`Open ${name} and sign in to ${accountLabel}, then return here. If another account is signed in, switch accounts there first.`,
+            `请前往 ${name} 登录 ${accountLabel}，然后返回此窗口。如果网页上登录的是其他账号，请先切换账号。`),
         false, [], 'bottom', text('Account connection', '账号连接'));
     const bar = footer(popover);
-    const host = document.createElement('div');
-    popover.insertBefore(host, bar);
-    button(bar, text(`Open ${name} to sign in`, `打开 ${name} 登录`), () => {
-        window.open(urls[platform], '_blank', 'noopener,noreferrer');
-    }, 'btnOpenAccountPlatform', 'tour-nav-btn');
-    const retryButton = button(bar, text('Retry sync', '重试同步'), () => { close(); retry(); }, 'btnRetryAccountSync', 'tour-nav-btn primary');
-    retryButton.disabled = true;
-    cleanupStep = mountPlatformAuthorization(host, { platforms: [platform], selectedPlatforms: [platform],
-        ready: ready => { retryButton.disabled = !ready; },
-        granted: () => { close(); retry(); } });
+    const status = document.createElement('p');
+    status.className = 'tour-status-indicator';
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    popover.insertBefore(status, bar);
+    let active = true;
+    let access = false;
+    let connected = false;
+    let navigating = false;
+    let checking: Promise<boolean> | undefined;
+    let refreshWhenSettled = false;
+    const renderAction = () => {
+        action.textContent = connected ? text('Continue sync', '继续同步') : text(`Go to ${name}`, `前往 ${name}`);
+        action.disabled = navigating || !!checking;
+    };
+    const checkConnection = (): Promise<boolean> => {
+        if (!active) return Promise.resolve(false);
+        if (checking) return checking;
+        connected = false;
+        status.textContent = text('Checking account connection…', '正在检查账号连接…');
+        checking = (async () => {
+            try {
+                access = await hasPlatformAccess(platform);
+                const target = access ? await resolveScanTarget(accountId) : null;
+                if (!active) return false;
+                connected = target === accountId;
+                status.textContent = connected
+                    ? text('Account connected. Continue sync when ready.', '账号已连接，点击“继续同步”即可开始同步。')
+                    : text('The selected account is not connected. Sign in on the platform, then return here.', '尚未连接所选账号。请前往平台登录该账号后返回此窗口。');
+                return connected;
+            } catch {
+                if (active) status.textContent = text('Could not verify the selected account. Sign in on the platform, then return here.',
+                    '尚未确认所选账号的连接。请前往平台登录该账号后返回此窗口。');
+                return false;
+            } finally {
+                checking = undefined;
+                if (active) {
+                    renderAction();
+                    if (refreshWhenSettled) {
+                        refreshWhenSettled = false;
+                        void checkConnection();
+                    }
+                }
+            }
+        })();
+        renderAction();
+        return checking;
+    };
+    const action = button(bar, text(`Go to ${name}`, `前往 ${name}`), () => {
+        if (!active || navigating || checking) return;
+        if (connected) {
+            // Verify again immediately before resuming; a previous visit is not proof of account identity.
+            void checkConnection().then(verified => { if (active && verified) { close(); retry(); } });
+            return;
+        }
+        // Preserve the user gesture when website access still needs a native prompt.
+        const request = access ? Promise.resolve(true) : requestPlatformAuthorization([platform]);
+        navigating = true;
+        renderAction();
+        void (async () => {
+            if (!await request) {
+                if (active) status.textContent = text('Website access was not granted. Try again to connect this account.', '未获得网站访问权限，请重试以连接该账号。');
+                return;
+            }
+            if (!active) return;
+            await activatePlatformAccess([platform]);
+            if (!active) return;
+            await openPlatformSignIn(platform);
+            if (active) status.textContent = text('Sign in to the selected account, then return here.', '请登录所选账号，然后返回此窗口。');
+        })().catch(() => {
+            if (active) status.textContent = text('Could not open the platform. Please try again.', '未能打开平台，请重试。');
+        }).finally(() => {
+            navigating = false;
+            if (active) renderAction();
+        });
+    }, 'btnAccountConnection', 'tour-nav-btn primary');
+    const returned = () => {
+        if (!active || navigating || document.hidden) return;
+        if (checking) refreshWhenSettled = true;
+        else void checkConnection();
+    };
+    window.addEventListener('focus', returned);
+    document.addEventListener('visibilitychange', returned);
+    cleanupStep = () => {
+        active = false;
+        window.removeEventListener('focus', returned);
+        document.removeEventListener('visibilitychange', returned);
+    };
+    void checkConnection();
     relayout?.();
 }
 

@@ -363,8 +363,8 @@ export async function initWorkbench(): Promise<void> {
         const platform = SOURCE_PLATFORMS.find(platform => platform === selected?.providerId);
         const access = platform ? await hasPlatformAccess(platform) : true;
         signal.throwIfAborted();
-        if (platform && !access) {
-            TourGuide.showAccountConnection(platform, selected?.email || selected?.displayName || platform,
+        if (selected && platform && !access) {
+            TourGuide.showAccountConnection(platform, selected.id, selected.email || selected.displayName || platform,
                 () => { void scan(forceFull); });
             return;
         }
@@ -410,7 +410,8 @@ export async function initWorkbench(): Promise<void> {
         }
     }, true, failure => {
         const account = state.accounts.find(a => a.id === state.accountId);
-        TourGuide.showAccountConnection(failure.platform, account?.email || account?.displayName || failure.platform,
+        if (!account) return;
+        TourGuide.showAccountConnection(failure.platform, account.id, account.email || account.displayName || failure.platform,
             () => { void scan(forceFull); });
     });
     const moreActionsButton = control('button', 'btnMoreActions');

@@ -51,3 +51,10 @@ export function observePlatformAccess(listener: () => void): () => void {
         chrome.permissions?.onRemoved?.removeListener(listener);
     };
 }
+
+/** Extension navigation remains available after an asynchronous native permission prompt. */
+export async function openPlatformSignIn(platform: SourcePlatform): Promise<void> {
+    const urls: Record<SourcePlatform, string> = { gemini: 'https://gemini.google.com/', chatgpt: 'https://chatgpt.com/',
+        claude: 'https://claude.ai/', grok: 'https://grok.com/' };
+    await chrome.tabs.create({ url: urls[platform] });
+}
