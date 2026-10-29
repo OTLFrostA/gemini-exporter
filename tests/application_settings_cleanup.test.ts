@@ -5,13 +5,15 @@ import { getSettings, updateSettings, isLiveSaveEffective } from '../src/applica
 import { clearLocalScanRecords, clearLocalExportRecords } from '../src/application/localCleanup.js';
 
 test.beforeEach(reset);
-test('Settings defaults are applied only on read; explicit false is preserved', async () => {
-    assert.deepEqual(await getSettings(), { defaultFormat: 'markdown', skipExported: true, includeAssets: true, enabledDisk: false, developerMode: false, exportDelivery: 'browserDownload' });
+test('Settings defaults are applied only on read; explicit choices are preserved', async () => {
+    assert.deepEqual(await getSettings(), { defaultFormat: 'markdown', skipExported: true, includeAssets: false, enabledDisk: false, developerMode: false, exportDelivery: 'browserDownload' });
     assert.deepEqual(events, []);
     await updateSettings({ includeAssets: false, language: 'en' });
     await updateSettings({ enabledDisk: true });
     const settings = await getSettings();
     assert.equal(settings.includeAssets, false);
+    await updateSettings({ includeAssets: true });
+    assert.equal((await getSettings()).includeAssets, true);
     assert.equal(settings.language, 'en'); assert.equal(settings.enabledDisk, true);
 });
 test('sparse Settings patches preserve optional Spotlight, Takeout and Badge state', async () => {
