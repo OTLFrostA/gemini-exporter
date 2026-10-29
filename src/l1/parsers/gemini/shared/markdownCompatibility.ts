@@ -70,6 +70,7 @@ function normalizeMathFences(source: string): string {
         const line = lines[i];
         const trimmed = line.trimStart();
 
+        // Track code blocks (``` or ~~~) so math delimiters inside code are left untouched
         if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
             const fence = trimmed.slice(0, 3);
             if (!inCodeBlock) {

@@ -33,6 +33,8 @@ export function parseDil(source: string): DilNode[] {
         const flush = () => { if (at > textStart) nodes.push({ ...node('text', source.slice(textStart, at), textStart), end: at }); };
         while (at < source.length) {
             if (--budget < 0) throw new Error('Component token limit');
+            // Treat Markdown code and math as opaque, including component-like
+            // strings, braces, comparison signs and XML inside code examples.
             const tail = source.slice(at);
             const fence = /^((?:`{3,}|~{3,})[`~]*)[^\n]*\n/.exec(tail);
             if (fence && (at === 0 || source[at - 1] === '\n')) {

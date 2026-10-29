@@ -117,6 +117,8 @@ export function parseToolUse(block: ClaudeToolUse, state: ToolState,
         // Memory persistence is an operational side effect, not an authored Artifact.
         blocks.push(plain('Memory ' + memoryOperation(block.name)));
     } else if (['toolsearch', 'listconnectors', 'searchmcpregistry', 'suggestconnectors', 'skill'].includes(name)) {
+        // Discovery parameters/registry IDs are orchestration metadata. The associated
+        // result carries the actual connector cards or tool references.
     } else {
         // An unparsed file operation could have changed the retained source.
         // Do not reuse old bytes for a later publish of that file.

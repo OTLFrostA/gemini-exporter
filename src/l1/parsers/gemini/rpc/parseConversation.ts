@@ -79,6 +79,7 @@ export function parseGeminiRpcConversation(text: string | GeminiResponseEnvelope
     return parseGeminiDetailEvidence(evidence, context);
 }
 
+/** Adapt decoded native source evidence; also used by offline Gemini differential audits. */
 export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, context: GeminiRpcParseContext): GeminiRpcParseResult {
     if (context.providerId !== 'gemini') throw new TypeError('Gemini evidence adapter requires providerId gemini');
     const contentDiagnostics: Diagnostic[] = [];

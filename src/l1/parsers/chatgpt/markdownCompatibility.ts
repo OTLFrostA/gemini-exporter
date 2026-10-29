@@ -15,6 +15,8 @@
 // Fenced code blocks and inline code keep their backslashes and dollars.
 const CODE_SPAN = /(```[\s\S]*?(?:```|$)|`[^`\n]+`)/g;
 
+// Own-line `\[ ... \]` -> `$$` block; anywhere `\[...\]` -> `$$...$$`;
+// `\(...\)` -> `$...$`. Code spans are shielded by the caller.
 const BRACKET_DISPLAY_OWN_LINES = /^[ \t]*\\\[(?<block>[\s\S]+?)\\\][ \t]*$/gm;
 const BRACKET_DISPLAY_INLINE = /\\\[(?<display>[\s\S]+?)\\\]/g;
 // An unclosed opener must not absorb a later formula or a different table row.
@@ -52,6 +54,7 @@ function normalizeMathOutsideCode(text: string): string {
 /** Normalize one ChatGPT message body for the shared Markdown parser. */
 export function preprocessChatGPTMarkdown(source: string): string {
     if (!source) return source;
+    // Shield code spans from every rewrite below.
     const parts = source.split(CODE_SPAN);
     for (let i = 0; i < parts.length; i += 2) {
         let part = parts[i] ?? '';

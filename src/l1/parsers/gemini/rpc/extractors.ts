@@ -118,6 +118,8 @@ export interface DecodedGeminiCandidate {
     groundingCitationMarkers: string[];
 }
 
+/** Known fields read once from a Turn. Selected wire evidence stays within
+ * the L1 decoder and is consumed by specialized resource decoders. */
 export interface DecodedGeminiTurn {
     userText: string;
     timestamp: number | null;

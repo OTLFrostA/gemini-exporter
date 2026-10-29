@@ -63,6 +63,7 @@ export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null 
             }
         }
     } catch {
+        /* ignore DOM query errors */
     }
 
     // Current Gemini bootstrap: qDCSke is Gaia, oPEP7c is the current account email.
@@ -81,6 +82,7 @@ export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null 
             }
         }
     } catch {
+        /* ignore */
     }
 
     if (!email && !gaiaId) {
