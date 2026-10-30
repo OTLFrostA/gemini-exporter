@@ -60,7 +60,7 @@ test('adapter commits a natural empty terminal before callback and exposes no ag
     const provider = new GeminiProvider({ getConversationList: async () => sourceList('G_SOURCE_EMPTY_01'), getConversationDetail: async () => sourceDetail() }, async () => 'u0');
     let progress: unknown;
     assert.equal(await provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent', onPageCommitted: async info => { progress = info; return false; } }), 'source_end');
-    assert.deepEqual(Object.keys(progress as object).sort(), ['page', 'scanHead', 'totalObserved']);
+    assert.deepEqual(Object.keys(progress as object).sort(), ['indexChanges', 'page', 'scanHead', 'totalObserved']);
 });
 test('adapter readiness is account-bound and reports credential failures without manufacturing account names', async () => {
     const original = credentials.resolveCred;
