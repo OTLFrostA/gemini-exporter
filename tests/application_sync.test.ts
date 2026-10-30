@@ -60,6 +60,16 @@ test('Scan All accepts a verified ChatGPT account and passes its UUID to the reg
         status: 'complete', pagesFetched: 1, conversationsFetched: 2,
     });
 });
+test('Scan All aggregates actual committed metadata admissions instead of source row counts', async () => {
+    provider.listConversations = async options => {
+        await options.onPageCommitted!({ page: 1, totalObserved: 25, indexChanges: { added: 12, updated: 8 } });
+        await options.onPageCommitted!({ page: 2, totalObserved: 40, indexChanges: { added: 0, updated: 1 } });
+        return 'source_end';
+    };
+    assert.deepEqual(await scanAll({ accountId: account.id }), {
+        status: 'complete', pagesFetched: 2, conversationsFetched: 40, indexChanges: { added: 12, updated: 9 },
+    });
+});
 test('unexpected Provider termination becomes a structured error, never undefined', async () => {
     provider.listConversations = async () => 'unknown_end' as ListEnd;
     assert.deepEqual(await scanAll({ accountId: account.id }), {
