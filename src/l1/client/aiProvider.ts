@@ -28,6 +28,7 @@ export interface ProviderListOptions {
     accountId: Account['id'];
     streamId: string;
     signal?: AbortSignal;
+    onDiagnostic?: (diagnostic: Diagnostic) => void;
     onPageCommitted?: (info: CommittedListPage) => Promise<boolean>;
 }
 

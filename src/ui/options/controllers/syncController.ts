@@ -1,3 +1,4 @@
+import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { scanAll } from '../../../application/sync/scanController.js';
 import type { ScanProgress, ScanResult } from '../../../application/sync/scanController.js';
 import { resolveScanTarget } from '../../../runtime/capabilities/tabService.js';
@@ -7,6 +8,7 @@ export async function startSync(preferredAccountId: string | undefined, options:
     signal: AbortSignal; forceFull?: boolean;
     onTarget: (id: string) => Promise<void>;
     onProgress?: (progress: ScanProgress) => void;
+    onDiagnostic?: (diagnostic: Diagnostic) => void;
 }, ports = {
     resolveScanTarget, scanAll
 }): Promise<ScanResult> {
@@ -15,5 +17,5 @@ export async function startSync(preferredAccountId: string | undefined, options:
     await options.onTarget(accountId);
     options.signal.throwIfAborted();
     return ports.scanAll({ accountId, ...(options.forceFull ? { forceFull: true } : {}) },
-        { signal: options.signal, onProgress: options.onProgress });
+        { signal: options.signal, onProgress: options.onProgress, onDiagnostic: options.onDiagnostic });
 }

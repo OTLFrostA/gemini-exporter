@@ -1,3 +1,4 @@
+import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 import { notifyDomainChanged } from '../../runtime/api/domainChanges.js';
 import { getAccount } from '../../runtime/api/accountRegistry.js';
 import { DEFAULT_ACCOUNT_KEY, isAccountId } from '../../l2/accountRegistry.js';
@@ -20,6 +21,7 @@ const active = new Set<string>();
 
 export async function scanAll(request: ScanRequest, options: {
     onProgress?: (progress: ScanProgress) => void;
+    onDiagnostic?: (diagnostic: Diagnostic) => void;
     signal?: AbortSignal;
 } = {}): Promise<ScanResult> {
     const { accountId } = request;
@@ -44,7 +46,7 @@ export async function scanAll(request: ScanRequest, options: {
         const baseline = previous ? structuredClone(previous) : null;
         let scanHead: ScanHead | undefined;
         let verifiedStop = false;
-        const end = await provider.listConversations({ accountId, streamId: 'recent', signal: options.signal,
+        const end = await provider.listConversations({ accountId, streamId: 'recent', signal: options.signal, onDiagnostic: options.onDiagnostic,
             onPageCommitted: async info => {
                 notifyDomainChanged(accountId);
                 counts.pagesFetched = info.page;

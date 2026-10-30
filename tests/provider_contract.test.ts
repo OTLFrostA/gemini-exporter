@@ -14,7 +14,7 @@ type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B 
 type Contracts = [
     Assert<Equal<ReturnType<AIProvider['listConversations']>, Promise<ListEnd>>>,
     Assert<Equal<ReturnType<AIProvider['fetchConversationDetail']>, Promise<void>>>,
-    Assert<Equal<keyof ProviderListOptions, 'accountId' | 'streamId' | 'signal' | 'onPageCommitted'>>,
+    Assert<Equal<keyof ProviderListOptions, 'accountId' | 'streamId' | 'signal' | 'onPageCommitted' | 'onDiagnostic'>>,
     Assert<Equal<keyof CommittedListPage, 'page' | 'totalObserved' | 'scanHead'>>,
     Assert<'key' extends keyof SourceConversationParseResult['conversation']['index'] ? false : true>,
     Assert<'key' extends keyof SourceConversationParseResult['conversation']['detail'] ? false : true>,

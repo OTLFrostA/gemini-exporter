@@ -1,3 +1,4 @@
+import type { Diagnostic } from '../src/shared/diagnostics/diagnostic.js';
 import { ResourceHttpError } from '../src/shared/resources/resourceResult.js';
 import { chatGPTSandboxLocator, readChatGPTSandboxLocator } from '../src/l1/resources/chatgptSandbox.js';
 import { parseOpenAIConversation } from '../src/l1/parsers/chatgpt/parseExportConversation.js';
@@ -831,6 +832,7 @@ test('ChatGPT 429 respects Retry-After, reuses its token, and retries the same p
     t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['retry-user', 'retry-space']));
     let calls = 0, sessions = 0;
+    const diagnostics: Diagnostic[] = [];
     const provider = new ChatGPTProvider({ fetchFn: async url => {
         if (url.endsWith('/api/auth/session')) {
             sessions++;
@@ -838,10 +840,10 @@ test('ChatGPT 429 respects Retry-After, reuses its token, and retries the same p
         }
         calls++;
         assert.ok(url.endsWith('/conversations?offset=0&limit=100'));
-        return calls === 1 ? new Response(chatgptListGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_EMPTY_01'), { status: 429, headers: { 'Retry-After': '90' } })
+        return calls === 1 || calls === 3 ? new Response(chatgptListGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_EMPTY_01'), { status: 429, headers: { 'Retry-After': '90' } })
             : new Response(JSON.stringify(chatgptListGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_LIST_01')));
     } });
-    const pending = provider.listConversations({ accountId: account.id, streamId: 'recent' });
+    const pending = provider.listConversations({ accountId: account.id, streamId: 'recent', onDiagnostic: d => diagnostics.push(d) });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(calls, 1);
     t.mock.timers.tick(89999);
@@ -850,23 +852,45 @@ test('ChatGPT 429 respects Retry-After, reuses its token, and retries the same p
     t.mock.timers.tick(1);
     assert.equal(await pending, 'source_end');
     assert.equal(calls, 2); assert.equal(sessions, 1);
+    assert.deepEqual(diagnostics.map(d => d.code), ['CHATGPT_RATE_LIMITED', 'CHATGPT_BACKOFF_WAIT', 'CHATGPT_BACKOFF_END']);
+    const limited = diagnostics[0]?.details;
+    assert.ok(limited && typeof limited === 'object' && !Array.isArray(limited));
+    assert.equal(limited.httpStatus, 429);
+    assert.equal(limited.retryAfterMs, 90000);
+    assert.equal(limited.attempt, 0);
+    assert.equal(limited.willRetry, true);
+    assert.doesNotMatch(JSON.stringify(diagnostics), /Bearer|accessToken|backend-api|retry-user/);
+    const next = provider.listConversations({ accountId: account.id, streamId: 'recent', onDiagnostic: d => diagnostics.push(d) });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls, 3, 'a successful retry does not establish a persistent pacing interval');
+    const again = diagnostics.filter(d => d.code === 'CHATGPT_RATE_LIMITED').at(-1)?.details;
+    assert.ok(again && typeof again === 'object' && !Array.isArray(again));
+    assert.equal(again.attempt, 0, 'each new request starts its own retry budget');
+    t.mock.timers.tick(90000);
+    assert.equal(await next, 'source_end');
+    assert.equal(calls, 4);
 });
 
 test('ChatGPT 429 cooldown aborts promptly without another request', async t => {
     t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
     const account = await getOrCreateAccount('chatgpt', JSON.stringify(['abort-user', 'abort-space']));
     let calls = 0;
+    const diagnostics: Diagnostic[] = [];
     const provider = new ChatGPTProvider({ fetchFn: async url => {
         if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify(chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_ABORT_429_SESSION_01')));
         calls++; return new Response(chatgptListGen('C_PROVIDER_CHATGPT_TREE_ABORT_429_EMPTY_01'), { status: 429, headers: { 'Retry-After': '90' } });
     } });
     const controller = new AbortController();
-    const pending = provider.listConversations({ accountId: account.id, streamId: 'recent', signal: controller.signal });
+    const pending = provider.listConversations({ accountId: account.id, streamId: 'recent', signal: controller.signal, onDiagnostic: d => diagnostics.push(d) });
     const rejected = assert.rejects(pending, { name: 'AbortError' });
     await new Promise(resolve => setImmediate(resolve));
     controller.abort(); await rejected;
     t.mock.timers.tick(180000);
     assert.equal(calls, 1);
+    assert.equal(diagnostics.at(-1)?.code, 'CHATGPT_BACKOFF_END');
+    const end = diagnostics.at(-1)?.details;
+    assert.ok(end && typeof end === 'object' && !Array.isArray(end));
+    assert.equal(end.aborted, true);
 });
 
 test('ChatGPT 429 retries are bounded; a later 401 refresh rejects a changed account', async t => {
@@ -1147,4 +1171,44 @@ test('ChatGPT missing Retry-After retains bounded 30/60/120 second backoff', asy
     }
     await rejected;
     assert.deepEqual(requestedAt, [0, 30000, 90000, 210000]);
+});
+
+test('attachment locator 429 exposes its wait and shares the cooldown with other account API reads', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+    const account = await getOrCreateAccount('chatgpt', JSON.stringify(['retry-user', 'retry-space']));
+    let locatorCalls = 0, listCalls = 0;
+    const attachmentDiagnostics: Diagnostic[] = [], listDiagnostics: Diagnostic[] = [];
+    const provider = new ChatGPTProvider({ fetchFn: async url => {
+        if (url.endsWith('/api/auth/session')) return Response.json(chatgptSessionGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_SESSION_01'));
+        if (url.includes('/files/download/')) {
+            locatorCalls++;
+            return locatorCalls === 1 ? new Response(null, { status: 429, headers: { 'Retry-After': '60' } })
+                : Response.json(fileDownloadGen('C_FILE_DOWNLOAD_ACQUIRE_01'));
+        }
+        if (url.includes('/conversations?')) {
+            listCalls++;
+            return Response.json(chatgptListGen('C_PROVIDER_CHATGPT_TREE_RETRY_429_LIST_01'));
+        }
+        return new Response(signedAssetGen('C_SIGNED_ASSET_CAT_PNG_01'));
+    } });
+    const attachment = provider.acquireResource({ accountId: account.id, conversationId: 'shared-wait' },
+        { id: 'asset', kind: 'file', sourceUri: 'sediment://file_cat' }, undefined, d => attachmentDiagnostics.push(d));
+    await new Promise(resolve => setImmediate(resolve));
+    const list = provider.listConversations({ accountId: account.id, streamId: 'recent', onDiagnostic: d => listDiagnostics.push(d) });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(locatorCalls, 1);
+    assert.equal(listCalls, 0);
+    assert.ok(attachmentDiagnostics.some(d => d.code === 'CHATGPT_RATE_LIMITED'));
+    assert.equal(listDiagnostics[0]?.code, 'CHATGPT_BACKOFF_WAIT');
+    t.mock.timers.tick(59999);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(listCalls, 0);
+    t.mock.timers.tick(1);
+    const [bytes, end] = await Promise.all([attachment, list]);
+    assert.ok(bytes.bytes.length);
+    assert.equal(end, 'source_end');
+    assert.equal(locatorCalls, 2);
+    assert.equal(listCalls, 1);
+    assert.ok(attachmentDiagnostics.some(d => d.code === 'CHATGPT_BACKOFF_END'));
+    assert.equal(listDiagnostics.at(-1)?.code, 'CHATGPT_BACKOFF_END');
 });

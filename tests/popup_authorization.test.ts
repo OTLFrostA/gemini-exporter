@@ -122,3 +122,21 @@ test('Popup admits only valid L2 conversation keys from Content IPC', async () =
         await page.close();
     }
 });
+
+test('Popup displays the active 429 wait and restores export text when it ends', async () => {
+    page = await browser.newPage();
+    await mount(page, 'popup', { holdExport: true });
+    await page.waitForFunction(() => !(document.getElementById('btnCurrent') as HTMLButtonElement).disabled);
+    await page.locator('#btnCurrent').click();
+    await page.waitForFunction(() => !!Reflect.get(window, 'harness').exportOptions);
+    await page.evaluate(() => Reflect.get(window, 'harness').exportOptions.onDiagnostic({
+        code: 'CHATGPT_BACKOFF_WAIT', details: { requestId: 'popup', retryAt: Date.now() + 60000 },
+    }));
+    assert.match(await page.locator('#status').innerText(), /429.*backing off/);
+    await page.evaluate(() => Reflect.get(window, 'harness').exportOptions.onDiagnostic({
+        code: 'CHATGPT_BACKOFF_END', details: { requestId: 'popup' },
+    }));
+    assert.equal(await page.locator('#status').innerText(), 'Preparing export…');
+    await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Download initiated');
+});
