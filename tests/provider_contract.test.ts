@@ -15,7 +15,7 @@ type Contracts = [
     Assert<Equal<ReturnType<AIProvider['listConversations']>, Promise<ListEnd>>>,
     Assert<Equal<ReturnType<AIProvider['fetchConversationDetail']>, Promise<void>>>,
     Assert<Equal<keyof ProviderListOptions, 'accountId' | 'streamId' | 'signal' | 'onPageCommitted' | 'onDiagnostic'>>,
-    Assert<Equal<keyof CommittedListPage, 'page' | 'totalObserved' | 'scanHead'>>,
+    Assert<Equal<keyof CommittedListPage, 'page' | 'totalObserved' | 'scanHead' | 'indexChanges'>>,
     Assert<'key' extends keyof SourceConversationParseResult['conversation']['index'] ? false : true>,
     Assert<'key' extends keyof SourceConversationParseResult['conversation']['detail'] ? false : true>,
     Assert<GeminiProvider extends AIProvider ? true : false>,
