@@ -49,7 +49,10 @@ export function handleDomainIngestionMessage(message: unknown, sender: chrome.ru
                     return { conversationId: key.conversationId, fields };
                 });
                 const page = request.page === undefined ? undefined : readPageHead(request.page);
-                await ingestIndexes(account.id, items, page);
+                const changes = await ingestIndexes(account.id, items, page);
+                notifyDomainChanged(account.id);
+                respond({ ok: true, result: changes });
+                return;
             } else if (request.operation === 'detail') {
                 if (typeof request.conversationId !== 'string' || !request.conversationId) throw new TypeError('Expected conversation ID');
                 const key = { accountId: account.id, conversationId: request.conversationId };
