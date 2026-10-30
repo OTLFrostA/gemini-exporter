@@ -228,7 +228,7 @@ export class ChatGPTProvider implements AIProvider {
             };
             // Keep individually parsed Index rows even when source-page evidence is
             // insufficient for trusted Coverage. Never report such a run complete.
-            await ingestIndexes(account.id, result.conversations.map(item => ({ conversationId: item.id, fields: {
+            const indexChanges = await ingestIndexes(account.id, result.conversations.map(item => ({ conversationId: item.id, fields: {
                 ...(item.title ? { title: item.title, titleSource: 'provider' as const } : {}),
                 ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}),
                 ...(item.updatedAt !== undefined ? { updatedAt: item.updatedAt } : {}) } })),
@@ -237,7 +237,7 @@ export class ChatGPTProvider implements AIProvider {
             totalObserved += count;
             const trustedHead = !sentHead && page === 1 && valid && ordered && account.providerAccountId !== 'default';
             if (trustedHead) sentHead = true;
-            const stop = await options.onPageCommitted?.({ page, totalObserved,
+            const stop = await options.onPageCommitted?.({ page, totalObserved, indexChanges,
                 ...(trustedHead ? { scanHead: evidence } : {}) });
             if (!valid || !ordered || account.providerAccountId === 'default')
                 throw new OperationError('SOURCE_RESPONSE_INVALID', 'Unverified ChatGPT list page');
