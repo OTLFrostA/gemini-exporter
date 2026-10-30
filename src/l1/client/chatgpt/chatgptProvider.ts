@@ -116,14 +116,27 @@ export class ChatGPTProvider implements AIProvider {
         }
     }
     private async authedGet(path: string, account: Account, signal?: AbortSignal,
-        notFoundCode: 'SOURCE_HTTP_ERROR' | 'RESOURCE_LOCATOR_UNAVAILABLE' = 'SOURCE_HTTP_ERROR'): Promise<unknown> {
+        notFoundCode: 'SOURCE_HTTP_ERROR' | 'RESOURCE_LOCATOR_UNAVAILABLE' = 'SOURCE_HTTP_ERROR',
+        onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<unknown> {
+        const requestId = crypto.randomUUID();
         for (let attempt = 0; ; attempt++) {
             // Account-scoped cooldown also applies to another request on this
             // provider. A cancelled export must not erase the server deadline.
             let remaining = (this.cooldowns.get(account.id) ?? 0) - Date.now();
-            while (remaining > 0) {
-                if (await abortableSleep(remaining, signal)) signal?.throwIfAborted();
-                remaining = (this.cooldowns.get(account.id) ?? 0) - Date.now();
+            if (remaining > 0) {
+                try {
+                    while (remaining > 0) {
+                        emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_BACKOFF_WAIT',
+                            message: 'ChatGPT request is waiting for the account rate-limit cooldown',
+                            details: { requestId, attempt, retryAt: Date.now() + remaining, delayMs: remaining } });
+                        if (await abortableSleep(remaining, signal)) signal?.throwIfAborted();
+                        remaining = (this.cooldowns.get(account.id) ?? 0) - Date.now();
+                    }
+                } finally {
+                    emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_BACKOFF_END',
+                        message: 'ChatGPT cooldown wait ended; this does not establish a successful retry',
+                        details: { requestId, attempt, aborted: signal?.aborted ?? false } });
+                }
             }
             signal?.throwIfAborted();
             const res = await this.authenticatedRequest(path, account, signal);
@@ -136,6 +149,10 @@ export class ChatGPTProvider implements AIProvider {
                 const retryAfterMs = Number.isFinite(seconds) ? seconds : Number.isFinite(date) ? Math.max(0, date) : undefined;
                 const delay = retryAfterMs ?? calculateBackoff(attempt, { initialDelayMs: 30000, maxDelayMs: 120000 });
                 this.cooldowns.set(account.id, Math.max(this.cooldowns.get(account.id) ?? 0, Date.now() + delay));
+                emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_RATE_LIMITED',
+                    message: 'ChatGPT returned HTTP 429', details: { requestId, httpStatus: 429, attempt,
+                        retryAfterMs: retryAfterMs ?? null, delayMs: delay, retryAt: this.cooldowns.get(account.id) ?? null,
+                        willRetry: attempt < 3 } });
                 if (attempt < 3) continue;
             }
             if (!res.ok) throw new OperationError(res.status === 404 ? notFoundCode : 'SOURCE_HTTP_ERROR',
@@ -175,7 +192,7 @@ export class ChatGPTProvider implements AIProvider {
             options.signal?.throwIfAborted();
             const offset = (page - 1) * 100;
             const requestedAt = Date.now();
-            const result = parseChatGPTList(await this.authedGet(`/conversations?offset=${offset}&limit=100`, account, options.signal));
+            const result = parseChatGPTList(await this.authedGet(`/conversations?offset=${offset}&limit=100`, account, options.signal, 'SOURCE_HTTP_ERROR', options.onDiagnostic));
             options.signal?.throwIfAborted();
             const count = result.conversations.length;
             const sourceEnd = result.total !== undefined && offset + count === result.total;
@@ -232,7 +249,7 @@ export class ChatGPTProvider implements AIProvider {
     async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<void> {
         const account = await this.context(accountId);
         const requestStartedAt = Date.now();
-        const raw = await this.authedGet(`/conversation/${encodeURIComponent(conversationId)}`, account, signal);
+        const raw = await this.authedGet(`/conversation/${encodeURIComponent(conversationId)}`, account, signal, 'SOURCE_HTTP_ERROR', onDiagnostic);
         const responseReceivedAt = Date.now();
         let parsed: ReturnType<typeof parseChatGPTConversation>;
         try {
@@ -282,13 +299,13 @@ export class ChatGPTProvider implements AIProvider {
                         : buildFileDownloadPath(fileId, key.conversationId);
                 }
                 let raw: unknown;
-                try { raw = await this.authedGet(path, account, signal, 'RESOURCE_LOCATOR_UNAVAILABLE'); }
+                try { raw = await this.authedGet(path, account, signal, 'RESOURCE_LOCATOR_UNAVAILABLE', onDiagnostic); }
                 catch (error) {
                     // Library-backed files can still require the scoped file exchange.
                     // Older stored locators do not distinguish those from regular uploads.
                     if (!fileId || !uploadedFile || !(error instanceof OperationError) || (error.code !== 'SOURCE_HTTP_ERROR' && error.code !== 'RESOURCE_LOCATOR_UNAVAILABLE')
                         || error.httpStatus !== 403 && error.httpStatus !== 404) throw error;
-                    raw = await this.authedGet(buildFileDownloadPath(fileId, key.conversationId), account, signal, 'RESOURCE_LOCATOR_UNAVAILABLE');
+                    raw = await this.authedGet(buildFileDownloadPath(fileId, key.conversationId), account, signal, 'RESOURCE_LOCATOR_UNAVAILABLE', onDiagnostic);
                 }
                 phase = 'download_payload';
                 const exchange = parseFileDownloadPayload(raw);

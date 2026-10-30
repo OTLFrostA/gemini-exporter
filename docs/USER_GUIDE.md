@@ -87,3 +87,7 @@ For developer documentation, see [v2 module architecture](../src/README.md) and 
 3. Select the imported conversations and export normally. The importer uses the current conversation branch and preserves available source times, model names, reasoning and citations. Existing local conversations use the normal merge rules.
 
 Keep the Workbench page open to export original ZIP attachments. After closing or reloading it, reimport the ZIP to restore its attachment readers. ZIP bytes stay outside stored conversation facts. Missing attachments produce a partial result; file-library records alone never become conversations. An export with an empty `conversations.json` reports that no conversation bodies were supplied.
+
+**Why does export show a backoff countdown?** When ChatGPT returns HTTP 429, the exporter waits according to `Retry-After` and shows a retry countdown. Diagnostics retain rate-limit, wait and cancellation observations. Finishing a wait only permits another attempt; it does not establish success or reduce the rate of later requests.
+
+Markdown, HTML and JSON deliver documents separately from attachments: folder exports write each document first; browser exports deliver a document ZIP after document preparation, followed by an attachment ZIP. PDF and Word prepare attachments before rendering. Within one export task, ChatGPT document reads and attachment-locator requests still observe the same account cooldown.

@@ -19,7 +19,7 @@ type FrozenPageEvidence = Omit<PageObservation, 'providerId' | 'accountId'>;
 
 type Contract = [
     Assert<Equal<PageEvidence, FrozenPageEvidence>>,
-    Assert<Equal<keyof ProviderListOptions, 'accountId' | 'streamId' | 'signal' | 'onPageCommitted'>>,
+    Assert<Equal<keyof ProviderListOptions, 'accountId' | 'streamId' | 'signal' | 'onPageCommitted' | 'onDiagnostic'>>,
     Assert<Equal<ProviderListOptions['accountId'], Account['id']>>,
     Assert<Equal<ProviderListOptions['onPageCommitted'],
         ((info: CommittedListPage) => Promise<boolean>) | undefined>>,

@@ -1,3 +1,5 @@
+import { createBackoffNotice } from '../shared/backoffNotice.js';
+import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 import { SOURCE_PLATFORMS } from '../../shared/platformHosts.js';
 import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
 import { ScanConnectionError } from '../../runtime/capabilities/scanConnection.js';
@@ -70,7 +72,7 @@ export async function initWorkbench(): Promise<void> {
     let currentProgress: UiMessage | null = null;
     const exportRuns: ExportRunDiagnostic[] = [];
     let droppedExportRuns = 0;
-    const scanRuns: { startedAt: number; finishedAt: number; accountId: string | null; forceFull: boolean; result: ScanResult }[] = [];
+    const scanRuns: { startedAt: number; finishedAt: number; accountId: string | null; forceFull: boolean; result: ScanResult; diagnostics: Diagnostic[] }[] = [];
 
     const renderLog = () => {
         const level = control('select', 'logLevel').value;
@@ -320,9 +322,11 @@ export async function initWorkbench(): Promise<void> {
         const prepared = new Set<string>();
         const delivered = new Set<string>();
         let downloaded = 0;
+        const backoff = createBackoffNotice();
         const exportProgressMessage = () => text(
             `Prepared ${prepared.size} conversations · delivered ${delivered.size} documents · downloaded ${downloaded} attachments`,
-            `已准备 ${prepared.size} 条会话 · 已交付正文 ${delivered.size} 条 · 已下载 ${downloaded} 个附件`);
+            `已准备 ${prepared.size} 条会话 · 已交付正文 ${delivered.size} 条 · 已下载 ${downloaded} 个附件`)
+            + (backoff.message() ? ` · ${backoff.message()}` : '');
         const paintExportProgress = () => {
             const total = request.keys.length;
             // Browser batches reserve their last 10% for the final ZIP handoff.
@@ -332,12 +336,15 @@ export async function initWorkbench(): Promise<void> {
         };
         status(exportProgressMessage);
         paintExportProgress();
+        const backoffTimer = setInterval(() => { if (backoff.message()) paintExportProgress(); }, 1000);
         try {
             await fonts;
             if (request.delivery === 'folderWriter' && !await Directory.verifyDirPermission(Directory.getDirHandle()))
                 throw new Error('Authorize a folder first');
             const result = await runExport(request, { signal, importedResources,
                 onDiagnostic: diagnostic => {
+                    backoff.observe(diagnostic);
+                    if (diagnostic.code === 'CHATGPT_BACKOFF_WAIT' || diagnostic.code === 'CHATGPT_BACKOFF_END') paintExportProgress();
                     // Failed items carry their own diagnostic; count each failure once via onItemUpdate.
                     if (diagnostic.code !== 'EXPORT_FAILED') run.issues.add(diagnostic, titleFor(diagnostic.key));
                     if (run.diagnostics.length >= 10000) { run.droppedDiagnostics++; return; }
@@ -388,7 +395,7 @@ export async function initWorkbench(): Promise<void> {
         } catch (error) {
             run.error = error instanceof Error ? error.message : String(error);
             throw error;
-        } finally { run.finishedAt = Date.now(); }
+        } finally { clearInterval(backoffTimer); run.finishedAt = Date.now(); }
      }, true);
     const scan = (forceFull = false) => perform('scan', async (signal) => {
         const selected = state.accounts.find(a => a.id === state.accountId);
@@ -403,14 +410,25 @@ export async function initWorkbench(): Promise<void> {
         const startedAt = Date.now();
         status(() => text('Resolving conversation source…', '正在确认会话来源…'));
         const slowHint = el('scanSlowHint');
+        const backoff = createBackoffNotice();
+        const diagnostics: Diagnostic[] = [];
+        let scanProgressMessage = () => text('Resolving conversation source…', '正在确认会话来源…');
+        const paintScanProgress = () => progress(() => scanProgressMessage() + (backoff.message() ? ` · ${backoff.message()}` : ''));
+        const backoffTimer = setInterval(() => { if (backoff.message()) paintScanProgress(); }, 1000);
         const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
+            onDiagnostic: diagnostic => {
+                if (diagnostics.length < 1000) diagnostics.push(diagnostic);
+                backoff.observe(diagnostic);
+                if (diagnostic.code === 'CHATGPT_BACKOFF_WAIT' || diagnostic.code === 'CHATGPT_BACKOFF_END') paintScanProgress();
+            },
             onTarget: select, onProgress: p => {
                 if (!busy || signal.aborted) return;
-                progress(() => text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
-                    `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`));
+                scanProgressMessage = () => text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
+                    `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`);
+                paintScanProgress();
                 slowHint.style.display = p.conversationsFetched > 200 && state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini' ? 'block' : 'none';
-            } });
-        scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result });
+            } }).finally(() => clearInterval(backoffTimer));
+        scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result, diagnostics });
         if (scanRuns.length > 10) scanRuns.shift();
         const reasons = new Map(Object.entries({
             up_to_date: () => text('Connected to trusted history coverage', '已衔接可信历史范围'),
@@ -690,7 +708,7 @@ export async function initWorkbench(): Promise<void> {
                 return record?.status === 'partial' ? [{ key: index.key, title: index.title, record,
                     reasonAvailability: 'Stored outcome only; exact causes require a captured export run' }] : [];
             });
-            const payload = JSON.stringify({ schemaVersion: 2, diagnosticRevision: 5, generatedAt: Date.now(),
+            const payload = JSON.stringify({ schemaVersion: 2, diagnosticRevision: 6, generatedAt: Date.now(),
                 environment: { online: navigator.onLine, grantedPermissions },
                 extensionVersion: chrome.runtime.getManifest().version, userAgent: navigator.userAgent,
                 accountId: state.accountId, scanRuns, exportRuns, droppedExportRuns,

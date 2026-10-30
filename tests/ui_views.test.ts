@@ -337,3 +337,55 @@ test('failed external image offers an explicit origin grant without auto-authori
     assert.equal(await allow.isDisabled(), true);
     assert.deepEqual(await read(page, 'exports'), [], 'permission approval alone does not start an export');
 });
+
+test('429 countdown survives attachment progress and overlapping waits, then clears after retry or cancellation', async () => {
+    await open({ holdExport: true, settings: { language: 'zh' } });
+    await page.clock.install();
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+    await page.waitForFunction(() => !!Reflect.get(window, 'harness').exportOptions);
+    await page.evaluate(() => {
+        const h = Reflect.get(window, 'harness');
+        const key = h.exports[0].keys[0];
+        h.exportOptions.onDiagnostic({ key, stage: 'source_parse', code: 'CHATGPT_BACKOFF_WAIT',
+            details: { requestId: 'body', retryAt: Date.now() + 60000 } });
+        h.exportOptions.onDiagnostic({ key, stage: 'resource', code: 'CHATGPT_BACKOFF_WAIT',
+            details: { observation: { requestId: 'attachment', retryAt: Date.now() + 90000 } } });
+        h.exportOptions.onResourceProgress({ key, downloaded: 3, completed: 3, total: 4 });
+    });
+    assert.match(await page.locator('#progText').innerText(), /已下载 3 个附件.*429.*正在退避，90 秒后重试/);
+    await page.clock.runFor(2100);
+    assert.match(await page.locator('#progText').innerText(), /89 秒后重试/);
+    await page.evaluate(() => {
+        const h = Reflect.get(window, 'harness');
+        const key = h.exports[0].keys[0];
+        h.exportOptions.onDiagnostic({ key, code: 'CHATGPT_BACKOFF_END', details: { requestId: 'body' } });
+    });
+    assert.match(await page.locator('#progText').innerText(), /正在退避/);
+    await page.evaluate(() => {
+        const h = Reflect.get(window, 'harness');
+        h.exportOptions.onDiagnostic({ code: 'CHATGPT_BACKOFF_END', details: { observation: { requestId: 'attachment', aborted: true } } });
+    });
+    assert.doesNotMatch(await page.locator('#progText').innerText(), /429|退避/);
+    await page.locator('#btnCancel').click();
+    await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
+    await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+    await page.clock.runFor(2000);
+    assert.doesNotMatch(await page.locator('#status').textContent() ?? '', /429|退避/);
+});
+
+test('scan retains a 429 notice across page progress and removes it when the wait ends', async () => {
+    await open({ holdScan: true });
+    await page.locator('#btnSyncAll').click();
+    await page.waitForFunction(() => !!Reflect.get(window, 'harness').scanDiagnostic);
+    await page.evaluate(() => {
+        const h = Reflect.get(window, 'harness');
+        h.scanDiagnostic({ code: 'CHATGPT_BACKOFF_WAIT', details: { requestId: 'scan', retryAt: Date.now() + 60000 } });
+        h.scanProgress({ pagesFetched: 3, conversationsFetched: 200 });
+    });
+    assert.match(await page.locator('#progText').innerText(), /Committed 3 pages.*429.*backing off/);
+    await page.evaluate(() => Reflect.get(window, 'harness').scanDiagnostic({ code: 'CHATGPT_BACKOFF_END', details: { requestId: 'scan' } }));
+    assert.equal(await page.locator('#progText').innerText(), 'Committed 3 pages, 200 source entries');
+    await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
+    await page.waitForFunction(() => document.body.dataset.busy !== 'true');
+});

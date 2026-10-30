@@ -1,3 +1,4 @@
+import { createBackoffNotice } from '../shared/backoffNotice.js';
 import { elementById as el, requiredElement as control } from '../shared/elements.js';
 import { exportSummary } from '../shared/exportSummary.js';
 import { sendTabMessage } from '../../runtime/capabilities/tabService.js';
@@ -131,12 +132,20 @@ export async function initPopup(): Promise<void> {
         // Local Font Access starts inside this gesture, before any await.
         const fonts = format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
         busy = true; render();
-        showStatus(() => text('Preparing export…', '正在准备导出…'));
+        const backoff = createBackoffNotice();
+        const exportMessage = () => backoff.message() ?? text('Preparing export…', '正在准备导出…');
+        showStatus(exportMessage);
+        const backoffTimer = setInterval(() => { if (active && backoff.message()) showStatus(exportMessage); }, 1000);
         void (async () => {
             const [current, latest] = await Promise.all([readActiveKey(), readSettings(), fonts]);
             if (!current) { key = null; throw new Error('No trusted current conversation'); }
             const result = await runExport({ keys: [current], format, delivery: 'browserDownload',
-                includeAssets: latest.includeAssets, skipUnchanged: false });
+                includeAssets: latest.includeAssets, skipUnchanged: false }, {
+                onDiagnostic: diagnostic => {
+                    backoff.observe(diagnostic);
+                    if (active && (diagnostic.code === 'CHATGPT_BACKOFF_WAIT' || diagnostic.code === 'CHATGPT_BACKOFF_END')) showStatus(exportMessage);
+                },
+            });
             if (!active) return;
             showStatus(() => result.aborted ? text('Cancelled', '已取消')
                 : result.failed.length || !result.exported ? text('Export failed. Try Options.', '导出失败，请在工作台重试。')
@@ -144,6 +153,7 @@ export async function initPopup(): Promise<void> {
                 : text('Download initiated', '已发起下载'));
         })().catch(e => { if (active) showError(e); })
             .finally(() => {
+                clearInterval(backoffTimer);
                 if (active) { busy = false; render(); }
             });
     });

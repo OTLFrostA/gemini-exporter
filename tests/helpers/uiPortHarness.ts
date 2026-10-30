@@ -88,7 +88,7 @@ export const sendTabMessage = (tabId,message,timeoutMs) => {
  return chrome.tabs.sendMessage(tabId,message);
 };
 export const observeDomainChanges = listener => {h.domainListener=listener;return ()=>{h.domainListener=null;};};
-export const scanAll = async (request,options) => {h.scans.push(request);if(h.failScan)throw new Error('Injected scan failure');h.scanProgress=options.onProgress;options.onProgress?.({pagesFetched:2,conversationsFetched:h.scanCount});if(h.holdScan)await new Promise(resolve=>h.finishScan=resolve);return h.scanResult || {status:'partial_limit',reason:'max_pages',pagesFetched:2,conversationsFetched:h.scanCount};};
+export const scanAll = async (request,options) => {h.scans.push(request);if(h.failScan)throw new Error('Injected scan failure');h.scanProgress=options.onProgress;h.scanDiagnostic=options.onDiagnostic;options.onProgress?.({pagesFetched:2,conversationsFetched:h.scanCount});if(h.holdScan)await new Promise(resolve=>h.finishScan=resolve);return h.scanResult || {status:'partial_limit',reason:'max_pages',pagesFetched:2,conversationsFetched:h.scanCount};};
 export const clearLocalExportRecords = async id => {h.clears.push(['exports',id]);};
 export const clearLocalScanRecords = async id => {h.clears.push(['scan',id]);h.indexes=h.indexes.filter(row=>row.key.accountId!==id);delete h.records[id];};
 export const createSourceResourceContext = () => ({ retainParsed(){},retain(){},has(){return false;},release(){},releaseConversation(){},async acquire(){throw Error('No resource');} });
