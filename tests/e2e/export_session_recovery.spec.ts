@@ -98,7 +98,7 @@ test('downloaded diagnostics include historic partial outcomes and captured expo
     const file = await downloaded;
     const diag = JSON.parse(await readFile((await file.path())!, 'utf8'));
     expect(diag.schemaVersion).toBe(2);
-    expect(diag.diagnosticRevision).toBe(5);
+    expect(diag.diagnosticRevision).toBe(2);
     expect(typeof diag.environment.online).toBe('boolean');
     expect(diag.extensionVersion).toBe('1.8.1');
     expect(diag.currentExportIssues[0].record.attachmentIssues[0].httpStatus).toBe(403);

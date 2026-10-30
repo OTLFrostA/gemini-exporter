@@ -708,7 +708,7 @@ export async function initWorkbench(): Promise<void> {
                 return record?.status === 'partial' ? [{ key: index.key, title: index.title, record,
                     reasonAvailability: 'Stored outcome only; exact causes require a captured export run' }] : [];
             });
-            const payload = JSON.stringify({ schemaVersion: 2, diagnosticRevision: 5, generatedAt: Date.now(),
+            const payload = JSON.stringify({ schemaVersion: 2, diagnosticRevision: 2, generatedAt: Date.now(),
                 environment: { online: navigator.onLine, grantedPermissions },
                 extensionVersion: chrome.runtime.getManifest().version, userAgent: navigator.userAgent,
                 accountId: state.accountId, scanRuns, exportRuns, droppedExportRuns,
