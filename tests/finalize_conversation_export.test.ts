@@ -282,7 +282,7 @@ test('batch delivery failure carries the same diagnostic to every affected item'
     }
 });
 
-for (const sourceTurn of ['unfinished', 'interrupted', 'unknown'] as const) {
+for (const sourceTurn of ['unfinished', 'interrupted', 'handoff', 'awaiting_reply', 'tool_pending', 'unknown'] as const) {
     test(`${sourceTurn} source reply delivers all available text without marking missing body`, async t => {
         const host = v2ExportHost(t);
         const id = 'source-turn-' + sourceTurn;
@@ -309,7 +309,7 @@ for (const sourceTurn of ['unfinished', 'interrupted', 'unknown'] as const) {
         assert.equal(record?.status, 'ok');
         assert.equal(record?.sourceTurn, sourceTurn);
         assert.equal(record?.otherContentMissing, undefined);
-        assert.ok(diagnostics.some(d => d.code === 'SOURCE_TURN_' + sourceTurn.toUpperCase()));
+        assert.ok(diagnostics.some(d => d.code === 'SOURCE_TURN_' + sourceTurn.toUpperCase() && d.severity === 'info'));
         assert.ok(!diagnostics.some(d => d.code === 'DETAIL_NOT_COMPLETE'));
         // Timestamp disagreement is retained as freshness evidence, never fabricated body loss.
         assert.ok(diagnostics.some(d => d.code === 'DETAIL_STALE'));
@@ -354,3 +354,26 @@ test('Work handoff card is physically delivered as readable Markdown with a succ
     assert.equal(record?.sourceTurn, 'handoff');
     assert.equal(record?.otherContentMissing, undefined);
 });
+
+for (const sourceTurn of ['finished', 'awaiting_reply', 'tool_pending', 'unknown'] as const) {
+    test(`${sourceTurn} never turns actual incomplete body coverage into a successful full export`, async t => {
+        const host = v2ExportHost(t);
+        const id = 'incomplete-source-' + sourceTurn;
+        await seedExportIndexOnly(id);
+        const snapshot = { ...body('Available part only'), quality: { status: 'partial' as const, sourceTurn } };
+        await ingestDetail(account.id, id, snapshot, { updatedAt: 200 });
+        t.mock.method(GeminiProvider.prototype, 'fetchConversationDetail', async () => {
+            await ingestDetail(account.id, id, snapshot, { updatedAt: 200 });
+        });
+        const diagnostics: ExportDiagnostic[] = [];
+        const result = await runExport(exportRequest([id]), { onDiagnostic: event => diagnostics.push(event) });
+        assert.equal(result.exported, 1);
+        assert.equal(result.partial, 1);
+        assert.deepEqual(result.failed, []);
+        assert.match(await host.blobs[0].text(), /Available part only/);
+        const record = await getExportRecord(exportKey(id));
+        assert.equal(record?.status, 'partial');
+        assert.equal(record?.otherContentMissing, true);
+        assert.ok(diagnostics.some(d => d.code === 'DETAIL_NOT_COMPLETE' && d.severity === 'warning'));
+    });
+}

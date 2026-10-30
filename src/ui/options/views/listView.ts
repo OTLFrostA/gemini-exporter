@@ -110,7 +110,9 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
             note.textContent = record.sourceTurn === 'unfinished' ? text('Source reply has not ended', '原回答尚未结束')
                 : record.sourceTurn === 'interrupted' ? text('Source reply was interrupted', '原回答已中断')
                 : record.sourceTurn === 'handoff' ? text('Source is at a handoff', '原对话停在交接步骤')
-                : text('Source reply completion is unknown', '原回答结束状态未知');
+                : record.sourceTurn === 'awaiting_reply' ? text('Source ends with a user message', '来源最后为用户消息')
+                : record.sourceTurn === 'tool_pending' ? text('Source ends at a tool step', '来源停在工具步骤')
+                : text('Source reply completion unconfirmed; available content saved', '原回答结束状态未确认，已保存可用正文');
             content.append(note);
         }
         if (record?.attachmentIssues?.length) {

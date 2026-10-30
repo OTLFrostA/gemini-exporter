@@ -64,3 +64,17 @@ test('attachment locator 404 is a source-unavailable warning in diagnostics and 
     assert.match(summary, /1 conversations contain unavailable source attachments \(1 attachments\)/);
     assert.doesNotMatch(summary, /Attachment download failed|retry later|Other incomplete/);
 });
+
+test('source termination metadata never becomes an export failure, even for legacy warning events', () => {
+    const collector = new ExportIssueCollector();
+    for (const code of ['SOURCE_TURN_UNKNOWN', 'SOURCE_TURN_UNFINISHED', 'SOURCE_TURN_INTERRUPTED',
+        'SOURCE_TURN_HANDOFF', 'SOURCE_TURN_AWAITING_REPLY', 'SOURCE_TURN_TOOL_PENDING']) {
+        collector.add({ key: key(code), stage: 'detail', code, severity: 'warning', message: 'Source state only' });
+    }
+    assert.deepEqual(collector.groups(), []);
+    collector.add({ key: key('body'), stage: 'detail', code: 'DETAIL_NOT_COMPLETE', severity: 'warning', message: 'Missing ancestor' });
+    collector.add({ key: key('file'), stage: 'resource', code: 'RESOURCE_DOWNLOAD_FAILED', severity: 'warning', message: 'Download failed' });
+    collector.add({ key: key('delivery'), stage: 'export', code: 'EXPORT_FAILED', severity: 'error', message: 'Disk write failed',
+        issue: { code: 'FILE_WRITE_FAILED', message: 'Disk write failed' } });
+    assert.deepEqual(collector.groups().map(group => group.category), ['DETAIL_NOT_COMPLETE', 'RESOURCE_DOWNLOAD_FAILED', 'FILE_WRITE_FAILED']);
+});

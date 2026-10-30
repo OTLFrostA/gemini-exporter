@@ -183,11 +183,16 @@ function messageOfNode(
 /** Provider termination evidence does not establish missing exported body content. */
 function sourceTurnStatus(conversation: ChatGPTApiConversationWithId): SourceTurnStatus {
     const leaf = conversation.mapping.get(conversation.current_node)?.message;
-    if (!leaf || leaf.author.role !== 'assistant') return 'unknown';
+    if (!leaf) return 'unknown';
+    if (leaf.author.role === 'user') return 'awaiting_reply';
+    if (leaf.author.role === 'tool') return 'tool_pending';
+    if (leaf.author.role !== 'assistant') return 'unknown';
     if (leaf.status === 'interrupted' || leaf.metadata?.finish_details?.type === 'interrupted') return 'interrupted';
     if (leaf.recipient === 'local.handoff') return 'handoff';
-    if (leaf.recipient !== 'all' || leaf.metadata?.is_visually_hidden_from_conversation
-        || leaf.metadata?.is_thinking_preamble_message || ['thoughts', 'reasoning_recap'].includes(leaf.content.content_type)) return 'unknown';
+    if (leaf.recipient !== 'all') return leaf.recipient ? 'tool_pending' : 'unknown';
+    // Visibility controls exported content, not the provider's explicit end-of-turn signal.
+    if (leaf.metadata?.is_thinking_preamble_message || ['thoughts', 'reasoning_recap'].includes(leaf.content.content_type))
+        return leaf.status === 'in_progress' || leaf.end_turn === false ? 'unfinished' : 'unknown';
     if (leaf.status === 'in_progress') return 'unfinished';
     if (leaf.end_turn === true && leaf.status === 'finished_successfully') return 'finished';
     if (leaf.end_turn === false && (leaf.status === undefined || leaf.status === 'finished_successfully')) return 'unfinished';
@@ -315,6 +320,8 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConver
     contentDiagnostics.push({ severity: 'info', code: 'CHATGPT_SOURCE_TURN_STATUS',
         message: 'Source turn completion is independent of snapshot coverage',
         details: { sourceTurn, snapshotCoverage: branchQuality, currentNode: conversation.current_node,
+            leafRole: leaf?.author.role ?? null, hidden: leaf?.metadata?.is_visually_hidden_from_conversation ?? false,
+            thinkingPreamble: leaf?.metadata?.is_thinking_preamble_message ?? false,
             recipient: leaf?.recipient ?? null, channel: leaf?.channel ?? null,
             contentType: leaf?.content.content_type ?? null, status: leaf?.status ?? null,
             endTurn: leaf?.end_turn ?? null, finishType: leaf?.metadata?.finish_details?.type ?? null } });

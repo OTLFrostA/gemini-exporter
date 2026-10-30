@@ -12,6 +12,8 @@ export interface ExportIssueGroup {
     diagnostic: ExportDiagnostic;
     conversations: AffectedConversation[];
 }
+const SOURCE_STATE_CODES = new Set(['SOURCE_TURN_UNFINISHED', 'SOURCE_TURN_INTERRUPTED', 'SOURCE_TURN_HANDOFF',
+    'SOURCE_TURN_AWAITING_REPLY', 'SOURCE_TURN_TOOL_PENDING', 'SOURCE_TURN_UNKNOWN']);
 const GENERIC_CODES = new Set(['EXPORT_FAILED', 'EXPORT_RUN_FAILED', 'SOURCE_REFRESH_FAILED', 'RESOURCE_REFRESH_FAILED']);
 const LEGACY_ISSUES = new Set([...GENERIC_CODES, 'DETAIL_NOT_COMPLETE', 'DETAIL_STALE']);
 
@@ -19,7 +21,8 @@ const LEGACY_ISSUES = new Set([...GENERIC_CODES, 'DETAIL_NOT_COMPLETE', 'DETAIL_
 export class ExportIssueCollector {
     private readonly entries = new Map<string, { group: ExportIssueGroup; keys: Set<string> }>();
     add(diagnostic: ExportDiagnostic, title?: string): void {
-        if (diagnostic.severity === 'info' || ['EXPORT_CANCELLED', 'SOURCE_CONVERSATION_EMPTY'].includes(diagnostic.code)) return;
+        // Source termination is not an export problem, including legacy warning diagnostics.
+        if (SOURCE_STATE_CODES.has(diagnostic.code) || diagnostic.severity === 'info' || ['EXPORT_CANCELLED', 'SOURCE_CONVERSATION_EMPTY'].includes(diagnostic.code)) return;
         if (!diagnostic.severity && !LEGACY_ISSUES.has(diagnostic.code)) return;
         const category = diagnostic.issue?.code ?? (GENERIC_CODES.has(diagnostic.code) ? 'UNKNOWN_ERROR' : diagnostic.code);
         const httpStatus = diagnostic.issue?.httpStatus;
@@ -56,10 +59,6 @@ const LABELS: ReadonlyMap<string, readonly [string, string]> = new Map([
     ['DETAIL_UNAVAILABLE', ['No usable conversation body available', '没有可用于导出的会话正文']],
     ['DETAIL_NOT_COMPLETE', ['Conversation body is incomplete', '会话正文不完整']],
     ['DETAIL_STALE', ['Conversation timestamps differ; freshness is unconfirmed', '会话时间戳不一致，最新状态尚未确认']],
-    ['SOURCE_TURN_UNFINISHED', ['Source reply has not ended', '原回答尚未结束']],
-    ['SOURCE_TURN_INTERRUPTED', ['Source reply was interrupted', '原回答已中断']],
-    ['SOURCE_TURN_HANDOFF', ['Source is at a handoff', '原对话停在交接步骤']],
-    ['SOURCE_TURN_UNKNOWN', ['Source reply completion is unknown', '原回答结束状态未知']],
     ['RESOURCE_LOCATOR_UNAVAILABLE', ['Attachment download location unavailable', '缺少可用的附件下载地址']],
     ['RESOURCE_SIZE_LIMIT', ['Attachment exceeds the supported size limit', '附件超过支持的大小限制']],
     ['RESOURCE_SIZE_MISMATCH', ['Attachment size does not match source metadata', '附件大小与来源记录不一致']],
@@ -84,6 +83,7 @@ const LABELS: ReadonlyMap<string, readonly [string, string]> = new Map([
     ['TYPST_LOCAL_FONT_READ_FAILED', ['Some local fonts could not be read', '部分本地字体无法读取']],
     ['TYPST_LOCAL_FONTS_MISSING', ['Local fonts unavailable; fallback fonts used', '本地字体不可用，已使用备用字体']],
     ['TYPST_MATH_INIT_FAILED', ['Math engine unavailable; source formulas preserved', '公式引擎不可用，已保留原始公式']],
+    ['MATH_FENCE_UNCLOSED', ['Source formula delimiter is unclosed; formula source preserved', '来源公式分隔符未闭合，已保留原始公式']],
     ['GEMINI_STRUCTURED_FALLBACK', ['Some source content required fallback parsing', '部分来源内容使用了备用解析']],
     ['UNKNOWN_ERROR', ['Unknown error', '未知错误']],
 ]);

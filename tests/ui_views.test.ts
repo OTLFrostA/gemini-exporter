@@ -389,3 +389,19 @@ test('scan retains a 429 notice across page progress and removes it when the wai
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
     await page.waitForFunction(() => document.body.dataset.busy !== 'true');
 });
+
+test('successful exports retain precise user/tool notes without presenting source metadata as failures', async () => {
+    const indexes = ['user', 'tool', 'unconfirmed', 'finished'].map(conversationId => ({
+        key: { accountId: A, conversationId }, title: conversationId, updatedAt: 10,
+    }));
+    await open({ settings: { language: 'zh' }, indexes,
+        records: { [A]: Object.fromEntries([
+            ['user', 'awaiting_reply'], ['tool', 'tool_pending'], ['unconfirmed', 'unknown'], ['finished', 'finished'],
+        ].map(([id, sourceTurn]) => [id, { status: 'ok', format: 'markdown', exportedAt: 100, chatTime: 10, sourceTurn }])) } });
+    assert.equal(await page.locator('.status-exported').count(), 4);
+    assert.equal(await page.locator('.status-partial').count(), 0);
+    assert.equal(await page.locator('[data-chat-id="user"] .source-turn-status').innerText(), '来源最后为用户消息');
+    assert.equal(await page.locator('[data-chat-id="tool"] .source-turn-status').innerText(), '来源停在工具步骤');
+    assert.equal(await page.locator('[data-chat-id="unconfirmed"] .source-turn-status').innerText(), '原回答结束状态未确认，已保存可用正文');
+    assert.equal(await page.locator('[data-chat-id="finished"] .source-turn-status').count(), 0);
+});
