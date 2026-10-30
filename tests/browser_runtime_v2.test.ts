@@ -73,7 +73,7 @@ test('ingestion awaits L2 commit, forwards empty terminal page and never writes 
     const gate = new Promise<void>(resolve => { commit = resolve; });
     const { handleDomainIngestionMessage: handle } = load('src/runtime/background/domainStorageHandler.ts', {
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
-        'src/l2/ingestion.js': { ingestIndexes: async (...values: unknown[]) => { args = values; await gate; } },
+        'src/l2/ingestion.js': { ingestIndexes: async (...values: unknown[]) => { args = values; await gate; return { added: 0, updated: 0 }; } },
     });
     const page = { streamId: 'recent', requestCursor: 'last', nextCursor: null,
         requestedAt: 1700000000000, requestKnown: true, valid: true, ordered: true, keys: [] };
@@ -84,7 +84,7 @@ test('ingestion awaits L2 commit, forwards empty terminal page and never writes 
     assert.deepEqual(notifications, [], 'uncommitted facts cannot invalidate an open view');
     assert.deepEqual(args, [uuid, [], page]);
     commit();
-    assert.deepEqual(await result, { ok: true });
+    assert.deepEqual(await result, { ok: true, result: { added: 0, updated: 0 } });
     assert.deepEqual(notifications, [{ action: 'domainChanged', accountId: uuid }]);
 });
 
@@ -196,12 +196,12 @@ test('Index IPC decodes canonical facts before sending them to L2', async () => 
     let admitted: unknown[] | null = null;
     const handle = load('src/runtime/background/domainStorageHandler.ts', {
         'src/runtime/background/readiness.js': ready, 'src/runtime/background/contentSender.js': security(),
-        'src/l2/ingestion.js': { ingestIndexes: async (...args: unknown[]) => { admitted = args; } },
+        'src/l2/ingestion.js': { ingestIndexes: async (...args: unknown[]) => { admitted = args; return { added: 1, updated: 0 }; } },
     }).handleDomainIngestionMessage;
     const items = [{ conversationId: 'abc', fields: { title: 'A', titleSource: 'provider', updatedAt: 10 } }];
     const page = { streamId: 'recent', requestCursor: null, nextCursor: null,
         requestedAt: 20, requestKnown: true, valid: true, ordered: true, keys: [{ id: 'abc', time: 10 }] };
-    assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'indexes', accountId: uuid, items, page }), { ok: true });
+    assert.deepEqual(await invoke(handle, { action: 'domainIngest', operation: 'indexes', accountId: uuid, items, page }), { ok: true, result: { added: 1, updated: 0 } });
     assert.deepEqual(admitted, [uuid, items, page]);
 });
 
@@ -257,6 +257,17 @@ test('Content ingestion sends only JSON facts and propagates worker failure', as
     assert.deepEqual(JSON.parse(JSON.stringify(sent)), { action: 'domainIngest', operation: 'indexes', accountId: uuid, items: [] });
 });
 
+test('Content Index ingestion accepts only valid committed metadata change counts', async () => {
+    global.location = { protocol: 'https:' } as any;
+    const api = load('src/runtime/api/domainIngestion.ts', { 'src/l2/ingestion.js': {}, 'src/runtime/api/runtimeReady.js': ready });
+    global.chrome = { runtime: { sendMessage: async () => ({ ok: true, result: { added: 1, updated: 0 } }) } } as any;
+    assert.deepEqual(await api.ingestIndexes(uuid, [{ conversationId: 'new', fields: {} }]), { added: 1, updated: 0 });
+    for (const invalid of [{ added: 2, updated: 0 }, { added: -1, updated: 0 }, { added: 1.5, updated: 0 },
+        { added: 0, updated: '1' }, { added: 0 }, null]) {
+        global.chrome = { runtime: { sendMessage: async () => ({ ok: true, result: invalid }) } } as any;
+        await assert.rejects(api.ingestIndexes(uuid, [{ conversationId: 'new', fields: {} }]), /Invalid committed Index/);
+    }
+});
 test('Content ingestion preserves the full accepted/changed result from the worker', async () => {
     global.location = { protocol: 'https:' } as any;
     global.chrome = { runtime: { sendMessage: async () => ({ ok: true, result: { accepted: true, changed: true } }) } } as any;
@@ -587,6 +598,7 @@ test('passive L2 Index admission preserves the source Account while the visible 
         'src/l2/ingestion.js': { ingestIndexes: async (...args: unknown[]) => {
             admitted.push(args);
             await pending;
+            return { added: 0, updated: 0 };
         } },
     }).handleDomainIngestionMessage;
     const page = { streamId: 'recent', requestCursor: null, nextCursor: null,
@@ -600,7 +612,7 @@ test('passive L2 Index admission preserves the source Account while the visible 
     // must not re-query the sender Tab or attribute evidence to a new Account.
     global.chrome.tabs.sendMessage = (() => assert.fail('No current-tab read during passive admission')) as any;
     release();
-    assert.deepEqual(await operation, { ok: true });
+    assert.deepEqual(await operation, { ok: true, result: { added: 0, updated: 0 } });
     assert.deepEqual(admitted, [[accountAtRequest, [], page]]);
 });
 
