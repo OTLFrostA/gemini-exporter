@@ -140,7 +140,7 @@ for (const origin of ['https://chatgpt.com', 'https://chat.openai.com']) test(`r
     assert.doesNotMatch(JSON.stringify(diagnostics), /private-path|do-not-log/);
 });
 
-test('internal tool termination stays unknown without claiming missing snapshot content', () => {
+test('internal tool termination is a tool step without claiming missing snapshot content', () => {
     const raw = detailGen('C_DETAIL_L1_SOURCE_01');
     const conversation = decodeChatGPTDetail(raw, raw.id);
     const leaf = conversation.mapping.get(conversation.current_node);
@@ -149,13 +149,13 @@ test('internal tool termination stays unknown without claiming missing snapshot 
     leaf.message.recipient = 'python';
     leaf.message.channel = 'analysis';
     const parsed = parseChatGPTConversation({ conversation, assetsByNode: new Map() });
-    assert.deepEqual(parsed.conversation.detail.quality, { status: 'complete', sourceTurn: 'unknown' });
+    assert.deepEqual(parsed.conversation.detail.quality, { status: 'complete', sourceTurn: 'tool_pending' });
     assert.ok(!parsed.diagnostics.some(d => d.code === 'CHATGPT_BRANCH_COVERAGE_INCOMPLETE'));
     const observation = parsed.diagnostics.find(d => d.code === 'CHATGPT_SOURCE_TURN_STATUS');
     assert.ok(observation?.details && typeof observation.details === 'object' && !Array.isArray(observation.details));
     assert.equal(observation.details.recipient, 'python');
     assert.equal(observation.details.channel, 'analysis');
-    assert.equal(observation.details.sourceTurn, 'unknown');
+    assert.equal(observation.details.sourceTurn, 'tool_pending');
     assert.equal('content' in observation.details, false);
 });
 

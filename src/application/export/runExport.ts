@@ -181,7 +181,7 @@ export async function runExport(request: ExportRequest, options: {
         // as a freshness diagnostic; it does not establish missing snapshot content.
         let otherContentMissing = item.refreshFailed || conversation.detail.quality.status !== 'complete';
         const sourceTurn = conversation.detail.quality.sourceTurn;
-        if (sourceTurn && sourceTurn !== 'finished') diagnose({ key, stage: 'detail', severity: 'warning',
+        if (sourceTurn && sourceTurn !== 'finished') diagnose({ key, stage: 'detail', severity: 'info',
             code: 'SOURCE_TURN_' + sourceTurn.toUpperCase(),
             message: 'Available source content is exported independently of source turn completion',
             details: { sourceTurn, snapshotCoverage: conversation.detail.quality.status } });

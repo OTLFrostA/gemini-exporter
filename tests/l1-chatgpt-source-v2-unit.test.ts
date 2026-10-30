@@ -154,7 +154,8 @@ test('source termination evidence survives decoding and storage independently of
         if (variant === 'handoff') message.recipient = 'local.handoff';
         if (variant === 'unrecognized') message.status = 'unrecognized-status';
         const result = parse(raw);
-        const expected = ['tool', 'thoughts', 'unrecognized'].includes(variant) ? 'unknown' : variant;
+        const expected = variant === 'tool' ? 'tool_pending' : variant === 'thoughts' ? 'unfinished'
+            : variant === 'unrecognized' ? 'unknown' : variant;
         assert.deepEqual(result.conversation.detail.quality, {
             status: variant === 'handoff' ? 'partial' : 'complete', sourceTurn: expected,
         }, variant);
@@ -214,4 +215,39 @@ test('hidden handoff nodes do not invent visible cards or claim missing visible 
     const parsed = parse(raw);
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
     assert.doesNotMatch(JSON.stringify(parsed.conversation.detail.messages), /HIDDEN-REASON/);
+});
+
+test('source end state distinguishes hidden completion, user tails and tool steps without exposing hidden content', () => {
+    for (const variant of ['hidden_finished', 'hidden_streaming', 'user_tail', 'tool_tail', 'missing_marker'] as const) {
+        const raw = chatgptDetailGen('C_DETAIL_L1_SOURCE_01');
+        const message = raw.mapping.answer?.message;
+        assert.ok(message);
+        message.status = 'finished_successfully';
+        message.end_turn = true;
+        if (variant.startsWith('hidden_')) {
+            message.metadata = { is_visually_hidden_from_conversation: true };
+            message.content = { content_type: 'text', parts: ['PRIVATE-HIDDEN-CONTENT'] };
+            if (variant === 'hidden_streaming') { message.status = 'in_progress'; message.end_turn = false; }
+        }
+        if (variant === 'user_tail') message.author.role = 'user';
+        if (variant === 'tool_tail') message.author.role = 'tool';
+        if (variant === 'missing_marker') delete message.end_turn;
+        const parsed = parse(raw);
+        const expected = variant === 'hidden_finished' ? 'finished' : variant === 'hidden_streaming' ? 'unfinished'
+            : variant === 'user_tail' ? 'awaiting_reply' : variant === 'tool_tail' ? 'tool_pending' : 'unknown';
+        assert.deepEqual(parsed.conversation.detail.quality, { status: 'complete', sourceTurn: expected }, variant);
+        const restored = restoreDomainDetail({ ...parsed.conversation.detail,
+            key: { accountId: '00000000-0000-4000-8000-000000000001', conversationId: raw.id } });
+        assert.equal(restored.quality.sourceTurn, expected);
+        assert.doesNotMatch(JSON.stringify(parsed.conversation.detail.messages), /PRIVATE-HIDDEN-CONTENT/);
+        const diagnostic = parsed.diagnostics.find(d => d.code === 'CHATGPT_SOURCE_TURN_STATUS');
+        assert.ok(diagnostic?.details && typeof diagnostic.details === 'object' && !Array.isArray(diagnostic.details));
+        assert.equal(diagnostic.details.leafRole, message.author.role);
+        assert.equal(diagnostic.details.hidden, variant.startsWith('hidden_'));
+        // A known termination state must never conceal an incomplete source chain.
+        const answer = raw.mapping.answer;
+        assert.ok(answer);
+        answer.parent = 'missing';
+        assert.equal(parse(raw).conversation.detail.quality.status, 'partial');
+    }
 });
