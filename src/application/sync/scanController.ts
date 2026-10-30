@@ -13,6 +13,7 @@ export interface ScanResult {
     status: ScanStatus;
     pagesFetched: number;
     conversationsFetched: number;
+    indexChanges?: { added: number; updated: number };
     reason?: string;
     diagnostics?: ListFailureDiagnostics;
 }
@@ -26,8 +27,9 @@ export async function scanAll(request: ScanRequest, options: {
 } = {}): Promise<ScanResult> {
     const { accountId } = request;
     const counts: ScanProgress = { pagesFetched: 0, conversationsFetched: 0 };
+    let indexChanges: ScanResult['indexChanges'];
     const result = (status: ScanStatus, reason?: string): ScanResult =>
-        ({ status, ...counts, ...(reason ? { reason } : {}) });
+        ({ status, ...counts, ...(indexChanges ? { indexChanges } : {}), ...(reason ? { reason } : {}) });
     if (!isAccountId(accountId)) return result('error', 'Invalid account UUID');
     if (active.has(accountId)) return result('error', 'Scan already running');
     active.add(accountId);
@@ -51,6 +53,10 @@ export async function scanAll(request: ScanRequest, options: {
                 notifyDomainChanged(accountId);
                 counts.pagesFetched = info.page;
                 counts.conversationsFetched = info.totalObserved;
+                if (info.indexChanges) indexChanges = {
+                    added: (indexChanges?.added ?? 0) + info.indexChanges.added,
+                    updated: (indexChanges?.updated ?? 0) + info.indexChanges.updated,
+                };
                 scanHead ??= info.scanHead;
                 options.onProgress?.({ ...counts });
                 options.signal?.throwIfAborted();
