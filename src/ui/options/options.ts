@@ -813,6 +813,7 @@ export async function initWorkbench(): Promise<void> {
         const feature = getLatestEligibleFeature(settings.lastSeenFeatureVersion ?? current, current);
         const shown = feature && ('stepId' in feature
             ? TourGuide.startFeatureSpotlight(feature.version, feature.stepId, () => {})
+            : feature.kind === 'platforms' ? TourGuide.showPlatformHighlights()
             : TourGuide.showV2UpgradeSpotlight(() => { void chrome.tabs.create({ url: FEEDBACK_URL }); }));
         if (shown) {
             // Persist on display, not dismissal; each announced feature is shown at most once.

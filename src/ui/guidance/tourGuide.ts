@@ -1,4 +1,4 @@
-import { STEPS } from './tourSteps.js';
+import { STEPS, PLATFORM_STEPS, AUTHORIZATION_STEP } from './tourSteps.js';
 import { text } from '../shared/settings.js';
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
 import { SOURCE_PLATFORMS, type SourcePlatform } from '../../shared/platformHosts.js';
@@ -6,7 +6,7 @@ import { hasPlatformAccess, requestPlatformAuthorization, activatePlatformAccess
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
 let root: HTMLElement | null = null;
 let stepIndex = 0;
-let mode: 'tour' | 'spotlight' | 'takeout' | 'authorization' | null = null;
+let mode: 'tour' | 'platforms' | 'spotlight' | 'takeout' | 'authorization' | null = null;
 let cleanupStep: (() => void) | undefined;
 let cleanupOverlay: (() => void) | undefined;
 let onDismiss: (() => void) | undefined;
@@ -64,7 +64,7 @@ function overlay(
     const header = document.createElement('div');
     header.className = 'tour-header';
     const badge = document.createElement('span');
-    badge.className = mode === 'spotlight' ? 'tour-step-badge tour-feature-badge' : 'tour-step-badge';
+    badge.className = mode === 'spotlight' || mode === 'platforms' ? 'tour-step-badge tour-feature-badge' : 'tour-step-badge';
     badge.textContent = badgeText ?? (String(stepIndex + 1) + ' / ' + String(STEPS.length));
     const closeButton = button(header, '×', close, 'tourCloseBtn', 'tour-close-btn');
     closeButton.title = text('Close (ESC)', '关闭（ESC）');
@@ -219,9 +219,11 @@ function footer(popover: HTMLElement): HTMLElement {
 }
 
 async function goToStep(index: number): Promise<void> {
-    if (mode !== 'tour') return;
-    if (index >= STEPS.length) { destroy(); return; }
-    const nextIndex = Math.max(skipAuthorizationStep ? 1 : 0, index);
+    if (mode !== 'tour' && mode !== 'platforms') return;
+    const length = mode === 'platforms' ? PLATFORM_STEPS.length : STEPS.length;
+    if (index >= length) { close(); return; }
+    const nextIndex = index === PLATFORM_STEPS.length && skipAuthorizationStep
+        ? index + 1 : Math.max(0, index);
     if (STEPS[nextIndex].id === 'live_save' && prepareLiveSave) {
         const previousRoot = root;
         try { await prepareLiveSave(); } catch { return; }
@@ -234,22 +236,22 @@ async function goToStep(index: number): Promise<void> {
         ? [document.getElementById(relatedId)].filter((item): item is HTMLElement => item instanceof HTMLElement)
         : [];
     const popover = overlay(step.target, step.title(), step.description(), true,
-        related, step.placement, undefined, step.hint?.());
+        related, step.placement, mode === 'platforms' ? `✨ v2.1.0 · ${stepIndex + 1} / ${length}` : undefined, step.hint?.());
     const navFooter = footer(popover);
-    if (stepIndex < STEPS.length - 1)
+    if (stepIndex < length - 1)
         button(navFooter, text('Skip', '跳过'), () => { destroy(); }, 'tourSkipBtn', 'tour-skip-btn');
     const nav = document.createElement('div');
     nav.className = 'tour-nav-btns';
     navFooter.append(nav);
-    if (stepIndex > (skipAuthorizationStep ? 1 : 0)) button(nav, text('Back', '上一步'), () => { void prevStep(); },
+    if (stepIndex > 0 && !(skipAuthorizationStep && stepIndex === PLATFORM_STEPS.length + 1)) button(nav, text('Back', '上一步'), () => { void prevStep(); },
         'tourPrevBtn', 'tour-nav-btn');
-    const nextButton = button(nav, stepIndex === STEPS.length - 1 ? text('Start using', '开始使用') : text('Next', '下一步'),
+    const nextButton = button(nav, stepIndex === length - 1 ? text('Start using', '开始使用') : text('Next', '下一步'),
         () => { void nextStep(); }, 'tourNextBtn', 'tour-nav-btn primary');
     relayout?.();
 
     let advanced = false;
     const advance = () => {
-        if (advanced || mode !== 'tour' || STEPS[stepIndex] !== step) return;
+        if (advanced || (mode !== 'tour' && mode !== 'platforms') || STEPS[stepIndex] !== step) return;
         advanced = true;
         void nextStep();
     };
@@ -264,7 +266,7 @@ async function goToStep(index: number): Promise<void> {
         }, () => {
             if (mode !== 'tour' || STEPS[stepIndex] !== step || !popover.isConnected) return;
             skipAuthorizationStep = true;
-            void goToStep(1);
+            void goToStep(PLATFORM_STEPS.length + 1);
         });
     }
 }
@@ -280,7 +282,7 @@ async function startTour(connected?: (accountId: string) => Promise<void>,
     const granted = await Promise.all(SOURCE_PLATFORMS.map(hasPlatformAccess));
     if (mode !== 'tour') return;
     skipAuthorizationStep = granted.every(Boolean);
-    await goToStep(skipAuthorizationStep ? 1 : 0);
+    await goToStep(0);
 }
 
 function mountAuthorization(
@@ -295,9 +297,25 @@ function mountAuthorization(
 
 /** Reopen the same authorization view without starting or advancing the tutorial. */
 function showPlatformAuthorization(connected?: (accountId: string) => Promise<void>): void {
-    if (modalOpen()) return;
+    // Let the highlighted button open its real dialog, then resume the walkthrough.
+    const resumeMode = mode;
+    const resumeIndex = stepIndex + 1;
+    const resumeConnected = onConnected;
+    const resumeLiveSave = prepareLiveSave;
+    const resumeSkip = skipAuthorizationStep;
+    const resumeDismiss = onDismiss;
+    const resume = (resumeMode === 'tour' || resumeMode === 'platforms') && STEPS[stepIndex].id === 'site_access';
+    if (modalOpen() && !resume) return;
     destroy(); mode = 'authorization'; onConnected = connected;
-    const step = STEPS[0];
+    if (resume) onDismiss = () => {
+        mode = resumeMode;
+        onConnected = resumeConnected;
+        prepareLiveSave = resumeLiveSave;
+        skipAuthorizationStep = resumeSkip;
+        onDismiss = resumeDismiss;
+        void goToStep(resumeIndex);
+    };
+    const step = AUTHORIZATION_STEP;
     const popover = overlay(null, step.title(), step.description(), false, [], 'bottom', text('Site access', '网站授权'));
     const bar = footer(popover);
     button(bar, text('Done', '完成'), close, 'platformAuthorizationDone', 'tour-nav-btn');
@@ -408,6 +426,13 @@ function showAccountConnection(platform: SourcePlatform, accountId: string, acco
     relayout?.();
 }
 
+/** The same three introduction pages are also the first steps of startTour. */
+function showPlatformHighlights(): boolean {
+    if (modalOpen()) return false;
+    mode = 'platforms';
+    void goToStep(0);
+    return true;
+}
 function startFeatureSpotlight(version: string, stepId: string, dismissed: () => void): boolean {
     if (modalOpen()) return false;
     const step = STEPS.find(item => item.id === stepId);
@@ -493,4 +518,4 @@ function showTakeoutPrompt(
     return true;
 }
 export const TourGuide = { showAccountConnection, showPlatformAuthorization, startTour, goToStep, nextStep, prevStep, finishTour, skipTour,
-    startFeatureSpotlight, showV2UpgradeSpotlight, dismissFeatureSpotlight, showTakeoutPrompt, isActive, destroy };
+    startFeatureSpotlight, showPlatformHighlights, showV2UpgradeSpotlight, dismissFeatureSpotlight, showTakeoutPrompt, isActive, destroy };

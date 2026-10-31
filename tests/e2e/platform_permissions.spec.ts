@@ -1,3 +1,4 @@
+import { advancePlatformIntro } from '../helpers/tourNavigation';
 import { test, expect } from './fixtures';
 
 test.use({ grantGemini: false });
@@ -14,7 +15,7 @@ test('shipping install has no platform access and leaves unconnected source page
         expect(await source.locator('#geminiExportBadge').count()).toBe(0);
         await source.close();
     }
-    await options.locator('#btnTourGuide').click();
+    await options.locator('#btnTourGuide').click(); await advancePlatformIntro(options);
     for (const platform of ['gemini', 'chatgpt', 'claude', 'grok']) {
         const group = options.locator(`.platform-permission-row[data-platform="${platform}"]`);
         await expect(group.locator('input[type=checkbox]')).toBeChecked();

@@ -1,3 +1,4 @@
+import { advancePlatformIntro } from '../helpers/tourNavigation';
 import { test, expect } from '@playwright/test';
 import { mount, read, A, B } from '../helpers/uiPortHarness';
 
@@ -272,7 +273,7 @@ test('UI v2: Popup loads the shared Light preference and can switch to Dark', as
 });
 
 test('UI v2: Light mode styles the Tour', async ({ page }) => {
-    await mount(page, 'options', { settings: { theme: 'light' } }, '?startTour=1');
+    await mount(page, 'options', { settings: { theme: 'light' } }, '?startTour=1'); await advancePlatformIntro(page);
     await expect(page.locator('.tour-popover')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
 });
 
@@ -348,7 +349,7 @@ test('UI v2: Takeout file input directly imports into current account and report
     expect(await read(page,'imports')).toEqual([B]); expect(await read(page,'patches')).toContainEqual({takeoutPromptCompleted:true});
 });
 test('UI v2: real Tour hit testing, stale delays, feedback close, and no persistent Tour fields', async ({ page }) => {
-    await mount(page,'options',{},'?startTour=1'); await expect(page).toHaveURL('https://ui.test/');
+    await mount(page,'options',{},'?startTour=1'); await advancePlatformIntro(page); await expect(page).toHaveURL('https://ui.test/');
     await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
     await page.locator('#tourNextBtn').click();
     await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
@@ -360,7 +361,7 @@ test('UI v2: real Tour hit testing, stale delays, feedback close, and no persist
     // Clicking an unrelated button is intercepted, closes the Tour and does not export.
     const rect = await page.locator('#btnExport').boundingBox(); await page.mouse.click(rect!.x+5,rect!.y+5);
     await expect(page.locator('.tour-popover')).toHaveCount(0); expect(await read(page,'exports')).toEqual([]);
-    await page.locator('#btnTourGuide').click(); await expect(page.locator('.tour-popover')).toBeVisible();
+    await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page); await expect(page.locator('.tour-popover')).toBeVisible();
     await page.keyboard.press('Escape'); await expect(page.locator('.tour-overlay-container')).toHaveCount(0);
     expect(await read(page,'patches')).toEqual([]);
 });
@@ -440,7 +441,7 @@ test('UI v2: Badge drag sends position to Runtime on pointerup, ignores ordinary
     expect(await page.evaluate(()=>Object.keys(localStorage))).toEqual([]);
 });
 test('UI v2: authorization uses one selected-platform action and closing never persists Tour state', async ({ page }) => {
-    await mount(page,'options',{tabs:[],geminiAccess:false},'?startTour=1');
+    await mount(page,'options',{tabs:[],geminiAccess:false},'?startTour=1'); await advancePlatformIntro(page);
     await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
     await expect(page.locator('#tourNextBtn')).toBeDisabled();
     for (const platform of ['Gemini','ChatGPT','Claude'])
@@ -460,7 +461,7 @@ test('UI v2: authorization uses one selected-platform action and closing never p
 test('UI v2: final Tutorial button closes without opening feedback, actual feedback link opens only once', async ({ page }) => {
     await mount(page,'options');
     const lastStep = async () => {
-        await page.locator('#btnTourGuide').click();
+        await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page);
         await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
         await page.locator('#tourNextBtn').click();
         await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
