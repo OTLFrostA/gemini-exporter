@@ -1,3 +1,4 @@
+import { advancePlatformIntro } from './helpers/tourNavigation';
 import test, { before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -13,10 +14,10 @@ let browser: Browser, page: Page;
 before(async () => { browser = await chromium.launch({ headless: true }); });
 afterEach(async () => { await page?.close(); }); after(async () => { await browser?.close(); });
 async function open(patch: Record<string, unknown> = {}, query = '') { page = await browser.newPage(); await mount(page, 'options', { tabs: [], ...patch }, query); await page.locator('#list .item').waitFor(); }
-async function start(index = 0) { await page.evaluate(async index => { const tour = Reflect.get(window, 'testUi').tour; await tour.startTour(); if (index) await tour.goToStep(index); }, index); }
+async function start(index = 0) { await page.evaluate(async index => { const tour = Reflect.get(window, 'testUi').tour; await tour.startTour(); await tour.goToStep(index + 3); }, index); }
 
 test('tourGuide - module structure and all current steps remain available', () => {
-    assert.deepEqual(STEPS.map(step => step.id), ['connect', 'sync', 'select', 'format', 'export', 'live_save', 'feedback']);
+    assert.deepEqual(STEPS.map(step => step.id), ['platforms', 'site_access', 'accounts', 'connect', 'sync', 'select', 'format', 'export', 'live_save', 'feedback']);
     for (const step of STEPS) { assert.equal(typeof step.target, 'function'); assert.ok(step.title()); assert.ok(step.description()); }
 });
 test('tourGuide - navigation, back and completion operate on current in-page state', async () => {
@@ -24,7 +25,7 @@ test('tourGuide - navigation, back and completion operate on current in-page sta
     await page.getByRole('button', { name: 'Next', exact: true }).click(); assert.equal(await page.locator('.tour-popover h2').textContent(), 'Select conversations');
     await page.getByRole('button', { name: 'Back', exact: true }).click(); assert.equal(await page.locator('.tour-popover h2').textContent(), 'Scan conversations');
     await page.getByRole('button', { name: 'Back', exact: true }).click(); assert.equal(await page.locator('.tour-popover h2').textContent(), 'Authorize AI platforms');
-    await page.evaluate(() => Reflect.get(window, 'testUi').tour.goToStep(6)); await page.getByRole('button', { name: 'Start using', exact: true }).click();
+    await page.evaluate(() => Reflect.get(window, 'testUi').tour.goToStep(9)); await page.getByRole('button', { name: 'Start using', exact: true }).click();
     assert.equal(await page.locator('[role=dialog]').count(), 0); assert.deepEqual(await read(page, 'patches'), []);
 });
 async function choose(platforms: string[]) {
@@ -101,7 +102,7 @@ for (const [provider, name] of [['chatgpt', 'ChatGPT'], ['claude', 'Claude']]) {
         const account = { id: B, providerId: provider, providerAccountId: `${provider}-account` };
         await open({ accounts: [{ id: A, providerId: 'gemini', providerAccountId: 'A' }, account],
             [`${provider}Accounts`]: [account], tabs: [{ id: 2, url: provider === 'chatgpt' ? 'https://chatgpt.com/' : 'https://claude.ai/' }] });
-        await page.locator('#btnTourGuide').click();
+        await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page);
         await choose([name]);
         await page.locator('#btnAuthorizePlatforms').click();
         await page.waitForFunction(() => document.querySelector('.platform-authorization [role=status]')?.textContent?.includes('Selected platforms authorized'));
@@ -153,7 +154,7 @@ test('Closing discards a pending authorization result and does not change accoun
 
 test('Slow account discovery does not block authorization and closing discards its late selection', async () => {
     await open({ geminiAccess: false, holdDiscovery: true });
-    await page.locator('#btnTourGuide').click();
+    await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page);
     await choose(['Gemini']);
     await page.locator('#btnAuthorizePlatforms').click();
     await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishDiscovery === 'function');
@@ -166,7 +167,7 @@ test('Slow account discovery does not block authorization and closing discards i
 
 test('Account discovery failure does not negate a successful authorization or cause polling', async () => {
     await open({ geminiAccess: false, tabs: [{ id: 2, url: 'https://chatgpt.com/' }], discoveryError: 'session failed: 429' });
-    await page.locator('#btnTourGuide').click(); await choose(['ChatGPT']);
+    await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page); await choose(['ChatGPT']);
     await page.locator('#btnAuthorizePlatforms').click();
     await page.waitForFunction(() => !(document.querySelector('#tourNextBtn') as HTMLButtonElement)?.disabled);
     assert.deepEqual(await read(page, 'discoveryCalls'), ['chatgpt']);
@@ -371,8 +372,8 @@ for (const format of ['html', 'pdf', 'json']) {
     test(`Live Save tutorial switches ${format} to persisted Markdown before showing the step`, async () => {
         await open({ settings: { defaultFormat: format, exportDelivery: 'folderWriter', enabledDisk: false },
             directoryName: 'Exports' });
-        await page.locator('#btnTourGuide').click();
-        await page.evaluate(() => Reflect.get(window, 'testUi').tour.goToStep(5));
+        await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page);
+        await page.evaluate(() => Reflect.get(window, 'testUi').tour.goToStep(8));
         assert.equal(await page.locator('#format').inputValue(), 'markdown');
         assert.equal(await page.locator('#liveSaveDiskToggle').isEnabled(), true);
         assert.equal(await page.locator('#liveSaveDiskToggle').isChecked(), false);
@@ -388,8 +389,8 @@ test('Live Save format switch preserves an in-progress export format', async () 
     await open({ holdExport: true, settings: { defaultFormat: 'html', enabledDisk: false,
         exportDelivery: 'browserDownload' } });
     await page.locator('#list .item input').first().check();
-    await page.locator('#btnTourGuide').click();
-    await page.evaluate(() => Reflect.get(window, 'testUi').tour.goToStep(4));
+    await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page);
+    await page.evaluate(() => Reflect.get(window, 'testUi').tour.goToStep(7));
     await page.locator('#btnExport').click();
     await page.waitForFunction(() => document.querySelector('.tour-popover h2')?.textContent === 'Live Save');
     assert.equal(await page.locator('#format').inputValue(), 'markdown');

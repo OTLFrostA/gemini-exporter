@@ -1,3 +1,4 @@
+import { advancePlatformIntro } from './helpers/tourNavigation';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from 'playwright';
@@ -68,6 +69,7 @@ test('D7: denied authorization cannot enable Next, including without a Tabs API'
     for(const missing of [false,true]){
         await open({geminiAccess:false,permissionDenied:true});
         await page.evaluate(missing=>{if(missing)Reflect.deleteProperty(chrome,'tabs');return Reflect.get(window,'testUi').tour.startTour();},missing);
+        await advancePlatformIntro(page);
         await page.locator('#btnAuthorizePlatforms').click();
         await page.waitForFunction(()=>document.querySelector('.tour-popover')?.textContent?.includes('Access was not granted'));
         assert.equal(await page.locator('#tourNextBtn').isDisabled(),true);

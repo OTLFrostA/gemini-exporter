@@ -6,7 +6,7 @@ import { isAccountId } from '../../l2/accountRegistry.js';
 import { PLATFORM_HOSTS, SOURCE_PLATFORMS, type SourcePlatform } from '../../shared/platformHosts.js';
 import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
-import { STEPS } from '../guidance/tourSteps.js';
+import { AUTHORIZATION_STEP } from '../guidance/tourSteps.js';
 import { conversationKey, type ConversationKey } from '../../l2/conversationKey.js';
 import { getIndex } from '../../l3a/storageService.js';
 import { updateSettings, type GlobalSettings } from '../../application/settings/index.js';
@@ -70,8 +70,8 @@ export async function initPopup(): Promise<void> {
     const render = () => {
         labelPage();
         if (permissionPlatform) {
-            el('popupPermissionTitle').textContent = STEPS[0].title();
-            el('popupPermissionDescription').textContent = STEPS[0].description();
+            el('popupPermissionTitle').textContent = AUTHORIZATION_STEP.title();
+            el('popupPermissionDescription').textContent = AUTHORIZATION_STEP.description();
         }
         labelThemeToggle(control('button', 'btnThemeToggle'), settings);
         // Appearance is independent of exporting or updating another preference.

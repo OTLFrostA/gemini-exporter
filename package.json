@@ -1,6 +1,6 @@
 {
   "name": "gemini-exporter",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "100% Free & open-source • 100% local, no tracking • One-click export all chats • PDF, HTML & Markdown • Hands-off background export",
   "main": "background.js",
   "scripts": {

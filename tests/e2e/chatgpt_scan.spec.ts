@@ -1,3 +1,4 @@
+import { advancePlatformIntro } from '../helpers/tourNavigation';
 import { test, expect } from './fixtures';
 import { openOptions } from './uiFixture';
 import { listGen as chatgptListGen } from '../fixtures/providers/chatgpt.js';
@@ -45,7 +46,7 @@ test('Connect ChatGPT selects its verified account and Sync All commits only its
     const page = await openOptions(context, extensionId);
     await source(page, true);
     await expect(page.locator('header #btnConnectChatGPT, header #btnConnectClaude')).toHaveCount(0);
-    await page.locator('#btnTourGuide').click();
+    await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page);
     await expect(page.getByRole('checkbox', { name: 'Gemini', exact: true })).toHaveCount(0);
     await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
     await page.getByRole('checkbox', { name: 'Grok', exact: true }).uncheck();
@@ -77,7 +78,7 @@ test('Connect ChatGPT selects its verified account and Sync All commits only its
 test('Declining ChatGPT site access leaves the registry and history untouched', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
     await source(page, false);
-    await page.locator('#btnTourGuide').click();
+    await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page);
     await expect(page.getByRole('checkbox', { name: 'Gemini', exact: true })).toHaveCount(0);
     await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
     await page.getByRole('checkbox', { name: 'Grok', exact: true }).uncheck();

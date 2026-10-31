@@ -1,3 +1,4 @@
+import { advancePlatformIntro } from '../helpers/tourNavigation';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, accountId } from './uiFixture';
 import { detailGen as grokDetailGen, metadataGen, treeGen, responsesGen } from '../fixtures/providers/grokDetail.js';
@@ -41,7 +42,7 @@ async function grokBoundary(page: import('@playwright/test').Page, allow: boolea
 for (const allow of [true, false]) test(`Grok site authorization ${allow ? 'connects and syncs its native history' : 'denial leaves its account absent'}`, async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
     await grokBoundary(page, allow);
-    await page.locator('#btnTourGuide').click();
+    await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page);
     for (const name of ['Gemini', 'ChatGPT', 'Claude']) await page.getByRole('checkbox', { name, exact: true }).uncheck();
     await page.locator('#btnAuthorizePlatforms').click();
     if (!allow) {
@@ -67,7 +68,7 @@ test('an unavailable selected Gemini account stays selected while Grok is connec
     await seedRegistryAccounts(context);
     const page = await openOptions(context, extensionId);
     await grokBoundary(page, true);
-    await page.locator('#btnTourGuide').click();
+    await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page);
     for (const name of ['Gemini', 'ChatGPT', 'Claude']) await page.getByRole('checkbox', { name, exact: true }).uncheck();
     await page.locator('#btnAuthorizePlatforms').click();
     await expect(page.locator('#tourNextBtn')).toBeEnabled();

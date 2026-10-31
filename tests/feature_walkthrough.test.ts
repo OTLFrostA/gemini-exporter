@@ -13,7 +13,7 @@ test('feature version comparison uses numeric components at the current shared o
     for (const [a, b, expected] of [['1.10.0', '1.9.0', true], ['1.5.0', '1.5.0', false], ['1.4.0', '1.5.0', false], ['2.0.0', '1.99.99', true]] as const) assert.equal(isVersionGreater(a, b), expected);
 });
 test('featureReleases - latest eligible release arbitration excludes old, future and unusable baselines', () => {
-    assert.deepEqual(FEATURE_RELEASES, [{ version: '2.0.0', kind: 'upgrade' }], 'only approved v2 announcements are eligible');
+    assert.deepEqual(FEATURE_RELEASES, [{ version: '2.1.0', kind: 'platforms' }, { version: '2.0.0', kind: 'upgrade' }], 'only approved v2 announcements are eligible');
     assert.equal(getLatestEligibleFeature('1.4.0', '1.8.1'), null);
     // Supply explicit announcements only for testing the arbitration algorithm.
     const previous = FEATURE_RELEASES.slice();
@@ -70,4 +70,55 @@ test('format Spotlight dismissal restores focus without initiating PDF/HTML expo
     assert.equal(await page.locator('[role=dialog]').count(), 1); await page.getByRole('button', { name: 'Got it', exact: true }).click();
     assert.equal(await page.locator('#format').evaluate(el => document.activeElement === el), true);
     assert.deepEqual(await read(page, 'exports'), []);
+});
+
+for (const language of ['en', 'zh']) test(`2.1 highlights authorize sites and resume at the account switcher (${language})`, async () => {
+    page = await browser.newPage();
+    await mount(page, 'options', { manifestVersion: '2.1.0', settings: { language, lastSeenFeatureVersion: '2.0.0' } });
+    const heading = language === 'en' ? 'Multi-platform support (Beta)' : '多平台支持（测试版）';
+    await page.getByRole('heading', { name: heading, exact: true }).waitFor();
+    assert.deepEqual((await read(page, 'patches')).filter((patch: { lastSeenFeatureVersion?: string }) =>
+        patch.lastSeenFeatureVersion), [{ lastSeenFeatureVersion: '2.1.0' }]);
+    await page.locator('#tourNextBtn').click();
+    await page.locator('#btnPlatformPermissions').click();
+    await page.locator('#platformAuthorizationDone').waitFor();
+    assert.equal(await page.locator('.tour-popover').count(), 1);
+    await page.locator('#btnAuthorizePlatforms').click();
+    await page.locator('.platform-permission-row[data-platform="chatgpt"]').waitFor({ state: 'hidden' });
+    await page.locator('#platformAuthorizationDone').click();
+    await page.getByRole('heading', { name: language === 'en' ? 'Switch platforms and accounts' : '切换平台与账号', exact: true }).waitFor();
+    await page.locator('#accountIdSelect').selectOption({ index: 1 });
+    await page.locator('#tourPrevBtn').click();
+    await page.locator('#tourNextBtn').click();
+    await page.locator('#tourNextBtn').click();
+    assert.equal(await page.locator('.tour-popover').count(), 0);
+});
+test('2.1 highlights are eligible for upgrades and not replayed for seen or fresh installs', () => {
+    for (const previous of ['1.8.1', '2.0.0', '2.0.1'])
+        assert.deepEqual(getLatestEligibleFeature(previous, '2.1.0'), { version: '2.1.0', kind: 'platforms' });
+    for (const previous of ['2.1.0', 'invalid']) assert.equal(getLatestEligibleFeature(previous, '2.1.0'), null);
+});
+test('installation tutorial includes all three platform highlights before authorization', async () => {
+    page = await browser.newPage();
+    await mount(page, 'options', { manifestVersion: '2.1.0', geminiAccess: false }, '?startTour=1');
+    for (const title of ['Multi-platform support (Beta)', 'Authorize the sites you use', 'Switch platforms and accounts']) {
+        await page.getByRole('heading', { name: title, exact: true }).waitFor();
+        await page.locator('#tourNextBtn').click();
+    }
+    await page.getByRole('heading', { name: 'Authorize AI platforms', exact: true }).waitFor();
+    assert.equal(await page.locator('#tourNextBtn').isDisabled(), true);
+});
+
+test('the account lesson highlights the source area even before any account is connected', async () => {
+    page = await browser.newPage({ viewport: { width: 640, height: 480 } });
+    await mount(page, 'options', { accounts: [], manifestVersion: '2.1.0', settings: { lastSeenFeatureVersion: '2.0.0' } });
+    await page.getByRole('heading', { name: 'Multi-platform support (Beta)', exact: true }).waitFor();
+    await page.locator('#tourNextBtn').click();
+    await page.locator('#btnPlatformPermissions').click();
+    await page.keyboard.press('Escape');
+    await page.getByRole('heading', { name: 'Switch platforms and accounts', exact: true }).waitFor();
+    assert.equal(await page.locator('#accountName').isVisible(), true);
+    assert.equal(await page.locator('.tour-spotlight').isVisible(), true);
+    await page.locator('#tourNextBtn').click();
+    assert.equal(await page.locator('.tour-popover').count(), 0);
 });
