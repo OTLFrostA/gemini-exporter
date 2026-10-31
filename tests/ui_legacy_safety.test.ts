@@ -24,13 +24,15 @@ test('sync UI never announces completion for partial_limit, aborted or error, an
     }
 });
 test('completed sync reports committed new and changed metadata counts in both languages',async()=>{
-    for(const language of ['en','zh'])for(const changes of [{added:12,updated:8},{added:0,updated:0}]){
+    for(const language of ['en','zh'])for(const [changes,en,zh] of [
+        [{added:12,updated:8}, 'Sync complete · 12 new conversations · 8 conversations updated', '同步完成 · 新发现 12 个对话 · 更新 8 个对话信息'],
+        [{added:1,updated:1}, 'Sync complete · 1 new conversation · 1 conversation updated', '同步完成 · 新发现 1 个对话 · 更新 1 个对话信息'],
+        [{added:0,updated:0}, 'Sync complete · All conversations are up to date', '同步完成 · 所有对话均为最新'],
+    ] as const){
         await open({settings:{language,takeoutPromptCompleted:true},scanResult:{status:'complete',pagesFetched:6,conversationsFetched:501,indexChanges:changes}});
         await page.locator('#btnSyncAll').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
         const final=await page.locator('#status').textContent();
-        assert.equal(final,changes.added+changes.updated===0
-            ? language==='en'?'Sync complete · All conversations are up to date':'同步完成 · 所有对话均为最新'
-            : language==='en'?'Sync complete · 12 new conversations · 8 conversations updated':'同步完成 · 新发现 12 个对话 · 更新 8 个对话信息');
+        assert.equal(final,language==='en'?en:zh);
         assert.doesNotMatch(final??'',/6 \/ 501/);
         await page.close();
     }
