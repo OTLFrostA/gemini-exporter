@@ -14,7 +14,11 @@ test('export completion warns for attachment-only and mixed failures in both lan
             {key:{accountId:A,conversationId:'failed'},title:'Failed chat'}
         ] : undefined;
         await open({ ...(indexes ? { indexes } : {}), partial, failExport, settings: { language } });await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
-        const status=await page.locator('#status').textContent()??'';assert.match(status,language==='en'?new RegExp(`Skipped: 0; Conversation export failed: ${failExport?1:0}`):new RegExp(`跳过 0; 会话导出失败 ${failExport?1:0}`));if(partial)assert.match(status,language==='en'?/Other incomplete conversations: 1/:/其他内容不完整 1 条/);assert.equal(await page.locator('#btnRetryFailed').isVisible(),failExport);await page.close();
+        const status=await page.locator('#status').textContent()??'';
+        assert.doesNotMatch(status, /Skipped:|跳过/);
+        if(failExport) assert.match(status, language==='en'?/Conversation export failed: 1/:/会话导出失败 1/);
+        else assert.doesNotMatch(status, /Conversation export failed:|会话导出失败/);
+        if(partial)assert.match(status,language==='en'?/Other incomplete conversations: 1/:/其他内容不完整 1 条/);assert.equal(await page.locator('#btnRetryFailed').isVisible(),failExport);await page.close();
     }
 });
 test('sync UI never announces completion for partial_limit, aborted or error, and keeps committed counters',async()=>{
@@ -46,7 +50,7 @@ test('export UI lock lasts until refresh settles, including refresh rejection',a
     }
 });
 test('P1-021: export startup rejection releases UI running state for a later invocation',async()=>{
-    await open({throwExport:true});await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();await page.waitForFunction(()=>document.getElementById('status')?.textContent==='Injected export failure');assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);await page.evaluate(()=>{Reflect.get(window,'harness').throwExport=false;});await page.locator('#btnExport').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');assert.equal((await read(page,'exports')).length,2);assert.match(await page.locator('#status').textContent()??'',/Delivery initiated: 1/);
+    await open({throwExport:true});await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();await page.waitForFunction(()=>document.getElementById('status')?.textContent==='Injected export failure');assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);await page.evaluate(()=>{Reflect.get(window,'harness').throwExport=false;});await page.locator('#btnExport').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');assert.equal((await read(page,'exports')).length,2);assert.match(await page.locator('#status').textContent()??'',/Successfully downloaded: 1/);
 });
 test('list UI blocks javascript and data URLs from source fields',async()=>{
     await open({indexes:['javascript:alert(1)','data:text/html,<script>alert(1)</script>','https://gemini.google.com/app/safe'].map((url,i)=>({key:{accountId:A,conversationId:`safe_${i}`},title:'Safe title',url}))});await page.locator('#list .item').first().waitFor();assert.equal(await page.locator('#list script').count(),0);assert.equal(await page.locator('#list .item').count(),3);assert.deepEqual(await page.locator('#list a').evaluateAll(items=>items.map(item=>(item as HTMLAnchorElement).origin)),['https://gemini.google.com','https://gemini.google.com','https://gemini.google.com']);

@@ -12,6 +12,9 @@ test('429 termination names the cooldown and manual retry instead of ordinary ca
     const summary = exportSummary({ exported: 2, skipped: 0, partial: 0, failed: [], aborted: true,
         rateLimitedUntil: Date.now() + 3600000 });
     assert.match(summary, /429.*export stopped.*cooling down.*Retry manually/);
+    assert.equal(summary.split('\n')[0], 'Successfully downloaded: 2');
+    assert.equal(summary.split('\n').length, 2);
+    assert.doesNotMatch(summary, /Skipped:|Conversation export failed:/);
     assert.doesNotMatch(summary, /Cancelled/);
 });
 

@@ -192,7 +192,7 @@ test('delivery summary separates unavailable source attachments from retryable f
     ]});
     assert.match(summary, /2 conversations contain unavailable source attachments \(2 attachments\)/);
     assert.match(summary, /Attachment download failed: 1; retry later/);
-    assert.match(summary, /Conversation export failed: 0/);
+    assert.doesNotMatch(summary, /Conversation export failed:/);
     assert.doesNotMatch(summary, /Other incomplete/);
 });
 
