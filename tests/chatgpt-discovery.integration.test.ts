@@ -50,7 +50,7 @@ test('Granted discovery registers the session workspace and the production scan 
         assert.equal(account.providerAccountId, JSON.stringify(['user', 'workspace']));
         assert.equal(ProviderRegistry.get('chatgpt')?.id, 'chatgpt');
         assert.deepEqual(await scanAll({ accountId: account.id }), {
-            status: 'complete', pagesFetched: 1, conversationsFetched: 1,
+            status: 'complete', pagesFetched: 1, conversationsFetched: 1, indexChanges: { added: 1, updated: 0 },
         });
         assert.equal((await listIndexes(account.id))[0].title, 'ChatGPT conversation');
         assert.deepEqual((await listAccounts()).filter(account => account.providerId === 'gemini'), []);
