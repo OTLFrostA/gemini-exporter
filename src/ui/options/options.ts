@@ -445,7 +445,7 @@ export async function initWorkbench(): Promise<void> {
             const { added, updated } = result.indexChanges;
             return added === 0 && updated === 0
                 ? text('Sync complete · All conversations are up to date', '同步完成 · 所有对话均为最新')
-                : text(`Sync complete · ${added} new conversations · ${updated} conversations updated`,
+                : text(`Sync complete · ${added} new ${added === 1 ? 'conversation' : 'conversations'} · ${updated} ${updated === 1 ? 'conversation' : 'conversations'} updated`,
                     `同步完成 · 新发现 ${added} 个对话 · 更新 ${updated} 个对话信息`);
         };
         status(() => succeeded ? completionSummary()
