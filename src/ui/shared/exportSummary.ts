@@ -21,5 +21,8 @@ export function exportSummary(result: ExportResult): string {
         ...((result.otherPartial ?? result.partial) ? [text(`Other incomplete conversations: ${result.otherPartial ?? result.partial}`, `其他内容不完整 ${result.otherPartial ?? result.partial} 条`)] : []),
         text(`Skipped: ${result.skipped}`, `跳过 ${result.skipped}`),
         text(`Conversation export failed: ${result.failed.length}`, `会话导出失败 ${result.failed.length}`),
-        ...(result.aborted ? [text('Cancelled', '已取消')] : [])].join('; ');
+        ...(result.rateLimitedUntil ? [text(
+            `ChatGPT rate limited (429): export stopped; account cooling down until ${new Date(result.rateLimitedUntil).toLocaleTimeString()}. Retry manually after cooldown.`,
+            `ChatGPT 请求受限（429），本次导出已停止；账号冷却至 ${new Date(result.rateLimitedUntil).toLocaleTimeString()}，请届时手动重试`)]
+            : result.aborted ? [text('Cancelled', '已取消')] : [])].join('; ');
 }

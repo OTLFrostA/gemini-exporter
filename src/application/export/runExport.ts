@@ -89,6 +89,8 @@ export async function runExport(request: ExportRequest, options: {
     // Attachment work has its own bounded pool; it never gates the next source read.
     let downstream = Promise.resolve();
     let bodyDelivery = Promise.resolve();
+    let saveCancelledFiles: (() => Promise<void>) | undefined;
+    const finalizedGroups = new Set<ExportGroup>();
     const queued = new Map<string, Promise<void>>();
     const deliveredBodies = new Set<string>();
     const identity = (key: ConversationKey) => JSON.stringify([key.accountId, key.conversationId]);
@@ -104,6 +106,16 @@ export async function runExport(request: ExportRequest, options: {
         catch (error) { console.warn('[Gemini Exporter] Export progress listener failed', error); }
     };
     const diagnose = (diagnostic: ExportDiagnostic): void => {
+        if (diagnostic.code === 'CHATGPT_RATE_LIMITED' || diagnostic.code === 'CHATGPT_COOLDOWN_ACTIVE') {
+            const details = diagnostic.details;
+            if (details && typeof details === 'object' && !Array.isArray(details)) {
+                const data = details.observation ?? details;
+                if (data && typeof data === 'object' && !Array.isArray(data) && typeof data.retryAt === 'number') {
+                    result.rateLimitedUntil = Math.max(result.rateLimitedUntil ?? 0, data.retryAt);
+                    controller.abort();
+                }
+            }
+        }
         try { options.onDiagnostic?.(diagnostic); }
         catch (error) { console.warn('[Gemini Exporter] Export diagnostic listener failed', error); }
     };
@@ -139,6 +151,7 @@ export async function runExport(request: ExportRequest, options: {
         // Once Delivery returned, cancellation cannot suppress records for that group/ZIP.
         const exportedAt = Date.now();
         for (const group of groups) {
+            if (request.delivery === 'browserDownload') finalizedGroups.add(group);
             bodyDelivered(group.key);
             try {
                 const record: ExportRecord = { ...group.record, exportedAt };
@@ -253,13 +266,14 @@ export async function runExport(request: ExportRequest, options: {
         const linkedPlanner = linked ? createExportPathPlanner(request.format, directory ? undefined : resourceScope) : undefined;
         const bodies: { group: ExportGroup; hasAttachments: boolean }[] = [];
         const attachments: ExportGroup[] = [];
+        const shippedAttachments = new Set<ExportGroup>();
         const attachmentArchiveName = `attachments_${Date.now()}.zip`;
-        const deliver = async (groups: readonly ExportGroup[], archiveName?: string): Promise<void> => {
+        const deliver = async (groups: readonly ExportGroup[], archiveName?: string, savingCancelled = false): Promise<void> => {
             if (!groups.length) return;
             let files: ExportArtifact[];
             try { files = await packageExportFiles(groups.map(group => group.files), request.delivery, archiveName); }
             catch (error) { throw operationError(error, 'PACKAGING_FAILED'); }
-            signal.throwIfAborted();
+            if (!savingCancelled) signal.throwIfAborted();
             if (request.delivery === 'browserDownload') {
                 if (files.length !== 1) throw new Error('Browser delivery requires one final file');
                 await startBrowserDownload(files[0]);
@@ -267,6 +281,26 @@ export async function runExport(request: ExportRequest, options: {
                 if (!directory) throw new OperationError('DIRECTORY_UNAVAILABLE', 'Export directory unavailable');
                 await writeToFolder(files, directory);
             }
+        };
+        if (linked && !directory) saveCancelledFiles = async () => {
+            // Stop acquisition first. Only complete, already rendered artifacts enter
+            // this final handoff; the cancelled signal must not discard their ZIP.
+            await downstream;
+            await bodyDelivery;
+            const eligible = (group: ExportGroup): boolean => !finalizedGroups.has(group)
+                && !failed.some(key => identity(key) === identity(group.key));
+            const undelivered = bodies.filter(body => eligible(body.group)
+                && !deliveredBodies.has(identity(body.group.key)));
+            try {
+                await deliver(undelivered.map(body => body.group), undefined, true);
+                for (const body of undelivered) bodyDelivered(body.group.key);
+                await finalize(undelivered.filter(body => !body.hasAttachments).map(body => body.group));
+            } catch (error) { fail(undelivered.map(body => body.group.key), error); }
+            const ready = attachments.filter(group => eligible(group) && deliveredBodies.has(identity(group.key)));
+            try {
+                await deliver(ready.filter(group => !shippedAttachments.has(group) && group.files.length), attachmentArchiveName, true);
+                await finalize(ready);
+            } catch (error) { fail(ready.map(group => group.key), error); }
         };
         const pending: PendingExport[] = [];
         for (const [index, key] of request.keys.entries()) {
@@ -509,6 +543,7 @@ export async function runExport(request: ExportRequest, options: {
             if (!directory && attachments.length) {
                 try {
                     await deliver(attachments.filter(group => group.files.length), attachmentArchiveName);
+                    for (const group of attachments) shippedAttachments.add(group);
                     await bodyDelivery;
                     await finalize(attachments.filter(group => deliveredBodies.has(identity(group.key))));
                 } catch (error) {
@@ -561,6 +596,8 @@ export async function runExport(request: ExportRequest, options: {
             severity: cancelled(error) ? 'info' : 'error', issue: operationIssue(error),
             message: error instanceof Error ? error.message : String(error) });
         if (!cancelled(error)) throw error;
+        controller.abort(error);
+        await saveCancelledFiles?.();
         result.aborted = true;
         return result;
     } finally {

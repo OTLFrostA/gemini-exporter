@@ -5,3 +5,4 @@ export { getCoverage, updateCoverageAtomically, clearStoredAccountScanRecords, c
 export { getExportRecord, listExportRecords, putExportRecord, clearStoredAccountExportRecords } from './exportRecordStore.js';
 export { getStoredSettings, patchStoredSettings } from './settingsStore.js';
 export { getDirectoryHandle, setDirectoryHandle } from './idbHandleStore.js';
+export { getSourceCooldown, extendSourceCooldown } from './sourceCooldownStore.js';
