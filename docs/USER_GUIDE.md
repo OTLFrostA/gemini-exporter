@@ -88,7 +88,9 @@ For developer documentation, see [v2 module architecture](../src/README.md) and 
 
 Keep the Workbench page open to export original ZIP attachments. After closing or reloading it, reimport the ZIP to restore its attachment readers. ZIP bytes stay outside stored conversation facts. Missing attachments produce a partial result; file-library records alone never become conversations. An export with an empty `conversations.json` reports that no conversation bodies were supplied.
 
-**Why does export show a backoff countdown?** When ChatGPT returns HTTP 429, the exporter waits according to `Retry-After` and shows a retry countdown. Diagnostics retain rate-limit, wait and cancellation observations. Finishing a wait only permits another attempt; it does not establish success or reduce the rate of later requests.
+**What happens when ChatGPT returns 429?** The current export stops immediately and the account cools down for at least one hour, or longer if required by `Retry-After`. The UI shows the reason and cooldown deadline; retry manually after it expires. The account deadline survives workbench reloads and browser restarts. Diagnostics retain rate-limit and cooldown observations.
+
+Stopping or cancelling a Markdown, HTML or JSON browser export still delivers prepared documents and attachments from conversations whose resource processing has completed. Extract the document and attachment ZIPs into the same directory. Unfinished attachments do not count as success and do not create complete export records. Packaging or delivery failures are reported separately. PDF and Word must finish rendering before delivery; files already written in folder mode remain saved.
 
 Markdown, HTML and JSON deliver documents separately from attachments: folder exports write each document first; browser exports deliver a document ZIP after document preparation, followed by an attachment ZIP. PDF and Word prepare attachments before rendering. Within one export task, ChatGPT document reads and attachment-locator requests still observe the same account cooldown.
 

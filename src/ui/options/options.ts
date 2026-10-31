@@ -344,7 +344,7 @@ export async function initWorkbench(): Promise<void> {
             const result = await runExport(request, { signal, importedResources,
                 onDiagnostic: diagnostic => {
                     backoff.observe(diagnostic);
-                    if (diagnostic.code === 'CHATGPT_BACKOFF_WAIT' || diagnostic.code === 'CHATGPT_BACKOFF_END') paintExportProgress();
+                    if (['CHATGPT_BACKOFF_WAIT', 'CHATGPT_BACKOFF_END', 'CHATGPT_RATE_LIMITED', 'CHATGPT_COOLDOWN_ACTIVE'].includes(diagnostic.code)) paintExportProgress();
                     // Failed items carry their own diagnostic; count each failure once via onItemUpdate.
                     if (diagnostic.code !== 'EXPORT_FAILED') run.issues.add(diagnostic, titleFor(diagnostic.key));
                     if (run.diagnostics.length >= 10000) { run.droppedDiagnostics++; return; }
@@ -419,7 +419,7 @@ export async function initWorkbench(): Promise<void> {
             onDiagnostic: diagnostic => {
                 if (diagnostics.length < 1000) diagnostics.push(diagnostic);
                 backoff.observe(diagnostic);
-                if (diagnostic.code === 'CHATGPT_BACKOFF_WAIT' || diagnostic.code === 'CHATGPT_BACKOFF_END') paintScanProgress();
+                if (['CHATGPT_BACKOFF_WAIT', 'CHATGPT_BACKOFF_END', 'CHATGPT_RATE_LIMITED', 'CHATGPT_COOLDOWN_ACTIVE'].includes(diagnostic.code)) paintScanProgress();
             },
             onTarget: select, onProgress: p => {
                 if (!busy || signal.aborted) return;

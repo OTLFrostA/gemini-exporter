@@ -338,7 +338,7 @@ test('failed external image offers an explicit origin grant without auto-authori
     assert.deepEqual(await read(page, 'exports'), [], 'permission approval alone does not start an export');
 });
 
-test('429 countdown survives attachment progress and overlapping waits, then clears after retry or cancellation', async () => {
+test('legacy 429 countdown survives attachment progress and overlapping waits, then clears after retry or cancellation', async () => {
     await open({ holdExport: true, settings: { language: 'zh' } });
     await page.clock.install();
     await page.locator('#btnSelectAll').click();

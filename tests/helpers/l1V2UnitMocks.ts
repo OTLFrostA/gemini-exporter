@@ -36,6 +36,7 @@ type Hook = () => void | Promise<void>;
 const initialAccounts = [GEMINI_ACCOUNT, OTHER_ACCOUNT, DEFAULT_ACCOUNT, CHATGPT_ACCOUNT];
 export const ports = {
     accounts: new Map<string, Account>(),
+    cooldowns: new Map<string, number>(),
     indexes: [] as IndexCall[],
     details: [] as DetailCall[],
     deletions: [] as DeletedCall[],
@@ -51,6 +52,7 @@ export const ports = {
     current: null as AccountContext | null,
     reset() {
         this.accounts = new Map(initialAccounts.map(account => [account.id, { ...account }]));
+        this.cooldowns.clear();
         this.notifications.length = 0; this.indexes.length = 0; this.details.length = 0; this.deletions.length = 0; this.lookups.length = 0;
         this.detailDecision = { accepted: true, changed: true };
         this.indexError = null; this.detailError = null; this.deletionError = null;
@@ -79,6 +81,14 @@ const ingestion: Pick<Ingest, 'ingestIndexes' | 'ingestDetail' | 'ingestDeletedC
         await ports.beforeDeletionCommit?.();
         if (ports.deletionError) throw ports.deletionError;
         ports.deletions.push([accountId, conversationId]);
+    },
+};
+const cooldownStorage: Pick<typeof import('../../src/l3a/storageService.js'), 'getSourceCooldown' | 'extendSourceCooldown'> = {
+    async getSourceCooldown(accountId) { return ports.cooldowns.get(accountId) ?? 0; },
+    async extendSourceCooldown(accountId, until) {
+        const deadline = Math.max(ports.cooldowns.get(accountId) ?? 0, until);
+        ports.cooldowns.set(accountId, deadline);
+        return deadline;
     },
 };
 const accountRegistry: Pick<typeof import('../../src/runtime/api/accountRegistry.js'),
@@ -232,6 +242,7 @@ export function installL1V2Mocks(): void {
             throw new Error('L1 unit test directly loaded external implementation: ' + request);
         if (parentPath.includes('/src/l1/') || parentPath.includes('/src/shared/')) {
             if (request.endsWith('/l2/ingestion.js')) return ingestion;
+            if (request.endsWith('/l3a/storageService.js')) return cooldownStorage;
             if (request.endsWith('/runtime/api/domainIngestion.js')) return ingestion;
             if (request.endsWith('/runtime/api/domainChanges.js')) return { notifyDomainChanged: (id: string) => { ports.notifications.push(id); } };
             if (request.endsWith('/runtime/api/accountRegistry.js')) return accountRegistry;

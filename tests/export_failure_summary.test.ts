@@ -8,6 +8,13 @@ import type { OperationIssue } from '../src/shared/errors/operationError.js';
 const accountId = fixtureAccount('gemini').id;
 const key = (conversationId: string) => ({ accountId, conversationId });
 
+test('429 termination names the cooldown and manual retry instead of ordinary cancellation', () => {
+    const summary = exportSummary({ exported: 2, skipped: 0, partial: 0, failed: [], aborted: true,
+        rateLimitedUntil: Date.now() + 3600000 });
+    assert.match(summary, /429.*export stopped.*cooling down.*Retry manually/);
+    assert.doesNotMatch(summary, /Cancelled/);
+});
+
 test('100 HTTP failures with different IDs and messages aggregate by actual cause and status', () => {
     const collector = new ExportIssueCollector();
     for (let i = 0; i < 100; i++) collector.add({ key: key(String(i)), stage: 'export', code: 'EXPORT_FAILED',

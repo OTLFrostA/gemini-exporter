@@ -40,6 +40,8 @@ export interface ExportRecord {
 }
 export interface ExportProgress { current: number; total: number; key: ConversationKey }
 export interface ExportResult {
+    /** ChatGPT stopped this task; new tasks must respect the persisted account deadline. */
+    rateLimitedUntil?: number;
     exported: number;
     skipped: number;
     partial: number;

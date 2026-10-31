@@ -1,7 +1,7 @@
 import { readChatGPTSandboxLocator } from '../../resources/chatgptSandbox.js';
 import { diagnosticOrigin, diagnosticUrlShape, emitDiagnostic, type Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { OperationError, operationError } from '../../../shared/errors/operationError.js';
-import { abortableSleep, calculateBackoff } from '../../../shared/utils/retryUtils.js';
+import { getSourceCooldown, extendSourceCooldown } from '../../../l3a/storageService.js';
 import { ResourceHttpError, ResourceProcessingError } from '../../../shared/resources/resourceResult.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
 import { readChatGPTSession } from './accountObservation.js';
@@ -55,7 +55,6 @@ export class ChatGPTProvider implements AIProvider {
     private origin: string;
     // Share credentials within this provider, scoped by account; never persist tokens.
     private readonly tokens = new Map<string, Promise<string>>();
-    private readonly cooldowns = new Map<string, number>();
     private readonly resources?: SourceResourceContext;
 
     constructor(deps?: ChatGPTProviderDeps) {
@@ -78,18 +77,19 @@ export class ChatGPTProvider implements AIProvider {
         if (!account || account.providerId !== this.id) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Provider account mismatch');
         return account;
     }
-    private accessToken(account: Account, signal?: AbortSignal): Promise<string> {
+    private accessToken(account: Account, signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<string> {
         const cached = this.tokens.get(account.id);
         if (cached) return cached;
-        const pending = this.fetchAccessToken(account, signal).catch(error => {
+        const pending = this.fetchAccessToken(account, signal, onDiagnostic).catch(error => {
             if (this.tokens.get(account.id) === pending) this.tokens.delete(account.id);
             throw error;
         });
         this.tokens.set(account.id, pending);
         return pending;
     }
-    private async fetchAccessToken(account: Account, signal?: AbortSignal): Promise<string> {
+    private async fetchAccessToken(account: Account, signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<string> {
         const response = await this.fetchFn(`${this.origin}/api/auth/session`, { credentials: 'include', signal });
+        if (response.status === 429) return this.rejectRateLimited(account.id, response.headers.get('Retry-After'), onDiagnostic);
         if (!response.ok) throw new OperationError('SOURCE_HTTP_ERROR', `ChatGPT session failed: ${response.status}`, response.status);
         const raw: unknown = await response.json();
         const { accessToken, observation } = readChatGPTSession(raw);
@@ -98,10 +98,10 @@ export class ChatGPTProvider implements AIProvider {
         if (!accessToken) throw new OperationError('SOURCE_AUTH_UNAVAILABLE', 'ChatGPT session has no accessToken');
         return accessToken;
     }
-    private async authenticatedRequest(path: string, account: Account, signal?: AbortSignal): Promise<Response> {
+    private async authenticatedRequest(path: string, account: Account, signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<Response> {
         for (let attempt = 0; ; attempt++) {
             signal?.throwIfAborted();
-            const pending = this.accessToken(account, signal);
+            const pending = this.accessToken(account, signal, onDiagnostic);
             const token = await pending;
             signal?.throwIfAborted();
             const response = await this.fetchFn(`${chatGPTApiBase(this.origin)}${path}`, {
@@ -115,51 +115,38 @@ export class ChatGPTProvider implements AIProvider {
             // Refresh once, validating the original account before sending another API request.
         }
     }
+    private async checkCooldown(accountId: string, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<void> {
+        const retryAt = await getSourceCooldown(accountId);
+        if (retryAt <= Date.now()) return;
+        emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_COOLDOWN_ACTIVE',
+            message: 'ChatGPT account is cooling down; no request sent',
+            details: { retryAt, delayMs: retryAt - Date.now(), willRetry: false } });
+        throw new OperationError('SOURCE_HTTP_ERROR', 'ChatGPT account is cooling down after HTTP 429', 429);
+    }
+    private async rejectRateLimited(accountId: string, header: string | null,
+        onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<never> {
+        const seconds = header !== null && /^\d+(?:\.\d+)?$/.test(header.trim()) ? Number(header) * 1000 : NaN;
+        const date = header && /^[A-Za-z]/.test(header.trim()) ? Date.parse(header) - Date.now() : NaN;
+        const retryAfterMs = Number.isFinite(seconds) ? seconds : Number.isFinite(date) ? Math.max(0, date) : undefined;
+        const delayMs = Math.max(60 * 60 * 1000, retryAfterMs ?? 0);
+        const retryAt = await extendSourceCooldown(accountId, Date.now() + delayMs);
+        emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_RATE_LIMITED',
+            message: 'ChatGPT returned HTTP 429; stop this export and cool down for one hour',
+            details: { httpStatus: 429, retryAfterMs: retryAfterMs ?? null, delayMs, retryAt, willRetry: false } });
+        throw new OperationError('SOURCE_HTTP_ERROR', 'ChatGPT returned HTTP 429; export stopped for cooldown', 429);
+    }
     private async authedGet(path: string, account: Account, signal?: AbortSignal,
         notFoundCode: 'SOURCE_HTTP_ERROR' | 'RESOURCE_LOCATOR_UNAVAILABLE' = 'SOURCE_HTTP_ERROR',
         onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<unknown> {
-        const requestId = crypto.randomUUID();
-        for (let attempt = 0; ; attempt++) {
-            // Account-scoped cooldown also applies to another request on this
-            // provider. A cancelled export must not erase the server deadline.
-            let remaining = (this.cooldowns.get(account.id) ?? 0) - Date.now();
-            if (remaining > 0) {
-                try {
-                    while (remaining > 0) {
-                        emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_BACKOFF_WAIT',
-                            message: 'ChatGPT request is waiting for the account rate-limit cooldown',
-                            details: { requestId, attempt, retryAt: Date.now() + remaining, delayMs: remaining } });
-                        if (await abortableSleep(remaining, signal)) signal?.throwIfAborted();
-                        remaining = (this.cooldowns.get(account.id) ?? 0) - Date.now();
-                    }
-                } finally {
-                    emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_BACKOFF_END',
-                        message: 'ChatGPT cooldown wait ended; this does not establish a successful retry',
-                        details: { requestId, attempt, aborted: signal?.aborted ?? false } });
-                }
-            }
-            signal?.throwIfAborted();
-            const res = await this.authenticatedRequest(path, account, signal);
-            if (res.status === 429) {
-                const header = res.headers.get('Retry-After');
-                const seconds = header !== null && /^\d+(?:\.\d+)?$/.test(header.trim()) ? Number(header) * 1000 : NaN;
-                // HTTP dates begin with a weekday. Do not let Date.parse treat
-                // malformed numeric delays (for example -1) as calendar dates.
-                const date = header && /^[A-Za-z]/.test(header.trim()) ? Date.parse(header) - Date.now() : NaN;
-                const retryAfterMs = Number.isFinite(seconds) ? seconds : Number.isFinite(date) ? Math.max(0, date) : undefined;
-                const delay = retryAfterMs ?? calculateBackoff(attempt, { initialDelayMs: 30000, maxDelayMs: 120000 });
-                this.cooldowns.set(account.id, Math.max(this.cooldowns.get(account.id) ?? 0, Date.now() + delay));
-                emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_RATE_LIMITED',
-                    message: 'ChatGPT returned HTTP 429', details: { requestId, httpStatus: 429, attempt,
-                        retryAfterMs: retryAfterMs ?? null, delayMs: delay, retryAt: this.cooldowns.get(account.id) ?? null,
-                        willRetry: attempt < 3 } });
-                if (attempt < 3) continue;
-            }
-            if (!res.ok) throw new OperationError(res.status === 404 ? notFoundCode : 'SOURCE_HTTP_ERROR',
-                `HTTP ${res.status}: ChatGPT API ${path} failed`, res.status);
-            const raw: unknown = await res.json();
-            return raw;
-        }
+        signal?.throwIfAborted();
+        await this.checkCooldown(account.id, onDiagnostic);
+        signal?.throwIfAborted();
+        const res = await this.authenticatedRequest(path, account, signal, onDiagnostic);
+        if (res.status === 429) return this.rejectRateLimited(account.id, res.headers.get('Retry-After'), onDiagnostic);
+        if (!res.ok) throw new OperationError(res.status === 404 ? notFoundCode : 'SOURCE_HTTP_ERROR',
+            `HTTP ${res.status}: ChatGPT API ${path} failed`, res.status);
+        const raw: unknown = await res.json();
+        return raw;
     }
 
     async checkReadiness(accountId: Account['id']): Promise<ProviderReadiness> {
@@ -278,6 +265,8 @@ export class ChatGPTProvider implements AIProvider {
         signal?.throwIfAborted();
         readConversationKey(key);
         const account = await this.context(key.accountId);
+        await this.checkCooldown(account.id, onDiagnostic);
+        signal?.throwIfAborted();
         const remote = async () => {
             const startedAt = Date.now();
             let phase = 'download_locator';
@@ -341,6 +330,7 @@ export class ChatGPTProvider implements AIProvider {
                         locatorKind: sandbox ? 'sandbox' : uploadedFile ? 'uploaded_file' : 'file',
                     } });
                 response = await this.fetchFn(downloadUrl.href, { signal });
+                if (response.status === 429) return await this.rejectRateLimited(account.id, response.headers.get('Retry-After'), onDiagnostic);
                 if (!response.ok) throw new ResourceHttpError(response.status);
                 phase = 'read_body';
                 const bytes = new Uint8Array(await response.arrayBuffer());
@@ -352,6 +342,8 @@ export class ChatGPTProvider implements AIProvider {
                     details: { origin, httpStatus: response.status, byteLength: bytes.byteLength, elapsedMs: Date.now() - startedAt } });
                 return { bytes, ...(mediaType ? { mediaType } : {}), ...(name ? { name } : {}) };
             } catch (error) {
+                if (error instanceof ResourceHttpError && error.httpStatus === 429)
+                    return this.rejectRateLimited(account.id, null, onDiagnostic);
                 emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_RESOURCE_REQUEST_FAILED', message: 'ChatGPT attachment acquisition failed',
                     details: { phase, origin, httpStatus: error instanceof OperationError ? error.httpStatus ?? null : response?.status ?? null,
                         responseType: response?.type ?? null, redirected: response?.redirected ?? null,

@@ -1,5 +1,5 @@
 // tests/arch/no_bare_storage_writes.test.ts
-// Chrome writes belong only to the Settings IO adapter and the one-time Migration markers.
+// Chrome writes belong to named Settings, transport-cooldown and Migration IO owners.
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -10,9 +10,10 @@ const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
-// Explicit owners: Settings data and the final Migration completion markers.
+// Explicit IO owners: Settings, account transport deadlines and Migration markers.
 const ALLOWED_STORAGE_FILES = new Set<string>([
     'src/l3a/settingsStore.ts',
+    'src/l3a/sourceCooldownStore.ts',
     'src/migration/upgradeV1.ts',
     'src/migration/releasedV17.ts',
     'src/migration/sourceVersions.ts',
@@ -32,7 +33,7 @@ function isRealCodeCall(text: string, pattern: string): boolean {
     return code.includes(pattern);
 }
 
-test('arch: Chrome writes stay within Settings IO and the Migration marker owner', () => {
+test('arch: Chrome writes stay within the named IO owners', () => {
     const hits = sourceHits('chrome.storage.local.set(')
         .filter(h => isRealCodeCall(h.text, 'chrome.storage.local.set('));
     const unauthorized = hits.filter(h => !ALLOWED_STORAGE_FILES.has(h.file));

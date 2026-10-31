@@ -143,11 +143,11 @@ export async function initPopup(): Promise<void> {
                 includeAssets: latest.includeAssets, skipUnchanged: false }, {
                 onDiagnostic: diagnostic => {
                     backoff.observe(diagnostic);
-                    if (active && (diagnostic.code === 'CHATGPT_BACKOFF_WAIT' || diagnostic.code === 'CHATGPT_BACKOFF_END')) showStatus(exportMessage);
+                    if (active && (['CHATGPT_BACKOFF_WAIT', 'CHATGPT_BACKOFF_END', 'CHATGPT_RATE_LIMITED', 'CHATGPT_COOLDOWN_ACTIVE'].includes(diagnostic.code))) showStatus(exportMessage);
                 },
             });
             if (!active) return;
-            showStatus(() => result.aborted ? text('Cancelled', '已取消')
+            showStatus(() => result.rateLimitedUntil ? exportSummary(result) : result.aborted ? text('Cancelled', '已取消')
                 : result.failed.length || !result.exported ? text('Export failed. Try Options.', '导出失败，请在工作台重试。')
                 : result.partial ? exportSummary(result)
                 : text('Download initiated', '已发起下载'));

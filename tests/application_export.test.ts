@@ -383,7 +383,7 @@ test('cancelling after browser body delivery preserves that receipt and cancels 
     assert.equal(deliveries.length, 1);
     assert.equal(records.size, 0);
 });
-test('cancellation drains in-flight attachments before releasing readers and stops queued work', async () => {
+test('cancellation drains in-flight attachments, saves prepared bodies and stops queued work', async () => {
     for (const id of ['first', 'second', 'third']) seed(id, { assets: true });
     const started = gate();
     const finish = gate();
@@ -409,7 +409,8 @@ test('cancellation drains in-flight attachments before releasing readers and sto
     assert.equal(acquisitions, 2);
     assert.equal(active, 0);
     assert.equal(state.releasedContexts, 1);
-    assert.equal(deliveries.length, 0);
+    assert.equal(deliveries.length, 1, 'prepared text is saved after acquisition stops');
+    assert.equal(result.exported, 0, 'unfinished attachments do not produce a success record');
     assert.equal(records.size, 0);
 });
 test('resource preparation passes ConversationKey independently for identical asset IDs', async () => {
