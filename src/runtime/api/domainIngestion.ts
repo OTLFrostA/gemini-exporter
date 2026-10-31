@@ -16,11 +16,15 @@ async function ingest(parameters: IngestionRequest): Promise<unknown> {
 const inExtension = () => typeof location !== 'undefined' && location.protocol === 'chrome-extension:';
 export const ingestIndexes: typeof domain.ingestIndexes = async (accountId, items, page) => {
     if (!inExtension()) {
-        await ingest({ operation: 'indexes', accountId, items, ...(page === undefined ? {} : { page }) });
-        return;
+        const result = await ingest({ operation: 'indexes', accountId, items, ...(page === undefined ? {} : { page }) });
+        if (!result || typeof result !== 'object' || !('added' in result) || !('updated' in result)
+            || typeof result.added !== 'number' || !Number.isSafeInteger(result.added) || result.added < 0
+            || typeof result.updated !== 'number' || !Number.isSafeInteger(result.updated) || result.updated < 0
+            || result.added + result.updated > items.length) throw new TypeError('Invalid committed Index ingestion result');
+        return { added: result.added, updated: result.updated };
     }
     await ensureV2Ready();
-    await domain.ingestIndexes(accountId, items, page);
+    return domain.ingestIndexes(accountId, items, page);
 };
 export const ingestDetail: typeof domain.ingestDetail = async (accountId, conversationId, detail, indexFields) => {
     if (!inExtension()) {

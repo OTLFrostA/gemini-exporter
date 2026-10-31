@@ -83,7 +83,7 @@ export class ClaudeProvider implements AIProvider {
             const evidence = { streamId: options.streamId, requestCursor: page === 1 ? null : String(offset),
                 nextCursor: sourceEnd ? null : String(offset + 100), requestedAt,
                 requestKnown: true, valid, ordered, keys: times };
-            await ingestIndexes(account.id, parsed.conversations.map(item => ({ conversationId: item.id, fields: {
+            const indexChanges = await ingestIndexes(account.id, parsed.conversations.map(item => ({ conversationId: item.id, fields: {
                 ...(item.title ? { title: item.title, titleSource: 'provider' as const } : {}),
                 ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}), updatedAt: item.updatedAt,
             } })), evidence);
@@ -92,7 +92,7 @@ export class ClaudeProvider implements AIProvider {
             times.forEach(key => seen.add(key.id));
             if (times.length) lastTime = times[times.length - 1].time;
             totalObserved += count;
-            const stop = await options.onPageCommitted?.({ page, totalObserved, ...(page === 1 ? { scanHead: evidence } : {}) });
+            const stop = await options.onPageCommitted?.({ page, totalObserved, indexChanges, ...(page === 1 ? { scanHead: evidence } : {}) });
             if (sourceEnd) return 'source_end';
             if (stop) return 'stopped';
         }

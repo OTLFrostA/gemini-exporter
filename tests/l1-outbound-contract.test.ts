@@ -23,7 +23,7 @@ type Contract = [
     Assert<Equal<ProviderListOptions['accountId'], Account['id']>>,
     Assert<Equal<ProviderListOptions['onPageCommitted'],
         ((info: CommittedListPage) => Promise<boolean>) | undefined>>,
-    Assert<Equal<keyof CommittedListPage, 'page' | 'totalObserved' | 'scanHead'>>,
+    Assert<Equal<keyof CommittedListPage, 'page' | 'totalObserved' | 'scanHead' | 'indexChanges'>>,
     Assert<Equal<CommittedListPage['scanHead'], FrozenPageEvidence | undefined>>,
     Assert<Equal<ListEnd, 'source_end' | 'provider_limit' | 'max_pages' | 'stopped'>>,
     Assert<Equal<Parameters<AIProvider['listConversations']>[0], ProviderListOptions>>,

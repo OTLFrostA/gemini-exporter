@@ -65,6 +65,18 @@ test('L2 binds keyless Index rows to the resolved Account and coalesces duplicat
     assert.equal(indexes.size, 2);
 });
 
+test('L2 Index ingestion returns only unique committed additions and material metadata changes', async () => {
+    assert.deepEqual(await ingestIndexes(ACCOUNT.id, [index('existing', 'Original', 100)]), { added: 1, updated: 0 });
+    const changes = await ingestIndexes(ACCOUNT.id, [index('existing', 'Renamed', 101),
+        index('new', 'Fresh', 90), index('new', 'Fresh', 90)]);
+    assert.deepEqual(changes, { added: 1, updated: 1 });
+    assert.equal(indexFor('existing')?.title, 'Renamed');
+    assert.deepEqual(await ingestIndexes(ACCOUNT.id, [index('existing', 'Renamed', 101), index('new', 'Fresh', 90)]),
+        { added: 0, updated: 0 });
+    rejectNextWrite(new Error('commit failed'));
+    await assert.rejects(ingestIndexes(ACCOUNT.id, [index('another')]), /commit failed/);
+    assert.equal(indexFor('another'), undefined);
+});
 test('L2 forwards committed page evidence only after the Index decision and binds Registry identity', async () => {
     await ingestIndexes(ACCOUNT.id, [index('c')], evidence([{ id: 'c', time: 100 }]));
     assert.equal(calls.indexUpdates.length, 1);

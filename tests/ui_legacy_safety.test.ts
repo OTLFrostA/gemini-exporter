@@ -20,7 +20,19 @@ test('export completion warns for attachment-only and mixed failures in both lan
 test('sync UI never announces completion for partial_limit, aborted or error, and keeps committed counters',async()=>{
     for(const status of ['partial_limit','aborted','error','complete','up_to_date']){
         await open({holdScan:true,scanCount:3,scanResult:{status,pagesFetched:2,conversationsFetched:3}});await page.locator('#btnSyncAll').click();assert.equal(await page.locator('#status').textContent(),'Committed 2 pages, 3 source entries');await page.evaluate(()=>Reflect.get(window,'harness').finishScan());await page.waitForFunction(()=>document.body.dataset.busy!=='true');
-        const final=await page.locator('#status').textContent()??'';assert.match(final,/2 \/ 3/);if(['partial_limit','aborted','error'].includes(status))assert.doesNotMatch(final,/Reached the end|Connected to trusted/);else assert.match(final,/Reached the end|Connected to trusted/);assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);await page.close();
+        const final=await page.locator('#status').textContent()??'';if(['partial_limit','aborted','error'].includes(status)){assert.match(final,/2 \/ 3/);assert.doesNotMatch(final,/Sync complete/);}else{assert.equal(final,'Sync complete');assert.doesNotMatch(final,/2 \/ 3/);}assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);await page.close();
+    }
+});
+test('completed sync reports committed new and changed metadata counts in both languages',async()=>{
+    for(const language of ['en','zh'])for(const changes of [{added:12,updated:8},{added:0,updated:0}]){
+        await open({settings:{language,takeoutPromptCompleted:true},scanResult:{status:'complete',pagesFetched:6,conversationsFetched:501,indexChanges:changes}});
+        await page.locator('#btnSyncAll').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
+        const final=await page.locator('#status').textContent();
+        assert.equal(final,changes.added+changes.updated===0
+            ? language==='en'?'Sync complete · All conversations are up to date':'同步完成 · 所有对话均为最新'
+            : language==='en'?'Sync complete · 12 new conversations · 8 conversations updated':'同步完成 · 新发现 12 个对话 · 更新 8 个对话信息');
+        assert.doesNotMatch(final??'',/6 \/ 501/);
+        await page.close();
     }
 });
 test('scan progress shows a long-history reminder only above 200 entries and clears it afterward',async()=>{

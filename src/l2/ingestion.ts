@@ -19,8 +19,10 @@ async function readExistingAccount(accountId: Account['id']): Promise<Account | 
     return account;
 }
 
+export interface IndexIngestResult { added: number; updated: number }
+
 /** Duplicate source rows merge in input order; Storage reads their current values under one transaction. */
-async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promise<void> {
+async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promise<IndexIngestResult> {
     const groups = new Map<string, DomainConversationIndex[]>();
     for (const index of indexes) {
         const key = JSON.stringify([index.key.accountId, index.key.conversationId]);
@@ -29,29 +31,36 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
         else groups.set(key, [index]);
     }
     const entries = [...groups.values()];
+    const changes: IndexIngestResult = { added: 0, updated: 0 };
     await updateIndexesAtomically(entries.map(group => group[0].key), previous => {
         const changed: DomainConversationIndex[] = [];
         entries.forEach((group, i) => {
             let merged = previous[i] ? restoreConversationIndex(previous[i]) : undefined;
             for (const incoming of group) merged = mergeConversationIndex(merged, incoming);
-            if (merged && !sameStoredFacts.index(merged, previous[i])) changed.push(merged);
+            if (merged && !sameStoredFacts.index(merged, previous[i])) {
+                changed.push(merged);
+                if (previous[i]) changes.updated++;
+                else changes.added++;
+            }
         });
         return changed;
     });
+    return changes;
 }
 
 export async function ingestIndexes(accountId: Account['id'],
     items: ReadonlyArray<{ conversationId: ConversationKey['conversationId']; fields: Omit<ConversationIndex, 'key'> }>,
-    page?: PageObservationHead): Promise<void> {
+    page?: PageObservationHead): Promise<IndexIngestResult> {
     const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Index account does not exist');
     const indexes = items.map(item => restoreConversationIndex({ ...item.fields, key: { accountId, conversationId: item.conversationId } }));
-    await mergeIndexes(indexes);
+    const changes = await mergeIndexes(indexes);
     if (page && account.providerAccountId !== DEFAULT_ACCOUNT_KEY) await CoverageAdmission.recordPageCoverage(accountId, {
         ...page, providerId: account.providerId, accountId,
         valid: page.valid && page.keys.length === indexes.length
             && page.keys.every(key => indexes.some(index => index.key.conversationId === key.id)),
     });
+    return changes;
 }
 
 /** Committed admission result; temporary resource ownership is decided by accepted. */

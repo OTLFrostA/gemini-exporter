@@ -46,9 +46,14 @@ SCAN_OBSERVER = r"""(() => {
         if (busy) evidence.started = true;
         const account = document.getElementById('accountIdSelect')?.value;
         const currentText = document.getElementById('status')?.textContent || '';
-        if (busy && /^(Committed \d+ pages|已接纳 \d+ 页)/.test(currentText)) {
-            if (evidence.accountId && evidence.accountId !== account) evidence.error = 'Scan account changed';
-            evidence.accountId = account;
+        if (busy) {
+            const progress = currentText.match(/^Committed (\d+) pages, (\d+) source entries/)
+                || currentText.match(/^已接纳 (\d+) 页、(\d+) 条来源记录/);
+            if (progress) {
+                if (evidence.accountId && evidence.accountId !== account) evidence.error = 'Scan account changed';
+                evidence.accountId = account;
+                evidence.progress = {pagesFetched:Number(progress[1]), conversationsFetched:Number(progress[2])};
+            }
         }
         if (!evidence.started || busy || evidence.finished) return;
         const text = document.getElementById('status')?.textContent || '';
@@ -63,7 +68,10 @@ SCAN_OBSERVER = r"""(() => {
             'Local page budget reached':'max_pages', '已达到本地页数预算':'max_pages',
             'Scan cancelled':'aborted', '扫描已取消':'aborted', 'Scan failed':'error', '扫描失败':'error'
         };
-        if (matched && statuses[matched[1]]) evidence.response = {
+        if (/^(Sync complete|同步完成)(?: · |$)/.test(text) && evidence.progress) evidence.response = {
+            status:'complete', ...evidence.progress
+        };
+        else if (matched && statuses[matched[1]]) evidence.response = {
             status:statuses[matched[1]], pagesFetched:Number(matched[2]), conversationsFetched:Number(matched[3])
         };
         else evidence.error = text || 'No v2 Scan result';

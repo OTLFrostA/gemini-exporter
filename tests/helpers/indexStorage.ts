@@ -58,7 +58,7 @@ export function indexStorage(seed: Record<string, unknown> = {}, options: { seed
         if (message.action === 'ensureV2Ready') return { ok: true };
         if (message.action === 'domainIngest') {
             const domain: typeof import('../../src/l2/ingestion.js') = require('../../src/l2/ingestion.js');
-            if (message.operation === 'indexes') { await domain.ingestIndexes(message.accountId as string, message.items as Parameters<typeof domain.ingestIndexes>[1], message.page as Parameters<typeof domain.ingestIndexes>[2]); return { ok: true }; }
+            if (message.operation === 'indexes') { const result = await domain.ingestIndexes(message.accountId as string, message.items as Parameters<typeof domain.ingestIndexes>[1], message.page as Parameters<typeof domain.ingestIndexes>[2]); return { ok: true, result }; }
             if (message.operation === 'deleted') { await domain.ingestDeletedConversation(message.accountId as string, message.conversationId as string); return { ok: true }; }
             if (message.operation === 'detail') return { ok: true, result: await domain.ingestDetail(message.accountId as string, message.conversationId as string, message.detail as Parameters<typeof domain.ingestDetail>[2], message.indexFields as Parameters<typeof domain.ingestDetail>[3]) };
         }

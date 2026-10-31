@@ -48,13 +48,13 @@ export class GrokProvider implements AIProvider {
                 throw new OperationError('SOURCE_RESPONSE_INVALID', 'Unverified Grok list ordering or pagination');
             const evidence = { streamId: options.streamId, requestCursor: cursor, nextCursor: parsed.nextCursor,
                 requestedAt, requestKnown: true, valid: true, ordered: true, keys: parsed.keys };
-            await ingestIndexes(account.id, parsed.conversations.map(row => ({ conversationId: row.id, fields: {
+            const indexChanges = await ingestIndexes(account.id, parsed.conversations.map(row => ({ conversationId: row.id, fields: {
                 updatedAt: row.updatedAt, ...(row.createdAt !== undefined ? { createdAt: row.createdAt } : {}),
                 ...(row.title ? { title: row.title, titleSource: 'provider' as const } : {}) } })), evidence);
             parsed.keys.forEach(key => seen.add(key.id));
             if (parsed.keys.length) lastTime = parsed.keys[parsed.keys.length - 1].time;
             totalObserved += parsed.keys.length;
-            const stop = await options.onPageCommitted?.({ page, totalObserved, ...(page === 1 ? { scanHead: evidence } : {}) });
+            const stop = await options.onPageCommitted?.({ page, totalObserved, indexChanges, ...(page === 1 ? { scanHead: evidence } : {}) });
             if (!parsed.nextCursor) return 'source_end';
             if (stop) return 'stopped';
             cursor = parsed.nextCursor; cursors.add(cursor);
