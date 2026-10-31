@@ -44,7 +44,7 @@ test('Scan progress counts only committed pages and source entries',async()=>fix
     const progress: ScanProgress[]=[];
     const result=await scanAll({accountId:ACCOUNT_UUID,forceFull:true},{onProgress:p=>progress.push(p)});
     assert.deepEqual(progress,[{pagesFetched:1,conversationsFetched:1},{pagesFetched:2,conversationsFetched:2}]);
-    assert.deepEqual(result,{status:'complete',pagesFetched:2,conversationsFetched:2});
+    assert.deepEqual(result,{status:'complete',pagesFetched:2,conversationsFetched:2,indexChanges:{added:2,updated:0}});
     assert.equal((await listIndexes(ACCOUNT_UUID)).length,4);
 }));
 test('complete and empty Recent sources preserve unseen local Index and export facts',async()=>fixture(async(_env,provider)=>{
@@ -129,5 +129,6 @@ test('diagnostic strings do not override authoritative business results',async()
 }));
 test('the current Scan result exposes no legacy completeness/receipt/checkpoint schema',async()=>fixture(async(_env,provider)=>{
     provider([sourceList('G_SOURCE_EMPTY_01')]);const result=await scanAll({accountId:ACCOUNT_UUID});
-    assert.deepEqual(Object.keys(result).sort(),['conversationsFetched','pagesFetched','status']);
+    assert.deepEqual(Object.keys(result).sort(),['conversationsFetched','indexChanges','pagesFetched','status']);
+    assert.deepEqual(result.indexChanges,{added:0,updated:0});
 }));
