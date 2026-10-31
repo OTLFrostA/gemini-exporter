@@ -628,8 +628,10 @@ class FastSkipExportedCase(FeatureTestCase):
                 fresh = current[len(previous):] if current.startswith(previous) else current if current != previous else ''
                 result = re.fullmatch(r'Delivery initiated: (\d+); Skipped: (\d+); Conversation export failed: (\d+)', fresh)
                 result = result or re.fullmatch(r'已发起交付 (\d+) 条会话; 跳过 (\d+); 会话导出失败 (\d+)', fresh)
+                result = result or re.fullmatch(r'Successfully downloaded: (\d+)(?:; Skipped: (\d+))?(?:; Conversation export failed: (\d+))?', fresh)
+                result = result or re.fullmatch(r'成功下载 (\d+) 条会话(?:; 跳过 (\d+))?(?:; 会话导出失败 (\d+))?', fresh)
                 if not status.get('busy') and result:
-                    completed = tuple(map(int, result.groups())) == (0, prep['count'], 0)
+                    completed = tuple(int(value or 0) for value in result.groups()) == (0, prep['count'], 0)
                     break
                 time.sleep(0.25)
             duration = time.monotonic() - start

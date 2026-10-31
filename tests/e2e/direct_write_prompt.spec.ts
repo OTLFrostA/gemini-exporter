@@ -31,7 +31,7 @@ test('55-conversation browser delivery suggests folder once, then ZIP remains av
     expect((await Promise.all(files.map(x => zip.file(x).async('string')))).join('\n')).toContain('Bulk answer 54');
 
     // Browser download precedes the final export record commits; do not reload until they settle.
-    await expect(page.locator('#status')).toContainText('Delivery initiated: 55', { timeout: 30000 });
+    await expect(page.locator('#status')).toContainText('Successfully downloaded: 55', { timeout: 30000 });
     await expect.poll(async () => page.evaluate(async () =>
         Object.keys(await Reflect.get(globalThis, 'uiFixture')
             .listExportRecords('10000000-0000-4000-8000-000000000001')).length),
@@ -65,7 +65,7 @@ test('closing a displayed batch suggestion permanently dismisses it without star
     await pending;
     await expect(page.locator('#directWriteModal')).toBeHidden();
     // A download starts before the export records commit; await the completed task before teardown.
-    await expect(page.locator('#status')).toContainText('Delivery initiated: 21', { timeout: 30000 });
+    await expect(page.locator('#status')).toContainText('Successfully downloaded: 21', { timeout: 30000 });
     await expect.poll(async () => page.evaluate(async () =>
         Object.keys(await Reflect.get(globalThis, 'uiFixture')
             .listExportRecords('10000000-0000-4000-8000-000000000001')).length),

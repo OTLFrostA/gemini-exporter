@@ -8,7 +8,7 @@ test('batch export delivers both physical bodies and refreshes recent ExportReco
     const pending=page.waitForEvent('download');await page.locator('#btnExport').click();const file=await pending;expect(file.suggestedFilename()).toMatch(/\.zip$/);
     const JSZip=require(path.resolve(__dirname,'../../lib/jszip.min.js'));const zip=await JSZip.loadAsync(await readFile((await file.path())!));const files=Object.keys(zip.files).filter(x=>x.endsWith('.md'));expect(files).toHaveLength(2);
     const bodies=await Promise.all(files.map(x=>zip.file(x).async('string')));expect(bodies.join('\n')).toContain('Answer one');expect(bodies.join('\n')).toContain('Answer two');
-    await expect(page.locator('#status')).toContainText('Delivery initiated: 2');await expect(page.locator('#list small')).toHaveText([/Last export/,/Last export/]);
+    await expect(page.locator('#status')).toContainText('Successfully downloaded: 2');await expect(page.locator('#list small')).toHaveText([/Last export/,/Last export/]);
     const records=await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').listExportRecords(id),accountId);expect(Object.keys(records).sort()).toEqual(['one','two']);expect(records.one.status).toBe('ok');
 });
 test('unchanged exports skip through Application without producing an empty ZIP',async({context,extensionId})=>{

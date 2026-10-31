@@ -56,7 +56,9 @@ test('current completion result distinguishes failed exports and exposes retry w
         for (const failExport of [false, true]) {
             const page = await browser.newPage(); await mount(page, 'options', { failExport });
             await page.locator('#btnSelectAll').click(); await page.locator('#btnExport').click(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
-            assert.match(await page.locator('#status').textContent() ?? '', new RegExp(`failed: ${failExport ? 1 : 0}`));
+            const status = await page.locator('#status').textContent() ?? '';
+            if (failExport) assert.match(status, /failed: 1/);
+            else assert.doesNotMatch(status, /failed:/);
             assert.equal(await page.locator('#btnRetryFailed').isVisible(), failExport);
             assert.equal(await page.locator('#exportSessionBanner, #btnResumeExport').count(), 0);
             await page.close();

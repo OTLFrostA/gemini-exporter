@@ -1309,7 +1309,7 @@ class CoverageTests(unittest.TestCase):
             ctx = MagicMock(output_dir=directory)
             ctx.connect_options.return_value.eval.side_effect = [
                 {'count': 6, 'log': 'old'}, True,
-                {'busy': False, 'log': '已发起交付 0 条会话; 跳过 6; 会话导出失败 0'},
+                {'busy': False, 'log': '成功下载 0 条会话; 跳过 6'},
                 {'exportedId': OTHER}]
             with patch('scripts.framework.cases.export.install_probe'), \
                  patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}), \
