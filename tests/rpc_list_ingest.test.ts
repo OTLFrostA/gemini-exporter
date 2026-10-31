@@ -52,9 +52,10 @@ test('active and passive admissions propagate failed commits and retry through t
 test('duplicate and unchanged Index admissions use the atomic merge without retired receipts',async()=>{
     const env=indexStorage();
     try {
-        assert.equal(await ingestIndexes(ACCOUNT_UUID,[...items(),...items()]),undefined);
+        assert.deepEqual(await ingestIndexes(ACCOUNT_UUID,[...items(),...items()]),
+            {added:GEMINI_LIST_CAPTURE.firstPageRows,updated:0});
         const writes=env.writes();
-        await ingestIndexes(ACCOUNT_UUID,items());
+        assert.deepEqual(await ingestIndexes(ACCOUNT_UUID,items()),{added:0,updated:0});
         assert.equal(env.writes(),writes);assert.equal((await listIndexes(ACCOUNT_UUID)).length,GEMINI_LIST_CAPTURE.firstPageRows);
     } finally {env.restore();}
 });
