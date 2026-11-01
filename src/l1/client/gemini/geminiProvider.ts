@@ -105,13 +105,13 @@ export class GeminiProvider implements GeminiProviderContract {
                 }
             }
             const pageEvidence = account.providerAccountId === 'default' ? undefined : observation;
-            await ingestIndexes(account.id, result.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')), pageEvidence);
+            const indexChanges = await ingestIndexes(account.id, result.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')), pageEvidence);
             options.signal?.throwIfAborted();
             totalObserved += result.conversations.length;
             const { providerId: _provider, accountId: _account, ...head } = observation;
             const trustedHead = !sentHead && pageEvidence && head.requestCursor === null && head.requestKnown && head.valid && head.ordered;
             if (trustedHead) sentHead = true;
-            const stop = await options.onPageCommitted?.({ page, totalObserved, ...(trustedHead ? { scanHead: head } : {}) });
+            const stop = await options.onPageCommitted?.({ page, totalObserved, indexChanges, ...(trustedHead ? { scanHead: head } : {}) });
             // L1 may report a trusted terminal only after L2 committed every
             // trustworthy Recent page and its request-bound terminal evidence.
             if (!observation.valid || (options.streamId === 'recent' && !observation.ordered))

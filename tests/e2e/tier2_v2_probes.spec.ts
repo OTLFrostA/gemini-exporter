@@ -187,17 +187,23 @@ test('Tier 2 Scan observer preserves provider and local page limit reasons and r
                     return;
                 }
                 if (kind === 'resolved') (document.getElementById('accountIdSelect') as HTMLSelectElement).value = 'other';
-                document.getElementById('status')!.textContent = kind === 'provider_limit' ? 'Source online access limit · 1 / 2'
-                    : kind === 'max_pages' ? 'Local page budget reached · 1 / 2'
-                    : 'Reached the end of this Recent source · 1 / 2';
-                document.body.dataset.busy = 'false';
+                document.getElementById('status')!.textContent = 'Committed 1 pages, 2 source entries';
+                queueMicrotask(() => {
+                    document.getElementById('status')!.textContent = kind === 'provider_limit' ? 'Source online access limit · 1 / 2'
+                        : kind === 'max_pages' ? 'Local page budget reached · 1 / 2'
+                        : 'Sync complete · 1 new conversations · 1 conversations updated';
+                    document.body.dataset.busy = 'false';
+                });
             };
         },kind);
         await page.evaluate(scanObserver);
         const evidence = await page.evaluate(() => Reflect.get(window,'__tier2ScanEvidence'));
         if (kind === 'idle') expect(evidence.finished).toBe(false);
         else if (kind === 'changed') expect(evidence.error).toMatch(/account changed/);
-        else expect(evidence.response.status).toBe(kind === 'provider_limit' || kind === 'max_pages' ? kind : 'complete');
+        else {
+            expect(evidence.response.status).toBe(kind === 'provider_limit' || kind === 'max_pages' ? kind : 'complete');
+            expect(evidence.response).toMatchObject({ pagesFetched: 1, conversationsFetched: 2 });
+        }
     }
 });
 

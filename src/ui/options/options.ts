@@ -431,8 +431,6 @@ export async function initWorkbench(): Promise<void> {
         scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result, diagnostics });
         if (scanRuns.length > 10) scanRuns.shift();
         const reasons = new Map(Object.entries({
-            up_to_date: () => text('Connected to trusted history coverage', '已衔接可信历史范围'),
-            complete: () => text('Reached the end of this Recent source', '已达到本次 Recent 来源尽头'),
             provider_limit: () => text('Source online access limit', '来源在线访问范围限制'),
             max_pages: () => state.accounts.find(a => a.id === state.accountId)?.providerId === 'claude'
                 ? text('Claude list coverage cannot yet be verified', 'Claude 列表完整性尚无法验证')
@@ -441,7 +439,17 @@ export async function initWorkbench(): Promise<void> {
             aborted: () => text('Scan cancelled', '扫描已取消'), error: () => text('Scan failed', '扫描失败')
         }));
         const reason = result.diagnostics?.failure ?? result.reason ?? result.status;
-        status(() => `${reasons.get(reason)?.() ?? (result.status === 'error' ? text('Scan failed', '扫描失败') : text('Scan finished', '扫描已结束'))} · ${result.pagesFetched} / ${result.conversationsFetched}`,
+        const succeeded = result.status === 'complete' || result.status === 'up_to_date';
+        const completionSummary = () => {
+            if (!result.indexChanges) return text('Sync complete', '同步完成');
+            const { added, updated } = result.indexChanges;
+            return added === 0 && updated === 0
+                ? text('Sync complete · All conversations are up to date', '同步完成 · 所有对话均为最新')
+                : text(`Sync complete · ${added} new ${added === 1 ? 'conversation' : 'conversations'} · ${updated} ${updated === 1 ? 'conversation' : 'conversations'} updated`,
+                    `同步完成 · 新发现 ${added} 个对话 · 更新 ${updated} 个对话信息`);
+        };
+        status(() => succeeded ? completionSummary()
+            : `${reasons.get(reason)?.() ?? (result.status === 'error' ? text('Scan failed', '扫描失败') : text('Scan finished', '扫描已结束'))} · ${result.pagesFetched} / ${result.conversationsFetched}`,
             result.status === 'error' ? 'error' : result.status === 'aborted' || result.status === 'partial_limit' ? 'warn' : 'info',
             // Keep upstream diagnostic details in the log without exposing untranslated UI text.
             result.status === 'error' ? `Scan failed (${result.reason ?? 'unknown'}) · ${result.pagesFetched} / ${result.conversationsFetched}` : undefined);

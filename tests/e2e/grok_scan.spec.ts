@@ -55,7 +55,7 @@ for (const allow of [true, false]) test(`Grok site authorization ${allow ? 'conn
     await page.locator('#tourNextBtn').click();
     await page.locator('#tourSkipBtn').click();
     await page.locator('#btnSyncAll').click();
-    await expect(page.locator('#status')).toContainText('Reached the end');
+    await expect(page.locator('#status')).toHaveText('Sync complete · 1 new conversation · 0 conversations updated');
     await expect(page.locator('#list .item')).toHaveCount(1);
     await expect(page.locator('#list')).toContainText(wire.metadata.conversation.title);
     await expect(page.locator('#list .open-link')).toHaveAttribute('href', 'https://grok.com/c/' + wire.id);
