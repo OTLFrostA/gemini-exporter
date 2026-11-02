@@ -1,47 +1,5 @@
 [
   {
-    "id": "robotics_planar_two_link_inverse_branches",
-    "title": "Planar robotics: inverse-kinematics branches and Jacobian checks",
-    "domain": "robotics_planar_inverse_kinematics",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original schematic of a two-link planar robot arm. Label joint angles, link lengths and the end-effector target, mark the drawing as schematic and supply a Markdown table of synthetic parameters with units.",
-      "Derive forward kinematics, the two elbow branches of inverse kinematics and the Jacobian determinant in LaTeX. State angle wrapping and reachable-workspace conventions, including singular and unreachable cases.",
-      "Write complete runnable standard-library Python for both inverse branches and forward reconstruction. Validate finite inputs and positive lengths, and include executable tests for interior, fully extended, folded and unreachable targets.",
-      "For synthetic targets, provide a Markdown table of inverse angles, reconstructed coordinates, residual errors and Jacobian determinants. Cross-check analytic derivatives with central finite differences away from singularities.",
-      "Write a Chinese-English reproducibility audit with formulas, complete Python and negative tests. Explain joint-limit and collision constraints omitted from this point-arm model and why a schematic cannot establish physical clearance."
-    ]
-  },
-  {
-    "id": "arithmetic_toy_rsa_crt_certificate",
-    "title": "Modular arithmetic: toy RSA and independent CRT certificates",
-    "domain": "number_theory_modular_exponentiation",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define an explicitly insecure educational RSA example using small distinct primes. Provide a Markdown table of the modulus, totient, candidate exponent and gcd conditions. Do not present these toy values as secure parameters.",
-      "Derive modular inverses with the extended Euclidean algorithm in LaTeX and explain why the exponent must be invertible modulo the selected totient.",
-      "Write complete runnable standard-library Python for extended gcd, modular inversion and square-and-multiply exponentiation. Include executable tests and reject invalid moduli and noninvertible inputs.",
-      "Work through encryption and decryption of a small integer message with a Markdown table of intermediate modular powers. Verify the result independently with Python pow and state the permitted message range.",
-      "Derive Chinese remainder recombination for the two-prime modulus, including the inverse condition and uniqueness of the residue class.",
-      "Implement independent CRT decryption and compare it with direct modular exponentiation for every message in the toy range. Supply complete runnable code and a summary table.",
-      "Add negative tests for repeated primes, an invalid exponent, out-of-range messages and a corrupted CRT coefficient. Explain which algebraic checks detect each failure and which require comparing independent computations.",
-      "Write a Chinese-English audit including the formulas, complete code and boundary tests. Explain why these arithmetic exercises provide no production security, padding design, side-channel protection or prime-generation guarantees."
-    ]
-  },
-  {
     "id": "biology_logistic_growth_parameter_audit",
     "title": "Population dynamics: logistic growth and parameter checks",
     "domain": "biology_population_growth_models",
@@ -417,6 +375,48 @@
       "Create an unsatisfiable example with a variable and its negation in the same SCC. Return two explicit directed paths witnessing the contradiction and verify each path edge against a source clause.",
       "Add negative tests for malformed literals, out-of-range variables, empty formulas, repeated clauses, and variables not appearing in any clause. Explain supported input contracts.",
       "Summarize correctness and O(V+E) complexity. Include the condensation DAG, assignment extraction convention, and a bilingual audit checklist that distinguishes evidence for SAT from evidence for UNSAT."
+    ]
+  },
+  {
+    "id": "crystallography_bragg_synthetic_peak_audit",
+    "title": "Crystallography: synthetic Bragg peaks and lattice spacing",
+    "domain": "crystallography_diffraction",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic of parallel crystal planes and incident/reflected X-ray rays. Label the interplanar spacing and Bragg angle. Mark the drawing as schematic and give a Markdown table of explicitly synthetic wavelengths and angles with units.",
+      "Derive Bragg’s law and the cubic-lattice spacing relation in LaTeX. State whether each angle is theta or two-theta, order constraints, and the range in which the inverse sine is defined.",
+      "Write complete runnable standard-library Python converting synthetic two-theta peaks into lattice-spacing estimates. Reject invalid angles, nonpositive wavelengths, and zero Miller indices; include executable tests.",
+      "Produce a Markdown table comparing several synthetic cubic peaks with predicted angles, recovered lattice constants and numerical residuals. Propagate a stated angular uncertainty and distinguish random from systematic errors.",
+      "Write a Chinese-English reproducibility audit containing formulas, complete Python, boundary tests and units. Explain why this synthetic geometric calculation cannot identify a real material without independent evidence."
+    ]
+  },
+  {
+    "id": "network_flow_residual_cut_certificate",
+    "title": "Network flow: residual edges and a minimum-cut certificate",
+    "domain": "graph_maximum_flow",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a small directed capacitated network with a source, sink, antiparallel edges and a disconnected vertex. Present its synthetic capacities in a Markdown table with a textual diagram.",
+      "Derive flow conservation, residual forward/reverse capacity and the cut upper bound in LaTeX. Explain how antiparallel original edges differ from algorithmic reverse edges.",
+      "Write complete runnable standard-library Python for Edmonds-Karp using separately indexed residual edges. Validate vertices and finite nonnegative capacities, and include executable unit tests.",
+      "Trace each augmenting path with a Markdown table of bottleneck, flow value and changed residual capacities. Explain which changes undo an earlier routing choice.",
+      "Compute the residual source-reachable set and its corresponding cut. Provide a machine-checkable certificate that flow value equals cut capacity, with all conservation residuals.",
+      "Independently verify the result by enumerating all source-sink cuts for this small graph. Supply complete Python and a table comparing the optimum certificate with the enumeration.",
+      "Add negative and boundary tests for zero capacity, disconnected sink, parallel and antiparallel edges, self loops, and invalid endpoints. State the chosen self-loop convention explicitly.",
+      "Write a Chinese-English audit containing the derivation, complete runnable code, tables and tests. Explain integer-capacity assumptions, floating-point limitations and the algorithm’s complexity."
     ]
   }
 ]
