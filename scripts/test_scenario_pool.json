@@ -1,215 +1,5 @@
 [
   {
-    "id": "circuits_rc_step_energy_balance",
-    "title": "RC transients: step response and energy accounting",
-    "domain": "electrical_rc_transients",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational schematic of an ideal series RC charging circuit with a DC source, switch, reference current and capacitor-voltage polarity, plus a qualitative voltage-time plot. Use clearly labeled fictional values and state that the drawing is schematic.",
-      "Derive the charging solution for arbitrary initial capacitor voltage using Kirchhoff laws in LaTeX. State sign conventions, continuity at switching and the limits of the ideal model.",
-      "Write runnable standard-library Python evaluating voltage, current and energies at arbitrary nonnegative times with stable exponential functions. Independently check dimensions, initial values and asymptotic behavior.",
-      "Provide a Markdown table at five dimensionless times for a stated numerical example. Verify source work equals resistor dissipation plus capacitor-energy change and explain how initial stored energy affects signs.",
-      "Produce a reproducible English-Chinese report integrating the code, derivation, energy table and ASCII circuit. Discuss ideal instantaneous switching, negative initial voltage and the difference between analytic verification and executed numerical results."
-    ]
-  },
-  {
-    "id": "compilers_ll1_nullable_first_follow_certificate",
-    "title": "Predictive parsing: nullable, FIRST, FOLLOW and LL(1) conflict witnesses",
-    "domain": "compiler_predictive_parsing",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a nontrivial context-free grammar for a small expression language with optional argument lists and nested parentheses. State the terminals, nonterminals, start symbol and epsilon notation explicitly; the uploaded attachment is only an input-format example.",
-      "Derive monotone fixed-point algorithms for nullable and FIRST sets. Give invariants and termination arguments with finite-set notation in LaTeX, including indirect nullable chains.",
-      "Write runnable standard-library Python implementing grammar validation, nullable and FIRST. Reject undefined nonterminals and ambiguous epsilon encodings; include independent hand-worked small cases.",
-      "Derive and implement FOLLOW sets including suffix FIRST propagation and nullable-suffix dependencies. Explain why one left-to-right pass is insufficient.",
-      "Construct the predictive parsing table and output a Markdown table of nullable, FIRST and FOLLOW sets. Distinguish FIRST/FIRST from FIRST/FOLLOW conflicts with concrete witness productions.",
-      "Implement a table-driven parser returning a trace of stack, remaining input and chosen production. Show successful nested input and invalid-token failures, and state an explicit bounded-trace policy for malformed grammars.",
-      "Introduce a deliberate conflicting production and a left-recursive example. Confirm that the analyzer reports a concrete conflict rather than selecting one production silently; independently validate accepted short strings with a bounded exhaustive derivation oracle.",
-      "Produce a detailed English-Chinese report with runnable code, exact grammar, parsing table and ASCII parse tree. Separate grammar-analysis guarantees from bounded empirical checks and state the computational costs."
-    ]
-  },
-  {
-    "id": "mechanics_coupled_oscillator_normal_modes",
-    "title": "Coupled oscillators: normal modes and energy exchange",
-    "domain": "mechanics_coupled_oscillators",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original teaching schematic of two equal carts joined by springs between fixed walls. Label masses, spring constants and signed displacements using synthetic values; distinguish the equilibrium configuration from a displaced snapshot.",
-      "Derive the mass and stiffness matrices and normal-mode frequencies in LaTeX for equal masses and three equal springs. State the small-displacement assumptions and verify both eigenvectors directly.",
-      "Write complete standard-library Python computing displacement from initial conditions using the analytic normal modes. Test initial displacement and velocity, conservation of energy and the uncoupled limit without hiding singular cases.",
-      "Provide a Markdown table of synthetic times, both displacements, velocities and total energy. Explain the distinction between oscillation frequency and the energy-exchange envelope.",
-      "Write a bilingual reproducibility report linking the schematic, formulas and code. Give an unequal-mass counterexample to using the symmetric eigenvectors, and explain how damping changes the energy check."
-    ]
-  },
-  {
-    "id": "statistics_beta_binomial_predictive_calibration",
-    "title": "Beta-binomial prediction: posterior and predictive uncertainty",
-    "domain": "statistics_beta_binomial_prediction",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Use a hypothetical binary inspection dataset with 7 successes and 3 failures and a Beta(2,2) prior. Clearly distinguish synthetic observations, the unknown success probability and future observations.",
-      "Derive the normalized posterior density in LaTeX, including the beta function. Compute posterior mean and variance and contrast them with the maximum likelihood estimate.",
-      "Derive the posterior predictive distribution for the number of successes in the next five trials. Prove normalization using a finite sum identity and state the conditional independence assumption.",
-      "Explain the law of total variance for the predictive count and calculate its components. Contrast it with plugging the posterior mean into a binomial model.",
-      "Write complete runnable standard-library Python evaluating beta-binomial probabilities with lgamma for numerical stability. Validate integer counts and positive hyperparameters and return a normalized probability vector.",
-      "Add executable tests for normalization, symmetry under swapping success and failure, zero future trials and agreement with exact rational arithmetic in a small case.",
-      "Provide a Markdown table of predictive probabilities and a comparison across weak, concentrated and asymmetric priors. Label all numbers as synthetic and distinguish credible intervals from frequentist coverage claims.",
-      "Write a bilingual audit report connecting the equations, tests and table. Construct a dependent-trials counterexample where the beta-binomial assumptions fail and discuss a possible model check without inventing real data."
-    ]
-  },
-  {
-    "id": "fluids_plane_couette_poiseuille_superposition",
-    "title": "Viscous flow: Couette-Poiseuille superposition and reversal",
-    "domain": "fluids_viscous_channel_flow",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original educational cross-section of viscous flow between two parallel plates with a moving upper plate and a constant pressure gradient. Label synthetic dimensions, velocity direction and boundary conditions; mark the sketch as a model, not experimental data.",
-      "Derive the steady incompressible Couette-Poiseuille velocity profile and volumetric flow per unit width in LaTeX. Define pressure-gradient sign conventions and identify the no-slip assumptions.",
-      "Write complete standard-library Python evaluating velocity and shear stress. Validate units and finite inputs, and test stationary plates, zero pressure gradient, both boundaries and linear superposition.",
-      "Provide a Markdown table for synthetic assisting and opposing pressure gradients. Locate any reverse-flow region analytically and compare with sampled numerical values; distinguish zero net flux from zero local velocity.",
-      "Write a bilingual audit connecting the diagram, formula and code. Derive viscous dissipation per unit area and explain why entrance effects, turbulence and non-Newtonian fluids fall outside the model."
-    ]
-  },
-  {
-    "id": "discrete_mobius_inversion_divisor_sums",
-    "title": "Divisor sums: Mobius inversion and exact integer certificates",
-    "domain": "number_theory_mobius_inversion",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Introduce the divisor-sum relation F(n)=sum over d dividing n of f(d), using a small synthetic integer sequence. State the domain and distinguish divisors from multiples.",
-      "Define the Mobius function in LaTeX and prove that its divisor sum is one for n=1 and zero otherwise. Handle repeated prime factors explicitly.",
-      "Derive Mobius inversion with a complete finite-sum rearrangement proof and no unstated analytic convergence assumptions.",
-      "Work through exact inversion for a synthetic sequence on n=1 through 12, showing prime, prime-power and square-free composite cases.",
-      "Write complete runnable standard-library Python computing a Mobius sieve and divisor sums with exact integers. Validate positive integer inputs and document time and memory complexity.",
-      "Add executable tests comparing a direct divisor implementation with the sieve, checking inversion round trips for signed integer sequences and handling n=1.",
-      "Provide a Markdown table with n, prime factorization, Mobius value, F(n) and reconstructed f(n). Explain why an arbitrary floating-point tolerance cannot certify an integer identity.",
-      "Write a bilingual reproducibility report connecting proof, table and code. Give a counterexample to replacing divisors by all smaller integers and distinguish arithmetic Mobius inversion from the similarly named geometric transformation."
-    ]
-  },
-  {
-    "id": "heat_composite_wall_contact_resistance",
-    "title": "Heat transfer: composite wall and contact resistance",
-    "domain": "heat_composite_wall_resistance",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original educational cross-section of a two-layer wall with convection on both sides and a thermal contact resistance between layers. Label all synthetic dimensions, temperatures and heat-flow direction; identify the sketch as a teaching model.",
-      "Derive the steady one-dimensional resistance network and interface temperatures in LaTeX. Distinguish per-area resistance from total resistance and state constant-conductivity assumptions.",
-      "Write runnable standard-library Python computing heat flux and temperatures. Validate physical units and positive layer thickness and conductivity; test equal boundary temperatures, zero contact resistance and area scaling.",
-      "Provide a Markdown table of synthetic contact resistance and convection coefficients with heat flux and interface temperatures. Independently verify the energy balance and distinguish temperature jumps from gradients.",
-      "Write a bilingual verification report connecting the diagram, equations and tests. Give a transient or radiative counterexample where the steady linear network is insufficient, and explain how it changes the model."
-    ]
-  },
-  {
-    "id": "optimization_assignment_primal_dual_certificate",
-    "title": "Assignment optimization: primal-dual optimality certificates",
-    "domain": "optimization_assignment_duality",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Present a synthetic three-worker three-task assignment problem with a complete integer cost matrix. Specify exactly-one constraints and distinguish forbidden edges from large finite penalties.",
-      "Write the linear programming primal and dual in LaTeX. Derive weak duality by summing constraints and explain why a feasible dual gives a lower bound.",
-      "Enumerate all six assignments for the synthetic matrix, compute their exact costs and identify every optimum without claiming uniqueness prematurely.",
-      "Construct a feasible dual solution attaining the optimum and verify every inequality and complementary slackness condition explicitly.",
-      "Write complete runnable standard-library Python enumerating assignments and checking an optimality certificate with exact integers. Validate rectangular and malformed inputs rather than silently truncating them.",
-      "Add executable tests for cost shifting, row and column permutations, negative costs and tied optima. Include an invalid certificate that must be rejected.",
-      "Provide a Markdown table of each assignment, primal cost, dual bound and gap. Explain why checking only the chosen edges is insufficient to establish dual feasibility.",
-      "Write a bilingual reproducibility report linking the proof, certificate, table and tests. Give a fractional-capacity variant and explain which integrality argument no longer applies without additional structure."
-    ]
-  },
-  {
-    "id": "geometry_polygon_clipping_area_audit",
-    "title": "Computational geometry: polygon clipping and area conservation",
-    "domain": "computational_geometry_polygon_clipping",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original schematic of a convex polygon intersecting an axis-aligned rectangular viewport. Label all coordinates and mark the drawing as schematic. Supply a Markdown table of synthetic vertices in counterclockwise order with explicit coordinate units.",
-      "Derive signed polygon area and segment-boundary intersection formulas in LaTeX. State winding, parallel-edge and boundary-inclusion conventions, and distinguish exact geometry from the schematic pixels.",
-      "Write complete runnable standard-library Python for Sutherland-Hodgman clipping against a rectangle. Validate finite coordinates and positive viewport dimensions. Include executable tests for disjoint, contained, boundary-touching and clipped polygons.",
-      "Work through the synthetic coordinates with a Markdown table after each clipping boundary. Verify output area is nonnegative and no greater than either the input polygon area or the viewport area; explain why those bounds alone do not prove correct vertex order.",
-      "Write a Chinese-English reproducibility audit containing the formulas, the complete Python program and negative tests. Discuss floating-point tolerance, duplicate vertices, degenerate polygons and why this algorithm must not be generalized to arbitrary nonconvex clipping windows without changes."
-    ]
-  },
-  {
-    "id": "probability_absorbing_chain_first_passage",
-    "title": "Probability: absorbing Markov chains and exact first-passage checks",
-    "domain": "probability_absorbing_markov_chains",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a small absorbing Markov chain for a repairable machine with two transient states and one absorbing retired state. Give a Markdown table of exact rational transition probabilities, row sums and state meanings. Use explicitly synthetic numbers.",
-      "Derive the fundamental matrix and expected absorption times in LaTeX, explaining the spectral and reachability assumptions and distinguishing expected time from a guaranteed retirement deadline.",
-      "Write complete runnable standard-library Python using fractions.Fraction and Gaussian elimination to compute expected absorption times. Validate square matrices, nonnegative entries, exact row sums and transient-state reachability.",
-      "Compute the synthetic example by hand and in code. Give a Markdown table of linear-system residuals and expected times for every transient state, with assertions that the two calculations agree exactly.",
-      "Derive the probability of not yet being absorbed after n steps and the first-passage distribution in LaTeX. Produce a table of exact probabilities for the first eight steps and verify the sum plus the survival mass is one.",
-      "Add executable negative tests for a closed nonabsorbing class, invalid row sums, negative probabilities, repeated state labels and zero-step requests. Explain why a singular system is a modeling failure rather than a cue to invent a finite answer.",
-      "Compare exact expectations with a seeded standard-library simulation, reporting sample count, observed means and uncertainty. Explain rare long tails and why a fixed seed improves reproducibility without proving the transition model.",
-      "Write a Chinese-English reproducibility report including all definitions, LaTeX formulas, full Python tests and a limitations table. Separate transient visit counts, elapsed time units and economic repair costs; keep literal currency examples distinct from formulas."
-    ]
-  },
-  {
     "id": "optics_paraxial_lens_matrix_audit",
     "title": "Paraxial optics: lens matrices and image-plane consistency",
     "domain": "optics_paraxial_ray_transfer",
@@ -417,6 +207,216 @@
       "Explain how to verify the numerical solution against the invariant without conflating local error and global error. Supply assertions.",
       "Derive the final size equation and describe a bracketed root method that excludes the irrelevant branch; explain why the root is unique in the chosen bracket.",
       "Summarize limitations from heterogeneous contacts and parameter uncertainty. Provide a numbered validation checklist and distinguish a teaching calculation from a real forecast."
+    ]
+  },
+  {
+    "id": "chemistry_buffer_titration_mass_charge_balance",
+    "title": "Buffer titration: mass balance, charge balance and numerical pH",
+    "domain": "chemistry_buffer_titration",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational illustration of a weak-acid buffer titration experiment, with a burette, beaker and pH probe. Explain what each component measures; distinguish the schematic from quantitative data.",
+      "For 100 mL containing 0.10 M acetic acid and 0.10 M sodium acetate at 25 C, derive mass balance and charge balance equations. Use Ka=1.8e-5 and Kw=1e-14, with ideal activities. Display all equations in LaTeX.",
+      "Add 5.00 mL of 0.100 M HCl. Calculate the stoichiometric estimate and then the full equilibrium pH including dilution. Provide a Markdown table comparing both methods and their assumptions.",
+      "Write self-contained Python code using only the standard library to solve the charge-balance equation by bisection for several HCl volumes. Include brackets, a convergence criterion and a mass-balance residual check in a fenced code block.",
+      "Explain where Henderson-Hasselbalch becomes unreliable as titration approaches buffer exhaustion. Give a concise bilingual English/Chinese conclusion and a table of numerical checks without claiming that the illustration supplied measurements."
+    ]
+  },
+  {
+    "id": "signals_discrete_aliasing_reconstruction_certificate",
+    "title": "Sampling theory: alias classes and discrete reconstruction evidence",
+    "domain": "signals_discrete_sampling_aliasing",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Consider x(t)=cos(2*pi*700*t)+0.5*sin(2*pi*1100*t), sampled at 1600 Hz. Derive the discrete sequence and explain frequency alias equivalence using explicit LaTeX equations.",
+      "Calculate the first eight samples and present a Markdown table of sample index, time and both component contributions. State the phase convention and numerical precision.",
+      "Derive which signed baseband frequencies represent the two components. Show why folding a sine frequency changes the sign in this example, rather than relying only on absolute frequency.",
+      "Provide self-contained standard-library Python code that compares the original and aliased sequences across 64 samples and asserts the maximum error stays below 1e-10.",
+      "Explain why finite discrete samples alone cannot determine which continuous-time alias produced them. Construct two explicit distinct continuous signals sharing the same sample sequence.",
+      "For a hypothetical low-pass anti-alias filter, state the needed cutoff constraints and distinguish transition-band limitations from the ideal sampling theorem. Summarize in a comparison table.",
+      "Compute the 16-point DFT formula and explain spectral leakage when a component does not align to a frequency bin. Include executable Python for direct DFT and avoid external packages.",
+      "Finish with a bilingual English/Chinese audit checklist separating proven sample equality, assumed band limits and reconstruction claims. Include equations and a compact Markdown table."
+    ]
+  },
+  {
+    "id": "electrochemistry_galvanic_cell_nernst_audit",
+    "title": "Galvanic cells: Nernst potentials and reaction bookkeeping",
+    "domain": "electrochemistry_galvanic_cells",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original educational schematic of a fictional zinc-copper galvanic cell, labeling electrodes, salt bridge, electron flow and ion migration. State that this is an illustration rather than experimental data.",
+      "Derive the balanced overall reaction and Nernst equation at 298.15 K for Zn/Cu with standard potential 1.10 V. Clearly define activities and the two-electron stoichiometry in LaTeX.",
+      "Calculate ideal cell voltages for zinc-ion activities 0.01, 0.1 and 1 with copper-ion activity 0.1. Provide a Markdown table and distinguish activities from concentrations.",
+      "Write standard-library Python to compute voltage and Gibbs energy for these cases. Include units, temperature dependence, a zero-activity rejection and the equilibrium-constant relation in fenced code.",
+      "Explain how junction potentials, polarization and nonideal activity affect a measured voltage. Finish with a bilingual English/Chinese summary and a table separating model assumptions from observations."
+    ]
+  },
+  {
+    "id": "scheduling_interval_partitioning_optimality_witness",
+    "title": "Interval partitioning: resource allocation and optimality witnesses",
+    "domain": "algorithms_interval_partitioning",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "For half-open meeting intervals [0,4), [1,3), [2,5), [3,6), [5,7), [6,8), derive the minimum number of rooms. State clearly why meetings touching at endpoints can share a room.",
+      "Give a Markdown sweep-line table of all start and end events, including event ordering at equal timestamps, and identify a maximum-overlap witness.",
+      "Describe a minimum-heap room assignment algorithm, including how room identifiers are reused. Write its time and space complexity in LaTeX.",
+      "Provide self-contained Python using heapq that returns the assignment and a maximum-overlap certificate. Include the exact data above in a fenced code block.",
+      "Prove optimality by showing a lower bound from overlap and an upper bound from the greedy invariant. Explain the distinction between interval partitioning and selecting nonoverlapping intervals.",
+      "Extend tests to zero-length intervals, duplicate intervals, negative times and unsorted input. Specify which inputs are valid and present expected room counts in a table.",
+      "Implement a small brute-force checker for at most eight intervals and cross-check the greedy count on deterministic random examples. Use only the Python standard library.",
+      "Summarize with a bilingual English/Chinese worked example, a resource assignment table, and explicit assumptions for half-open endpoints and zero-length intervals."
+    ]
+  },
+  {
+    "id": "meteorology_hypsometric_layer_temperature_audit",
+    "title": "Atmospheric layers: hypsometric thickness and uncertainty",
+    "domain": "meteorology_hypsometric_layers",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original teaching illustration of a fictional atmospheric column with two pressure surfaces, a temperature probe and a geometric-height scale. Label it schematic and distinguish pressure from altitude.",
+      "Derive the hypsometric equation from hydrostatic balance and the ideal gas law. State assumptions, define virtual temperature and use LaTeX for each derivation step.",
+      "Using Rd=287.05 J/(kg K), g=9.80665 m/s^2 and constant virtual temperature 280 K, calculate the thickness between 1000 and 850 hPa. Provide a Markdown table for virtual temperatures 270, 280 and 290 K.",
+      "Write self-contained Python code using only math to evaluate layer thickness and first-order sensitivity to temperature and pressure errors. Verify units and include physically invalid input checks.",
+      "Compare constant-temperature and layered-temperature estimates and identify the additional observations needed for an actual sounding. Finish with a bilingual English/Chinese uncertainty summary and comparison table."
+    ]
+  },
+  {
+    "id": "compression_huffman_prefix_optimality_audit",
+    "title": "Huffman coding: deterministic ties and prefix decoding certificates",
+    "domain": "information_theory_huffman_coding",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "For symbol weights A=5, B=7, C=10, D=15, E=20, F=45, construct a binary Huffman code. Specify deterministic tie-breaking and show the merge trace as a Markdown table.",
+      "Derive the weighted path length and average code length, then compute entropy and explain the Shannon lower bound with LaTeX equations.",
+      "Prove prefix freedom for the constructed tree and explain why a greedy smallest-pair merge is safe using an exchange argument.",
+      "Implement deterministic Huffman construction in standard-library Python using heapq. Include serial tie counters so heap ordering never compares tree objects.",
+      "Provide executable encoder and decoder functions with validation for unknown symbols, invalid bits and unfinished codewords. Include a round-trip example.",
+      "Handle an alphabet with one symbol and an empty message explicitly. Explain the difference between empty data and an empty alphabet in a table of edge cases.",
+      "Cross-check optimal weighted path length by enumerating feasible binary length assignments for a small alphabet. Explain the use and limits of the Kraft inequality.",
+      "Finish with a bilingual English/Chinese audit checklist covering deterministic output, prefix decoding, optimality evidence and model overhead. Include a final codeword table."
+    ]
+  },
+  {
+    "id": "astronomy_transit_depth_geometry_audit",
+    "title": "Planet transits: geometry, dilution and inference limits",
+    "domain": "astronomy_transit_geometry",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic illustration of a fictional planet transiting a uniformly bright star. Label radii, sky-plane impact parameter and a qualitative light curve. State that this is an illustration, not observed data.",
+      "Derive the small-planet central-transit depth under a uniformly bright stellar disk and explain the assumptions using LaTeX. Distinguish radius ratio from absolute radius.",
+      "For synthetic depths 0.001, 0.005 and 0.01, compute planet-to-star radius ratios and give a Markdown table. Explain why unknown stellar radius prevents an absolute radius estimate.",
+      "Write standard-library Python that evaluates diluted transit depth when a second unresolved star contributes light. Include numerical checks for zero contamination and equal-brightness contamination.",
+      "Discuss limb darkening, grazing geometry and eclipsing-binary false positives. Finish with a bilingual English/Chinese audit table distinguishing geometric deductions from astrophysical assumptions."
+    ]
+  },
+  {
+    "id": "linear_algebra_rank_nullspace_exact_certificate",
+    "title": "Linear systems: exact rank and nullspace certificates",
+    "domain": "linear_algebra_rank_nullspace",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Analyze the exact integer matrix A=[[1,2,3],[2,4,6],[1,1,1]]. Derive its rank, pivot columns and nullspace in LaTeX, showing elementary row operations.",
+      "For b=[6,12,3], characterize every solution to Ax=b. Provide a Markdown table with a particular solution, nullspace basis and explicit verification products.",
+      "For b=[6,13,3], give a left-nullspace inconsistency witness and explain why it proves no solution exists without numerical tolerances.",
+      "Implement Gaussian elimination with fractions.Fraction in self-contained standard-library Python. Return rank, pivot columns and either a parameterized solution or an inconsistency certificate.",
+      "Add executable tests for the zero matrix, rectangular matrices, consistent underdetermined systems and inconsistent systems. Include clear shape validation.",
+      "Explain how floating-point elimination changes pivot decisions and why a fixed absolute threshold fails under rescaling. Give an explicit small numerical example and comparison table.",
+      "Derive the rank-nullity identities for the column and left nullspaces. Distinguish a basis certificate from a minimum-norm solution and identify what additional computation would be needed.",
+      "Finish with a bilingual English/Chinese reproducibility audit containing exact arithmetic invariants, verification equations and a compact summary table."
+    ]
+  },
+  {
+    "id": "thermal_heat_exchanger_effectiveness_audit",
+    "title": "Heat exchanger effectiveness and energy balance audit",
+    "domain": "Thermal engineering: counterflow heat exchanger",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Draw a clearly labelled educational schematic of a counterflow heat exchanger, with hot and cold streams travelling in opposite directions. Explain its energy balance assumptions.",
+      "For hot inlet 90 C, cold inlet 20 C, heat capacity rates 2 and 3 kW/K, and UA=4 kW/K, derive NTU, capacity ratio, and counterflow effectiveness with LaTeX. Show intermediate numbers.",
+      "Compute both outlet temperatures and duty. Put the inputs, units, intermediate values, and outputs in a Markdown table and check both stream energy balances.",
+      "Provide runnable Python using only the standard library to calculate the result and assert energy conservation, effectiveness bounds, and physically ordered outlet temperatures.",
+      "Explain how the limiting cases UA approaching zero and infinity differ. Give a concise audit checklist and discuss why a crossed outlet temperature does not necessarily violate the second law."
+    ]
+  },
+  {
+    "id": "algebra_finite_field_interpolation_certificate",
+    "title": "Exact finite-field interpolation with independent certificates",
+    "domain": "Algebra: finite-field polynomial interpolation",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Work over the finite field F_17. Given points (1,6), (2,11), (4,3), derive the degree-at-most-two interpolation polynomial. Show modular arithmetic in LaTeX.",
+      "Create a Markdown table of Lagrange basis numerators, denominators, modular inverses, and coefficients. Verify every inverse.",
+      "Independently solve the Vandermonde linear system over F_17 using elimination and compare coefficients with the interpolation result.",
+      "Provide runnable standard-library Python for modular Gaussian elimination and exact Lagrange interpolation. Assert that both coefficient lists agree and recover all samples.",
+      "Explain uniqueness using the root bound for a nonzero polynomial over a field. Explain what fails for distinct-looking x coordinates that are equal modulo 17.",
+      "Add a redundant fourth sample consistent with the recovered polynomial. Give a table of evaluations at x=0 through 5 and identify the fourth sample explicitly.",
+      "Change the redundant sample by one modulo 17. Give an exact inconsistency certificate for a degree-at-most-two fit, and explain why a cubic can still interpolate all four points.",
+      "Summarize algorithmic costs, validation conditions, and robust error messages. Include Python checks for duplicate abscissas and nonprime moduli, keeping interpolation arithmetic exact."
     ]
   }
 ]

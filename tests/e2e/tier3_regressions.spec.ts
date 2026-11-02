@@ -60,7 +60,7 @@ test('PDF retains bilingual text when Local Font Access is denied', async ({ con
 test('connection error clears when committed conversations become visible without reload', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
     await page.locator('#btnSyncAll').click();
-    const status = page.locator('#status');
+    const status = page.locator('#scanStatus');
     await expect(status).toContainText('Open Gemini, log in and refresh the page before scanning.');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
     await attachLoggedInGemini(context);
@@ -80,7 +80,7 @@ test('opening logged-in Gemini after Options allows scanning without reloading e
     const page = await openOptions(context, extensionId);
     await expect(page.locator('#list .item')).toHaveCount(0);
     await page.locator('#btnSyncAll').click();
-    await expect(page.locator('#status')).toContainText('Open Gemini, log in and refresh the page before scanning.');
+    await expect(page.locator('#scanStatus')).toContainText('Open Gemini, log in and refresh the page before scanning.');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
     // Badge presence is an observable content-script readiness signal, not a sleep.
     await expect(page.locator('.tour-popover h2')).toHaveText('Connect Gemini account');
@@ -90,13 +90,13 @@ test('opening logged-in Gemini after Options allows scanning without reloading e
     await page.getByRole('button', { name: 'Continue sync', exact: true }).click();
     await expect(page.locator('[data-chat-id="0000000000000452"]')).toContainText('Captured conversation 0452');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
-    await expect(page.locator('#status')).not.toContainText('Open Gemini, log in and refresh the page before scanning.');
+    await expect(page.locator('#scanStatus')).not.toContainText('Open Gemini, log in and refresh the page before scanning.');
 });
 
 test('local records alone do not dismiss missing Gemini source guidance', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
     await page.locator('#btnSyncAll').click();
-    await expect(page.locator('#status')).toContainText('Open Gemini, log in and refresh the page before scanning.');
+    await expect(page.locator('#scanStatus')).toContainText('Open Gemini, log in and refresh the page before scanning.');
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
     await page.evaluate(async accountId => {
         await Reflect.get(globalThis, 'uiFixture').ingestDetail(accountId, 'offline', {
@@ -105,7 +105,7 @@ test('local records alone do not dismiss missing Gemini source guidance', async 
         window.dispatchEvent(new Event('focus'));
     }, accountId);
     await expect(page.locator('#list .item')).toHaveCount(1);
-    await expect(page.locator('#status')).toContainText('Open Gemini, log in and refresh the page before scanning.');
+    await expect(page.locator('#scanStatus')).toContainText('Open Gemini, log in and refresh the page before scanning.');
 });
 
 test('characterization: search hides a selected row but export still includes that row', async ({ context, extensionId }, info) => {

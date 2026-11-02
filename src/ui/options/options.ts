@@ -1,3 +1,4 @@
+import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { createBackoffNotice } from '../shared/backoffNotice.js';
 import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 import { SOURCE_PLATFORMS } from '../../shared/platformHosts.js';
@@ -31,7 +32,7 @@ import type { ExportDiagnostic, ExportItemUpdate, ExportResult } from '../../app
 import { isAccountId } from '../../l2/accountRegistry.js';
 
 type Level = 'info' | 'warn' | 'error';
-type Action = 'scan' | 'export' | 'takeout' | 'cleanup' | null;
+type Action = 'export' | 'takeout' | 'cleanup' | null;
 interface LogEntry { at: number; level: Level; message: string }
 type UiMessage = string | (() => string);
 const resolveUiMessage = (message: UiMessage): string => typeof message === 'function' ? message() : message;
@@ -54,6 +55,9 @@ export async function initWorkbench(): Promise<void> {
     let settings: GlobalSettings;
     let directoryAvailable = false;
     let busy = false;
+    let scanController: AbortController | null = null;
+    let advanceTutorialScan: (() => void) | undefined;
+    let currentScanStatus: UiMessage | null = null;
     let themeSaving = false;
     let presentationSaving = false;
     let action: Action = null;
@@ -94,7 +98,6 @@ export async function initWorkbench(): Promise<void> {
         // Only one of the progress label and final/status line is visible at a time.
         el('progText').textContent = '';
         el('progText').style.display = 'none';
-        el('scanSlowHint').style.display = 'none';
         el('status').textContent = displayed;
         el('status').style.display = 'block';
         // Log entries keep their event-time message; language changes only re-render the status.
@@ -104,6 +107,14 @@ export async function initWorkbench(): Promise<void> {
     };
     const statusError = (error: unknown, level: Level = 'error') =>
         status(() => errorText(error), level, error instanceof Error ? error.message : String(error));
+    const reportScan = (message: UiMessage, level: Level = 'info', rawLogMessage?: string) => {
+        currentScanStatus = message;
+        el('scanStatus').hidden = false;
+        el('scanStatus').textContent = resolveUiMessage(message);
+        log.push({ at: Date.now(), level, message: rawLogMessage ?? resolveUiMessage(message) });
+        if (log.length > 400) log.shift();
+        renderLog();
+    };
     const progress = (message: UiMessage, percent?: number) => {
         if (!busy || controller?.signal.aborted) return;
         currentProgress = message;
@@ -162,7 +173,11 @@ export async function initWorkbench(): Promise<void> {
             '随着对话历史增加，Gemini 的扫描时间可能会显著变长。');
         labelThemeToggle(control('button', 'btnThemeToggle'), settings);
         control('button', 'btnThemeToggle').disabled = !settings || themeSaving;
-        document.body.dataset.busy = String(busy);
+        document.body.dataset.busy = String(busy || scanController !== null);
+        document.body.dataset.foregroundBusy = String(busy);
+        document.body.dataset.scanning = String(scanController !== null);
+        el('scanStatus').hidden = currentScanStatus === null;
+        el('scanStatus').textContent = currentScanStatus === null ? '' : resolveUiMessage(currentScanStatus);
         document.body.classList.toggle('dev-mode', settings?.developerMode ?? false);
         const controls = [
             ['select', ['accountIdSelect', 'format', 'chatFilterSelect']],
@@ -171,6 +186,9 @@ export async function initWorkbench(): Promise<void> {
                 'btnSyncAll', 'btnForceFullScan', 'btnImportTakeout', 'btnTourGuide', 'btnPlatformPermissions']],
         ] as const;
         for (const [tag, ids] of controls) for (const id of ids) control(tag, id).disabled = busy || !settings;
+        control('select', 'accountIdSelect').disabled ||= scanController !== null;
+        control('button', 'btnPlatformPermissions').disabled ||= scanController !== null;
+        control('button', 'btnTourGuide').disabled ||= scanController !== null;
         for (const id of ['devToggle', 'langToggle'])
             control('input', id).disabled = !settings || presentationSaving;
         el('delivery').setAttribute('aria-label', text('Export to', '导出到'));
@@ -182,6 +200,7 @@ export async function initWorkbench(): Promise<void> {
             radio.disabled = busy || !settings;
         }
         el('localFolderControls').classList.toggle('is-disabled', !folderSelected);
+        el('localFolderControls').dataset.authorized = String(folderSelected && directoryAvailable);
         const selector = control('select', 'accountIdSelect');
         selector.setAttribute('aria-label', text('Account', '账户'));
         el('chatSearchInput').setAttribute('aria-label', text('Search title or ID', '搜索标题或 ID'));
@@ -245,36 +264,43 @@ export async function initWorkbench(): Promise<void> {
         control('button', 'btnSetDir').textContent = pending
             ? text('Reauthorize', '重新授权')
             : handle ? text('Change', '更换') : text('Choose folder', '选择文件夹');
-        control('button', 'btnImportTakeout').disabled = busy || !settings ||
+        control('button', 'btnImportTakeout').disabled = busy || scanController !== null || !settings ||
             !zipSupported;
-        for (const id of ['btnClearExported', 'btnClearScan']) control('button', id).disabled = busy || !state.accountId;
-        control('button', 'btnForceFullScan').disabled = busy || !settings?.developerMode;
+        for (const id of ['btnClearExported', 'btnClearScan']) control('button', id).disabled = busy || scanController !== null || !state.accountId;
+        control('button', 'btnForceFullScan').disabled = busy || scanController !== null || !settings?.developerMode;
+        const syncButton = control('button', 'btnSyncAll');
+        syncButton.disabled = scanController ? scanController.signal.aborted : busy || !settings;
+        syncButton.textContent = scanController
+            ? scanController.signal.aborted ? text('Stopping sync…', '正在停止同步…') : text('Stop sync', '停止同步')
+            : text('Sync All', '同步会话');
+        syncButton.title = scanController
+            ? text('Stop syncing; already saved conversations are kept', '停止同步，已保存的对话会保留')
+            : text('Scan and sync conversations for the current account', '扫描并同步当前账号的会话');
         el('btnCancel').style.display = action === 'export' && !!controller ? 'inline-flex' : 'none';
-        el('btnStopScan').style.display = action === 'scan' && !!controller ? 'inline-flex' : 'none';
-        el('progWrap').style.display = busy && (action === 'scan' || action === 'export' || action === 'takeout') ? 'block' : 'none';
-        el('progWrap').classList.toggle('indeterminate', action === 'scan');
+        el('progWrap').style.display = busy && (action === 'export' || action === 'takeout') ? 'block' : 'none';
+        el('progWrap').classList.remove('indeterminate');
         renderConversations();
         control('button', 'btnExport').disabled ||= !settings || folderSuggestionPending;
         showFailures();
     };
     const refresh = async (changedAccountId?: string) => {
         if (await state.refresh(changedAccountId)) render();
+        advanceTutorialScan?.();
         const previousError = connectionError;
         const accountId = state.accountId;
-        if (!previousError || busy || !accountId) return;
+        if (!previousError || busy || scanController || !accountId) return;
         try {
             const connected = await resolveScanTarget(accountId);
             // An intervening operation/account switch must keep its own status.
-            if (connected === accountId && state.accountId === accountId && !busy && connectionError === previousError)
-                status(() => text('Account connected. Sync conversations to refresh history.', '账号已连接，可同步会话更新历史。'));
+            if (connected === accountId && state.accountId === accountId && !busy && !scanController && connectionError === previousError)
+                reportScan(() => text('Account connected. Sync conversations to refresh history.', '账号已连接，可同步会话更新历史。'));
         } catch { /* Keep actionable guidance until a verified Content source is available. */ }
     };
     const select = async (id: string) => {
         if (id !== state.accountId) { splitDelivery = false; lastRequest = null; failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false; }
         state.selectAccount(id); render(); await refresh();
     };
-    const perform = async (kind: Action, task: (signal: AbortSignal) => Promise<void>, cancellable = false,
-        recoverConnection?: (failure: ScanConnectionError) => void) => {
+    const perform = async (kind: Action, task: (signal: AbortSignal) => Promise<void>, cancellable = false) => {
         if (busy) return;
         busy = true; action = kind;
         splitDelivery = false;
@@ -285,27 +311,22 @@ export async function initWorkbench(): Promise<void> {
         el('bar').style.width = '0%';
         el('progText').textContent = '';
         el('progText').style.display = 'none';
-        el('scanSlowHint').style.display = 'none';
         el('status').textContent = '';
         el('status').style.display = 'block';
         render();
-        let connectionFailure: ScanConnectionError | undefined;
         try { await task(taskController.signal); }
-        catch (error) {
-            statusError(error);
-            if (kind === 'scan' && error instanceof ScanConnectionError) connectionFailure = error;
-            if (kind === 'scan' && error instanceof Error &&
-                (error.message === 'Open Gemini, ChatGPT, Claude or Grok and connect an account before scanning.'
-                    || error.message === 'Open Gemini, log in and refresh the page before scanning.'))
-                connectionError = error.message;
-        }
+        catch (error) { statusError(error); }
         finally {
             try { await refresh(); } catch (error) { statusError(error); }
             busy = false; action = null; controller = null; render();
-            if (connectionFailure) recoverConnection?.(connectionFailure);
         }
     };
-    const exportRequest = (request: UIExportRequest, fonts: Promise<void>) => perform('export', async (signal) => {
+    const exportRequest = async (request: UIExportRequest, fonts: Promise<void>) => {
+        if (busy) return;
+        const finishTutorialExport = TourGuide.beginExport();
+        let tutorialExportSucceeded = false;
+        let successfulExports = 0;
+        await perform('export', async (signal) => {
         lastRequest = { ...request, keys: request.keys.map(key => ({ ...key })) };
         const run: ExportRunDiagnostic = { startedAt: Date.now(), request: lastRequest,
             items: [], diagnostics: [], issues: new ExportIssueCollector(), droppedDiagnostics: 0 };
@@ -386,6 +407,8 @@ export async function initWorkbench(): Promise<void> {
                 }
             });
             run.result = result;
+            successfulExports = result.exported - result.partial;
+            tutorialExportSucceeded = !result.failed.length && !result.aborted && !result.partial;
             preparedExportKeys.clear();
             el('bar').style.width = '100%';
             failed = [...result.failed];
@@ -396,82 +419,124 @@ export async function initWorkbench(): Promise<void> {
             run.error = error instanceof Error ? error.message : String(error);
             throw error;
         } finally { clearInterval(backoffTimer); run.finishedAt = Date.now(); }
-     }, true);
-    const scan = (forceFull = false) => perform('scan', async (signal) => {
-        const selected = state.accounts.find(a => a.id === state.accountId);
-        const platform = SOURCE_PLATFORMS.find(platform => platform === selected?.providerId);
-        const access = platform ? await hasPlatformAccess(platform) : true;
-        signal.throwIfAborted();
-        if (selected && platform && !access) {
-            TourGuide.showAccountConnection(platform, selected.id, selected.email || selected.displayName || platform,
-                () => { void scan(forceFull); });
-            return;
-        }
-        const startedAt = Date.now();
-        status(() => text('Resolving conversation source…', '正在确认会话来源…'));
-        const slowHint = el('scanSlowHint');
-        const backoff = createBackoffNotice();
-        const diagnostics: Diagnostic[] = [];
-        let scanProgressMessage = () => text('Resolving conversation source…', '正在确认会话来源…');
-        const paintScanProgress = () => progress(() => scanProgressMessage() + (backoff.message() ? ` · ${backoff.message()}` : ''));
-        const backoffTimer = setInterval(() => { if (backoff.message()) paintScanProgress(); }, 1000);
-        const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
-            onDiagnostic: diagnostic => {
-                if (diagnostics.length < 1000) diagnostics.push(diagnostic);
-                backoff.observe(diagnostic);
-                if (['CHATGPT_BACKOFF_WAIT', 'CHATGPT_BACKOFF_END', 'CHATGPT_RATE_LIMITED', 'CHATGPT_COOLDOWN_ACTIVE'].includes(diagnostic.code)) paintScanProgress();
-            },
-            onTarget: select, onProgress: p => {
-                if (!busy || signal.aborted) return;
-                scanProgressMessage = () => text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
-                    `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`);
-                paintScanProgress();
-                slowHint.style.display = p.conversationsFetched > 200 && state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini' ? 'block' : 'none';
-            } }).finally(() => clearInterval(backoffTimer));
-        scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result, diagnostics });
-        if (scanRuns.length > 10) scanRuns.shift();
-        const reasons = new Map(Object.entries({
-            provider_limit: () => text('Source online access limit', '来源在线访问范围限制'),
-            max_pages: () => state.accounts.find(a => a.id === state.accountId)?.providerId === 'claude'
-                ? text('Claude list coverage cannot yet be verified', 'Claude 列表完整性尚无法验证')
-                : text('Local page budget reached', '已达到本地页数预算'),
-            invalid_response: () => text('Scan failed: invalid Gemini response', '扫描失败：Gemini 返回无效响应'),
-            aborted: () => text('Scan cancelled', '扫描已取消'), error: () => text('Scan failed', '扫描失败')
-        }));
-        const reason = result.diagnostics?.failure ?? result.reason ?? result.status;
-        const succeeded = result.status === 'complete' || result.status === 'up_to_date';
-        const completionSummary = () => {
-            if (!result.indexChanges) return text('Sync complete', '同步完成');
-            const { added, updated } = result.indexChanges;
-            return added === 0 && updated === 0
-                ? text('Sync complete · All conversations are up to date', '同步完成 · 所有对话均为最新')
-                : text(`Sync complete · ${added} new ${added === 1 ? 'conversation' : 'conversations'} · ${updated} ${updated === 1 ? 'conversation' : 'conversations'} updated`,
-                    `同步完成 · 新发现 ${added} 个对话 · 更新 ${updated} 个对话信息`);
-        };
-        status(() => succeeded ? completionSummary()
-            : `${reasons.get(reason)?.() ?? (result.status === 'error' ? text('Scan failed', '扫描失败') : text('Scan finished', '扫描已结束'))} · ${result.pagesFetched} / ${result.conversationsFetched}`,
-            result.status === 'error' ? 'error' : result.status === 'aborted' || result.status === 'partial_limit' ? 'warn' : 'info',
-            // Keep upstream diagnostic details in the log without exposing untranslated UI text.
-            result.status === 'error' ? `Scan failed (${result.reason ?? 'unknown'}) · ${result.pagesFetched} / ${result.conversationsFetched}` : undefined);
-        settings = await readSettings();
-        if (state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini'
-            && result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
-            const shown = TourGuide.showTakeoutPrompt(result.conversationsFetched,
-                () => {},
-                () => { fileInput.click(); },
-                () => { window.open('https://takeout.google.com/settings/takeout/custom/gemini', '_blank', 'noopener,noreferrer'); });
-            // Once shown, it stays dismissed even if the page closes before acknowledgement.
-            if (shown) {
-                settings = { ...settings, takeoutPromptCompleted: true };
-                void updateSettings({ takeoutPromptCompleted: true }).catch(e => statusError(e));
+        }, true);
+        finishTutorialExport?.(tutorialExportSucceeded);
+        if (successfulExports > 0 && tutorialExportSucceeded) void showRatingPromptIfEligible().catch(error => console.warn('[Rating prompt]', error));
+    };
+    const scan = async (forceFull = false) => {
+        if (busy || scanController) return;
+        const taskController = new AbortController();
+        scanController = taskController;
+        const signal = taskController.signal;
+        render();
+        let connectionFailure: ScanConnectionError | undefined;
+        const finishTutorialScan = TourGuide.beginScan();
+        let scanHasResults = false;
+        advanceTutorialScan = finishTutorialScan ? () => {
+            if (!scanHasResults || !state.indexes.length) return;
+            advanceTutorialScan = undefined;
+            finishTutorialScan(true);
+        } : undefined;
+        try {
+            const selected = state.accounts.find(a => a.id === state.accountId);
+            const platform = SOURCE_PLATFORMS.find(platform => platform === selected?.providerId);
+            const access = platform ? await hasPlatformAccess(platform) : true;
+            signal.throwIfAborted();
+            if (selected && platform && !access) {
+                TourGuide.showAccountConnection(platform, selected.id, selected.email || selected.displayName || platform,
+                    () => { void scan(forceFull); });
+                return;
             }
+            const startedAt = Date.now();
+            reportScan(() => text('Resolving conversation source…', '正在确认会话来源…'));
+            const slowHint = el('scanSlowHint');
+            const backoff = createBackoffNotice();
+            const diagnostics: Diagnostic[] = [];
+            let scanProgressMessage = () => text('Resolving conversation source…', '正在确认会话来源…');
+            const paintScanProgress = () => reportScan(() => scanProgressMessage() + (backoff.message() ? ` · ${backoff.message()}` : ''));
+            const backoffTimer = setInterval(() => { if (backoff.message()) paintScanProgress(); }, 1000);
+            const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
+                onDiagnostic: diagnostic => {
+                    if (diagnostics.length < 1000) diagnostics.push(diagnostic);
+                    backoff.observe(diagnostic);
+                    if (['CHATGPT_BACKOFF_WAIT', 'CHATGPT_BACKOFF_END', 'CHATGPT_RATE_LIMITED', 'CHATGPT_COOLDOWN_ACTIVE'].includes(diagnostic.code)) paintScanProgress();
+                },
+                onTarget: select, onProgress: p => {
+                    if (signal.aborted) return;
+                    scanProgressMessage = () => text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
+                        `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`);
+                    paintScanProgress();
+                    if (advanceTutorialScan && p.conversationsFetched > 0) {
+                        scanHasResults = true;
+                        // A concurrent domain refresh may supersede this read. Every
+                        // completed refresh checks the committed list before advancing.
+                        void refresh().catch(statusError);
+                    }
+                    slowHint.style.display = p.conversationsFetched > 200 && state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini' ? 'block' : 'none';
+                } }).finally(() => clearInterval(backoffTimer));
+            scanHasResults ||= result.conversationsFetched > 0;
+            scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result, diagnostics });
+            if (scanRuns.length > 10) scanRuns.shift();
+            const reasons = new Map(Object.entries({
+                provider_limit: () => text('Source online access limit', '来源在线访问范围限制'),
+                max_pages: () => state.accounts.find(a => a.id === state.accountId)?.providerId === 'claude'
+                    ? text('Claude list coverage cannot yet be verified', 'Claude 列表完整性尚无法验证')
+                    : text('Local page budget reached', '已达到本地页数预算'),
+                invalid_response: () => text('Scan failed: invalid Gemini response', '扫描失败：Gemini 返回无效响应'),
+                aborted: () => text('Scan cancelled', '扫描已取消'), error: () => text('Scan failed', '扫描失败')
+            }));
+            const reason = result.diagnostics?.failure ?? result.reason ?? result.status;
+            const succeeded = result.status === 'complete' || result.status === 'up_to_date';
+            const completionSummary = () => {
+                if (!result.indexChanges) return text('Sync complete', '同步完成');
+                const { added, updated } = result.indexChanges;
+                return added === 0 && updated === 0
+                    ? text('Sync complete · All conversations are up to date', '同步完成 · 所有对话均为最新')
+                    : text(`Sync complete · ${added} new ${added === 1 ? 'conversation' : 'conversations'} · ${updated} ${updated === 1 ? 'conversation' : 'conversations'} updated`,
+                        `同步完成 · 新发现 ${added} 个对话 · 更新 ${updated} 个对话信息`);
+            };
+            reportScan(() => succeeded ? completionSummary()
+                : `${reasons.get(reason)?.() ?? (result.status === 'error' ? text('Scan failed', '扫描失败') : text('Scan finished', '扫描已结束'))} · ${result.pagesFetched} / ${result.conversationsFetched}`,
+                result.status === 'error' ? 'error' : result.status === 'aborted' || result.status === 'partial_limit' ? 'warn' : 'info',
+                // Keep upstream diagnostic details in the log without exposing untranslated UI text.
+                result.status === 'error' ? `Scan failed (${result.reason ?? 'unknown'}) · ${result.pagesFetched} / ${result.conversationsFetched}` : undefined);
+            settings = await readSettings();
+            if (state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini'
+                && result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
+                TourGuide.showTakeoutPrompt(result.conversationsFetched,
+                    () => {},
+                    () => { fileInput.click(); },
+                    () => { window.open('https://takeout.google.com/settings/takeout/custom/gemini', '_blank', 'noopener,noreferrer'); },
+                    () => {
+                        // Mark only actual display, including a prompt deferred until the tutorial ends.
+                        settings = { ...settings, takeoutPromptCompleted: true };
+                        void updateSettings({ takeoutPromptCompleted: true }).catch(e => statusError(e));
+                    });
+            }
+        } catch (error) {
+            if (signal.aborted) reportScan(() => text('Sync stopped', '同步已停止'));
+            else {
+                reportScan(() => errorText(error), 'error', error instanceof Error ? error.message : String(error));
+                if (error instanceof ScanConnectionError) connectionFailure = error;
+                if (error instanceof Error &&
+                    (error.message === 'Open Gemini, ChatGPT, Claude or Grok and connect an account before scanning.'
+                        || error.message === 'Open Gemini, log in and refresh the page before scanning.'))
+                    connectionError = error.message;
+            }
+        } finally {
+            try { await refresh(); } catch (error) { reportScan(() => errorText(error), 'error'); }
+            scanController = null;
+            el('scanSlowHint').style.display = 'none';
+            render();
+            advanceTutorialScan?.();
+            finishTutorialScan?.(false);
         }
-    }, true, failure => {
         const account = state.accounts.find(a => a.id === state.accountId);
-        if (!account) return;
-        TourGuide.showAccountConnection(failure.platform, account.id, account.email || account.displayName || failure.platform,
-            () => { void scan(forceFull); });
-    });
+        if (connectionFailure && account) {
+            TourGuide.showAccountConnection(connectionFailure.platform, account.id, account.email || account.displayName || connectionFailure.platform,
+                () => { void scan(forceFull); });
+        }
+    };
     const moreActionsButton = control('button', 'btnMoreActions');
     const moreActionsMenu = el('moreActionsMenu');
     const closeMoreActions = () => {
@@ -502,13 +567,18 @@ export async function initWorkbench(): Promise<void> {
             moreActionsButton.focus();
         }
     });
-    el('btnSyncAll').addEventListener('click', () => { void scan(); });
+    el('btnSyncAll').addEventListener('click', () => {
+        if (scanController) {
+            scanController.abort();
+            reportScan(() => text('Stopping sync…', '正在停止同步…'), 'warn');
+            render();
+        } else void scan();
+    });
     el('btnForceFullScan').addEventListener('click', () => { if (settings.developerMode) void scan(true); });
     const cancel = () => { controller?.abort(); status(() => text('Cancelling…', '正在取消…'), 'warn'); };
     el('btnCancel').addEventListener('click', cancel);
-    el('btnStopScan').addEventListener('click', cancel);
     el('btnExport').addEventListener('click', () => {
-        const keys = state.keys();
+        const keys = document.body.dataset.guidedSelection === 'true' ? state.keys().slice(0, 1) : state.keys();
         if (busy || folderSuggestionPending || !keys.length || !settings) return;
         const request: UIExportRequest = { keys, format: settings.defaultFormat,
             delivery: settings.exportDelivery ?? 'browserDownload',
@@ -573,11 +643,27 @@ export async function initWorkbench(): Promise<void> {
         const exportDelivery: UIExportRequest['delivery'] =
             input.value === 'folderWriter' ? 'folderWriter' : 'browserDownload';
         if (settings.exportDelivery === exportDelivery) return;
+        // Start the native picker directly in the radio's user gesture.
+        const permission = exportDelivery === 'folderWriter' && !directoryAvailable && TourGuide.isLiveSaveStep()
+            ? Directory.getPendingPermissionHandle() ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle()
+            : undefined;
         const previous = settings;
         settings = { ...settings, exportDelivery };
         void perform('cleanup', async () => {
-            try { await updateSettings({ exportDelivery }); settings = await readSettings(); }
-            catch (error) { settings = previous; throw error; }
+            try {
+                if (permission) {
+                    try {
+                        if (!await permission) throw new Error('Folder permission denied');
+                        directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
+                        if (!directoryAvailable) throw new Error('Folder permission denied');
+                        status(() => text('Folder authorized. Enable Live Save to continue.', '目录已授权，开启实时保存即可继续。'));
+                    } catch (error) {
+                        if (!(error instanceof DOMException && error.name === 'AbortError')) throw error;
+                        status(() => text('Folder selection cancelled. Choose a folder to continue.', '已取消选择目录，请点击「选择文件夹」重试。'));
+                    }
+                }
+                await updateSettings({ exportDelivery }); settings = await readSettings();
+            } catch (error) { settings = previous; throw error; }
         });
     });
     const fileInput = control('input', 'takeoutFileInput');
@@ -620,10 +706,10 @@ export async function initWorkbench(): Promise<void> {
     for (const [id, scanRecords] of [['btnClearExported', false], ['btnClearScan', true]] as const)
         el(id).addEventListener('click', async () => {
             const accountId = state.accountId;
-            if (!accountId || busy) return;
+            if (!accountId || busy || scanController) return;
             const account = state.accounts.find(a => a.id === accountId);
             const name = account?.displayName || account?.email || account?.providerAccountId || accountId;
-            if (!await confirmCleanup(scanRecords, name) || busy || state.accountId !== accountId) return;
+            if (!await confirmCleanup(scanRecords, name) || busy || scanController || state.accountId !== accountId) return;
             void perform('cleanup', async () => {
                 if (scanRecords) {
                     const keys = state.indexes.map(index => index.key);
@@ -636,7 +722,7 @@ export async function initWorkbench(): Promise<void> {
             });
         });
     control('select', 'accountIdSelect').addEventListener('change', () => {
-        if (busy) { render(); return; }
+        if (busy || scanController) { render(); return; }
         void select(control('select', 'accountIdSelect').value).catch(e => statusError(e));
     });
     control('input', 'chatSearchInput').addEventListener('input', () => {
@@ -646,7 +732,7 @@ export async function initWorkbench(): Promise<void> {
         state.filter = control('select', 'chatFilterSelect').value; renderConversations();
     });
     control('input', 'btnSelectAll').addEventListener('change', () => {
-        if (busy) return;
+        if (busy || document.body.dataset.guidedSelection === 'true') return;
         if (control('input', 'btnSelectAll').checked) state.selectVisible();
         else state.selected.clear();
         renderConversations();
@@ -654,11 +740,19 @@ export async function initWorkbench(): Promise<void> {
     const changeControlSetting = (input: HTMLInputElement | HTMLSelectElement, patch: Partial<GlobalSettings>) => {
         // A disabled Live Save switch must never mutate persisted intent.
         if (busy || input.disabled) { render(); return; }
+        const finishTutorialSetting = patch.defaultFormat ? TourGuide.beginFormatSelection()
+            : patch.enabledDisk === true ? TourGuide.beginLiveSave() : undefined;
         const prior = settings; settings = { ...settings, ...patch };
+        let saved = false;
         void perform('cleanup', async () => {
-            try { await updateSettings(patch); settings = await readSettings(); }
+            try {
+                await updateSettings(patch); settings = await readSettings();
+                saved = patch.defaultFormat ? settings.defaultFormat === patch.defaultFormat
+                    : settings.enabledDisk && settings.exportDelivery === 'folderWriter'
+                        && settings.defaultFormat === 'markdown' && directoryAvailable;
+            }
             catch (error) { settings = prior; throw error; }
-        });
+        }).then(() => finishTutorialSetting?.(saved));
     };
     const formatControl = control('select', 'format');
     formatControl.addEventListener('change', () => {
@@ -726,7 +820,7 @@ export async function initWorkbench(): Promise<void> {
             link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
         })().catch(statusError);
     });
-    el('btnPlatformPermissions').addEventListener('click', () => { if (!busy) TourGuide.showPlatformAuthorization(select); });
+    el('btnPlatformPermissions').addEventListener('click', () => { if (!busy && !scanController) TourGuide.showPlatformAuthorization(select); });
     const prepareTourLiveSave = async () => {
         if (settings?.defaultFormat === 'markdown') return;
         try {
@@ -735,14 +829,21 @@ export async function initWorkbench(): Promise<void> {
             render();
         } catch (error) { statusError(error); throw error; }
     };
-    el('btnTourGuide').addEventListener('click', () => { if (!busy) void TourGuide.startTour(select, prepareTourLiveSave); });
+    const startWorkbenchTour = async () => {
+        const firstSelected = state.selected.values().next().value;
+        state.selected.clear();
+        if (firstSelected !== undefined) state.selected.add(firstSelected);
+        renderConversations();
+        await TourGuide.startTour(select, prepareTourLiveSave);
+    };
+    el('btnTourGuide').addEventListener('click', () => { if (!busy && !scanController) void startWorkbenchTour(); });
     const applyOpenedAccount = async (value: unknown) => {
         if (!isAccountId(value)) return;
         // Consume once: directly opening Options later must not reuse a previous source.
         await chrome.storage.session.remove('openOptionsAccountId');
-        if (busy) return;
+        if (busy || scanController) return;
         if (!state.accounts.some(account => account.id === value)) await refresh();
-        if (!busy && state.accounts.some(account => account.id === value)) await select(value);
+        if (!busy && !scanController && state.accounts.some(account => account.id === value)) await select(value);
     };
     const onOpenedAccountChange = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
         if (area === 'session' && changes.openOptionsAccountId)
@@ -815,7 +916,7 @@ export async function initWorkbench(): Promise<void> {
             'warn', 'Folder permission could not be restored: ' + (error instanceof Error ? error.message : String(error)));
     }
     render();
-    if (installationTour) await TourGuide.startTour(select, prepareTourLiveSave);
+    if (installationTour) await startWorkbenchTour();
     else {
         const current = chrome.runtime.getManifest().version;
         const feature = getLatestEligibleFeature(settings.lastSeenFeatureVersion ?? current, current);

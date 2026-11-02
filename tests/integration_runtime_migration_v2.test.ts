@@ -137,7 +137,7 @@ test('real Migration: fresh-install lifecycle and concurrent readiness IPC wait 
     assert.equal(runtime.data[migratedSettingsKey], undefined);
     commit(); assert.deepEqual(await ipc, [{ ok: true }, { ok: true }]); await settleHook();
     assert.equal(runtime.data[migrationMarker], true);
-    assert.deepEqual(runtime.data[migratedSettingsKey], { lastSeenFeatureVersion: '2.0.0' });
+    assert.deepEqual(runtime.data[migratedSettingsKey], { lastSeenFeatureVersion: '2.0.0', theme: 'light' });
     assert.equal(runtime.opened(), 1);
     assert.equal(runtime.writes.filter(patch => patch[migrationMarker]).length, 1);
     assert.deepEqual(await indexedDB.databases(), []);

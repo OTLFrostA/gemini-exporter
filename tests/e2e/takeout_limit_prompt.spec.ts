@@ -12,7 +12,7 @@ test('suggestion Import action reaches the current File input and dismisses the 
     const chooser=page.waitForEvent('filechooser');await page.locator('.tour-popover').getByRole('button',{name:'Import Takeout ZIP',exact:true}).click();expect((await chooser).isMultiple()).toBe(false);await expect(page.locator('.tour-popover')).toHaveCount(0);
 });
 test('automatic suggestion is strictly above 150 committed entries; small provider-limited scans stay visible without prompting',async({page})=>{
-    await mount(page,'options',{scanCount:150,scanResult:{status:'partial_limit',reason:'provider_limit',pagesFetched:2,conversationsFetched:150}});await page.locator('#btnSyncAll').click();await expect(page.locator('#status')).toHaveText('Source online access limit · 2 / 150');await expect(page.locator('.tour-popover')).toHaveCount(0);
+    await mount(page,'options',{scanCount:150,scanResult:{status:'partial_limit',reason:'provider_limit',pagesFetched:2,conversationsFetched:150}});await page.locator('#btnSyncAll').click();await expect(page.locator('#scanStatus')).toHaveText('Source online access limit · 2 / 150');await expect(page.locator('.tour-popover')).toHaveCount(0);
     await page.evaluate(()=>{const h=Reflect.get(window,'harness');h.scanCount=151;h.scanResult.conversationsFetched=151;});await page.locator('#btnSyncAll').click();await expect(page.locator('.tour-popover')).toBeVisible();await page.getByRole('button',{name:'×',exact:true}).click();await expect(page.locator('.tour-popover')).toHaveCount(0);
 });
 test('a successful current File import suppresses later eligible prompts without transient Index import flags',async({page})=>{

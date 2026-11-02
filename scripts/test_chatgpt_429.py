@@ -41,7 +41,7 @@ def run(resume_from=None):
             raise RuntimeError('Network observer stopped; cannot make a measured claim')
         if (output / 'first-429.json').exists():
             if runner.options:
-                runner.options.eval("for(const id of ['btnCancel','btnStopScan']){const e=document.getElementById(id);if(e&&e.style.display!=='none')e.click()}")
+                runner.options.eval("const cancel=document.getElementById('btnCancel');if(cancel&&cancel.style.display!=='none')cancel.click();if(document.body.dataset.scanning==='true')document.getElementById('btnSyncAll')?.click()")
             raise RateLimitObserved('First HTTP 429 captured; further test load stopped')
 
     def measured_wait(operation, timeout=90, interval=.5):

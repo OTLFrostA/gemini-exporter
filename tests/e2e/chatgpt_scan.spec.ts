@@ -1,4 +1,4 @@
-import { advancePlatformIntro } from '../helpers/tourNavigation';
+import { waitForAuthorization } from '../helpers/tourNavigation';
 import { test, expect } from './fixtures';
 import { openOptions } from './uiFixture';
 import { listGen as chatgptListGen } from '../fixtures/providers/chatgpt.js';
@@ -46,17 +46,15 @@ test('Connect ChatGPT selects its verified account and Sync All commits only its
     const page = await openOptions(context, extensionId);
     await source(page, true);
     await expect(page.locator('header #btnConnectChatGPT, header #btnConnectClaude')).toHaveCount(0);
-    await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page);
+    await page.locator('#btnPlatformPermissions').click(); await waitForAuthorization(page);
     await expect(page.getByRole('checkbox', { name: 'Gemini', exact: true })).toHaveCount(0);
     await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
     await page.getByRole('checkbox', { name: 'Grok', exact: true }).uncheck();
     await page.locator('#btnAuthorizePlatforms').click();
-    await expect(page.locator('#tourNextBtn')).toBeEnabled();
-    await page.locator('#tourNextBtn').click();
-    await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
-    await page.locator('#tourSkipBtn').click();
+    await expect(page.locator('#accountIdSelect option:checked')).toContainText('ChatGPT');
+    await page.locator('#platformAuthorizationDone').click();
     await page.locator('#btnSyncAll').click();
-    await expect(page.locator('#status')).toHaveText('Sync complete · 1 new conversation · 0 conversations updated');
+    await expect(page.locator('#scanStatus')).toHaveText('Sync complete · 1 new conversation · 0 conversations updated');
     await expect(page.locator('#list .item')).toHaveCount(1);
     await expect(page.locator('#list')).toContainText('ChatGPT history from source');
     await expect(page.locator('#list .open-link')).toHaveAttribute('href', 'https://chatgpt.com/c/gpt-chat');
@@ -78,7 +76,7 @@ test('Connect ChatGPT selects its verified account and Sync All commits only its
 test('Declining ChatGPT site access leaves the registry and history untouched', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
     await source(page, false);
-    await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page);
+    await page.locator('#btnTourGuide').click(); await waitForAuthorization(page);
     await expect(page.getByRole('checkbox', { name: 'Gemini', exact: true })).toHaveCount(0);
     await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
     await page.getByRole('checkbox', { name: 'Grok', exact: true }).uncheck();
@@ -86,7 +84,7 @@ test('Declining ChatGPT site access leaves the registry and history untouched', 
     await expect(page.locator('.tour-popover [role=status]')).toContainText('Access was not granted');
     // Gemini remains authorized, so a rejected ChatGPT request does not block tutorial progress.
     await expect(page.locator('#tourNextBtn')).toBeEnabled();
-    await page.locator('#tourSkipBtn').click();
+    await page.locator('#tourCloseBtn').click();
     expect(await page.evaluate(async () => (await Reflect.get(window, 'uiFixture').listAccounts())
         .filter((a: { providerId: string }) => a.providerId === 'chatgpt'))).toEqual([]);
     expect(await page.evaluate(() => Reflect.get(window, 'chatgptHttpCalls'))).toEqual([]);

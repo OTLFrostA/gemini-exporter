@@ -110,6 +110,7 @@ test('specific attachment failures retain details beneath one concise badge', as
     const row = page.locator('[data-chat-id="expired-only"]');
     await expect(row.locator('.status-unavailable')).toHaveText('Some source attachments unavailable');
     await expect(row.locator('.status-partial')).toHaveCount(0);
+    await page.locator('#btnThemeToggle').click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     await expect(row.locator('.status-unavailable')).toHaveCSS('color', 'rgb(225, 189, 133)');
     await row.locator('summary').click();

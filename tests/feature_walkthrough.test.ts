@@ -98,15 +98,17 @@ test('2.1 highlights are eligible for upgrades and not replayed for seen or fres
         assert.deepEqual(getLatestEligibleFeature(previous, '2.1.0'), { version: '2.1.0', kind: 'platforms' });
     for (const previous of ['2.1.0', 'invalid']) assert.equal(getLatestEligibleFeature(previous, '2.1.0'), null);
 });
-test('installation tutorial includes all three platform highlights before authorization', async () => {
+test('installation tutorial starts with authorization and continues through account switching', async () => {
     page = await browser.newPage();
     await mount(page, 'options', { manifestVersion: '2.1.0', geminiAccess: false }, '?startTour=1');
-    for (const title of ['Multi-platform support (Beta)', 'Authorize the sites you use', 'Switch platforms and accounts']) {
-        await page.getByRole('heading', { name: title, exact: true }).waitFor();
-        await page.locator('#tourNextBtn').click();
-    }
     await page.getByRole('heading', { name: 'Authorize AI platforms', exact: true }).waitFor();
     assert.equal(await page.locator('#tourNextBtn').isDisabled(), true);
+    assert.equal(await page.locator('#tourSkipBtn').count(), 0);
+    assert.equal(await page.locator('.tour-coach-card').count(), 2);
+    await page.locator('#btnAuthorizePlatforms').click();
+    await page.getByRole('heading', { name: 'Connect an account', exact: true }).waitFor();
+    await page.locator('#btnDetectAccount:enabled').click();
+    await page.getByRole('heading', { name: 'Switch platforms and accounts', exact: true }).waitFor();
 });
 
 test('the account lesson highlights the source area even before any account is connected', async () => {

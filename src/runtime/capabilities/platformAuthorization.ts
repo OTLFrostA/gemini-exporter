@@ -54,8 +54,8 @@ export function observePlatformAccess(listener: () => void): () => void {
 }
 
 /** Extension navigation remains available after an asynchronous native permission prompt. */
-export async function openPlatformSignIn(platform: SourcePlatform): Promise<void> {
+export async function openPlatformSignIn(platform: SourcePlatform, active = true): Promise<void> {
     const urls: Record<SourcePlatform, string> = { gemini: 'https://gemini.google.com/', chatgpt: 'https://chatgpt.com/',
         claude: 'https://claude.ai/', grok: 'https://grok.com/' };
-    await chrome.tabs.create({ url: urls[platform] });
+    await chrome.tabs.create({ url: urls[platform], active });
 }

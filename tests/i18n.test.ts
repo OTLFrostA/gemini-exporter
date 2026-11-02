@@ -34,7 +34,7 @@ test('i18n - visible current controls have accessible names, including search an
 test('i18n - parametric scan counts render through the selected UI language', async () => {
     await open(); await page.locator('#langToggle').setChecked(false); await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
     await page.evaluate(() => { Reflect.get(window, 'harness').holdScan = true; }); await page.locator('#btnSyncAll').click();
-    await page.waitForFunction(() => document.getElementById('status')?.textContent === '已接纳 2 页、150 条来源记录');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '已接纳 2 页、150 条来源记录');
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
 });
 test('i18n - Settings observer handles local changes and removes its listener on cleanup', async () => {
@@ -96,7 +96,7 @@ test('i18n - undeclared prototype keys cannot become labels, translations or sca
         }; }, reason);
         await page.locator('#btnSyncAll').click();
         await page.waitForFunction(() => document.body.dataset.busy !== 'true');
-        assert.equal(await page.locator('#status').textContent(), '扫描失败 · 0 / 0');
+        assert.equal(await page.locator('#scanStatus').textContent(), '扫描失败 · 0 / 0');
     }
 });
 test('i18n - language selector updates the single Settings owner and document language', async () => {
@@ -129,18 +129,18 @@ test('i18n - current scan progress and result switch languages, historical log m
     await open();
     await page.evaluate(() => { Reflect.get(window, 'harness').holdScan = true; });
     await page.locator('#btnSyncAll').click();
-    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Committed 2 pages, 150 source entries');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Committed 2 pages, 150 source entries');
     const originalLog = await page.locator('#log').textContent();
     assert.match(originalLog ?? '', /Resolving conversation source/);
     await page.locator('#langToggle').setChecked(false);
-    await page.waitForFunction(() => document.getElementById('status')?.textContent === '已接纳 2 页、150 条来源记录');
-    assert.equal(await page.locator('#progText').textContent(), '已接纳 2 页、150 条来源记录');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '已接纳 2 页、150 条来源记录');
+    assert.equal(await page.locator('#scanStatus').textContent(), '已接纳 2 页、150 条来源记录');
     assert.equal(await page.locator('#log').textContent(), originalLog);
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
-    await page.waitForFunction(() => document.getElementById('status')?.textContent === '已达到本地页数预算 · 2 / 150');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '已达到本地页数预算 · 2 / 150');
     const completedLog = await page.locator('#log').textContent();
     await page.locator('#langToggle').setChecked(true);
-    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Local page budget reached · 2 / 150');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Local page budget reached · 2 / 150');
     assert.equal(await page.locator('#log').textContent(), completedLog);
 });
 
@@ -185,11 +185,11 @@ test('i18n - known and unexpected errors localize in UI while logs preserve raw 
         '操作失败，请重试；详情请查看日志或诊断报告。']);
     await page.evaluate(() => { Reflect.get(window, 'harness').failScan = true; });
     await page.locator('#btnSyncAll').click();
-    await page.waitForFunction(() => document.getElementById('status')?.textContent === '操作失败，请重试；详情请查看日志或诊断报告。');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '操作失败，请重试；详情请查看日志或诊断报告。');
     assert.match(await page.locator('#log').textContent() ?? '', /Injected scan failure/);
     const logged = await page.locator('#log').textContent();
     await page.locator('#langToggle').setChecked(true);
-    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Injected scan failure');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Injected scan failure');
     assert.equal(await page.locator('#log').textContent(), logged);
 });
 
@@ -222,10 +222,10 @@ test('i18n - known scan failures translate from structured diagnostics while pre
         diagnostics: { providerId: 'gemini', streamId: 'recent', page: 1, requestCursor: null,
             failure: 'invalid_response' }, pagesFetched: 0, conversationsFetched: 0 } });
     await page.locator('#btnSyncAll').click();
-    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Scan failed: invalid Gemini response · 0 / 0');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Scan failed: invalid Gemini response · 0 / 0');
     const originalLog = await page.locator('#log').textContent();
     assert.match(originalLog ?? '', /invalid_response/);
     await page.locator('#langToggle').setChecked(false);
-    await page.waitForFunction(() => document.getElementById('status')?.textContent === '扫描失败：Gemini 返回无效响应 · 0 / 0');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '扫描失败：Gemini 返回无效响应 · 0 / 0');
     assert.equal(await page.locator('#log').textContent(), originalLog);
 });

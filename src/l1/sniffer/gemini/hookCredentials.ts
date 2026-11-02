@@ -116,11 +116,12 @@ declare global {
         return geminiAccountObservation(sniffUserProfileFromDom());
     }
 
-    async function readCappedText(response: Response, cap: number): Promise<{ text: string; truncated: boolean }> {
+    async function readCappedText(response: Response, cap: number, progress?: (chunk: string) => void): Promise<{ text: string; truncated: boolean }> {
         const body = response.body;
         if (body) {
             const reader = body.getReader();
             const chunks: Uint8Array[] = [];
+            const decoder = new TextDecoder();
             let received = 0;
             let truncated = false;
             try {
@@ -128,6 +129,7 @@ declare global {
                     const { done, value } = await reader.read();
                     if (done) break;
                     if (value && value.length) {
+                        progress?.(decoder.decode(value, { stream: true }));
                         const room = cap - received;
                         if (room <= 0) { truncated = true; break; }
                         if (value.length > room) {
@@ -192,7 +194,9 @@ declare global {
         if (handler) {
             const selected = handler;
             try {
-                void readCappedText(response.clone(), selected.captureLimit).then(async ({ text, truncated }) => {
+                void readCappedText(response.clone(), selected.captureLimit, selected.progress ? chunk => {
+                    if (response.ok && !init?.signal?.aborted && !request?.signal.aborted) selected.progress?.(chunk);
+                } : undefined).then(async ({ text, truncated }) => {
                     const aborted = init?.signal?.aborted
                         || request?.signal.aborted;
                     selected.complete(await capturedBody, text, truncated || !!aborted, response.ok);
@@ -234,12 +238,22 @@ declare global {
                 const selected = handler;
                 selected.start(requestBody);
                 let ended = false;
+                let offset = 0;
+                const progress = () => {
+                    if (this.status < 200 || this.status >= 300 || !selected.progress) return;
+                    const text = this.responseText;
+                    selected.progress(text.slice(offset));
+                    offset = text.length;
+                };
+                this.addEventListener('progress', progress);
                 const handleEnd = (event: Event) => {
                     if (ended) return;
                     ended = true;
+                    this.removeEventListener('progress', progress);
                     for (const name of ['load', 'loadend', 'abort', 'error', 'timeout']) this.removeEventListener(name, handleEnd);
                     try {
                         if (event.type === 'load') {
+                            progress();
                             const text = this.responseText;
                             selected.complete(requestBody, text.slice(0, selected.captureLimit), text.length > selected.captureLimit,
                                 this.status >= 200 && this.status < 300);

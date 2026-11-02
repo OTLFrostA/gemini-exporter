@@ -2,7 +2,8 @@ import { STEPS, PLATFORM_STEPS, AUTHORIZATION_STEP } from './tourSteps.js';
 import { text } from '../shared/settings.js';
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
 import { SOURCE_PLATFORMS, type SourcePlatform } from '../../shared/platformHosts.js';
-import { hasPlatformAccess, requestPlatformAuthorization, activatePlatformAccess, openPlatformSignIn } from '../../runtime/capabilities/platformAuthorization.js';
+import { hasPlatformAccess, requestPlatformAuthorization, activatePlatformAccess, openPlatformSignIn, findAuthorizedAccount, observePlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
+import { listAccounts } from '../../runtime/api/accountRegistry.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
 let root: HTMLElement | null = null;
 let stepIndex = 0;
@@ -11,8 +12,8 @@ let cleanupStep: (() => void) | undefined;
 let cleanupOverlay: (() => void) | undefined;
 let onDismiss: (() => void) | undefined;
 let relayout: (() => void) | undefined;
+let afterTutorial: (() => void) | undefined;
 let authorizationReady = false;
-let skipAuthorizationStep = false;
 let onConnected: ((accountId: string) => Promise<void>) | undefined;
 let prepareLiveSave: (() => Promise<void>) | undefined;
 
@@ -23,16 +24,23 @@ export function consumeTourIntent(): boolean {
     return start;
 }
 function destroy(): void {
+    afterTutorial = undefined;
+    delete document.body.dataset.guidedSelection;
     cleanupStep?.(); cleanupStep = undefined;
     cleanupOverlay?.(); cleanupOverlay = undefined;
     root?.remove(); root = null; mode = null; onDismiss = undefined; relayout = undefined;
-    authorizationReady = false; skipAuthorizationStep = false; onConnected = undefined; prepareLiveSave = undefined;
+    authorizationReady = false; onConnected = undefined; prepareLiveSave = undefined;
 }
-function close(): void { const callback = onDismiss; destroy(); callback?.(); }
-const finishTour = async (): Promise<void> => { destroy(); };
+function close(): void {
+    const callback = onDismiss;
+    const deferred = mode === 'tour' ? afterTutorial : undefined;
+    destroy(); callback?.(); deferred?.();
+}
+const finishTour = async (): Promise<void> => { close(); };
 const skipTour = finishTour;
 const dismissFeatureSpotlight = async (): Promise<void> => { close(); };
 const isActive = (): boolean => root !== null;
+const isLiveSaveStep = (): boolean => mode === 'tour' && STEPS[stepIndex]?.id === 'live_save';
 function modalOpen(): boolean { return isActive() || !!document.querySelector('dialog[open], [aria-modal="true"]'); }
 
 
@@ -41,13 +49,14 @@ type Placement = 'top' | 'bottom' | 'left' | 'right';
 /** Render the original main Tour card and highlight, retaining v2's physical click cutout. */
 function overlay(
     target: HTMLElement | null | (() => HTMLElement | null), title: string, description: string | HTMLElement, interactive: boolean,
-    related: HTMLElement[] = [], placement: Placement = 'bottom', badgeText?: string, hint?: string,
+    related: HTMLElement[] | (() => HTMLElement[]) = [], placement: Placement = 'bottom', badgeText?: string, hint?: string, centered = false,
 ): HTMLElement {
     cleanupStep?.(); cleanupStep = undefined;
     cleanupOverlay?.(); cleanupOverlay = undefined;
     root?.remove();
     const previousFocus = document.activeElement;
     const currentTarget = () => typeof target === 'function' ? target() : target;
+    const currentRelated = () => typeof related === 'function' ? related() : related;
     currentTarget()?.scrollIntoView({ block: 'center', inline: 'nearest' });
     const container = document.createElement('div');
     root = container;
@@ -95,7 +104,7 @@ function overlay(
         const visible = candidate && candidate.isConnected && candidate.getClientRects().length ? candidate : null;
         const w = window.innerWidth, h = window.innerHeight;
         const pad = 6;
-        const bounds = [visible, ...related].filter((item): item is HTMLElement =>
+        const bounds = [visible, ...currentRelated()].filter((item): item is HTMLElement =>
             !!item && item.isConnected && !!item.getClientRects().length).map(item => item.getBoundingClientRect());
         // The border and click cutout share the same padded, viewport-clipped bounds.
         const region = bounds.length ? {
@@ -133,14 +142,14 @@ function overlay(
                 `H${left + radius}A${radius} ${radius} 0 0 1 ${left} ${bottom - radius}` +
                 `V${top + radius}A${radius} ${radius} 0 0 1 ${left + radius} ${top}Z")`;
         }
-        panel.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); close(); });
+        panel.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); if (mode !== 'tour') close(); });
         container.prepend(panel);
         backdrop.push(panel);
 
         // Respect the original per-step right/left/bottom placements; avoid collision.
         const width = popover.offsetWidth, height = popover.offsetHeight;
         let x = (w - width) / 2, y = (h - height) / 2;
-        if (rect) {
+        if (rect && !centered) {
             const gap = 16, margin = 16;
             const available: Placement[] = [placement, 'right', 'left', 'bottom', 'top'];
             for (const side of [...new Set(available)]) {
@@ -165,10 +174,10 @@ function overlay(
     };
     const guard = (event: MouseEvent) => {
         const node = event.target;
-        if (node instanceof Node && (popover.contains(node) || interactive && [currentTarget(), ...related].some(item => item?.contains(node)))) return;
+        if (node instanceof Node && (popover.contains(node) || node instanceof Element && !!node.closest('.tour-coach-card') && container.contains(node) || interactive && [currentTarget(), ...currentRelated()].some(item => item?.contains(node)))) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        close();
+        if (mode !== 'tour') close();
     };
     const keydown = (event: KeyboardEvent) => {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
@@ -181,10 +190,21 @@ function overlay(
     // Options re-renders rows with replaceChildren() while a scan completes.
     // Follow the live row without binding to a detached DOM node.
     const list = mode === 'tour' && STEPS[stepIndex]?.id === 'select' ? document.getElementById('list') : null;
-    const observer = list ? new MutationObserver(layout) : null;
+    const folderControls = mode === 'tour' && STEPS[stepIndex]?.id === 'live_save' ? document.getElementById('localFolderControls') : null;
+    const observer = list || folderControls ? new MutationObserver(layout) : null;
     if (list) observer?.observe(list, { childList: true });
+    if (folderControls) observer?.observe(folderControls, { attributes: true, attributeFilter: ['data-authorized'] });
     const sizeObserver = new ResizeObserver(layout);
     sizeObserver.observe(popover);
+    // Observe preceding content too: the target may move without changing size.
+    const leftCard = document.querySelector('.card-left');
+    if (leftCard) {
+        sizeObserver.observe(leftCard);
+        for (const child of leftCard.children) sizeObserver.observe(child);
+    }
+    // Scan status and controls can change workbench layout without a window resize.
+    const workbenchList = document.getElementById('list');
+    if (workbenchList) sizeObserver.observe(workbenchList);
     cleanupOverlay = () => {
         observer?.disconnect();
         sizeObserver.disconnect();
@@ -220,30 +240,54 @@ function footer(popover: HTMLElement): HTMLElement {
 
 async function goToStep(index: number): Promise<void> {
     if (mode !== 'tour' && mode !== 'platforms') return;
-    const length = mode === 'platforms' ? PLATFORM_STEPS.length : STEPS.length;
+    if (mode === 'tour') document.body.dataset.guidedSelection = 'true';
+    const steps = mode === 'platforms' ? PLATFORM_STEPS : STEPS;
+    const length = steps.length;
     if (index >= length) { close(); return; }
-    const nextIndex = index === PLATFORM_STEPS.length && skipAuthorizationStep
-        ? index + 1 : Math.max(0, index);
-    if (STEPS[nextIndex].id === 'live_save' && prepareLiveSave) {
+    const nextIndex = Math.max(0, index);
+    const returning = nextIndex < stepIndex;
+    if (steps[nextIndex].id === 'live_save' && prepareLiveSave) {
         const previousRoot = root;
         try { await prepareLiveSave(); } catch { return; }
         if (mode !== 'tour' || root !== previousRoot) return;
     }
     stepIndex = nextIndex;
-    const step = STEPS[stepIndex];
-    const relatedId = step.id === 'live_save' ? 'btnSetDir' : step.id === 'select' ? 'btnSelectAll' : undefined;
+    const step = steps[stepIndex];
+    if (step === AUTHORIZATION_STEP) {
+        const { popover, bar } = platformAuthorizationPage();
+        popover.classList.add('tour-authorization-menu');
+        authorizationReady = false;
+        const next = button(bar, text('Next', '下一步'), () => { void nextStep(); }, 'tourNextBtn', 'tour-nav-btn primary');
+        next.disabled = true;
+        const stopAuthorization = mountAuthorization(popover, bar, ready => {
+            if (mode !== 'tour' || steps[stepIndex] !== step || !popover.isConnected) return;
+            authorizationReady = ready;
+            next.disabled = !ready;
+        }, () => {
+            if (mode !== 'tour' || steps[stepIndex] !== step || !popover.isConnected) return;
+            authorizationReady = true;
+            void nextStep();
+        });
+        const stopCoaching = mountAuthorizationCoaching(popover);
+        cleanupStep = () => { stopCoaching(); stopAuthorization(); };
+        relayout?.();
+        return;
+    }
+    const relatedId = step.id === 'live_save' ? 'btnSetDir' : step.id === 'export' ? 'btnCancel' : undefined;
     const related = relatedId
         ? [document.getElementById(relatedId)].filter((item): item is HTMLElement => item instanceof HTMLElement)
         : [];
+    // Detection and selector explanation are the two parts of the account lesson.
+    const tourPage = stepIndex + 1 - Number(stepIndex > STEPS.findIndex(item => item.id === 'identify_account'));
     const popover = overlay(step.target, step.title(), step.description(), true,
-        related, step.placement, mode === 'platforms' ? `✨ v2.1.0 · ${stepIndex + 1} / ${length}` : undefined, step.hint?.());
+        () => step.id === 'live_save' && document.querySelector('#localFolderControls[data-authorized="true"]') ? [] : related, step.placement, mode === 'platforms' ? `✨ v2.1.0 · ${stepIndex + 1} / ${length}` : `${tourPage} / ${length - 1}`, step.hint?.());
     const navFooter = footer(popover);
-    if (stepIndex < length - 1)
-        button(navFooter, text('Skip', '跳过'), () => { destroy(); }, 'tourSkipBtn', 'tour-skip-btn');
+    if (stepIndex < length - 1 && step.id !== 'identify_account')
+        button(navFooter, text('Skip', '跳过'), close, 'tourSkipBtn', 'tour-skip-btn');
     const nav = document.createElement('div');
     nav.className = 'tour-nav-btns';
     navFooter.append(nav);
-    if (stepIndex > 0 && !(skipAuthorizationStep && stepIndex === PLATFORM_STEPS.length + 1)) button(nav, text('Back', '上一步'), () => { void prevStep(); },
+    if (stepIndex > 0) button(nav, text('Back', '上一步'), () => { void prevStep(); },
         'tourPrevBtn', 'tour-nav-btn');
     const nextButton = button(nav, stepIndex === length - 1 ? text('Start using', '开始使用') : text('Next', '下一步'),
         () => { void nextStep(); }, 'tourNextBtn', 'tour-nav-btn primary');
@@ -251,73 +295,211 @@ async function goToStep(index: number): Promise<void> {
 
     let advanced = false;
     const advance = () => {
-        if (advanced || (mode !== 'tour' && mode !== 'platforms') || STEPS[stepIndex] !== step) return;
+        if (advanced || (mode !== 'tour' && mode !== 'platforms') || steps[stepIndex] !== step) return;
         advanced = true;
         void nextStep();
     };
     cleanupStep = step.setupAction?.(advance);
-    if (step.id === 'connect') {
-        authorizationReady = false;
+    if (step.id === 'identify_account') {
         nextButton.disabled = true;
-        cleanupStep = mountAuthorization(popover, navFooter, ready => {
-            if (mode !== 'tour' || STEPS[stepIndex] !== step || !popover.isConnected) return;
-            authorizationReady = ready;
-            nextButton.disabled = !ready;
-        }, () => {
-            if (mode !== 'tour' || STEPS[stepIndex] !== step || !popover.isConnected) return;
-            skipAuthorizationStep = true;
-            void goToStep(PLATFORM_STEPS.length + 1);
-        });
+        cleanupStep = mountAccountDiscovery(popover, navFooter, nextButton, !returning);
     }
+
 }
+/** A user action owns this completion; cached state cannot start it. */
+function beginStepAction(id: 'sync' | 'export' | 'format' | 'live_save'): ((ready: boolean) => void) | undefined {
+    if (mode !== 'tour' || STEPS[stepIndex]?.id !== id || !root) return;
+    const card = root;
+    const next = card.querySelector('#tourNextBtn');
+    if (!(next instanceof HTMLButtonElement)) return;
+    next.disabled = true;
+    return ready => {
+        if (root !== card) return;
+        next.disabled = false;
+        if (ready) void nextStep();
+    };
+}
+const beginScan = () => beginStepAction('sync');
+const beginExport = () => beginStepAction('export');
+const beginFormatSelection = () => beginStepAction('format');
+const beginLiveSave = () => beginStepAction('live_save');
 async function nextStep(): Promise<void> {
-    if (STEPS[stepIndex]?.id === 'connect' && !authorizationReady) return;
+    if (mode === 'tour' && (STEPS[stepIndex]?.id === 'connect' && !authorizationReady
+        || STEPS[stepIndex]?.id !== 'connect' && root?.querySelector<HTMLButtonElement>('#tourNextBtn')?.disabled)) return;
     await goToStep(stepIndex + 1);
 }
 async function prevStep(): Promise<void> { await goToStep(stepIndex - 1); }
 async function startTour(connected?: (accountId: string) => Promise<void>,
     liveSaveSetup?: () => Promise<void>): Promise<void> {
     if (modalOpen()) return;
-    destroy(); mode = 'tour'; onConnected = connected; prepareLiveSave = liveSaveSetup;
-    const granted = await Promise.all(SOURCE_PLATFORMS.map(hasPlatformAccess));
-    if (mode !== 'tour') return;
-    skipAuthorizationStep = granted.every(Boolean);
+    destroy(); mode = 'tour'; document.body.dataset.guidedSelection = 'true'; onConnected = connected; prepareLiveSave = liveSaveSetup;
     await goToStep(0);
+}
+
+/** Two explanations accompany the actual authorization menu, without opening a second modal. */
+function mountAuthorizationCoaching(menu: HTMLElement): () => void {
+    const container = root;
+    if (!container) return () => {};
+    const card = (id: string, title: string, description: string) => {
+        const box = document.createElement('section');
+        box.id = id;
+        box.className = 'tour-coach-card';
+        const heading = document.createElement('h3');
+        heading.textContent = title;
+        const copy = document.createElement('p');
+        copy.textContent = description;
+        box.append(heading, copy);
+        return box;
+    };
+    const why = card('tourAuthorizationWhy', text('Allow access to your conversations', '授权读取对话数据'),
+        text('Choose the platforms you use in this menu. We need your permission to read their conversation and attachment data. Authorize at least one platform to continue.',
+            '请在高亮菜单中选择需要使用的平台。我们需要你授权后才能读取对应网站的对话和附件数据。至少授权一个平台，才能进入下一步。'));
+    const more = card('tourAuthorizationMore', text('Add more sites later', '以后可以授权更多网站'),
+        text('Use the highlighted Site access button in the top right whenever you want to authorize more platforms.',
+            '以后需要使用其他平台时，可以随时点击右上角高亮的「网站授权」按钮，授权更多网站。'));
+    menu.setAttribute('aria-describedby', `${why.id} ${more.id}`);
+    const layout = () => {
+        const compact = innerWidth < 1100;
+        menu.classList.toggle('tour-authorization-compact', compact);
+        if (compact) {
+            if (why.parentNode !== menu) {
+                const content = menu.querySelector('.tour-content');
+                content?.after(why, more);
+            }
+            for (const box of [why, more]) { box.style.left = ''; box.style.top = ''; }
+        } else {
+            if (why.parentNode !== container) container.append(why, more);
+            const bounds = menu.getBoundingClientRect();
+            why.style.left = Math.max(12, bounds.left - 272) + 'px';
+            why.style.top = Math.max(12, bounds.top) + 'px';
+            const button = document.getElementById('btnPlatformPermissions')?.getBoundingClientRect();
+            more.style.left = Math.min(innerWidth - 272, Math.max(bounds.right + 16, button?.left ?? bounds.right + 16)) + 'px';
+            more.style.top = Math.max(12, (button?.bottom ?? 40) + 16) + 'px';
+        }
+    };
+    const observer = new ResizeObserver(layout);
+    observer.observe(menu);
+    window.addEventListener('resize', layout);
+    window.addEventListener('scroll', layout, true);
+    layout();
+    return () => { observer.disconnect(); window.removeEventListener('resize', layout); window.removeEventListener('scroll', layout, true); why.remove(); more.remove(); };
+}
+
+/** Open a permitted site in the background and detect until this lesson ends. */
+function mountAccountDiscovery(popover: HTMLElement, before: HTMLElement, next: HTMLButtonElement, advanceOnDetection: boolean): () => void {
+    const host = document.createElement('div');
+    host.className = 'tour-action-box';
+    popover.insertBefore(host, before);
+    const status = document.createElement('p');
+    status.className = 'tour-status-indicator';
+    status.setAttribute('role', 'status');
+    host.append(status);
+    const choices = document.createElement('div');
+    choices.className = 'tour-platform-choices';
+    host.prepend(choices);
+    const names: Record<SourcePlatform, string> = { gemini: 'Gemini', chatgpt: 'ChatGPT', grok: 'Grok', claude: 'Claude' };
+    let active = true;
+    let checking = false;
+    let userInteracted = false;
+    let refreshPending = false;
+    let backgroundDetection: ReturnType<typeof setInterval> | undefined;
+    const refresh = async () => {
+        if (!active) return;
+        if (checking) { refreshPending = true; return; }
+        checking = true;
+        retry.disabled = true;
+        status.textContent = text('Checking for accounts…', '正在识别账号…');
+        try {
+            const access = await Promise.all(SOURCE_PLATFORMS.map(hasPlatformAccess));
+            if (!active) return;
+            const authorized = SOURCE_PLATFORMS.filter((_, i) => access[i]);
+            if (!authorized.length) { void goToStep(0); return; }
+            choices.replaceChildren();
+            for (const platform of authorized) button(choices, text(`Connect ${names[platform]}`, `连接 ${names[platform]}`), () => {
+                userInteracted = true;
+                void (async () => {
+                    if (!await hasPlatformAccess(platform) || !active) { await refresh(); return; }
+                    await openPlatformSignIn(platform, false);
+                    if (!active) return;
+                    status.textContent = text('Connecting your account. If needed, sign in on the platform tab and check again.', '正在连接账号；如尚未登录，请前往平台页面登录后重新检测。');
+                    if (backgroundDetection === undefined) backgroundDetection = setInterval(() => { void refresh(); }, 1500);
+                    void refresh();
+                })().catch(() => { if (active) status.textContent = text('Could not open the platform. Please try again.', '未能打开平台，请重试。'); });
+            }, `btnConnectPlatform-${platform}`, 'tour-action-btn secondary');
+            const accounts = (await listAccounts()).filter(account => account.providerAccountId !== 'default'
+                && authorized.some(platform => platform === account.providerId));
+            const selector = document.getElementById('accountIdSelect');
+            const known = accounts.find(account => selector instanceof HTMLSelectElement && account.id === selector.value) ?? accounts[0];
+            let accountId: string | null = known?.id ?? await findAuthorizedAccount(authorized);
+            // A stored identity is not proof that this account can scan now.
+            if (accountId) {
+                try { if (await resolveScanTarget(accountId) !== accountId) accountId = null; }
+                catch { accountId = null; }
+            }
+            if (!active || refreshPending) return;
+            if (accountId) {
+                await onConnected?.(accountId);
+                if (active && !refreshPending) {
+                    next.disabled = false;
+                    if (advanceOnDetection && userInteracted) void goToStep(STEPS.findIndex(step => step.id === 'accounts'));
+                    else status.textContent = text('An account is connected. Connect another platform or choose Next.', '已连接账号。你可以继续连接其他平台，或点击「下一步」。');
+                }
+            } else {
+                next.disabled = true;
+                status.textContent = text('No account identified yet. Connect an authorized platform and sign in, then check again.',
+                    '尚未识别到账号。请连接已授权的平台并登录，然后点击重新检测。');
+            }
+        } catch {
+            if (active) next.disabled = true;
+            if (active) status.textContent = text('Account detection failed. You can retry after signing in.', '账号识别失败，请登录平台后重试。');
+        } finally {
+            checking = false;
+            if (active) {
+                retry.disabled = false;
+                if (refreshPending) { refreshPending = false; void refresh(); }
+            }
+        }
+    };
+    const retry = button(host, text('Check again', '重新检测'), () => { userInteracted = true; void refresh(); }, 'btnDetectAccount', 'tour-nav-btn');
+    const returned = () => { if (!document.hidden) void refresh(); };
+    window.addEventListener('focus', returned);
+    document.addEventListener('visibilitychange', returned);
+    const stopPermissions = observePlatformAccess(returned);
+    void refresh();
+    return () => { active = false; clearInterval(backgroundDetection); stopPermissions(); window.removeEventListener('focus', returned); document.removeEventListener('visibilitychange', returned); host.remove(); };
 }
 
 function mountAuthorization(
     popover: HTMLElement, before: HTMLElement,
-    ready?: (authorized: boolean) => void, allAuthorized?: () => void,
+    ready?: (authorized: boolean) => void, granted?: () => void,
 ): () => void {
     const host = document.createElement('div');
     popover.insertBefore(host, before);
-    const stop = mountPlatformAuthorization(host, { ready, allAuthorized, connected: onConnected });
+    const stop = mountPlatformAuthorization(host, { ready, granted, connected: onConnected });
     return () => { stop(); host.remove(); };
+}
+
+/** The existing Site access page. Onboarding adds coaching and replaces only its footer action. */
+function platformAuthorizationPage(): { popover: HTMLElement; bar: HTMLElement } {
+    const tutorial = mode === 'tour' && STEPS[stepIndex] === AUTHORIZATION_STEP;
+    const target = tutorial ? () => document.getElementById('btnPlatformPermissions') : null;
+    const popover = overlay(target, AUTHORIZATION_STEP.title(), AUTHORIZATION_STEP.description(), tutorial, [],
+        'bottom', text('Site access', '网站授权'), undefined, true);
+    return { popover, bar: footer(popover) };
 }
 
 /** Reopen the same authorization view without starting or advancing the tutorial. */
 function showPlatformAuthorization(connected?: (accountId: string) => Promise<void>): void {
     // Let the highlighted button open its real dialog, then resume the walkthrough.
-    const resumeMode = mode;
     const resumeIndex = stepIndex + 1;
-    const resumeConnected = onConnected;
-    const resumeLiveSave = prepareLiveSave;
-    const resumeSkip = skipAuthorizationStep;
-    const resumeDismiss = onDismiss;
-    const resume = (resumeMode === 'tour' || resumeMode === 'platforms') && STEPS[stepIndex].id === 'site_access';
+    const resume = mode === 'platforms' && PLATFORM_STEPS[stepIndex].id === 'site_access';
     if (modalOpen() && !resume) return;
     destroy(); mode = 'authorization'; onConnected = connected;
     if (resume) onDismiss = () => {
-        mode = resumeMode;
-        onConnected = resumeConnected;
-        prepareLiveSave = resumeLiveSave;
-        skipAuthorizationStep = resumeSkip;
-        onDismiss = resumeDismiss;
+        mode = 'platforms';
         void goToStep(resumeIndex);
     };
-    const step = AUTHORIZATION_STEP;
-    const popover = overlay(null, step.title(), step.description(), false, [], 'bottom', text('Site access', '网站授权'));
-    const bar = footer(popover);
+    const { popover, bar } = platformAuthorizationPage();
     button(bar, text('Done', '完成'), close, 'platformAuthorizationDone', 'tour-nav-btn');
     cleanupStep = mountAuthorization(popover, bar);
     relayout?.();
@@ -325,11 +507,19 @@ function showPlatformAuthorization(connected?: (accountId: string) => Promise<vo
 
 /** Recover the selected account without silently switching to another signed-in account. */
 function showAccountConnection(platform: SourcePlatform, accountId: string, accountLabel: string, retry: () => void): void {
-    if (modalOpen()) return;
+    const resume = mode === 'tour' && STEPS[stepIndex]?.id === 'sync'
+        ? { index: stepIndex, connected: onConnected, liveSave: prepareLiveSave } : undefined;
+    if (modalOpen() && !resume) return;
+    const continueSync = () => {
+        if (!resume) { retry(); return; }
+        mode = 'tour'; onConnected = resume.connected; prepareLiveSave = resume.liveSave;
+        void goToStep(resume.index).then(retry);
+    };
     destroy(); mode = 'authorization';
     const names: Record<SourcePlatform, string> = { gemini: 'Gemini', chatgpt: 'ChatGPT', claude: 'Claude', grok: 'Grok' };
     const name = names[platform];
-    const popover = overlay(null, text(`Connect ${name} account`, `连接 ${name} 账号`),
+    const connectionTitle = text(`Connect ${name} account`, `连接 ${name} 账号`);
+    const popover = overlay(null, connectionTitle,
         text(`Open ${name} and sign in to ${accountLabel}, then return here. If another account is signed in, switch accounts there first.`,
             `请前往 ${name} 登录 ${accountLabel}，然后返回此窗口。如果网页上登录的是其他账号，请先切换账号。`),
         false, [], 'bottom', text('Account connection', '账号连接'));
@@ -346,6 +536,11 @@ function showAccountConnection(platform: SourcePlatform, accountId: string, acco
     let checking: Promise<boolean> | undefined;
     let refreshWhenSettled = false;
     const renderAction = () => {
+        const heading = popover.querySelector('.tour-title');
+        if (heading) heading.textContent = connected ? text('Account connected', '账号已连接') : connectionTitle;
+        const instructions = popover.querySelector<HTMLElement>('.tour-content');
+        if (instructions) instructions.hidden = connected;
+        status.hidden = connected;
         action.textContent = connected ? text('Continue sync', '继续同步') : text(`Go to ${name}`, `前往 ${name}`);
         action.disabled = navigating || !!checking;
     };
@@ -386,7 +581,7 @@ function showAccountConnection(platform: SourcePlatform, accountId: string, acco
         if (!active || navigating || checking) return;
         if (connected) {
             // Verify again immediately before resuming; a previous visit is not proof of account identity.
-            void checkConnection().then(verified => { if (active && verified) { close(); retry(); } });
+            void checkConnection().then(verified => { if (active && verified) { close(); continueSync(); } });
             return;
         }
         // Preserve the user gesture when website access still needs a native prompt.
@@ -426,7 +621,7 @@ function showAccountConnection(platform: SourcePlatform, accountId: string, acco
     relayout?.();
 }
 
-/** The same three introduction pages are also the first steps of startTour. */
+/** Upgrade-only introduction; the tutorial shares just the account-switching step. */
 function showPlatformHighlights(): boolean {
     if (modalOpen()) return false;
     mode = 'platforms';
@@ -491,7 +686,12 @@ function showV2UpgradeSpotlight(openFeedback: () => void): boolean {
 }
 function showTakeoutPrompt(
     count: number, dismissed: () => void, importFile: () => void, openTakeout: () => void,
+    shown?: () => void,
 ): boolean {
+    if (mode === 'tour') {
+        afterTutorial = () => { showTakeoutPrompt(count, dismissed, importFile, openTakeout, shown); };
+        return false;
+    }
     if (modalOpen()) return false;
     mode = 'takeout';
     const title = text('💡 Supplement Your History with Google Takeout', '💡 使用 Google Takeout 补充历史记录');
@@ -515,7 +715,8 @@ function showTakeoutPrompt(
         close(); importFile();
     }, 'tourTakeoutImportBtn', 'tour-nav-btn primary');
     relayout?.();
+    shown?.();
     return true;
 }
-export const TourGuide = { showAccountConnection, showPlatformAuthorization, startTour, goToStep, nextStep, prevStep, finishTour, skipTour,
-    startFeatureSpotlight, showPlatformHighlights, showV2UpgradeSpotlight, dismissFeatureSpotlight, showTakeoutPrompt, isActive, destroy };
+export const TourGuide = { beginScan, beginExport, beginFormatSelection, beginLiveSave, showAccountConnection, showPlatformAuthorization, startTour, goToStep, nextStep, prevStep, finishTour, skipTour,
+    startFeatureSpotlight, showPlatformHighlights, showV2UpgradeSpotlight, dismissFeatureSpotlight, showTakeoutPrompt, isActive, isLiveSaveStep, destroy };

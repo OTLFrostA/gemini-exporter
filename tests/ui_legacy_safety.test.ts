@@ -1,4 +1,4 @@
-import { advancePlatformIntro } from './helpers/tourNavigation';
+import { waitForAuthorization } from './helpers/tourNavigation';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from 'playwright';
@@ -24,8 +24,8 @@ test('export completion warns for attachment-only and mixed failures in both lan
 });
 test('sync UI never announces completion for partial_limit, aborted or error, and keeps committed counters',async()=>{
     for(const status of ['partial_limit','aborted','error','complete','up_to_date']){
-        await open({holdScan:true,scanCount:3,scanResult:{status,pagesFetched:2,conversationsFetched:3}});await page.locator('#btnSyncAll').click();assert.equal(await page.locator('#status').textContent(),'Committed 2 pages, 3 source entries');await page.evaluate(()=>Reflect.get(window,'harness').finishScan());await page.waitForFunction(()=>document.body.dataset.busy!=='true');
-        const final=await page.locator('#status').textContent()??'';if(['partial_limit','aborted','error'].includes(status)){assert.match(final,/2 \/ 3/);assert.doesNotMatch(final,/Sync complete/);}else{assert.equal(final,'Sync complete');assert.doesNotMatch(final,/2 \/ 3/);}assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);await page.close();
+        await open({holdScan:true,scanCount:3,scanResult:{status,pagesFetched:2,conversationsFetched:3}});await page.locator('#btnSyncAll').click();assert.equal(await page.locator('#scanStatus').textContent(),'Committed 2 pages, 3 source entries');await page.evaluate(()=>Reflect.get(window,'harness').finishScan());await page.waitForFunction(()=>document.body.dataset.busy!=='true');
+        const final=await page.locator('#scanStatus').textContent()??'';if(['partial_limit','aborted','error'].includes(status)){assert.match(final,/2 \/ 3/);assert.doesNotMatch(final,/Sync complete/);}else{assert.equal(final,'Sync complete');assert.doesNotMatch(final,/2 \/ 3/);}assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);await page.close();
     }
 });
 test('completed sync reports committed new and changed metadata counts in both languages',async()=>{
@@ -36,7 +36,7 @@ test('completed sync reports committed new and changed metadata counts in both l
     ] as const){
         await open({settings:{language,takeoutPromptCompleted:true},scanResult:{status:'complete',pagesFetched:6,conversationsFetched:501,indexChanges:changes}});
         await page.locator('#btnSyncAll').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
-        const final=await page.locator('#status').textContent();
+        const final=await page.locator('#scanStatus').textContent();
         assert.equal(final,language==='en'?en:zh);
         assert.doesNotMatch(final??'',/6 \/ 501/);
         await page.close();
@@ -49,8 +49,8 @@ test('scan progress shows a long-history reminder only above 200 entries and cle
         const hint=page.locator('#scanSlowHint');
         assert.equal(await hint.isVisible(),scanCount>200);
         if(scanCount>200)assert.match(await hint.textContent()??'',language==='en'?/Gemini scans may take significantly longer/:/随着对话历史增加/);
-        assert.equal(await page.locator('#progText').isVisible(),true);
-        assert.equal(await page.locator('#status').isVisible(),false);
+        assert.equal(await page.locator('#scanStatus').isVisible(),true);
+        assert.equal(await page.locator('#progText').isVisible(),false);
         await page.evaluate(()=>Reflect.get(window,'harness').finishScan());
         await page.waitForFunction(()=>document.body.dataset.busy!=='true');
         assert.equal(await hint.isVisible(),false);
@@ -83,7 +83,7 @@ test('D7: denied authorization cannot enable Next, including without a Tabs API'
     for(const missing of [false,true]){
         await open({geminiAccess:false,permissionDenied:true});
         await page.evaluate(missing=>{if(missing)Reflect.deleteProperty(chrome,'tabs');return Reflect.get(window,'testUi').tour.startTour();},missing);
-        await advancePlatformIntro(page);
+        await waitForAuthorization(page);
         await page.locator('#btnAuthorizePlatforms').click();
         await page.waitForFunction(()=>document.querySelector('.tour-popover')?.textContent?.includes('Access was not granted'));
         assert.equal(await page.locator('#tourNextBtn').isDisabled(),true);
@@ -95,7 +95,7 @@ test('Takeout guidance is neutral and independent of source-vs-local scan limit'
         await open({settings:{language},scanCount:620,scanResult:{status:'partial_limit',reason,pagesFetched:2,conversationsFetched:620}});
         await page.locator('#btnSyncAll').click();
         await page.waitForFunction(()=>document.body.dataset.busy!=='true');
-        const status=await page.locator('#status').textContent()??'';
+        const status=await page.locator('#scanStatus').textContent()??'';
         assert.match(status,reason==='provider_limit'?(language==='en'?/Source online access limit/:/来源在线访问范围限制/):(language==='en'?/Local page budget reached/:/本地页数预算/));
         assert.equal(await page.locator('.tour-popover').count(),1);
         const prompt=await page.locator('.tour-popover').textContent()??'';

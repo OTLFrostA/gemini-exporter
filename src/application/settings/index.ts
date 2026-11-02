@@ -14,6 +14,7 @@ export interface GlobalSettings {
     badgePosition?: { left: number; top: number };
     lastSeenFeatureVersion?: string;
     takeoutPromptCompleted?: true;
+    ratingPromptDismissed?: true;
     /** Automatically suggested large-batch folder delivery has already been shown. */
     directWritePromptCompleted?: true;
 }

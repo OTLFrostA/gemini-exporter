@@ -61,7 +61,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     const listItems = optionsPage.locator('#list .item');
     await expect(listItems).toHaveCount(3, { timeout: 10000 });
     await expect(optionsPage.locator('[data-chat-id="scan_pinned"]')).toHaveCount(0);
-    await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
+    await expect(optionsPage.locator('body')).toHaveAttribute('data-scanning', 'false');
 
     await expect(optionsPage.locator('[data-chat-id="scan_001"]')).toContainText('量子计算与超导量子比特');
     await expect(optionsPage.locator('[data-chat-id="scan_002"]')).toContainText('Rust 高性能异步网络编程');
@@ -81,7 +81,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     // Renaming an old item does not change its timestamp or move it ahead of the head.
     renamed = true;
     await optionsPage.click('#btnSyncAll');
-    await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
+    await expect(optionsPage.locator('body')).toHaveAttribute('data-scanning', 'false');
     await expect(listItems).toHaveCount(3);
     await expect(optionsPage.locator('[data-chat-id="scan_001"]')).toContainText('改名后的老会话');
     const repeated = await optionsPage.evaluate(async accountId => {

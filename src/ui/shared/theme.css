@@ -343,3 +343,12 @@
   background: #272938;
   border-color: #3a4164;
 }
+
+/* Reuse tutorial colors and controls for the review invitation. */
+.rating-prompt { margin: auto; max-height: calc(100vh - 32px); overflow-y: auto; }
+.rating-prompt::backdrop { background: rgba(0, 0, 0, 0.65); }
+.rating-prompt .tour-header { gap: 12px; }
+.rating-prompt .tour-close-btn { flex: none; width: auto; }
+.rating-prompt .tour-footer { flex-direction: column; align-items: stretch; gap: 8px; }
+.rating-prompt .tour-nav-btn { flex: none; display: block; box-sizing: border-box; width: 100%; padding: 8px 12px; text-align: center; text-decoration: none; white-space: nowrap; }
+:root[data-theme] .rating-prompt .tour-nav-btn.primary { background: var(--tour-accent); color: #fff; border: 1px solid transparent; }

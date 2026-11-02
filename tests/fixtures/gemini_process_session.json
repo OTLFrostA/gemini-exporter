@@ -1,0 +1,5 @@
+{
+  "partial": "110\n[[5,[\"Ekk6RwpFCAASDAoKcl8xMTExMTExMSIzIjESHAoOY19hYmNkZWYxMjM0NTYSCnJfMTExMTExMTEqEQoLcmNfMjIyMjIyMjJKAggB\"]]]",
+  "answered": "110\n[[8,[\"Ekk6RwpFCAESDAoKcl8xMTExMTExMSIzIjESHAoOY19hYmNkZWYxMjM0NTYSCnJfMTExMTExMTEqEQoLcmNfMjIyMjIyMjJKAggC\"]]]",
+  "description": "Sanitized processSession WebChannel frames captured 2026-11-01. Only response identity, final-frame flag, candidate identity and answered status retained; account/session tokens, text, telemetry removed."
+}

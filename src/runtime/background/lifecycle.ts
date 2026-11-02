@@ -41,6 +41,7 @@ export function initLifecycleListeners(): void {
             if (details.reason === 'install') {
                 const settings = await getSettings();
                 if (!settings.lastSeenFeatureVersion) await updateSettings({ lastSeenFeatureVersion: currentVersion });
+                if (!settings.theme) await updateSettings({ theme: 'light' });
                 await chrome.tabs.create({ url: chrome.runtime.getURL('src/ui/options/options.html') + '?startTour=1' });
             } else if (details.reason === 'update') {
                 const settings = await getSettings();

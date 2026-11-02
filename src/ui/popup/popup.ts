@@ -1,3 +1,4 @@
+import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { createBackoffNotice } from '../shared/backoffNotice.js';
 import { elementById as el, requiredElement as control } from '../shared/elements.js';
 import { exportSummary } from '../shared/exportSummary.js';
@@ -151,6 +152,7 @@ export async function initPopup(): Promise<void> {
                 : result.failed.length || !result.exported ? text('Export failed. Try Options.', '导出失败，请在工作台重试。')
                 : result.partial ? exportSummary(result)
                 : text('Download initiated', '已发起下载'));
+            if (result.exported > 0 && !result.partial && !result.failed.length && !result.aborted) void showRatingPromptIfEligible().catch(error => console.warn('[Rating prompt]', error));
         })().catch(e => { if (active) showError(e); })
             .finally(() => {
                 clearInterval(backoffTimer);

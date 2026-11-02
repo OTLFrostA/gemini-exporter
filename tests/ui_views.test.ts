@@ -26,20 +26,24 @@ const rows = [
 ];
 const records = { [A]: { one: { status: 'partial', format: 'markdown', exportedAt: 100 } } };
 
-test('sidebar support footer exposes separate localized feedback and Discord links', async () => {
+test('sidebar support footer exposes localized feedback, Discord and review links', async () => {
     for (const language of ['en', 'zh']) {
         await open({ settings: { language } });
         const feedback = page.locator('#feedbackBox');
         const discord = page.locator('#discordBox');
-        assert.equal(await page.locator('.support-links > a').count(), 2);
+        const review = page.locator('#reviewBox');
+        assert.equal(await page.locator('.support-links > a').count(), 3);
         assert.equal(await feedback.getAttribute('href'), 'https://tally.so/r/Y56ZBB?source=extension');
         assert.equal(await discord.getAttribute('href'), 'https://discord.gg/e3FgrXUZ8f');
-        for (const link of [feedback, discord]) {
+        for (const link of [feedback, discord, review]) {
             assert.equal(await link.getAttribute('target'), '_blank');
             assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');
         }
         assert.equal(await feedback.locator('.support-link-label').textContent(), language === 'en' ? 'Send Feedback' : '提交反馈');
         assert.equal(await discord.locator('.support-link-label').textContent(), language === 'en' ? 'Join Discord' : '加入 Discord');
+        assert.equal(await review.locator('.support-link-label').textContent(), language === 'en' ? 'Leave a review' : '去评价');
+        assert.equal(await review.getAttribute('href'), 'https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf/reviews');
+        assert.equal(await page.locator('#discordBox + #reviewBox').count(), 1);
         await page.close();
     }
 });
@@ -149,11 +153,11 @@ test('clicking the actual list label toggles its checkbox and selection statisti
 });
 test('status updates replace previous progress text instead of duplicating log rows', async () => {
     await open({ holdScan: true }); await page.locator('#btnSyncAll').click();
-    await page.waitForFunction(() => document.getElementById('status')?.textContent?.includes('Committed 2 pages'));
-    assert.equal(await page.locator('#status').count(), 1);
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent?.includes('Committed 2 pages'));
+    assert.equal(await page.locator('#scanStatus').count(), 1);
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
     await page.waitForFunction(() => document.body.dataset.busy !== 'true');
-    assert.doesNotMatch(await page.locator('#status').textContent() ?? '', /Committed 2 pages/);
+    assert.doesNotMatch(await page.locator('#scanStatus').textContent() ?? '', /Committed 2 pages/);
 });
 test('failed export is displayed and a retry remains available after the task ends', async () => {
     await open({ failExport: true }); await page.locator('#btnSelectAll').click(); await page.locator('#btnExport').click();
@@ -163,9 +167,9 @@ test('failed export is displayed and a retry remains available after the task en
 });
 test('scan progress exposes committed page counts and returns controls to idle', async () => {
     await open({ holdScan: true }); await page.locator('#btnSyncAll').click();
-    await page.waitForFunction(() => document.getElementById('status')?.textContent?.includes('150 source entries'));
-    assert.equal(await page.locator('#btnStopScan').isVisible(), true);
-    assert.equal(await page.locator('#btnStopScan').isEnabled(), true);
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent?.includes('150 source entries'));
+    assert.equal(await page.locator('#btnSyncAll').isVisible(), true);
+    assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
     assert.equal(await page.locator('#btnCancel').isVisible(), false);
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
     await page.waitForFunction(() => document.body.dataset.busy !== 'true'); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
@@ -383,9 +387,9 @@ test('scan retains a 429 notice across page progress and removes it when the wai
         h.scanDiagnostic({ code: 'CHATGPT_BACKOFF_WAIT', details: { requestId: 'scan', retryAt: Date.now() + 60000 } });
         h.scanProgress({ pagesFetched: 3, conversationsFetched: 200 });
     });
-    assert.match(await page.locator('#progText').innerText(), /Committed 3 pages.*429.*backing off/);
+    assert.match(await page.locator('#scanStatus').innerText(), /Committed 3 pages.*429.*backing off/);
     await page.evaluate(() => Reflect.get(window, 'harness').scanDiagnostic({ code: 'CHATGPT_BACKOFF_END', details: { requestId: 'scan' } }));
-    assert.equal(await page.locator('#progText').innerText(), 'Committed 3 pages, 200 source entries');
+    assert.equal(await page.locator('#scanStatus').innerText(), 'Committed 3 pages, 200 source entries');
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
     await page.waitForFunction(() => document.body.dataset.busy !== 'true');
 });

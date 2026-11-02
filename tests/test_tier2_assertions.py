@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 import zipfile
@@ -279,11 +280,11 @@ class StaleTabHistoryTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn('历史同步未完成', message)
 
-    def test_sync_must_not_heal_the_stale_tab(self):
+    def test_repaired_stale_tab_requires_verified_account_binding(self):
         healed = {'stale': {'reply': {'ok': True}}, 'good': {'reply': {'ok': True}}}
         ok, message, _ = self.run_case(scan_evidence(), healed)
         self.assertFalse(ok)
-        self.assertIn('无接收端状态', message)
+        self.assertIn('未绑定所选 Gemini 账号', message)
 
 
 class SettledEvidenceTests(unittest.TestCase):
@@ -461,6 +462,52 @@ class DiskContentTests(unittest.TestCase):
         self.assertEqual(result, str(path))
         cdp.call.assert_called_once_with('Browser.setDownloadBehavior', {
             'behavior': 'allow', 'downloadPath': str(self.root), 'eventsEnabled': True})
+
+    def test_standalone_baseline_ignores_separate_attachment_zip(self):
+        cdp = MagicMock()
+        cdp.call.return_value = {'result': {}}
+        markdown = self.root / 'Conversation_123456.md'
+        attachments = self.root / 'attachments_123456.zip'
+        def export_now(script, *args, **kwargs):
+            if 'return !!btn' in script:
+                return True
+            if 'btn.click();' in script:
+                markdown.write_text('Actual conversation body')
+                with zipfile.ZipFile(attachments, 'w') as archive:
+                    archive.writestr('assets/image.png', b'image bytes')
+                os.utime(attachments, (time.time() + 1, time.time() + 1))
+                return {'clicked': True}
+        cdp.eval.side_effect = export_now
+        with patch('scripts.framework.actions.time.sleep'), \
+             patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}) as controls:
+            self.assertEqual(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1, allow_standalone=True), str(markdown))
+        controls.assert_called_once_with(cdp, None, False, include_assets=True)
+
+    def test_independent_deliveries_are_verified_together_without_changing_bytes(self):
+        cdp = MagicMock()
+        cdp.call.return_value = {'result': {}}
+        body = self.root / 'conversations_123456.zip'
+        attachments = self.root / 'attachments_123456.zip'
+        def export_now(script, *args, **kwargs):
+            if 'return !!btn' in script:
+                return True
+            if 'btn.click();' in script:
+                with zipfile.ZipFile(body, 'w') as archive:
+                    archive.writestr('Chat_123456.md', b'initial body')
+                with zipfile.ZipFile(attachments, 'w') as archive:
+                    archive.writestr('Chat_123456.md', b'final correction')
+                    archive.writestr('assets/image.png', b'actual downloaded bytes')
+                return {'clicked': True}
+        cdp.eval.side_effect = export_now
+        with patch('scripts.framework.actions.time.sleep'), \
+             patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}):
+            result = CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1)
+        with zipfile.ZipFile(result) as archive:
+            self.assertEqual(archive.read('Chat_123456.md'), b'final correction')
+            self.assertEqual(archive.read('assets/image.png'), b'actual downloaded bytes')
+        with zipfile.ZipFile(body) as archive:
+            self.assertEqual(archive.read('Chat_123456.md'), b'initial body')
+        self.assertEqual(json.loads(Path(result + '.json').read_text())['deliveries'], [str(body), str(attachments)])
 
     def test_export_idle_wait_observes_cleanup_and_trigger_refuses_a_missed_click(self):
         cdp = MagicMock()
@@ -1644,10 +1691,10 @@ class LongConversationGoldenContracts(unittest.TestCase):
         self.assertFalse(target.get('optional', False))
         self.assertEqual(target['turn_evidence_fixture'], 'gemini_long_conversation.json')
 
-    def test_frozen_webpage_evidence_covers_all_sixty_three_turns(self):
+    def test_frozen_webpage_evidence_covers_all_sixty_four_turns(self):
         fixture = json.loads((Path(__file__).parent / 'fixtures/gemini_long_conversation.json').read_text())
         self.assertEqual(fixture['conversationId'], 'a714229ffb19b514')
-        self.assertEqual(len(fixture['turns']), 63)
+        self.assertEqual(len(fixture['turns']), 64)
         for turn in fixture['turns']:
             self.assertTrue(turn['prompt'].strip())
             self.assertTrue(turn['response'].strip())

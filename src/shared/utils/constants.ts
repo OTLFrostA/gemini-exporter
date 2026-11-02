@@ -21,6 +21,8 @@ export const STORAGE_KEYS = {
 } as const;
 
 export const DIRECT_WRITE_THRESHOLD = 20;
+export const DISCORD_URL = 'https://discord.gg/e3FgrXUZ8f';
+export const REVIEW_URL = 'https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf/reviews';
 export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB?source=extension';
 export const UNINSTALL_FEEDBACK_URL = 'https://tally.so/r/Y56ZBB?source=uninstall';
 

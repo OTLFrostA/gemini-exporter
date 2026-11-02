@@ -65,6 +65,9 @@ class ZipWriter implements IExportWriter {
         // it had zero production callers.
         const cleanPath = this.sanitizePath(relativePath);
         const opts = options || {};
+        // Encode once before JSZip streams strings in chunks. A chunk boundary
+        // can otherwise split a UTF-16 surrogate pair and corrupt its UTF-8 bytes.
+        const bytes = typeof content === 'string' && !opts.base64 ? new TextEncoder().encode(content) : content;
 
         if (content) {
             if (typeof content === 'string') {
@@ -91,7 +94,7 @@ class ZipWriter implements IExportWriter {
             fileOpts.compressionOptions = { level: 6 };
         }
 
-        this.folder.file(cleanPath, content, fileOpts);
+        this.folder.file(cleanPath, bytes, fileOpts);
         return cleanPath;
     }
 

@@ -35,7 +35,7 @@ function hookHarness(fetcher: Function) {
     const location = { href: 'https://gemini.google.com/app/abcdef123456', pathname: '/app/abcdef123456', origin: 'https://gemini.google.com' };
     const script = require('./helpers/bundleGeminiHook.cjs')();
     const context = vm.createContext({ window: win, location, document: new EventTarget(),
-        console, Event, URL, URLSearchParams, Request, Response, TextEncoder, TextDecoder, Uint8Array,
+        console, Event, URL, URLSearchParams, Request, Response, TextEncoder, TextDecoder, Uint8Array, atob,
         XMLHttpRequest: Xhr, GeminiProtocol: protocol, CrossWorldEvents: protocol.CrossWorldEvents,
         sniffUserProfileFromDom: () => ({}), geminiAccountObservation: () => ({ providerId: 'gemini', providerAccountId: 'gaia' }),
 
@@ -297,4 +297,50 @@ test('Fetch: borrowed receiver, native response and non-Error rejection retain t
     await assert.rejects(failed.win.fetch(failed.url), error => error === rejection);
     assert.equal(failed.complete().length, 0);
     assert.equal((failed.win as any).__geminiIsStreaming, false);
+});
+
+const {processSessionGen} = require('./fixtures/providers/geminiProcessSession.js');
+const processWire = {partial: processSessionGen('partial'), answered: processSessionGen('answered')};
+const processUrl = 'https://geminiweb-pa.clients6.google.com/v1/processSession';
+test('processSession: XHR progress completes before channel EOF, exactly once across replay', () => {
+    const h = hookHarness(async () => new Response(geminiStreamGen('G_STREAM_EMPTY_HTTP_01')));
+    const xhr = new h.Xhr();
+    (xhr.open as Function)('GET', processUrl); xhr.send();
+    const wire = processWire.partial + processWire.answered;
+    for (let i = 1; i <= wire.length; i++) {
+        xhr.responseText = wire.slice(0, i); xhr.emit('progress');
+        assert.equal(h.complete().length, i === wire.length ? 1 : 0);
+    }
+    assert.equal(h.complete()[0].payload.id, 'abcdef123456');
+    xhr.responseText += processWire.answered; xhr.emit('progress'); xhr.emit('load');
+    assert.equal(h.complete().length, 1);
+});
+for (const body of [processWire.partial, processSessionGen('truncated'), processSessionGen('malformed'), processSessionGen('oversized')]) {
+    test('processSession: partial or malformed protocol never completes: ' + body.slice(0, 12), async () => {
+        const h = hookHarness(async () => new Response(body));
+        await (await h.win.fetch(processUrl)).text(); await settleHook();
+        assert.equal(h.complete().length, 0);
+    });
+}
+test('processSession: fetch chunks use the same positive completion and reject HTTP errors', async () => {
+    for (const status of [200, 429]) {
+        const h = hookHarness(async () => new Response(processWire.answered, {status}));
+        await (await h.win.fetch(processUrl)).text(); await settleHook();
+        assert.equal(h.complete().length, status === 200 ? 1 : 0);
+    }
+});
+
+test('processSession: final frame and answered candidate are independently required', async () => {
+    for (const missing of ['missing-final', 'missing-answered', 'missing-identity']) {
+        const h = hookHarness(async () => new Response(processSessionGen(missing)));
+        await (await h.win.fetch(processUrl)).text(); await settleHook();
+        assert.equal(h.complete().length, 0, missing);
+    }
+});
+
+test('processSession: a fetch already aborted after headers cannot complete', async () => {
+    const controller = new AbortController();
+    const h = hookHarness(async () => { controller.abort(); return new Response(processWire.answered); });
+    await (await h.win.fetch(processUrl, {signal: controller.signal})).text(); await settleHook();
+    assert.equal(h.complete().length, 0);
 });

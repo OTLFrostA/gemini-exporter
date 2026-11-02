@@ -240,12 +240,12 @@ test('zipWriter - passes (path, content, options) through to JSZip file()', () =
     // (path, content) 2-arg with nested subdir
     writer.writeFile('assets/data.txt', 'hello-world');
     assert.strictEqual(capturedPath, 'assets/data.txt');
-    assert.strictEqual(capturedContent, 'hello-world');
+    assert.deepStrictEqual(capturedContent, new TextEncoder().encode('hello-world'));
 
     // (relativePath, content) 2-arg, no subdir
     writer.writeFile('00_INDEX.md', '# Index');
     assert.strictEqual(capturedPath, '00_INDEX.md');
-    assert.strictEqual(capturedContent, '# Index');
+    assert.deepStrictEqual(capturedContent, new TextEncoder().encode('# Index'));
 });
 
 test('fsWriter - writes via relativePath and decodes base64 correctly', async () => {
