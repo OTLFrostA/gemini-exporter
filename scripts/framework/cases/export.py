@@ -52,8 +52,8 @@ DESIGNATED_HISTORICAL_CHATS = [
     },
     {
         "id": "a714229ffb19b514",
-        "category": "长对话跨页完整性 (63 轮)",
-        "name": "平稳时序的分割共形预测解析（63 轮长对话）",
+        "category": "长对话跨页完整性 (64 轮)",
+        "name": "平稳时序的分割共形预测解析（64 轮长对话）",
         "expected_snippets": ["split conformal prediction", "Chinese-English audit"],
         "syntax_checks": ["codeblock", "table"],
         "turn_evidence_fixture": "gemini_long_conversation.json"
@@ -502,16 +502,23 @@ class StaleTabImageExportCase(FeatureTestCase):
                                     .catch(error => ({error: String(error)}))})))
                     }))()""", await_promise=True, timeout=15)
                     return False, f"重装后历史同步未完成: {message}", setup
-                # Sync must not repair/reload the deliberately receiver-less tab.
+                # Discovery can now repair a document predating installation.
+                # A recovered receiver must prove the same selected account.
                 after_scan = cdp_opt.eval(f"""(async () => {{
                     const probe = id => new Promise(resolve => chrome.tabs.sendMessage(id, {{action: 'ping'}}, reply =>
                         resolve({{reply, error: chrome.runtime.lastError?.message || ''}})));
                     await chrome.tabs.update({stale_id}, {{active: true}});
-                    return {{stale: await probe({stale_id}), good: await probe({setup['freshId']})}};
+                    const stale = await probe({stale_id});
+                    const binding = stale.reply?.ok ? await chrome.tabs.sendMessage({stale_id}, {{action:'getAccountContext'}}) : null;
+                    return {{stale, good: await probe({setup['freshId']}), binding,
+                        accountId: document.getElementById('accountIdSelect').value}};
                 }})()""", await_promise=True, timeout=15) or {}
                 setup['afterHistoryScan'] = after_scan
                 if "Receiving end does not exist" not in after_scan.get('stale', {}).get('error', ''):
-                    return False, "历史同步改变了旧标签页的无接收端状态", setup
+                    binding = after_scan.get('binding') or {}
+                    context = binding.get('accountContext') or {}
+                    if binding.get('ok') is not True or context.get('providerId') != 'gemini' or context.get('accountId') != after_scan.get('accountId'):
+                        return False, "旧标签页修复后未绑定所选 Gemini 账号", setup
                 if not after_scan.get('good', {}).get('reply', {}).get('ok'):
                     return False, "历史同步后可用标签页失去接收端", setup
 

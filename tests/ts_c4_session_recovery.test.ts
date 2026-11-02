@@ -109,7 +109,7 @@ test('C4-v2-4: failed resource bytes produce a partial record that must be retri
     const unchanged = await runExport(request({ skipUnchanged: true }));
     assert.equal(unchanged.exported, 0);
     assert.equal(unchanged.skipped, 1);
-    assert.equal(deliveries.length, 4);
+    assert.equal(deliveries.length, 2);
 });
 
 test('C4-v2-5: Folder delivery failure leaves only that ConversationKey unrecorded', async () => {

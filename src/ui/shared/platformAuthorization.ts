@@ -97,7 +97,7 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
         hint.hidden = !remaining;
         const completeText = options.platforms ? text(
             'Website access is granted. Open the platform and sign in to the selected account, then retry sync.',
-            '网站访问权限已授予。请打开平台并登录所选账号，然后重试同步。') : text('All supported platforms have website access. This does not mean an account is connected. Open the platform and sign in to the selected account before syncing.', '所有支持的平台均已获得网站访问权限，但这不代表账号已连接。请打开对应平台并登录所选账号后同步。');
+            '网站访问权限已授予。请打开平台并登录所选账号，然后重试同步。') : text('All supported platforms have website access.', '所有支持的平台均已获得网站访问权限。');
         if (!remaining) status.textContent = completeText;
         else if (status.textContent === completeText) status.textContent = '';
         updateButton();
@@ -129,7 +129,7 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
                 : text('Access granted. Reload the platform page to activate it.', '权限已授予。请刷新平台页面以启用。');
             options.granted?.(selected);
             // Account endpoints may be slow or rate limited. Their result never holds the authorization UI open.
-            if (options.connected) void findAuthorizedAccount(selected).then(async accountId => {
+            if (active && options.connected) void findAuthorizedAccount(selected).then(async accountId => {
                 if (active && accountId) await options.connected?.(accountId);
             }).catch(() => {});
         })().catch(() => {

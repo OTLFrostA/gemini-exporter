@@ -1,3 +1,4 @@
+import { preparePlatformTab } from './platformInjection.js';
 import { ScanConnectionError } from './scanConnection.js';
 import { getAccount } from '../../l3a/storageService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
@@ -70,7 +71,14 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
     for (const tab of tabs) {
         if (tab.id === undefined) continue;
         try {
-            const context = readBoundContext(await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000));
+            let response: unknown;
+            try { response = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000); }
+            catch {
+                // An open document may predate installation or its optional host grant.
+                await preparePlatformTab('gemini', tab.id);
+                response = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
+            }
+            const context = readBoundContext(response);
             if (!context || !isAccountId(context.accountId)) continue;
             const account = await getAccount(context.accountId);
             if (account?.providerId === 'gemini' && account.providerAccountId !== 'default'

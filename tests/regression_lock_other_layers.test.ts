@@ -146,7 +146,7 @@ test('P0: a v2 document attachment is present in ZIP and its ExportRecord lands 
     assert.equal(result.exported, 1);
     assert.equal(result.failed.length, 0);
     assert.equal(result.partial, 0);
-    assert.equal(host.clicks(), 2);
+    assert.equal(host.clicks(), 1);
     const files = await readDeliveredFiles(host);
     const main = files.find(file=>file.name.endsWith('.md') && !file.name.startsWith('files/'));
     const document = files.find(file=>file.name.startsWith('files/') && file.name.endsWith('doc.md'));
@@ -168,7 +168,7 @@ test('P0: a v2 image attachment is packaged once with its original bytes and a s
     const result = await runExport(request(id));
     assert.equal(result.exported, 1);
     assert.equal(result.failed.length, 0);
-    assert.equal(host.clicks(), 2);
+    assert.equal(host.clicks(), 1);
     const files = await readDeliveredFiles(host);
     const images = files.filter(file=>file.name.startsWith('assets/') && file.name.endsWith('.png'));
     assert.equal(images.length,1);

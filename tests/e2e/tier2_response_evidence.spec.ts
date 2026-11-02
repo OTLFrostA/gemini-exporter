@@ -169,3 +169,15 @@ test('PDF source segments cover every authored character in prose, table cells, 
     expect(evidence.pdfSegments.filter(segment => segment.kind === 'code')).toEqual([{kind: 'code', text: 'if x < 3:\n    print("中文")'}]);
     expect(evidence.pdfSegments.filter(segment => segment.kind === 'text').map(segment => segment.text)).toEqual(['First sentence.', 'Cell A ', ' tail.', 'Cell B.', 'Last sentence.']);
 });
+
+test('empty native math placeholders do not become fabricated PDF formulas', async ({ page }) => {
+    await page.setContent('<model-response><model-response-content><p>Before<span class="math-inline" data-math="" data-index-in-node="0"><span class="katex"><span class="katex-mathml"></span><span class="katex-html" aria-hidden="true"></span></span></span>after<span data-math="   "></span>end<span data-math="x=1"></span>.</p></model-response-content></model-response>');
+    const evidence = await page.evaluate(source => {
+        const extract = new Function('return (\n' + source + '\n)')();
+        return extract(document.querySelector('model-response')) as { text: string; pdfSegments: {kind: string; text: string}[] };
+    }, source);
+    expect(evidence.text).toBe('Beforeafter   endx=1.');
+    expect(evidence.pdfSegments.filter(segment => segment.kind === 'math')).toEqual([{kind:'math',text:'x=1'}]);
+    expect(evidence.pdfSegments.map(segment => segment.text).join('').replace(/\s/g,'')).toBe(evidence.text.replace(/\s/g,''));
+    expect(await page.locator('[data-math=""]').count()).toBe(1);
+});

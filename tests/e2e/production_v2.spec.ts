@@ -85,6 +85,27 @@ test('production multi-file export creates ZIP; scan reset clears local history 
     expect((await JSZip.loadAsync(await readFile((await file.path())!))).file(files[0])).toBeTruthy();
 });
 
+test('browser ZIP preserves long Unicode text across every streaming boundary', async ({ context, extensionId }) => {
+    const page = await workbench(context, extensionId); await seed(page, ['unicode', 'other']);
+    const answer = 'x👤'.repeat(30000) + '🤖 中文结尾';
+    await page.evaluate(async ({ accountId, answer }) => {
+        await Reflect.get(globalThis, 'productionProbe').ingestDetail(accountId, 'unicode', {
+            savedAt: 200, quality: { status: 'complete' }, assets: [], messages: [
+                { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Unicode question' }] }] },
+                { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: answer }] }] },
+            ],
+        }, { title: 'Unicode', titleSource: 'provider', updatedAt: 200 });
+    }, { accountId, answer });
+    await page.locator('#btnSelectAll').click();
+    const download = page.waitForEvent('download'); await page.locator('#btnExport').click();
+    const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
+    const zip = await JSZip.loadAsync(await readFile((await (await download).path())!));
+    const name = Object.keys(zip.files).find(name => name.endsWith('_nicode.md'));
+    expect(name).toBeTruthy();
+    const bytes = await zip.file(name).async('uint8array');
+    expect(new TextDecoder('utf-8', { fatal: true }).decode(bytes)).toContain(answer);
+});
+
 async function sourcePage(context: import('@playwright/test').BrowserContext, gaia = '10000000001') {
     const source = await context.newPage();
     await source.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><title>Gemini</title><script>window.WIZ_global_data={qDCSke:'${gaia}',SNlM0e:'token',cfb2h:'build'};</script><main>Offline source fixture</main>` }));
@@ -284,4 +305,21 @@ test('completed reply with Live Save off refreshes current source and reorders t
     expect(state.index.updatedAt).toBe(1700000000000);
     expect(state.record.chatTime).toBe(100);
     expect(JSON.stringify(state.detail)).toContain('Final appended answer');
+});
+
+test('scan source resolution activates an already authorized document without a Content receiver', async ({context,extensionId}) => {
+    const page=await workbench(context,extensionId);
+    await page.evaluate(async()=>chrome.scripting.unregisterContentScripts({ids:['gemini-source-main','gemini-source-content']}));
+    const source=await sourcePage(context);
+    const tabId=await page.evaluate(async()=>{
+        const tabs=await chrome.tabs.query({url:'https://gemini.google.com/*'});
+        const id=tabs[0]?.id;
+        if(id===undefined)throw Error('Missing source tab');
+        return id;
+    });
+    await expect(page.evaluate(id=>chrome.tabs.sendMessage(id,{action:'getAccountContext'}),tabId)).rejects.toThrow(/Receiving end does not exist/);
+    expect(await page.evaluate(id=>Reflect.get(globalThis,'productionProbe').resolveScanTarget(id),accountId)).toBe(accountId);
+    expect(await page.evaluate(id=>chrome.tabs.sendMessage(id,{action:'getAccountContext'}),tabId))
+        .toMatchObject({ok:true,accountContext:{accountId,providerId:'gemini'}});
+    await source.close();
 });

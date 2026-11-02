@@ -8,6 +8,7 @@ import os
 import re
 import time
 import json
+import zipfile
 import base64
 import urllib.request
 from contextlib import contextmanager
@@ -36,16 +37,16 @@ from scripts.framework.tab_cleanup import uninstall_extension
 
 SCAN_OBSERVER = r"""(() => {
     const btn = document.getElementById('btnSyncAll');
-    if (!btn || btn.disabled || document.body.dataset.busy !== 'false') return {error:'Scan button missing/disabled'};
+    if (!btn || btn.disabled || document.body.dataset.scanning !== 'false') return {error:'Scan button missing/disabled'};
     window.__tier2ScanObserver?.disconnect();
     const evidence = {started:false, finished:false};
     window.__tier2ScanEvidence = evidence;
     const inspect = (records = []) => {
-        if (records.some(record => record.type === 'attributes' && record.attributeName === 'data-busy' && record.oldValue === 'true')) evidence.started = true;
-        const busy = document.body.dataset.busy === 'true';
+        if (records.some(record => record.type === 'attributes' && record.attributeName === 'data-scanning' && record.oldValue === 'true')) evidence.started = true;
+        const busy = document.body.dataset.scanning === 'true';
         if (busy) evidence.started = true;
         const account = document.getElementById('accountIdSelect')?.value;
-        const currentText = document.getElementById('status')?.textContent || '';
+        const currentText = document.getElementById('scanStatus')?.textContent || '';
         if (busy) {
             const progress = currentText.match(/^Committed (\d+) pages, (\d+) source entries/)
                 || currentText.match(/^已接纳 (\d+) 页、(\d+) 条来源记录/);
@@ -56,7 +57,7 @@ SCAN_OBSERVER = r"""(() => {
             }
         }
         if (!evidence.started || busy || evidence.finished) return;
-        const text = document.getElementById('status')?.textContent || '';
+        const text = document.getElementById('scanStatus')?.textContent || '';
         evidence.uiStatus = text;
         if (evidence.accountId && account !== evidence.accountId) { evidence.error = 'Scan account changed'; evidence.finished = true; return; }
         evidence.accountId = account;
@@ -78,7 +79,7 @@ SCAN_OBSERVER = r"""(() => {
         evidence.finished = true;
     };
     const observer = new MutationObserver(inspect);
-    observer.observe(document.body, {attributes:true,attributeOldValue:true,attributeFilter:['data-busy'],subtree:true,childList:true,characterData:true});
+    observer.observe(document.body, {attributes:true,attributeOldValue:true,attributeFilter:['data-scanning'],subtree:true,childList:true,characterData:true});
     window.__tier2ScanObserver = observer;
     btn.click(); inspect();
     return {clicked:true};
@@ -201,7 +202,8 @@ class ExtensionActions:
                     const popover = document.querySelector('.tour-popover');
                     const button = popover?.querySelector('#tourNextBtn');
                     if (!button) return {active:false, url:location.href};
-                    const authorize = popover.querySelector('#btnAuthorizePlatforms');
+                    const authorizeElement = popover.querySelector('#btnAuthorizePlatforms');
+                    const authorize = authorizeElement?.checkVisibility() ? authorizeElement : null;
                     const selectedState = popover.querySelector('.platform-permission-row[data-platform="' + """ + json.dumps(provider_id) + """ + '"] .platform-permission-state');
                     const granted = selectedState?.dataset.authorized === 'true';
                     if (authorize && (!""" + json.dumps(connection_attempted) + """ || !granted || !button || button.disabled))
@@ -377,7 +379,7 @@ class ExtensionActions:
         return result
 
     @staticmethod
-    def configure_export_controls(cdp_opt, format_type=None, skip_exported=None) -> Dict[str, Any]:
+    def configure_export_controls(cdp_opt, format_type=None, skip_exported=None, include_assets=None) -> Dict[str, Any]:
         """Drive v2 UI controls, not a silent external write to Application Settings.
 
         The Options controller owns its in-memory Settings mirror. Updating
@@ -388,6 +390,7 @@ class ExtensionActions:
         (async () => {{
             const expectedFormat = {json.dumps(format_type)};
             const expectedSkip = {json.dumps(skip_exported)};
+            const expectedAssets = {json.dumps(include_assets)};
             const waitIdle = async () => {{
                 for (let i = 0; i < 100; i++) {{
                     if (document.body.dataset.busy === 'false') return true;
@@ -398,7 +401,8 @@ class ExtensionActions:
             if (!await waitIdle()) return {{ error: 'v2 Options workbench is busy' }};
             for (const [id, field, value] of [
                 ['format', 'defaultFormat', expectedFormat],
-                ['skipExported', 'skipExported', expectedSkip]
+                ['skipExported', 'skipExported', expectedSkip],
+                ['includeAssets', 'includeAssets', expectedAssets]
             ]) {{
                 if (value === null) continue;
                 const element = document.getElementById(id);
@@ -542,7 +546,8 @@ class ExtensionActions:
         if not ExtensionActions.wait_for_export_idle(cdp_opt, max_wait=max_wait):
             print("❌ Export not started: previous export did not become idle")
             return None
-        settings = ExtensionActions.configure_export_controls(cdp_opt, format_type, skip_exported)
+        # Multimodal acceptance explicitly opts in; new users default to text-only exports.
+        settings = ExtensionActions.configure_export_controls(cdp_opt, format_type, skip_exported, include_assets=True)
         if not settings.get('ok'):
             print(f"❌ Export v2 controls did not settle: {settings}")
             return None
@@ -583,6 +588,12 @@ class ExtensionActions:
                     if f.lower().endswith('.zip') or allow_standalone and f.lower().endswith('.md'):
                         fp = os.path.abspath(os.path.join(output_dir, f))
                         try:
+                            if allow_standalone and f.lower().endswith('.zip'):
+                                # Only a ZIP containing the actual conversation
+                                # can serve as the Markdown baseline.
+                                with zipfile.ZipFile(fp) as archive:
+                                    if not any(name.endswith('.md') and '/' not in name for name in archive.namelist()):
+                                        continue
                             mtime = os.path.getmtime(fp)
                             if (fp not in baseline_files or mtime > baseline_files[fp]) and os.path.getsize(fp) > 0:
                                 candidates.append((mtime, fp))
@@ -596,6 +607,19 @@ class ExtensionActions:
         if downloaded_file and not ExtensionActions.wait_for_export_idle(cdp_opt, max_wait=max_wait):
             print("❌ ZIP downloaded, but export UI/storage cleanup did not finish")
             return None
+        if downloaded_file:
+            # One export must deliver one physical file. Never merge split downloads
+            # in the harness: that would hide a product packaging regression.
+            deliveries = []
+            for name in os.listdir(output_dir):
+                path = os.path.abspath(os.path.join(output_dir, name))
+                if (name.lower().endswith('.zip') or allow_standalone and name.lower().endswith('.md')) and os.path.getsize(path) > 0:
+                    mtime = os.path.getmtime(path)
+                    if path not in baseline_files or mtime > baseline_files[path]:
+                        deliveries.append(path)
+            if len(deliveries) != 1:
+                print(f"❌ Expected one export download, received {len(deliveries)} physical files")
+                return None
         if not downloaded_file:
             state = cdp_opt.eval("""({
                 busy: document.body.dataset.busy,
@@ -847,7 +871,7 @@ class CDPActions(ExtensionActions):
                 const root = await navigator.storage.getDirectory();
                 const dir = await root.getDirectoryHandle('gemini_export', {{create:true}});
                 await api.setDirectoryHandle(dir);
-                await api.updateSettings({{enabledDisk:true, defaultFormat:'markdown',includeAssets:true}});
+                await api.updateSettings({{enabledDisk:true, exportDelivery:'folderWriter', defaultFormat:'markdown',includeAssets:true}});
             }} else await api.updateSettings({{enabledDisk:false}});
             const settings = await api.getSettings();
             return settings.enabledDisk === {json.dumps(enabled)};

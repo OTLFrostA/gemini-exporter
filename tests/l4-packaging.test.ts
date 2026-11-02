@@ -9,6 +9,15 @@ import { assertExportPath } from '../src/l4/packaging/exportPath.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 const JSZip = require('../lib/jszip.min.js');
+test('ZIP preserves supplementary Unicode across streaming chunk boundaries', async () => {
+    __setZipConstructor(JSZip);
+    const content = 'x'.repeat(16383) + '👤 你\n' + 'y'.repeat(16382) + '🤖 助手';
+    const writer = new ZipWriter();
+    writer.writeFile('long.md', content);
+    const zip = await JSZip.loadAsync(await (await writer.generateBlob()).arrayBuffer());
+    const bytes = await zip.file('long.md').async('uint8array');
+    assert.equal(new TextDecoder('utf-8', { fatal: true }).decode(bytes), content);
+});
 const prepared: PreparedResources = new Map([
     ['a', { ok: true, resourceId: 'a', value: { bytes: new Uint8Array([1, 2]), mediaType: 'image/png' } }],
     ['b', { ok: true, resourceId: 'b', value: { bytes: new Uint8Array([3]), mediaType: 'image/png' } }],

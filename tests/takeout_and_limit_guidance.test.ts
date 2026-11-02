@@ -54,7 +54,7 @@ test('scan UI reports source end, provider limit and local budget as distinct re
     try{for(const [reason,label] of [['complete','Sync complete'],['provider_limit','Source online access limit'],['max_pages','Local page budget reached']]){
         const page=await browser.newPage();await mount(page,'options',{scanResult:{status:reason==='complete'?'complete':'partial_limit',reason,pagesFetched:11,conversationsFetched:550},settings:{takeoutPromptCompleted:true}});
         await page.locator('#btnSyncAll').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
-        const text=await page.locator('#status').textContent();assert.ok(text?.includes(label));if(reason==='complete')assert.doesNotMatch(text??'',/11 \/ 550/);else assert.ok(text?.includes('550'));await page.close();
+        const text=await page.locator('#scanStatus').textContent();assert.ok(text?.includes(label));if(reason==='complete')assert.doesNotMatch(text??'',/11 \/ 550/);else assert.ok(text?.includes('550'));await page.close();
     }}finally{await browser.close();}
 });
 test('Options blocks a concurrent import and releases its busy state after completion',async()=>{

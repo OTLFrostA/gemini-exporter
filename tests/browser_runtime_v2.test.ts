@@ -449,15 +449,16 @@ test('Live Save Content sends only the changed key and suppresses stale reinject
 test('lifecycle initializes Settings after readiness and opens Options only on installation', async () => {
     let install!: Function;
     const order: unknown[] = [];
+    let existingTheme: 'dark' | 'light' | undefined;
     global.chrome = { runtime: { onInstalled: { addListener: (fn: Function) => { install = fn; } },
         getManifest: () => ({ version: '2.0.0' }), getURL: (path: string) => 'chrome-extension://ext/' + path }, tabs: { create: async ({url}: {url: string}) => { assert.match(url, /options.html\?startTour=1$/); order.push('open'); } } } as any;
     const lifecycle = load('src/runtime/background/lifecycle.ts', {
         'src/runtime/background/readiness.js': { ensureV2Ready: async () => { order.push('ready'); } },
-        'src/application/settings/index.js': { getSettings: async () => v2Settings, updateSettings: async (patch: unknown) => { order.push(patch); } },
+        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, theme: existingTheme }), updateSettings: async (patch: unknown) => { order.push(patch); } },
     });
     lifecycle.initLifecycleListeners();
     install({ reason: 'install' }); await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(order, ['ready', { lastSeenFeatureVersion: '2.0.0' }, 'open']);
+    assert.deepEqual(order, ['ready', { lastSeenFeatureVersion: '2.0.0' }, { theme: 'light' }, 'open']);
     order.length = 0;
     install({ reason: 'update', previousVersion: '1.8.1' }); await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(order, ['ready', { lastSeenFeatureVersion: '1.8.1' }]);
@@ -465,6 +466,16 @@ test('lifecycle initializes Settings after readiness and opens Options only on i
     install({ reason: 'update', previousVersion: 'untrusted' }); await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(order, ['ready', { lastSeenFeatureVersion: '2.0.0' }]);
     assert.equal(Object.hasOwn(order[1] as object, 'tour' + 'AutoHandled'), false);
+    for (const theme of ['dark', 'light'] as const) {
+        existingTheme = theme;
+        order.length = 0;
+        install({ reason: 'install' }); await new Promise(resolve => setImmediate(resolve));
+        assert.deepEqual(order, ['ready', { lastSeenFeatureVersion: '2.0.0' }, 'open']);
+        order.length = 0;
+        install({ reason: 'update', previousVersion: '2.0.0' }); await new Promise(resolve => setImmediate(resolve));
+        assert.deepEqual(order, ['ready', { lastSeenFeatureVersion: '2.0.0' }]);
+    }
+
 });
 
 test('Background count, Badge position and Live Save follow their public IPC contracts', async () => {

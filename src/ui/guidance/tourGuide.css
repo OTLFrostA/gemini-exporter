@@ -153,6 +153,8 @@
   background: #282c44;
 }
 
+.tour-status-indicator[hidden], .tour-content[hidden] { display: none; }
+
 .tour-status-indicator {
   display: flex;
   align-items: center;
@@ -308,3 +310,30 @@
 .platform-permission-row summary { cursor: pointer; }
 .platform-permission-row ul { margin: 4px 0; padding-left: 16px; overflow-wrap: anywhere; }
 .platform-permission-hint { margin: 0; font-size: 11px; line-height: 1.6; color: var(--tour-muted); }
+
+/* The first lesson shows the real authorization menu and two separate explanations. */
+.tour-popover.tour-authorization-menu {
+  outline: 2px solid var(--tour-accent);
+  outline-offset: 2px;
+}
+.tour-coach-card {
+  position: fixed;
+  z-index: 100002;
+  pointer-events: auto;
+  box-sizing: border-box;
+  width: 256px;
+  padding: 16px;
+  border: 1px solid var(--tour-accent);
+  border-radius: 12px;
+  background: var(--tour-bg);
+  color: var(--tour-text);
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .25);
+}
+.tour-coach-card h3 { margin: 0 0 8px; font-size: 14px; }
+.tour-coach-card p { margin: 0; }
+.tour-authorization-compact .tour-coach-card { position: static; width: auto; margin: 10px 0; box-shadow: none; }
+.tour-platform-choices { display: flex; flex-direction: column; gap: 8px; }
+
+/* The onboarding export demonstrates one conversation. */
+body[data-guided-selection="true"] #btnSelectAll { display: none; }

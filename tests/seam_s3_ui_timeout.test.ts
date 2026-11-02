@@ -14,7 +14,7 @@ test('failed Scan releases Options controls and reports the Runtime/Sync error',
         await mount(page, 'options', { failScan: true });
         await page.locator('#btnSyncAll').click();
         await page.waitForFunction(() => document.body.dataset.busy !== 'true');
-        assert.equal(await page.locator('#status').textContent(), 'Injected scan failure');
+        assert.equal(await page.locator('#scanStatus').textContent(), 'Injected scan failure');
         assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
     } finally { await browser.close(); }
 });

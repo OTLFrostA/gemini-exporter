@@ -41,14 +41,20 @@ function createRow(state: ConversationViewState, id: string) {
     checkbox.type = 'checkbox';
     const select = () => {
         if (checkbox.disabled) return;
-        if (checkbox.checked) state.selected.add(id); else state.selected.delete(id);
+        if (checkbox.checked) {
+            if (document.body.dataset.guidedSelection === 'true') {
+                state.selected.clear();
+                elementById('list').querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach(input => { input.checked = input === checkbox; });
+            }
+            state.selected.add(id);
+        } else state.selected.delete(id);
         updateStat(state);
     };
     checkbox.addEventListener('change', select);
     row.addEventListener('click', event => {
         if (checkbox.disabled || event.target instanceof Element && event.target.closest('input, a, details')) return;
         checkbox.checked = !checkbox.checked;
-        select();
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
     });
     const body = document.createElement('div');
     body.style.cssText = 'flex:1;min-width:0;cursor:pointer';
@@ -182,7 +188,7 @@ function updateStat(state: ConversationViewState): void {
     const selectAll = requiredElement('input', 'btnSelectAll');
     selectAll.checked = visible.length > 0 && selectedVisible === visible.length;
     selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visible.length;
-    selectAll.disabled = visible.length === 0 || document.body.dataset.busy === 'true';
+    selectAll.disabled = visible.length === 0 || document.body.dataset.foregroundBusy === 'true';
     const label = selectAll.checked
         ? text('Clear selection', '清空选择')
         : text('Select all visible conversations', '全选当前可见会话');
@@ -192,5 +198,5 @@ function updateStat(state: ConversationViewState): void {
     elementById('selectedStat').textContent =
         text(`${state.selected.size} of ${total} selected`, `已选 ${state.selected.size} / ${total}`);
     const button = requiredElement('button', 'btnExport');
-    button.disabled = !state.selected.size || document.body.dataset.busy === 'true';
+    button.disabled = !state.selected.size || document.body.dataset.foregroundBusy === 'true';
 }

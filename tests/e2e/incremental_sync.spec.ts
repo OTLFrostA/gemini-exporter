@@ -1,3 +1,4 @@
+import { continueToScan, waitForAuthorization } from '../helpers/tourNavigation';
 import { geminiListPage } from '../fixtures/providers/geminiListCapture.js';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId } from './uiFixture';
@@ -33,9 +34,9 @@ test('diagnostic download includes the failed scan page and its native error env
     }));
     const options = await openOptions(context, extensionId);
     await options.click('#btnSyncAll');
-    await expect(options.locator('#status')).toContainText('Scan failed: invalid Gemini response');
+    await expect(options.locator('#scanStatus')).toContainText('Scan failed: invalid Gemini response');
     await expect(options.locator('#log')).toContainText('invalid_response');
-    await expect(options.locator('#btnSyncAll')).toBeEnabled();
+    await expect(options.locator('body')).toHaveAttribute('data-scanning', 'false');
     await options.check('#devToggle');
     const downloaded = options.waitForEvent('download');
     await options.locator('#btnExportDiag').focus();
@@ -74,7 +75,7 @@ test('trusted provider-limit window is persisted by L2/L3a and reused for v2 ear
         retained: { exportedAt: 100, format: 'markdown', status: 'ok' },
     });
     await options.click('#btnSyncAll');
-    await expect(options.locator('#btnSyncAll')).toBeEnabled();
+    await expect(options.locator('body')).toHaveAttribute('data-scanning', 'false');
     await expect(options.locator('.tour-overlay-container')).toHaveCount(0);
     // Four committed source rows are below the v2 Takeout suggestion threshold (>150).
     expect(requests[0]).toEqual(['head', 'tC_middle', 'tC_limit']);
@@ -84,7 +85,7 @@ test('trusted provider-limit window is persisted by L2/L3a and reused for v2 ear
         await options.click('#btnSyncAll');
         await expect.poll(async () => (await v2(options)).coverage?.range?.head.time).toBe(
             round === 1 ? 1700000120000 : 1700000130000);
-        await expect(options.locator('#btnSyncAll')).toBeEnabled();
+        await expect(options.locator('body')).toHaveAttribute('data-scanning', 'false');
         const { coverage, indexes, retainedRecord, retained } = await v2(options);
         expect(requests[round], 'overlap with frozen history must avoid another provider page').toEqual(['head']);
         expect(coverage?.range?.tail.time).toBe(1700000070000);
@@ -135,14 +136,68 @@ test('a new complete disjoint recent scan replaces old v2 coverage and never req
     const options = await openOptions(context, extensionId);
     await options.click('#btnSyncAll');
     await expect.poll(async () => (await v2(options)).coverage?.range?.tail.time).toBe(1700000070000);
-    await expect(options.locator('#btnSyncAll')).toBeEnabled();
+    await expect(options.locator('body')).toHaveAttribute('data-scanning', 'false');
     round = 1;
     await options.click('#btnSyncAll');
     await expect.poll(async () => (await v2(options)).coverage?.range?.head.time).toBe(1700000150000);
-    await expect(options.locator('#btnSyncAll')).toBeEnabled();
+    await expect(options.locator('body')).toHaveAttribute('data-scanning', 'false');
     const { coverage, indexes } = await v2(options);
     expect(coverage?.range?.tail.time).toBe(1700000120000);
     expect(requests[1]).toEqual(['head', 'tC_fresh']);
     expect(indexes).toHaveLength(6);
     await expect(options.locator('#list .item')).toHaveCount(6);
+});
+
+test('tutorial advances on committed rows while scan continues to the next provider page', async ({ context, extensionId }) => {
+    await sourcePage(context);
+    const requests: string[] = [];
+    let releaseNextPage: (() => void) | undefined;
+    const nextPage = new Promise<void>(resolve => { releaseNextPage = resolve; });
+    await context.route('**/batchexecute*', async route => {
+        const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData()!).get('f.req')!)[0][0][1]);
+        const cursor = args[1]; requests.push(cursor || 'head');
+        if (cursor) await nextPage;
+        const key = cursor === 'tC_limit' ? 'G_E2E_INCREMENTAL_WINDOW_LIMIT_01'
+            : cursor ? 'G_E2E_INCREMENTAL_WINDOW_MIDDLE_01' : 'G_E2E_INCREMENTAL_WINDOW_HEAD_01';
+        await route.fulfill({ contentType: 'application/json', body: geminiListGen(key) });
+    });
+    const options = await openOptions(context, extensionId);
+    await options.locator('#btnTourGuide').click();
+    await waitForAuthorization(options); await continueToScan(options);
+    await options.locator('#btnSyncAll').click();
+    try {
+        await expect(options.locator('.tour-popover h2')).toHaveText('Select conversations');
+        await expect(options.locator('body')).toHaveAttribute('data-busy', 'true');
+        await expect(options.locator('#btnSyncAll')).toBeVisible();
+        const saved = await v2(options);
+        expect(saved.indexes.length).toBeGreaterThan(0);
+        expect(saved.coverage?.range ?? null).toBeNull();
+        await expect(options.locator('#list .item')).toHaveCount(saved.indexes.length);
+        await options.locator('#list .item input').first().check();
+        await expect(options.locator('.tour-popover h2')).toHaveText('Choose a format');
+        await expect(options.locator('#btnExport')).toBeEnabled();
+        await options.keyboard.press('Escape');
+        // Cache a complete source snapshot; the export still uses real Application, storage and delivery.
+        await options.evaluate(async accountId => {
+            await Reflect.get(globalThis,'uiFixture').ingestDetail(accountId,'chat100',{
+                savedAt:Date.now(),quality:{status:'complete'},assets:[],messages:[
+                    {role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Question during sync'}]}]},
+                    {role:'assistant',content:[{type:'paragraph',children:[{type:'text',text:'Answer during sync'}]}]},
+                ],
+            });
+        },accountId);
+        await options.locator('#format').selectOption('json');
+        const downloaded=options.waitForEvent('download');
+        await options.locator('#btnExport').click();
+        const file=await downloaded;
+        const contents=await readFile((await file.path())!,'utf8');
+        expect(contents).toContain('Answer during sync');
+        expect(JSON.parse(contents).conversation.index.key.conversationId).toBe('chat100');
+        await expect(options.locator('body')).toHaveAttribute('data-scanning','true');
+        await expect(options.locator('#btnSyncAll')).toHaveText('Stop sync');
+        await expect(options.locator('#status')).toContainText('Successfully downloaded');
+    } finally { releaseNextPage?.(); }
+    await expect(options.locator('body')).toHaveAttribute('data-busy', 'false');
+    expect(requests).toEqual(['head', 'tC_middle', 'tC_limit']);
+    await expect(options.locator('#list input:checked')).toHaveCount(1);
 });

@@ -34,6 +34,7 @@ function router(stubs: Record<string, unknown> = {}) {
         'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
         'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => {} },
+        'src/runtime/capabilities/platformInjection.js': { preparePlatformTab: async () => {} },
         ...stubs,
     });
 }
@@ -105,6 +106,27 @@ test('Ambiguous Scan target fails without guessing; explicit preference and a un
     assert.equal(await route.resolveScanTarget(), A);
     accepted = { 1: null, 2: null, 3: null };
     await assert.rejects(route.resolveScanTarget(), /Open Gemini/);
+});
+
+test('An open Gemini document predating installation is prepared before retrying identity discovery', async t => {
+    let prepared = false;
+    let probes = 0;
+    withChrome(t, { runtime: { lastError: null }, tabs: {
+        query: async () => [{ id: 7 }],
+        sendMessage: (_id: number, message: { action: string }, callback: (value: unknown) => void) => {
+            assert.equal(message.action, 'getAccountContext');
+            probes++;
+            callback(prepared ? { ok: true, accountContext: { accountId: A, providerId: 'gemini' } } : undefined);
+        },
+    } });
+    const route = router({ 'src/runtime/capabilities/platformInjection.js': {
+        preparePlatformTab: async (platform: string, tabId: number) => {
+            assert.equal(platform, 'gemini'); assert.equal(tabId, 7); prepared = true;
+        },
+    } });
+    assert.equal(await route.resolveScanTarget(A), A);
+    assert.equal(prepared, true);
+    assert.equal(probes, 2);
 });
 
 test('Unknown/default source identity is not a Scan target even if Content replies ok', async t => {

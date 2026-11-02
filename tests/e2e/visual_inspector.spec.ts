@@ -1,4 +1,3 @@
-import { advancePlatformIntro } from '../helpers/tourNavigation';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations, accountId, exposeUIStorage } from './uiFixture';
 import * as fs from 'node:fs';
@@ -12,12 +11,10 @@ import * as path from 'node:path';
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 const outputDir = path.resolve(__dirname, '../../tests/output/visual_audit');
 const steps = [
-    ['Multi-platform support (Beta)', 'header h1'],
-    ['Authorize the sites you use', '#btnPlatformPermissions'],
-    ['Switch platforms and accounts', '#accountIdSelect'],
     ['Authorize AI platforms', 'header h1'],
+    ['Switch platforms and accounts', '#accountIdSelect'],
     ['Scan conversations', '#btnSyncAll'],
-    ['Select conversations', '#btnSelectAll'],
+    ['Select conversations', '#list .item'],
     ['Choose a format', '#format'],
     ['Export selected conversations', '#btnExport'],
     ['Live Save', '#liveSaveControls'],
@@ -51,12 +48,27 @@ async function screenshot(page: import('@playwright/test').Page, name: string) {
     expect(fs.existsSync(dest)).toBe(true);
 }
 /** Gemini is authorized in the real fixture, so the tour never requests it again. */
-async function connectTourGemini(page: import('@playwright/test').Page) {
-    if (await page.getByRole('heading', { name: 'Multi-platform support (Beta)', exact: true }).count()) await advancePlatformIntro(page);
+async function connectTourGemini(page: import('@playwright/test').Page, finishAccounts = true) {
+    // Geometry fixtures have stored accounts but no provider tab. Supply the
+    // Content identity response that the connection lesson now verifies.
+    await page.evaluate(accountId => {
+        Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async () => [
+            { id: 999, url: 'https://gemini.google.com/app/fixture' },
+        ] });
+        Object.defineProperty(chrome.tabs, 'sendMessage', { configurable: true,
+            value: (_tabId: number, _message: unknown, callback: (reply: { ok: boolean; accountContext: { accountId: string; providerId: string } }) => void) => {
+                callback({ ok: true, accountContext: { accountId, providerId: 'gemini' } });
+            } });
+    }, accountId);
     await expect(page.locator('.platform-permission-row[data-platform="gemini"]')).toBeHidden();
     await expect(page.locator('#tourNextBtn')).toBeEnabled();
     await page.locator('#tourNextBtn').click();
-    await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
+    await page.locator('#btnDetectAccount:enabled').click();
+    await expect(page.locator('.tour-popover h2')).toHaveText('Switch platforms and accounts');
+    if (finishAccounts) {
+        await page.locator('#tourNextBtn').click();
+        await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
+    }
 }
 
 async function verifyPopoverGeometry(page: import('@playwright/test').Page, target: string, action: string) {
@@ -76,7 +88,7 @@ async function verifyPopoverGeometry(page: import('@playwright/test').Page, targ
 }
 
 for (const theme of ['dark', 'light']) {
- test(`the real ten-step v2 Tour has rounded cutouts without target collisions in ${theme} theme`, async ({ context, extensionId }) => {
+ test(`the real eight-step v2 Tour has rounded cutouts without target collisions in ${theme} theme`, async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);
     await page.evaluate(async theme => Reflect.get(globalThis, 'uiFixture').updateSettings({ theme }), theme);
     await seedConversations(page, [
@@ -86,13 +98,13 @@ for (const theme of ['dark', 'light']) {
     await page.locator('#btnTourGuide').click();
     for (const [i, [title, target]] of steps.entries()) {
         await expect(page.locator('.tour-popover h2')).toHaveText(title);
-        const action = i === 3 ? 'Authorize' : i === steps.length - 1 ? 'Start using' : 'Next';
+        const action = i === 0 ? 'Authorize' : i === steps.length - 1 ? 'Start using' : 'Next';
         await verifyPopoverGeometry(page, target, action);
         if (i === steps.length - 1) await expect(page.locator('#tourSkipBtn')).toHaveCount(0);
         await screenshot(page, 'v2_tour_' + theme + '_step_' + (i + 1) + '.png');
-        if (i === 3) {
+        if (i === 0) {
             await expect(page.locator('#tourNextBtn')).toBeEnabled();
-            await connectTourGemini(page);
+            await connectTourGemini(page, false);
         } else await page.getByRole('button', { name: action, exact: true }).click();
     }
     await expect(page.locator('.tour-overlay-container')).toHaveCount(0);
@@ -124,8 +136,8 @@ test('manual Tour opens and closes without obsolete v1 tour-state persistence', 
     const page = await workbench(context, extensionId);
     const original = await page.evaluate(async () => Reflect.get(globalThis, 'uiFixture').getSettings());
     await page.locator('#btnTourGuide').click();
-    await expect(page.locator('.tour-popover h2')).toHaveText('Multi-platform support (Beta)');
-    await page.getByRole('button', { name: 'Skip', exact: true }).click();
+    await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
+    await page.locator('#tourCloseBtn').click();
     await expect(page.locator('.tour-overlay-container')).toHaveCount(0);
     expect(await page.evaluate(async () => Reflect.get(globalThis, 'uiFixture').getSettings())).toEqual(original);
     await page.locator('#btnTourGuide').click();
@@ -148,8 +160,8 @@ test('approved 2.1 upgrade highlights shows once without resurrecting retired v1
     await page.reload(); await exposeUIStorage(page);
     await expect(page.locator('.tour-popover')).toHaveCount(0);
     await page.locator('#btnTourGuide').click();
-    await expect(page.locator('.tour-popover h2')).toHaveText('Multi-platform support (Beta)');
-    await page.getByRole('button', { name: 'Skip', exact: true }).click();
+    await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
+    await page.locator('#tourCloseBtn').click();
 });
 
 test('Tour backdrop actually intercepts off-target clicks and does not click through to the workbench', async ({ context, extensionId }) => {
@@ -173,6 +185,8 @@ test('Tour backdrop actually intercepts off-target clicks and does not click thr
     expect(area.visible).toBe(true);
     await screenshot(page, 'v2_tour_backdrop.png');
     await page.mouse.click(area.x, area.y);
+    await expect(page.locator('.tour-popover')).toHaveCount(1);
+    await page.locator('#tourCloseBtn').click();
     await expect(page.locator('.tour-popover')).toHaveCount(0);
     await expect(page.locator('#btnTourGuide')).toBeVisible();
     expect(await page.evaluate(async () =>

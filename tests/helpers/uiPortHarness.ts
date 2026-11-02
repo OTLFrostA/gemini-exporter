@@ -22,7 +22,7 @@ export const requestPlatformAuthorization = async platforms => {
  if(granted) for(const platform of platforms) h[platform+'Access']=true;
  return granted;
 };
-export const openPlatformSignIn = async platform => {await chrome.tabs.create({url:({gemini:'https://gemini.google.com/',chatgpt:'https://chatgpt.com/',claude:'https://claude.ai/',grok:'https://grok.com/'})[platform]});};
+export const openPlatformSignIn = async (platform,active=true) => {(h.signInRequests??=[]).push({platform,active});await chrome.tabs.create({url:({gemini:'https://gemini.google.com/',chatgpt:'https://chatgpt.com/',claude:'https://claude.ai/',grok:'https://grok.com/'})[platform]});};
 export const activatePlatformAccess = async platforms => {h.activatedPlatforms=platforms;return !h.activationFailure;};
 export const findAuthorizedAccount = async platforms => {
  if(h.holdDiscovery) return new Promise(resolve=>h.finishDiscovery=resolve);
@@ -45,6 +45,8 @@ export const PLATFORM_HOSTS = {
  claude:{pages:['https://claude.ai/*'],attachments:[]}
 };
 export const DIRECT_WRITE_THRESHOLD = 20;
+export const DISCORD_URL = 'https://discord.gg/e3FgrXUZ8f';
+export const REVIEW_URL = 'https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf/reviews';
 export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB?source=extension';
 export const UNINSTALL_FEEDBACK_URL = 'https://tally.so/r/Y56ZBB?source=uninstall';
 export const indexActivityTime = i => i.updatedAt === undefined ? i.activityAt : i.activityAt === undefined ? i.updatedAt : Math.max(i.updatedAt,i.activityAt);
@@ -52,7 +54,7 @@ export const compareConversationIndexes = (a,b) => (indexActivityTime(b) ?? -Inf
 export const resourceIssueKind = f => f.code === 'RESOURCE_SOURCE_EXPIRED' ? 'expired' : f.code === 'RESOURCE_ACCESS_RESTRICTED' ? 'restricted' : f.code === 'RESOURCE_PROCESSING_FAILED' ? 'processing' : 'download';
 export const resourceFailureText = (f, locale) => locale === 'zh' ? '附件不可用' : 'Attachment unavailable';
 export const getSettings = async () => ({...h.settings});
-export const updateSettings = async patch => { h.patches.push(patch); Object.assign(h.settings,patch); };
+export const updateSettings = async patch => { h.patches.push(patch); if(h.holdSettingWrite)await new Promise(resolve=>h.finishSettingWrite=resolve); if(h.rejectSettingWrite)throw new Error('Settings write rejected'); Object.assign(h.settings,patch); };
 export const isLiveSaveEffective = (s,d) => s.enabledDisk && s.exportDelivery==='folderWriter' && s.defaultFormat==='markdown' && d;
 export const ensureV2Ready = async () => {if(h.failReady)throw new Error('Injected readiness failure');};
 export const warmLocalFontCache = () => {h.events.push('fonts');return Promise.resolve();};
@@ -88,7 +90,7 @@ export const sendTabMessage = (tabId,message,timeoutMs) => {
  return chrome.tabs.sendMessage(tabId,message);
 };
 export const observeDomainChanges = listener => {h.domainListener=listener;return ()=>{h.domainListener=null;};};
-export const scanAll = async (request,options) => {h.scans.push(request);if(h.failScan)throw new Error('Injected scan failure');h.scanProgress=options.onProgress;h.scanDiagnostic=options.onDiagnostic;options.onProgress?.({pagesFetched:2,conversationsFetched:h.scanCount});if(h.holdScan)await new Promise(resolve=>h.finishScan=resolve);return h.scanResult || {status:'partial_limit',reason:'max_pages',pagesFetched:2,conversationsFetched:h.scanCount};};
+export const scanAll = async (request,options) => {h.scans.push(request);if(h.failScan)throw new Error('Injected scan failure');h.scanSignal=options.signal;h.scanProgress=options.onProgress;h.scanDiagnostic=options.onDiagnostic;options.onProgress?.({pagesFetched:2,conversationsFetched:h.scanCount});if(h.holdScan)await new Promise(resolve=>h.finishScan=resolve);return h.scanResult || {status:'partial_limit',reason:'max_pages',pagesFetched:2,conversationsFetched:h.scanCount};};
 export const clearLocalExportRecords = async id => {h.clears.push(['exports',id]);};
 export const clearLocalScanRecords = async id => {h.clears.push(['scan',id]);h.indexes=h.indexes.filter(row=>row.key.accountId!==id);delete h.records[id];};
 export const createSourceResourceContext = () => ({ retainParsed(){},retain(){},has(){return false;},release(){},releaseConversation(){},async acquire(){throw Error('No resource');} });

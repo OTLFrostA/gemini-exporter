@@ -172,27 +172,27 @@ test('Tier 2 raw fetch probe captures the actual export RPC without consuming it
 test('Tier 2 Scan observer preserves provider and local page limit reasons and rejects changed accounts', async ({ context }) => {
     const page = await context.newPage();
     for (const kind of ['idle','provider_limit','max_pages','changed','resolved','complete']) {
-        await page.setContent('<body data-busy="false"><select id="accountIdSelect"><option value="account">Account</option><option value="other">Other</option></select><button id="btnSyncAll">Scan</button><p id="status"></p></body>');
+        await page.setContent('<body data-scanning="false"><select id="accountIdSelect"><option value="account">Account</option><option value="other">Other</option></select><button id="btnSyncAll">Scan</button><p id="scanStatus"></p></body>');
         await page.evaluate(kind => {
             document.getElementById('btnSyncAll')!.onclick = () => {
                 if (kind === 'idle') return;
-                document.body.dataset.busy = 'true';
+                document.body.dataset.scanning = 'true';
                 if (kind === 'changed') {
-                    document.getElementById('status')!.textContent = 'Committed 1 pages, 2 source entries';
+                    document.getElementById('scanStatus')!.textContent = 'Committed 1 pages, 2 source entries';
                     queueMicrotask(() => {
                         (document.getElementById('accountIdSelect') as HTMLSelectElement).value = 'other';
-                        document.getElementById('status')!.textContent = 'Reached the end of this Recent source · 1 / 2';
-                        document.body.dataset.busy = 'false';
+                        document.getElementById('scanStatus')!.textContent = 'Reached the end of this Recent source · 1 / 2';
+                        document.body.dataset.scanning = 'false';
                     });
                     return;
                 }
                 if (kind === 'resolved') (document.getElementById('accountIdSelect') as HTMLSelectElement).value = 'other';
-                document.getElementById('status')!.textContent = 'Committed 1 pages, 2 source entries';
+                document.getElementById('scanStatus')!.textContent = 'Committed 1 pages, 2 source entries';
                 queueMicrotask(() => {
-                    document.getElementById('status')!.textContent = kind === 'provider_limit' ? 'Source online access limit · 1 / 2'
+                    document.getElementById('scanStatus')!.textContent = kind === 'provider_limit' ? 'Source online access limit · 1 / 2'
                         : kind === 'max_pages' ? 'Local page budget reached · 1 / 2'
                         : 'Sync complete · 1 new conversations · 1 conversations updated';
-                    document.body.dataset.busy = 'false';
+                    document.body.dataset.scanning = 'false';
                 });
             };
         },kind);
@@ -240,10 +240,10 @@ test('Tier 2 export controls leave folder delivery through the real radio handle
         '    def eval(self, script, **kwargs):',
         '        if "expectedFormat" in script: print(script)',
         '        return True',
-        'CDPActions.configure_export_controls(Capture(), "pdf", False)',
+        'CDPActions.configure_export_controls(Capture(), "pdf", False, include_assets=True)',
     ].join('\n')], { cwd: root }).toString();
     expect(await page.evaluate(configure)).toMatchObject({ ok: true, format: 'pdf', skipExported: false });
     await expect(page.locator('input[name="delivery"][value="browserDownload"]')).toBeChecked();
     expect(await page.evaluate(() => Reflect.get(globalThis, '__tier2V2').getSettings()))
-        .toMatchObject({ defaultFormat: 'pdf', exportDelivery: 'browserDownload', skipExported: false });
+        .toMatchObject({ defaultFormat: 'pdf', exportDelivery: 'browserDownload', skipExported: false, includeAssets: true });
 });

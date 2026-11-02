@@ -22,7 +22,7 @@ test('body delivery advances its counter while attachments remain active, and ca
         });
         assert.equal(await page.locator('#progText').textContent(),'Prepared 1 conversations · delivered 1 documents · downloaded 0 attachments');
         assert.equal(await page.locator('body').getAttribute('data-busy'),'true');
-        assert.equal(await page.locator('#splitDeliveryHint').isVisible(),true);
+        assert.equal(await page.locator('#splitDeliveryHint').count(),0);
         assert.equal(await page.locator('.status-exported').count(),0);
         await page.locator('#btnCancel').click();
         await page.evaluate(()=>Reflect.get(window,'harness').finishExport());
@@ -34,13 +34,13 @@ test('current progress status displays committed counts, final result and clears
     const browser = await chromium.launch({ headless: true }); try {
         const page = await browser.newPage(); await mount(page, 'options', { holdScan: true });
         await page.locator('#btnSyncAll').click(); await page.waitForFunction(() => document.body.dataset.busy === 'true');
-        assert.equal(await page.locator('#status').textContent(), 'Committed 2 pages, 150 source entries');
-        assert.equal(await page.locator('#status').getAttribute('aria-live'), 'polite');
-        assert.equal(await page.locator('#progWrap').isVisible(), true);
-        assert.match(await page.locator('#progWrap').getAttribute('class') ?? '', /indeterminate/);
-        assert.doesNotMatch(await page.locator('#status').textContent() ?? '', /%/);
+        assert.equal(await page.locator('#scanStatus').textContent(), 'Committed 2 pages, 150 source entries');
+        assert.equal(await page.locator('#scanStatus').getAttribute('aria-live'), 'polite');
+        assert.equal(await page.locator('#progWrap').isVisible(), false);
+        assert.equal(await page.locator('#btnSyncAll').textContent(), 'Stop sync');
+        assert.doesNotMatch(await page.locator('#scanStatus').textContent() ?? '', /%/);
         await page.evaluate(() => Reflect.get(window, 'harness').finishScan()); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
-        assert.match(await page.locator('#status').textContent() ?? '', /Local page budget reached/); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
+        assert.match(await page.locator('#scanStatus').textContent() ?? '', /Local page budget reached/); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
         assert.equal(await page.locator('#progWrap').isVisible(), false);
     } finally { await browser.close(); }
 });
@@ -48,8 +48,8 @@ test('a subsequent operation keeps its current progress after the previous task 
     const browser = await chromium.launch({headless:true});try{
         const page=await browser.newPage();await page.clock.install();await mount(page,'options',{holdScan:true});
         await page.locator('#btnSyncAll').click();await page.evaluate(()=>Reflect.get(window,'harness').finishScan());await page.waitForFunction(()=>document.body.dataset.busy!=='true');
-        await page.locator('#btnSyncAll').click();await page.clock.fastForward(1000);assert.equal(await page.locator('#status').textContent(),'Committed 2 pages, 150 source entries');assert.equal(await page.locator('#btnStopScan').isVisible(),true);
-        await page.evaluate(()=>Reflect.get(window,'harness').finishScan());await page.waitForFunction(()=>document.body.dataset.busy!=='true');assert.equal(await page.locator('#btnStopScan').isVisible(),false);
+        await page.locator('#btnSyncAll').click();await page.clock.fastForward(1000);assert.equal(await page.locator('#scanStatus').textContent(),'Committed 2 pages, 150 source entries');assert.equal(await page.locator('#btnSyncAll').isVisible(),true);
+        await page.evaluate(()=>Reflect.get(window,'harness').finishScan());await page.waitForFunction(()=>document.body.dataset.busy!=='true');assert.equal(await page.locator('#btnSyncAll').textContent(),'Sync All');
     }finally{await browser.close();}
 });
 

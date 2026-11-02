@@ -86,7 +86,7 @@ test('Scan UI preserves saved counts for partial limits, cancellation and errors
         for(const status of ['partial_limit','aborted','error']){
             const page=await browser.newPage();await mount(page,'options',{scanCount:3,scanResult:{status,pagesFetched:2,conversationsFetched:3,reason:'remaining pages unavailable'}});
             await page.locator('#btnSyncAll').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
-            const text=await page.locator('#status').textContent()??'';
+            const text=await page.locator('#scanStatus').textContent()??'';
             assert.doesNotMatch(text,/Full sync completed|全量拉取完成/);assert.match(text,/3/);
             assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);await page.close();
         }

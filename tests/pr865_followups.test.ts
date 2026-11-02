@@ -209,7 +209,10 @@ test('unavailable resources mark delivered content partial; explicitly excluding
         assert.ok(assetFetches > 0);
         assert.equal(detailFetches, 0);
         assert.equal((await getExportRecord(key(id)))?.status, 'partial');
-        assert.match(await download.blobs[0].text(), /Saved answer/);
+        const zip = await require('../lib/jszip.min.js').loadAsync(await download.blobs[0].arrayBuffer());
+        const name = Object.keys(zip.files).find(name => name.endsWith('.md'));
+        assert.ok(name);
+        assert.match(await zip.file(name).async('string'), /Saved answer/);
         const attempts = assetFetches;
 
         const withoutAssets = await runExport(request(id, { includeAssets: false, skipUnchanged: true }));

@@ -1,4 +1,4 @@
-import { advancePlatformIntro } from '../helpers/tourNavigation';
+import { waitForAuthorization, continueToScan } from '../helpers/tourNavigation';
 import { test, expect } from '@playwright/test';
 import { mount, read, A, B } from '../helpers/uiPortHarness';
 
@@ -273,7 +273,7 @@ test('UI v2: Popup loads the shared Light preference and can switch to Dark', as
 });
 
 test('UI v2: Light mode styles the Tour', async ({ page }) => {
-    await mount(page, 'options', { settings: { theme: 'light' } }, '?startTour=1'); await advancePlatformIntro(page);
+    await mount(page, 'options', { settings: { theme: 'light' } }, '?startTour=1'); await waitForAuthorization(page);
     await expect(page.locator('.tour-popover')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
 });
 
@@ -311,10 +311,10 @@ test('UI v2: account switch clears selection and only selected current keys expo
 });
 test('UI v2: Takeout prompts at 151 committed records regardless of Scan reason', async ({ page }) => {
     await mount(page,'options',{indexes:[],holdScan:true}); await expect(page.locator('#btnSyncAll')).toBeEnabled();
-    await page.locator('#btnSyncAll').click(); await expect(page.locator('#status')).toHaveText('Committed 2 pages, 150 source entries');
+    await page.locator('#btnSyncAll').click(); await expect(page.locator('#scanStatus')).toHaveText('Committed 2 pages, 150 source entries');
     expect(await read(page,'scans')).toEqual([{accountId:A}]);
     await page.evaluate(()=>{(window as any).harness.finishScan();});
-    await expect(page.locator('#btnSyncAll')).toBeEnabled();
+    await expect(page.locator('body')).toHaveAttribute('data-scanning','false');
     await expect(page.locator('.tour-popover')).toHaveCount(0);
     await page.evaluate(()=>{Object.assign((window as any).harness,{holdScan:false,scanCount:151});});
     await page.locator('#btnSyncAll').click();
@@ -349,19 +349,20 @@ test('UI v2: Takeout file input directly imports into current account and report
     expect(await read(page,'imports')).toEqual([B]); expect(await read(page,'patches')).toContainEqual({takeoutPromptCompleted:true});
 });
 test('UI v2: real Tour hit testing, stale delays, feedback close, and no persistent Tour fields', async ({ page }) => {
-    await mount(page,'options',{},'?startTour=1'); await advancePlatformIntro(page); await expect(page).toHaveURL('https://ui.test/');
+    await mount(page,'options',{},'?startTour=1'); await waitForAuthorization(page); await expect(page).toHaveURL('https://ui.test/');
     await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
-    await page.locator('#tourNextBtn').click();
+    await continueToScan(page);
     await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
-    // Highlighted scan is a real business click and advances without awaiting completion.
+    // Highlighted scan advances only after committed results reach the list.
     await page.locator('#btnSyncAll').click(); await expect(page.locator('.tour-popover h2')).toHaveText('Select conversations');
     expect((await read(page,'scans')).length).toBe(1);
     await page.locator('#list input').check(); await page.getByRole('button',{name:'Next',exact:true}).click();
     await page.waitForTimeout(350); await expect(page.locator('.tour-popover h2')).toHaveText('Choose a format');
-    // Clicking an unrelated button is intercepted, closes the Tour and does not export.
+    // Clicking an unrelated button is intercepted without closing the Tour or exporting.
     const rect = await page.locator('#btnExport').boundingBox(); await page.mouse.click(rect!.x+5,rect!.y+5);
-    await expect(page.locator('.tour-popover')).toHaveCount(0); expect(await read(page,'exports')).toEqual([]);
-    await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page); await expect(page.locator('.tour-popover')).toBeVisible();
+    await expect(page.locator('.tour-popover')).toHaveCount(1); expect(await read(page,'exports')).toEqual([]);
+    await page.locator('#tourCloseBtn').click();
+    await page.locator('#btnTourGuide').click(); await waitForAuthorization(page); await expect(page.locator('.tour-popover')).toBeVisible();
     await page.keyboard.press('Escape'); await expect(page.locator('.tour-overlay-container')).toHaveCount(0);
     expect(await read(page,'patches')).toEqual([]);
 });
@@ -441,7 +442,7 @@ test('UI v2: Badge drag sends position to Runtime on pointerup, ignores ordinary
     expect(await page.evaluate(()=>Object.keys(localStorage))).toEqual([]);
 });
 test('UI v2: authorization uses one selected-platform action and closing never persists Tour state', async ({ page }) => {
-    await mount(page,'options',{tabs:[],geminiAccess:false},'?startTour=1'); await advancePlatformIntro(page);
+    await mount(page,'options',{tabs:[],geminiAccess:false},'?startTour=1'); await waitForAuthorization(page);
     await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
     await expect(page.locator('#tourNextBtn')).toBeDisabled();
     for (const platform of ['Gemini','ChatGPT','Claude'])
@@ -453,6 +454,8 @@ test('UI v2: authorization uses one selected-platform action and closing never p
     await expect(page.locator('#tourNextBtn')).toBeEnabled();
     expect(await read(page,'connectionRequests')).toEqual([[['gemini'],true]]);
     expect(await read(page,'events')).not.toContain('open');
+    await page.locator('#btnDetectAccount:enabled').click();
+    await expect(page.locator('.tour-popover h2')).toHaveText('Switch platforms and accounts');
     await page.locator('#tourNextBtn').click();
     await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
     await page.getByRole('button',{name:'Skip',exact:true}).click();
@@ -461,9 +464,9 @@ test('UI v2: authorization uses one selected-platform action and closing never p
 test('UI v2: final Tutorial button closes without opening feedback, actual feedback link opens only once', async ({ page }) => {
     await mount(page,'options');
     const lastStep = async () => {
-        await page.locator('#btnTourGuide').click(); await advancePlatformIntro(page);
+        await page.locator('#btnTourGuide').click(); await waitForAuthorization(page);
         await expect(page.locator('.tour-popover h2')).toHaveText('Authorize AI platforms');
-        await page.locator('#tourNextBtn').click();
+        await continueToScan(page);
         await expect(page.locator('.tour-popover h2')).toHaveText('Scan conversations');
         for (let i=0;i<5;i++) await page.getByRole('button',{name:'Next',exact:true}).click();
         await expect(page.locator('.tour-popover h2')).toHaveText('Optional feedback');
@@ -476,23 +479,34 @@ test('UI v2: final Tutorial button closes without opening feedback, actual feedb
     expect(await read(page,'patches')).toEqual([]);
 });
 
-for (const mode of ['scan','export'] as const) test(`UI v2: ${mode} stop button is below the progress bar`, async ({page}) => {
-    await mount(page,'options',{holdScan:true,holdExport:true});
-    if (mode === 'export') {
-        await page.locator('#btnSelectAll').click();
-        await page.locator('#btnExport').click();
-    } else await page.locator('#btnSyncAll').click();
-    const stop = page.locator(mode === 'scan' ? '#btnStopScan' : '#btnCancel');
+test('UI v2: stop sync replaces the sync button; stopping keeps the saved list', async ({page}) => {
+    await mount(page, 'options', {holdScan:true});
+    const sync = page.locator('#btnSyncAll');
+    await sync.click();
+    await expect(sync).toHaveText('Stop sync');
+    await expect(sync).toBeEnabled();
+    await expect(page.locator('#btnStopScan')).toHaveCount(0);
+    await sync.click();
+    await expect(sync).toHaveText('Stopping sync…');
+    await expect(sync).toBeDisabled();
+    await expect.poll(() => page.evaluate(() => Reflect.get(window,'harness').scanSignal.aborted)).toBe(true);
+    await page.evaluate(() => Reflect.get(window,'harness').finishScan());
+    await expect(sync).toHaveText('Sync All');
+    await expect(sync).toBeEnabled();
+    await expect(page.locator('#list .item')).toHaveCount(1);
+});
+
+test('UI v2: export stop button is below its progress bar', async ({page}) => {
+    await mount(page,'options',{holdExport:true});
+    await page.locator('#btnSelectAll').click(); await page.locator('#btnExport').click();
+    const stop = page.locator('#btnCancel');
     await expect(stop).toBeVisible();
-    await expect(stop).toBeInViewport();
     const bar = await page.locator('#progWrap').boundingBox();
     const button = await stop.boundingBox();
-    expect(bar).toBeTruthy(); expect(button).toBeTruthy();
     expect(button!.y).toBeGreaterThanOrEqual(bar!.y + bar!.height);
-    await page.screenshot({path:`tests/output/visual_audit/${mode}-stop-below-progress.png`});
     await stop.click();
     await expect(page.locator('#status')).toHaveText('Cancelling…');
-    await page.evaluate(mode => { const h = Reflect.get(window,'harness'); if (mode === 'scan') h.finishScan(); else h.finishExport(); },mode);
+    await page.evaluate(() => Reflect.get(window,'harness').finishExport());
     await expect(stop).toBeHidden();
 });
 
@@ -512,11 +526,74 @@ test('UI v2: committed scan pages appear before completion and preserve selectio
         }, { accountId: A, pageNumber });
         await expect(page.locator('#list')).toContainText(`Committed page ${pageNumber}`);
         await expect(page.locator('body')).toHaveAttribute('data-busy', 'true');
-        await expect(page.locator('#btnStopScan')).toBeVisible();
+        await expect(page.locator('#btnSyncAll')).toBeVisible();
     }
     await expect(page.locator('#list input[type="checkbox"]:checked')).toHaveCount(1);
+    await page.locator('#list .item input').last().check();
+    await expect(page.locator('#btnExport')).toBeEnabled();
+    await expect(page.locator('#accountIdSelect')).toBeDisabled();
+    await page.locator('#chatSearchInput').fill('Committed');
+    await expect(page.locator('#list .item')).toHaveCount(2);
+    await page.locator('#btnSelectAll').check();
+    await expect(page.locator('#list input:checked')).toHaveCount(2);
+    await page.locator('#chatSearchInput').fill('');
     await page.evaluate(() => (window as any).harness.finishScan());
     await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
     await expect(page.locator('#list')).toContainText('Committed page 3');
     await expect(page.locator('#list')).toContainText('Committed page 4');
+});
+
+for (const finishFirst of ['scan', 'export'] as const) test(`UI v2: concurrent scan and export keep independent controls when ${finishFirst} ends first`, async ({page}) => {
+    await mount(page, 'options', {holdScan:true,holdExport:true});
+    await page.locator('#btnSyncAll').click();
+    await expect(page.locator('#format')).toBeEnabled();
+    await expect(page.locator('#includeAssets')).toBeEnabled();
+    await page.locator('#format').selectOption('html');
+    await expect.poll(async () => (await read(page,'settings')).defaultFormat).toBe('html');
+    await page.locator('#list input').first().check();
+    await page.locator('#btnExport').click();
+    await expect.poll(async () => (await read(page,'exports')).length).toBe(1);
+    const request = (await read(page,'exports'))[0];
+    expect(request.format).toBe('html'); expect(request.keys).toHaveLength(1);
+    await expect(page.locator('#format')).toBeDisabled();
+    await expect(page.locator('#btnCancel')).toBeVisible();
+    await expect(page.locator('#btnSyncAll')).toHaveText('Stop sync');
+    const exportStatus = await page.locator('#status').textContent();
+    await page.evaluate(() => Reflect.get(window,'harness').scanProgress({pagesFetched:3,conversationsFetched:200}));
+    await expect(page.locator('#scanStatus')).toContainText('200 source entries');
+    expect(await page.locator('#status').textContent()).toBe(exportStatus);
+    if (finishFirst === 'scan') {
+        await page.locator('#btnSyncAll').click();
+        expect(await page.evaluate(() => Reflect.get(window,'harness').exportOptions.signal.aborted)).toBe(false);
+        await page.evaluate(() => Reflect.get(window,'harness').finishScan());
+        await expect(page.locator('body')).toHaveAttribute('data-scanning','false');
+        await expect(page.locator('#btnExport')).toBeDisabled();
+        await expect(page.locator('#btnCancel')).toBeVisible();
+        await page.evaluate(() => Reflect.get(window,'harness').finishExport());
+    } else {
+        await page.locator('#btnCancel').click();
+        expect(await page.evaluate(() => Reflect.get(window,'harness').scanSignal.aborted)).toBe(false);
+        await page.evaluate(() => Reflect.get(window,'harness').finishExport());
+        await expect(page.locator('#format')).toBeEnabled();
+        await expect(page.locator('#btnSyncAll')).toHaveText('Stop sync');
+        const exportResult = await page.locator('#status').textContent();
+        await page.evaluate(() => Reflect.get(window,'harness').finishScan());
+        await expect(page.locator('body')).toHaveAttribute('data-scanning','false');
+        expect(await page.locator('#status').textContent()).toBe(exportResult);
+    }
+    await expect(page.locator('body')).toHaveAttribute('data-busy','false');
+    await expect(page.locator('#accountIdSelect')).toBeEnabled();
+    expect(await read(page,'exports')).toEqual([request]);
+});
+
+test('UI v2: stopping while resolving the scan source never starts the scan or reports failure', async ({page}) => {
+    await mount(page,'options',{holdConnectionCheck:true});
+    await page.locator('#btnSyncAll').click();
+    await expect.poll(() => page.evaluate(() => !!Reflect.get(window,'harness').finishConnectionCheck)).toBe(true);
+    await page.locator('#btnSyncAll').click();
+    await page.evaluate(() => Reflect.get(window,'harness').finishConnectionCheck());
+    await expect(page.locator('body')).toHaveAttribute('data-scanning','false');
+    await expect(page.locator('#scanStatus')).toHaveText('Sync stopped');
+    expect(await read(page,'scans')).toEqual([]);
+    await expect(page.locator('#btnSyncAll')).toBeEnabled();
 });

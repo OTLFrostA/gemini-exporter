@@ -110,8 +110,8 @@ for (const format of ['markdown', 'html', 'json'] as const) for (const failure o
             'the L1 provider acquires only requested resources');
         assert.equal(requests.filter(url => url.startsWith('https://gemini.google.com/')).length, failure === 'http' ? 1 : 0,
             'only an actual expiry response triggers one background refresh; failed refresh preserves healthy bytes');
-        assert.equal(host.clicks(), 2);
-        assert.match(host.filenames[1], /^attachments_.*\.zip$/);
+        assert.equal(host.clicks(), 1);
+        assert.match(host.filenames[0], /\.zip$/);
         const files = await readDeliveredFiles(host);
         const main = files.find(file => file.name.endsWith(format === 'markdown' ? '.md' : format === 'html' ? '.html' : '.json'));
         assert.ok(main);
@@ -189,8 +189,8 @@ for (const format of ['markdown', 'json'] as const) {
         assert.equal(result.partial, 0);
         assert.deepEqual(result.failed, []);
         assert.deepEqual(requests, format === 'json' ? [goodUri, orphanUri] : [goodUri]);
-        assert.equal(host.clicks(), 2);
-        assert.match(host.filenames[1], /^attachments_.*\.zip$/);
+        assert.equal(host.clicks(), 1);
+        assert.match(host.filenames[0], /\.zip$/);
         const files = await readDeliveredFiles(host);
         const main = files.find(file => file.name.endsWith(format === 'json' ? '.json' : '.md'));
         assert.ok(main);
@@ -269,7 +269,7 @@ test('failed Browser Download start does not commit an ExportRecord', async t =>
     assert.equal(result.partial, 0);
     assert.deepEqual(result.failed, [exportKey(id)]);
     assert.deepEqual(requests, [goodUri]);
-    assert.equal(host.clicks(), 2);
+    assert.equal(host.clicks(), 1);
     assert.equal(await getExportRecord(exportKey(id)), null);
 });
 
@@ -289,11 +289,10 @@ test('cancel during L1 acquisition preserves the delivered body without committi
             signal?.addEventListener('abort', () => reject(signal.reason ?? new DOMException('Cancelled', 'AbortError')), { once: true });
         });
     });
-    let bodyReady = ():void=>{};
-    const bodyDelivered = new Promise<void>(resolve=>{bodyReady=resolve;});
     const controller = new AbortController();
-    const pending = runExport(exportRequest([id], { includeAssets: true }), { signal: controller.signal, onBodyDelivered:bodyReady });
-    await Promise.all([awaited,bodyDelivered]);
+    const pending = runExport(exportRequest([id], { includeAssets: true }), { signal: controller.signal });
+    await awaited;
+    assert.equal(host.clicks(), 0);
     controller.abort();
     const result = await pending;
     assert.equal(result.aborted, true);

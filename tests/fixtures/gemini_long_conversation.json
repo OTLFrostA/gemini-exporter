@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "conversationId": "a714229ffb19b514",
-  "source": "Freshly reloaded Gemini webpage, each user query and model response scrolled into view and read with authored_response.js; independent of export and RPC parser.",
+  "source": "Freshly reloaded Gemini webpage, each user query and model response scrolled into view and read with authored_response.js; independent of export and RPC parser. The 64th turn was appended from independently reloaded webpage tail evidence on 2026-11-01; preceding nine turns match the frozen evidence exactly.",
   "turns": [
     {
       "prompt": "Explain split conformal prediction for a fictional stationary scalar time series. Define the conformity scores and finite-sample quantile using LaTeX, separating exchangeability from temporal dependence assumptions.  （我附带上传了一个测试参考文件 gemini_test_1791502201_0852cc14.md，请阅读并确认收到该文件）",
@@ -699,6 +699,119 @@
       ],
       "execution_blocks": [],
       "has_images": false
+    },
+    {
+      "prompt": "接着前面的玩具 RSA 与中国剩余定理讨论，请用一个很小的数值例子，说明如何独立验算 CRT 重组结果；给出两条同余检查和一条直接模幂检查即可，回答控制在 200 字以内。",
+      "response": "设解密密文 c = 36 时求得子环分量 m_p = 9、m_q = 8，CRT 重组出明文 m = 42。独立验算如下：模 p 同余检查：42 \\bmod 11 = 9 = m_p（验证满足首个同余式）模 q 同余检查：42 \\bmod 17 = 8 = m_q（验证满足次个同余式）直接模幂检查：验证 42^3 \\bmod 187 = 36 = c（或验算 36^{107} \\bmod 187 = 42）前两项确保重组系数与投影一致，第三项可彻底排除子模计算错误或故障注入。",
+      "has_images": false,
+      "code_blocks": [],
+      "execution_blocks": [],
+      "pdf_segments": [
+        {
+          "kind": "text",
+          "text": "设解密密文 "
+        },
+        {
+          "kind": "math",
+          "text": "c = 36"
+        },
+        {
+          "kind": "text",
+          "text": " 时求得子环分量 "
+        },
+        {
+          "kind": "math",
+          "text": "m_p = 9"
+        },
+        {
+          "kind": "text",
+          "text": "、"
+        },
+        {
+          "kind": "math",
+          "text": "m_q = 8"
+        },
+        {
+          "kind": "text",
+          "text": "，CRT 重组出明文 "
+        },
+        {
+          "kind": "math",
+          "text": "m = 42"
+        },
+        {
+          "kind": "text",
+          "text": "。"
+        },
+        {
+          "kind": "text",
+          "text": "独立验算如下："
+        },
+        {
+          "kind": "text",
+          "text": "模 "
+        },
+        {
+          "kind": "math",
+          "text": "p"
+        },
+        {
+          "kind": "text",
+          "text": " 同余检查："
+        },
+        {
+          "kind": "math",
+          "text": "42 \\bmod 11 = 9 = m_p"
+        },
+        {
+          "kind": "text",
+          "text": "（验证满足首个同余式）"
+        },
+        {
+          "kind": "text",
+          "text": "模 "
+        },
+        {
+          "kind": "math",
+          "text": "q"
+        },
+        {
+          "kind": "text",
+          "text": " 同余检查："
+        },
+        {
+          "kind": "math",
+          "text": "42 \\bmod 17 = 8 = m_q"
+        },
+        {
+          "kind": "text",
+          "text": "（验证满足次个同余式）"
+        },
+        {
+          "kind": "text",
+          "text": "直接模幂检查：验证 "
+        },
+        {
+          "kind": "math",
+          "text": "42^3 \\bmod 187 = 36 = c"
+        },
+        {
+          "kind": "text",
+          "text": "（或验算 "
+        },
+        {
+          "kind": "math",
+          "text": "36^{107} \\bmod 187 = 42"
+        },
+        {
+          "kind": "text",
+          "text": "）"
+        },
+        {
+          "kind": "text",
+          "text": "前两项确保重组系数与投影一致，第三项可彻底排除子模计算错误或故障注入。"
+        }
+      ]
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { advancePlatformIntro } from './helpers/tourNavigation';
+import { waitForAuthorization, continueToScan } from './helpers/tourNavigation';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -54,10 +54,10 @@ test('D7: existing website authorization permits the tour even when Tabs or logi
             if(state==='missing')Reflect.deleteProperty(Reflect.get(window,'chrome'),'tabs');
             return Reflect.get(window,'testUi').tour.startTour();
         },state);
-        await advancePlatformIntro(page);
+        await waitForAuthorization(page);
         await page.waitForFunction(()=>document.querySelector('#tourNextBtn')?.matches(':enabled'));
         assert.equal(await page.locator('.platform-permission-row[data-platform="gemini"]').isVisible(),false);
-        await page.locator('#tourNextBtn').click();
+        await continueToScan(page);
         assert.equal(await page.locator('.tour-popover h2').textContent(),'Scan conversations');
         await page.close();
     }}finally{await browser.close();}

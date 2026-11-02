@@ -61,12 +61,12 @@ type ExportSource = PendingContent & {
 type PendingExport = ExportSource & { prepared: PreparedResources; reused: ReadonlySet<string> };
 interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'exportedAt'>; files: ExportArtifact[] }
 
-/** One task owns source reads, attachment acquisition, independent deliveries and final records. */
+/** One task owns independent source/resource acquisition, final delivery and records. */
 export async function runExport(request: ExportRequest, options: {
     onProgress?: (progress: ExportProgress) => void;
     /** A usable body is ready for resource preparation; skipped targets do not count. */
     onConversationPrepared?: (key: ConversationKey) => void;
-    /** A document has reached its destination, independently of attachment completion. */
+    /** A document has reached its destination; browser delivery includes its attachments. */
     onBodyDelivered?: (key: ConversationKey) => void;
     /** downloaded counts distinct successful resource identities across this task, including refreshes. */
     onResourceProgress?: (progress: { key: ConversationKey; completed: number; total: number; downloaded: number }) => void;
@@ -88,9 +88,7 @@ export async function runExport(request: ExportRequest, options: {
     else options.signal?.addEventListener('abort', cancel, { once: true });
     // Attachment work has its own bounded pool; it never gates the next source read.
     let downstream = Promise.resolve();
-    let bodyDelivery = Promise.resolve();
     let saveCancelledFiles: (() => Promise<void>) | undefined;
-    const finalizedGroups = new Set<ExportGroup>();
     const queued = new Map<string, Promise<void>>();
     const deliveredBodies = new Set<string>();
     const identity = (key: ConversationKey) => JSON.stringify([key.accountId, key.conversationId]);
@@ -151,7 +149,6 @@ export async function runExport(request: ExportRequest, options: {
         // Once Delivery returned, cancellation cannot suppress records for that group/ZIP.
         const exportedAt = Date.now();
         for (const group of groups) {
-            if (request.delivery === 'browserDownload') finalizedGroups.add(group);
             bodyDelivered(group.key);
             try {
                 const record: ExportRecord = { ...group.record, exportedAt };
@@ -265,9 +262,7 @@ export async function runExport(request: ExportRequest, options: {
         const resourceScope = crypto.randomUUID();
         const linkedPlanner = linked ? createExportPathPlanner(request.format, directory ? undefined : resourceScope) : undefined;
         const bodies: { group: ExportGroup; hasAttachments: boolean }[] = [];
-        const attachments: ExportGroup[] = [];
-        const shippedAttachments = new Set<ExportGroup>();
-        const attachmentArchiveName = `attachments_${Date.now()}.zip`;
+        const settledBodies = new Map<ExportGroup, ExportGroup>();
         const deliver = async (groups: readonly ExportGroup[], archiveName?: string, savingCancelled = false): Promise<void> => {
             if (!groups.length) return;
             let files: ExportArtifact[];
@@ -282,25 +277,29 @@ export async function runExport(request: ExportRequest, options: {
                 await writeToFolder(files, directory);
             }
         };
+        const deliverBrowserBodies = async (savingCancelled = false): Promise<void> => {
+            const staged = bodies.filter(({group}) => !deliveredBodies.has(identity(group.key))
+                && !failed.some(key => identity(key) === identity(group.key)));
+            const groups = staged.map(({group}) => {
+                const settled = settledBodies.get(group);
+                // Resource refresh can replace the rendered document at its original path.
+                const files = new Map([...group.files, ...(settled?.files ?? [])].map(file => [file.fileName, file]));
+                return { ...group, record: settled?.record ?? group.record, files: [...files.values()] };
+            });
+            try {
+                await deliver(groups, undefined, savingCancelled);
+                for (const group of groups) bodyDelivered(group.key);
+                await finalize(groups.filter((_, index) => !staged[index].hasAttachments || settledBodies.has(staged[index].group)));
+            } catch (error) {
+                if (cancelled(error) && !savingCancelled) throw error;
+                fail(groups.map(group => group.key), error);
+            }
+        };
         if (linked && !directory) saveCancelledFiles = async () => {
-            // Stop acquisition first. Only complete, already rendered artifacts enter
-            // this final handoff; the cancelled signal must not discard their ZIP.
+            // Acquisition stops first; one ZIP preserves completed attachments and all
+            // rendered bodies. Unfinished items never receive a successful record.
             await downstream;
-            await bodyDelivery;
-            const eligible = (group: ExportGroup): boolean => !finalizedGroups.has(group)
-                && !failed.some(key => identity(key) === identity(group.key));
-            const undelivered = bodies.filter(body => eligible(body.group)
-                && !deliveredBodies.has(identity(body.group.key)));
-            try {
-                await deliver(undelivered.map(body => body.group), undefined, true);
-                for (const body of undelivered) bodyDelivered(body.group.key);
-                await finalize(undelivered.filter(body => !body.hasAttachments).map(body => body.group));
-            } catch (error) { fail(undelivered.map(body => body.group.key), error); }
-            const ready = attachments.filter(group => eligible(group) && deliveredBodies.has(identity(group.key)));
-            try {
-                await deliver(ready.filter(group => !shippedAttachments.has(group) && group.files.length), attachmentArchiveName, true);
-                await finalize(ready);
-            } catch (error) { fail(ready.map(group => group.key), error); }
+            await deliverBrowserBodies(true);
         };
         const pending: PendingExport[] = [];
         for (const [index, key] of request.keys.entries()) {
@@ -462,9 +461,8 @@ export async function runExport(request: ExportRequest, options: {
 
                             if (body && plan && linkedPlanner
                                 && JSON.stringify(source.conversation) !== JSON.stringify(refreshedConversation)) {
-                                // A changed source can introduce new resource identities. Ship a corrected
-                                // document at the original filename with the attachment package; never
-                                // silently point an already delivered identity at unrelated bytes.
+                                // A changed source can introduce new resource identities. Replace
+                                // the document at its reserved path in the final ZIP or folder.
                                 const revised = linkedPlanner(refreshedConversation, new Map(), refreshedSource.fileIds,
                                     refreshedSource.folderBaseName, refreshedSource.requiredIds, directory ? account : undefined);
                                 finalPlan = { ...revised, fileName: plan.fileName,
@@ -478,8 +476,8 @@ export async function runExport(request: ExportRequest, options: {
                     const { prepared, fileIds } = item;
                     if (body && finalPlan) {
                         const failures = Object.fromEntries([...prepared].filter((entry): entry is [string, ResourceFailure] => !entry[1].ok));
-                        // The first document is already usable. A final correction adds known
-                        // failure placeholders without making that first delivery wait for bytes.
+                        // Replace staged body links with known failure placeholders before
+                        // browser delivery, or update the already written folder document.
                         const correction = sourceChanged || Object.keys(failures).length
                             ? await renderGroup(item, { ...finalPlan,
                                 resources: Object.fromEntries(Object.entries(finalPlan.resources).filter(([id]) => prepared.get(id)?.ok || item.reused.has(id))),
@@ -497,7 +495,7 @@ export async function runExport(request: ExportRequest, options: {
                         if (directory) {
                             if (files.length) await writeToFolder(files, directory);
                             await finalize([group]);
-                        } else attachments.push(group);
+                        } else settledBodies.set(body, group);
                     } else if (folderPlanner && directory) {
                         const group = await renderGroup(item, folderPlanner(item.conversation, prepared, fileIds, item.folderBaseName));
                         await writeToFolder(group.files, directory);
@@ -523,35 +521,10 @@ export async function runExport(request: ExportRequest, options: {
                 if (!handedOff) resources.releaseConversation(key);
             }
         }
-        // Text delivery is independent: do not join the attachment consumer here.
-        if (linked && !directory && bodies.length) {
-            const groups = bodies.map(body => body.group);
-            bodyDelivery = (async () => {
-                try {
-                    await deliver(groups);
-                    for (const group of groups) bodyDelivered(group.key);
-                    await finalize(bodies.filter(body => !body.hasAttachments).map(body => body.group));
-                } catch (error) {
-                    if (cancelled(error)) controller.abort(error);
-                    else fail(groups.map(group => group.key), error);
-                }
-            })();
-        }
         await downstream;
         signal.throwIfAborted();
         if (linked) {
-            if (!directory && attachments.length) {
-                try {
-                    await deliver(attachments.filter(group => group.files.length), attachmentArchiveName);
-                    for (const group of attachments) shippedAttachments.add(group);
-                    await bodyDelivery;
-                    await finalize(attachments.filter(group => deliveredBodies.has(identity(group.key))));
-                } catch (error) {
-                    if (cancelled(error)) throw error;
-                    fail(attachments.map(group => group.key), error);
-                }
-            }
-            await bodyDelivery;
+            if (!directory) await deliverBrowserBodies();
             result.aborted = signal.aborted;
             return result;
         }
@@ -603,7 +576,6 @@ export async function runExport(request: ExportRequest, options: {
     } finally {
         controller.abort();
         await downstream;
-        await bodyDelivery;
         options.signal?.removeEventListener('abort', cancel);
         resources.release();
         compiler?.dispose();
