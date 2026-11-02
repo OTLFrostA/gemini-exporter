@@ -189,7 +189,7 @@ test('delivery summary separates unavailable source attachments from retryable f
         {resourceId:'one',name:'one.png',code:'RESOURCE_SOURCE_EXPIRED',httpStatus:404},
         {resourceId:'two',name:'two.png',code:'RESOURCE_SOURCE_EXPIRED',httpStatus:410},
         {resourceId:'three',name:'three.png',code:'RESOURCE_DOWNLOAD_FAILED',httpStatus:503},
-    ]});
+    ]}, true);
     assert.match(summary, /2 conversations contain unavailable source attachments \(2 attachments\)/);
     assert.match(summary, /Attachment download failed: 1; retry later/);
     assert.doesNotMatch(summary, /Conversation export failed:/);

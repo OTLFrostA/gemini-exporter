@@ -4,7 +4,7 @@ import { getSettings } from '../../application/settings/index.js';
 import type { ExportResult } from '../../application/export/types.js';
 import { getAccountContext, resolveCurrentAccount } from '../../runtime/content/accountContext.js';
 import { registerCleanup } from '../../runtime/content/cleanupRegistry.js';
-import { text, useSettings, observeSettings } from '../shared/settings.js';
+import { text, useSettings, observeSettings, isDeveloperMode } from '../shared/settings.js';
 
 let badge: HTMLElement | null = null;
 let accountId: string | null = null;
@@ -33,14 +33,16 @@ const startCountPolling = () => {
 function render(): void {
     const label = badge?.querySelector('#geminiExportBadgeText');
     if (!label) return;
-    badge?.classList.toggle('live-save-warning', feedback === 'unavailable');
+    const visibleFeedback = !isDeveloperMode() && feedbackResult?.attachmentIssues?.length
+        && feedbackResult.otherPartial === 0 && !feedbackResult.failed.length && !feedbackResult.aborted ? 'ok' : feedback;
+    badge?.classList.toggle('live-save-warning', visibleFeedback === 'unavailable');
     if (badge) badge.title = feedbackResult ? exportSummary(feedbackResult) : '';
     label.textContent = extensionContextInvalidated || !chrome.runtime?.id
         ? text('Extension updated. Refresh this page.', '插件已更新，请刷新页面')
-        : feedback === 'unavailable' ? text('Saved; source attachments unavailable', '已保存，部分来源附件无法获取')
-        : feedback === 'ok' ? text('✓ Saved', '✓ 已保存')
-        : feedback === 'partial' ? text('Some content was not saved', '部分内容未保存')
-        : feedback === 'failed' ? text('Save failed', '保存失败')
+        : visibleFeedback === 'unavailable' ? text('Saved; source attachments unavailable', '已保存，部分来源附件无法获取')
+        : visibleFeedback === 'ok' ? text('✓ Saved', '✓ 已保存')
+        : visibleFeedback === 'partial' ? text('Some content was not saved', '部分内容未保存')
+        : visibleFeedback === 'failed' ? text('Save failed', '保存失败')
         : !accountId ? text('Current account unavailable', '无法识别当前账户')
         : count === null ? text('Count unavailable', '数量暂不可用')
         : text(`${count} conversation${count === 1 ? '' : 's'} indexed`, `已收录 ${count} 条对话`);

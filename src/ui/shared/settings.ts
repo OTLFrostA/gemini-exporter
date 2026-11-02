@@ -2,7 +2,9 @@ import { getSettings, type GlobalSettings } from '../../application/settings/ind
 import { UI_COPY } from './legacyLabels.js';
 export const EXPORT_FORMATS = ['markdown', 'html', 'pdf', 'docx', 'json'] as const satisfies readonly GlobalSettings['defaultFormat'][];
 let language = 'en';
+let developerMode = false;
 export function useSettings(settings: GlobalSettings, applyDocumentLanguage = true): void {
+    developerMode = settings.developerMode;
     language = settings.language ?? (typeof navigator !== 'undefined' && navigator.language.startsWith('zh') ? 'zh' : 'en');
     // Never change Gemini's host document theme when invoked by the content Badge.
     if (applyDocumentLanguage && typeof document !== 'undefined') {
@@ -12,6 +14,7 @@ export function useSettings(settings: GlobalSettings, applyDocumentLanguage = tr
 }
 export const text = (en: string, zh: string): string => language === 'zh' ? zh : en;
 export const uiLocale = (): string => language === 'zh' ? 'zh-CN' : 'en-US';
+export const isDeveloperMode = (): boolean => developerMode;
 export function labelThemeToggle(button: HTMLButtonElement, settings?: GlobalSettings): void {
     const light = settings?.theme === 'light';
     const label = light ? text('Switch to dark mode', '切换到深色模式')

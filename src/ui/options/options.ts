@@ -131,7 +131,10 @@ export async function initWorkbench(): Promise<void> {
     const failureGroups = () => currentIssues.groups();
     const showFailures = () => {
         const card = el('exportFailureCard');
-        const groups = failureGroups();
+        const groups = failureGroups().filter(group => settings?.developerMode || !(
+            ['resource', 'resource_refresh'].includes(group.diagnostic.stage)
+            || group.category.startsWith('RESOURCE_')
+            || /(?:^|_)(?:ASSET|IMAGE)(?:_|$)/.test(group.diagnostic.code)));
         card.style.display = groups.length && !dismissedFailures ? 'block' : 'none';
         const hasErrors = failed.length > 0 || groups.some(group => group.severity === 'error');
         card.dataset.severity = hasErrors ? 'error' : 'warning';

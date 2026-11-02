@@ -25,7 +25,7 @@ test('Content Badge passes its current account when opening Options', async ({ p
 });
 
 test('Content Badge presents unavailable attachments as a warning and clears it after a successful save', async ({ page }) => {
-    await mount(page, 'badge');
+    await mount(page, 'badge', { settings: { developerMode: true } });
     await page.evaluate(() => {
         Reflect.get(window, 'badge').showLiveSaveResult({ exported: 1, partial: 1, failed: [], skipped: 0,
             aborted: false, otherPartial: 0, expiredConversations: 1,
@@ -39,6 +39,24 @@ test('Content Badge presents unavailable attachments as a warning and clears it 
         failed: [], skipped: 0, aborted: false }, Reflect.get(window, 'harness').source));
     await expect(badge).not.toHaveClass(/live-save-warning/);
     await expect(badge).toContainText('✓ Saved');
+});
+
+test('Content Badge hides attachment warnings in normal mode and preserves body failures', async ({ page }) => {
+    await mount(page, 'badge');
+    await page.evaluate(() => Reflect.get(window, 'badge').showLiveSaveResult({ exported: 1, partial: 1,
+        failed: [], skipped: 0, aborted: false, otherPartial: 0,
+        attachmentIssues: [{ resourceId: 'missing', name: 'report.md', code: 'RESOURCE_SOURCE_EXPIRED', httpStatus: 404 }] },
+        Reflect.get(window, 'harness').source));
+    const badge = page.locator('#geminiExportBadge');
+    await expect(badge).toContainText('✓ Saved');
+    await expect(badge).not.toHaveClass(/live-save-warning/);
+    await expect(badge).not.toHaveAttribute('title', /attachments/i);
+    await page.evaluate(() => Reflect.get(window, 'badge').showLiveSaveResult({ exported: 1, partial: 1,
+        failed: [], skipped: 0, aborted: false, otherPartial: 1 }, Reflect.get(window, 'harness').source));
+    await expect(badge).toContainText('Some content was not saved');
+    await page.evaluate(() => Reflect.get(window, 'badge').showLiveSaveResult({ exported: 0, partial: 0,
+        failed: [], skipped: 0, aborted: true }, Reflect.get(window, 'harness').source));
+    await expect(badge).toContainText('Save failed');
 });
 
 test('Options applies a one-time source handoff on load and reuse, but not while exporting', async ({ page }) => {

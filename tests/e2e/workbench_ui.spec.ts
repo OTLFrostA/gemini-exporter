@@ -108,6 +108,9 @@ test('specific attachment failures retain details beneath one concise badge', as
         'legacy-partial':{exportedAt:200,format:'pdf',status:'partial',chatTime:100},
     });
     const row = page.locator('[data-chat-id="expired-only"]');
+    await expect(page.locator('.status-unavailable,.attachment-issues')).toHaveCount(0);
+    await expect(page.locator('[data-chat-id="text-incomplete"] .status-partial')).toHaveText('Incomplete export');
+    await page.locator('#devToggle').check();
     await expect(row.locator('.status-unavailable')).toHaveText('Some source attachments unavailable');
     await expect(row.locator('.status-partial')).toHaveCount(0);
     await page.locator('#btnThemeToggle').click();
@@ -130,6 +133,9 @@ test('specific attachment failures retain details beneath one concise badge', as
     await page.screenshot({path:testInfo.outputPath('attachment-expiry.png'),fullPage:true});
     await page.reload();
     await expect(row.locator('.status-unavailable')).toHaveText('部分来源附件无法获取');
+    await page.locator('#devToggle').uncheck();
+    await expect(page.locator('.status-unavailable,.attachment-issues')).toHaveCount(0);
+    await expect(page.locator('[data-chat-id="text-incomplete"] .status-partial')).toHaveText('导出不完整');
 });
 
 
