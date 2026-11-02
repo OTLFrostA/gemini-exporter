@@ -57,5 +57,12 @@ for(const format of ['html','markdown','json'] as const)test(`Popup ${format} ph
     if(format==='json'){
         const archive=JSON.parse(corrected);expect(archive.transport).toBeUndefined();expect(archive.resources).toEqual({});expect(archive.version).toBe(1);expect(archive.conversation.detail.assets[0].id).toBe('image');
     }else{expect(corrected).toMatch(/unavailable|gem-missing-asset|Attachment failed: Unknown error/);}
-    await expect(popup.locator('#btnCurrent')).toBeEnabled();await expect(popup.locator('#status')).toContainText('Attachment failures with unknown cause: 1');await expect(popup.locator('#status')).not.toContainText('Conversation export failed:');
+    await expect(popup.locator('#btnCurrent')).toBeEnabled();
+    await expect(popup.locator('#status')).toContainText('Successfully downloaded: 1');
+    await expect(popup.locator('#status')).not.toContainText('Attachment');
+    await options.locator('#devToggle').check();
+    await expect(popup.locator('#status')).toContainText('Attachment failures with unknown cause: 1');
+    await expect(popup.locator('#status')).not.toContainText('Conversation export failed:');
+    await options.locator('#devToggle').uncheck();
+    await expect(popup.locator('#status')).not.toContainText('Attachment');
 });

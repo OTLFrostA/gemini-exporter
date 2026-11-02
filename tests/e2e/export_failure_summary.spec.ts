@@ -4,6 +4,38 @@ import { parseGeminiRpcConversation } from '../../src/l1/parsers/gemini/rpc/pars
 import { detailGen } from '../fixtures/providers/geminiDetail';
 import { fixtureAccount } from '../helpers/domainFixture';
 
+test('attachment diagnostics stay recorded but are visible only in developer mode', async ({ page }) => {
+    await mount(page, 'options', { holdExport: true });
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+    await page.evaluate(() => {
+        const h = Reflect.get(window, 'harness');
+        for (const [stage, code] of [['resource', 'RESOURCE_DOWNLOAD_FAILED'], ['render', 'HTML_ASSET_UNRESOLVED']])
+            h.exportOptions.onDiagnostic({ key: h.exports[0].keys[0], stage, code, severity: 'warning', message: code });
+        h.finishExport();
+    });
+    await expect(page.locator('#exportFailureCard')).toBeHidden();
+    await page.locator('#devToggle').check();
+    await expect(page.locator('#exportFailureList > details')).toHaveCount(2);
+    const downloaded = page.waitForEvent('download');
+    await page.locator('#btnExportDiag').click();
+    const filePath = await (await downloaded).path();
+    if (!filePath) throw new Error('Diagnostic download missing');
+    const { readFile } = await import('node:fs/promises');
+    const report = JSON.parse(await readFile(filePath, 'utf8'));
+    expect(report.exportRuns[0].diagnostics).toHaveLength(2);
+    await page.locator('#devToggle').uncheck();
+    await expect(page.locator('#exportFailureCard')).toBeHidden();
+    await page.locator('#btnExport').click();
+    await page.evaluate(() => {
+        const h = Reflect.get(window, 'harness');
+        h.failExport = true;
+        h.finishExport();
+    });
+    await expect(page.locator('#exportFailureCard')).toBeVisible();
+    await expect(page.locator('#exportFailureTitle')).toContainText('1 conversations failed');
+});
+
 test('100 failed conversations collapse into one group, copy the reason once, and retry only failures', async ({ page }) => {
     const indexes = Array.from({ length: 101 }, (_, i) => ({
         key: { accountId: A, conversationId: `chat-${i}` }, title: `Conversation ${i}`, updatedAt: 5,

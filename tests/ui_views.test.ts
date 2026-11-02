@@ -324,7 +324,7 @@ test('successful snapshot export shows source generation state separately from m
 
 test('failed external image offers an explicit origin grant without auto-authorizing or exporting', async () => {
     const sourceUrl = 'https://cdn.sanity.io/images/project/preview.png?q=100';
-    await open({ settings: { language: 'zh' }, indexes: [rows[0]], resourcePermissionDenied: true,
+    await open({ settings: { language: 'zh', developerMode: true }, indexes: [rows[0]], resourcePermissionDenied: true,
         records: { [A]: { one: { status: 'partial', format: 'markdown', exportedAt: 100, otherContentMissing: false,
             attachmentIssues: [{ resourceId: 'image', name: 'preview.png', code: 'RESOURCE_UNAVAILABLE', sourceUrl }] } } } });
     await page.locator('.attachment-issues summary').click();

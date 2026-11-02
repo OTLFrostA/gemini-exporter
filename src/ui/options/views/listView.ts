@@ -7,14 +7,14 @@ import { indexActivityTime } from '../../../l2/conversationIndex.js';
 import type { DomainConversationIndex } from '../../../l2/conversationIndex.js';
 import type { ExportRecord } from '../../../application/export/types.js';
 import type { ConversationViewState } from '../state/conversationsStore.js';
-import { text, uiLocale } from '../../shared/settings.js';
+import { text, uiLocale, isDeveloperMode } from '../../shared/settings.js';
 
 /** Display recent ExportRecord facts and transient delivery results; Application still owns Skip. */
 function viewStatus(index: DomainConversationIndex, record: ExportRecord | undefined, prepared: boolean, failed: boolean) {
     if (failed) return { label: text('Export failed', '导出失败'), className: 'status-failed' };
     if (prepared) return { label: text('Rendered, awaiting download', '渲染成功，等待下载'), className: 'status-prepared' };
     if (!record) return { label: '', className: '' };
-    if (record.status === 'partial') {
+    if (record.status === 'partial' && (isDeveloperMode() || record.otherContentMissing || !record.attachmentIssues?.length)) {
         if (record.otherContentMissing || !record.attachmentIssues?.length)
             return { label: text('Incomplete export', '导出不完整'), className: 'status-partial' };
         const onlyExpired = record.attachmentIssues.every(issue =>
@@ -121,7 +121,7 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
                 : text('Source reply completion unconfirmed; available content saved', '原回答结束状态未确认，已保存可用正文');
             content.append(note);
         }
-        if (record?.attachmentIssues?.length) {
+        if (isDeveloperMode() && record?.attachmentIssues?.length) {
             const details = document.createElement('details'); details.className = 'attachment-issues';
             details.open = body.querySelector('details')?.open ?? false;
             details.addEventListener('click', event => event.stopPropagation());

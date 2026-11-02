@@ -70,9 +70,27 @@ test('attachment locator 404 is a source-unavailable warning in diagnostics and 
     assert.match(failureGroupLabel(collector.groups()[0]), /Source attachment unavailable.*404/);
     const summary = exportSummary({ exported: 1, partial: 1, skipped: 0, failed: [], aborted: false,
         expiredConversations: 1, otherPartial: 0,
-        attachmentIssues: [{ ...issue, resourceId: 'missing', name: 'report.md' }] });
+        attachmentIssues: [{ ...issue, resourceId: 'missing', name: 'report.md' }] }, true);
     assert.match(summary, /1 conversations contain unavailable source attachments \(1 attachments\)/);
     assert.doesNotMatch(summary, /Attachment download failed|retry later|Other incomplete/);
+});
+
+test('normal mode hides attachment warnings while retaining body failures and cooldown', () => {
+    const result = { exported: 1, partial: 1, skipped: 2, failed: [key('body')], aborted: true,
+        expiredConversations: 1, otherPartial: 1, rateLimitedUntil: Date.now() + 3600000,
+        attachmentIssues: ['RESOURCE_SOURCE_EXPIRED', 'RESOURCE_ACCESS_RESTRICTED', 'RESOURCE_DOWNLOAD_FAILED',
+            'RESOURCE_PROCESSING_FAILED', 'RESOURCE_UNAVAILABLE'].map(code => ({ resourceId: code, name: code, code })) };
+    const normal = exportSummary(result, false);
+    assert.doesNotMatch(normal, /attachments|Attachment|RESOURCE_/);
+    assert.match(normal, /Other incomplete conversations: 1/);
+    assert.match(normal, /Conversation export failed: 1/);
+    assert.match(normal, /Skipped: 2/);
+    assert.match(normal, /429/);
+    const developer = exportSummary(result, true);
+    assert.match(developer, /unavailable source attachments/);
+    assert.match(developer, /Attachment download failed/);
+    assert.match(developer, /Attachment processing failed/);
+    assert.match(developer, /Access restricted/);
 });
 
 test('source termination metadata never becomes an export failure, even for legacy warning events', () => {

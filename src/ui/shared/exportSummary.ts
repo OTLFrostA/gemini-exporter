@@ -1,6 +1,6 @@
 import type { ExportResult, ExportAttachmentIssue } from '../../application/export/types.js';
 import { resourceFailureText, resourceIssueKind, type ResourceFailure } from '../../shared/resources/resourceResult.js';
-import { text } from './settings.js';
+import { text, isDeveloperMode } from './settings.js';
 
 export function attachmentFailure(issue: ExportAttachmentIssue): ResourceFailure {
     return { ok: false, reason: '', ...issue };
@@ -8,8 +8,8 @@ export function attachmentFailure(issue: ExportAttachmentIssue): ResourceFailure
 export function attachmentIssueText(issue: ExportAttachmentIssue): string {
     return issue.name + ': ' + resourceFailureText(attachmentFailure(issue), text('en', 'zh') === 'zh' ? 'zh' : 'en');
 }
-export function exportSummary(result: ExportResult): string {
-    const issues = result.attachmentIssues ?? [];
+export function exportSummary(result: ExportResult, developerMode = isDeveloperMode()): string {
+    const issues = developerMode ? result.attachmentIssues ?? [] : [];
     const count = (kind: ReturnType<typeof resourceIssueKind>) => issues.filter(issue => resourceIssueKind(attachmentFailure(issue)) === kind).length;
     const expired = count('expired'), restricted = count('restricted'), download = count('download'), processing = count('processing'), unknown = count('unknown');
     const summary = [text(`Successfully downloaded: ${result.exported}`, `成功下载 ${result.exported} 条会话`),
