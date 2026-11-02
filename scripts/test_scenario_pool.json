@@ -1,47 +1,5 @@
 [
   {
-    "id": "geodesy_spherical_arc_bearing_audit",
-    "title": "Spherical geodesy: arc distance and initial-bearing conventions",
-    "domain": "geodesy_spherical_navigation",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original schematic of two locations on a sphere, their meridians and the shorter great-circle arc. Mark the drawing as schematic and supply a Markdown table of explicitly synthetic latitude and longitude pairs, angle units and a chosen sphere radius.",
-      "Derive central angle, arc length and initial bearing in LaTeX using vector dot and cross products. State longitude wrapping, north-clockwise bearing and latitude conventions; explain the coincident and antipodal ambiguities.",
-      "Write complete runnable standard-library Python for great-circle distance and initial bearing. Validate finite latitude, longitude and positive radius. Include executable tests for identical points, equatorial quarter turns, dateline crossing and antipodal points.",
-      "Cross-check a synthetic example with a haversine calculation and a three-dimensional unit-vector calculation. Provide a Markdown table of distances and bearings, and explain why reverse bearing is not generally the forward bearing plus 180 degrees.",
-      "Write a Chinese-English reproducibility audit with the LaTeX formulas, complete Python program and negative tests. Discuss floating-point cancellation, pole conventions and why a sphere and schematic do not establish ellipsoidal survey precision."
-    ]
-  },
-  {
-    "id": "numerics_adaptive_simpson_error_budget",
-    "title": "Numerical integration: adaptive Simpson budgets and failure certificates",
-    "domain": "numerical_analysis_adaptive_quadrature",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define an adaptive numerical integration experiment using several explicitly specified smooth functions with known antiderivatives. Supply a Markdown table of intervals, exact integrals and requested absolute tolerances.",
-      "Derive Simpson quadrature and Richardson correction in LaTeX. State the differentiability assumptions and distinguish a local error estimator from a universal error guarantee.",
-      "Write complete runnable standard-library Python adaptive Simpson integration returning value, estimated error, evaluation count and convergence status. Cache shared samples, split the error budget and enforce a finite recursion limit.",
-      "Provide a hand-checkable subdivision trace for one polynomial and one exponential function, with a Markdown table of intervals, coarse estimates, refined estimates and local budgets.",
-      "Add independent verification against analytic integrals for constant, linear, cubic and exponential cases. Explain why passing these cases does not establish correctness for discontinuities or oscillatory functions.",
-      "Add executable negative tests for nonfinite samples, reversed intervals, a zero-width interval, invalid tolerances, recursion exhaustion and endpoint singularities. Failure status must not be mislabeled as convergence.",
-      "Compare adaptive and uniform composite Simpson integration under a fixed sample budget. Supply complete Python code and a Markdown results table with true and estimated errors for deterministic inputs.",
-      "Write a Chinese-English audit containing the formulas, complete implementation and boundary tests. Discuss cancellation, narrow peaks and aliasing, and explain which claimed error bounds require additional mathematical assumptions."
-    ]
-  },
-  {
     "id": "robotics_planar_two_link_inverse_branches",
     "title": "Planar robotics: inverse-kinematics branches and Jacobian checks",
     "domain": "robotics_planar_inverse_kinematics",
@@ -417,6 +375,48 @@
       "Extend the program to count parse trees using arbitrary precision integers. Cross-check the count by independent exhaustive derivation enumeration limited to this input length.",
       "Add negative tests for a rejected word, missing terminal productions, non-CNF productions, and the empty string. State clearly which features the implementation supports.",
       "Write a reproducibility report containing the grammar, chart, parse count, one valid derivation certificate, and pitfalls involving epsilon rules or unit productions. Include a compact bilingual audit checklist."
+    ]
+  },
+  {
+    "id": "finance_coupon_bond_duration_convexity_audit",
+    "title": "Coupon bond cash flows and interest-rate sensitivity audit",
+    "domain": "Finance: fixed-income valuation and sensitivity",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Draw an original labelled cash-flow timeline for a three-year annual coupon bond with face value 100 and coupon rate 4 percent. Explain payment dates and redemption.",
+      "At annual yield 5 percent, derive the present value, Macaulay duration, modified duration, and convexity using LaTeX. State the compounding convention and all units.",
+      "Provide a Markdown table of discounted cash flows, time weights, and sensitivity contributions. Compute exact repricing for yields 4 percent and 6 percent and compare first- and second-order approximations.",
+      "Write runnable standard-library Python that prices the bond and calculates analytic derivatives. Independently verify derivatives with central finite differences and explicit numerical tolerances.",
+      "Explain the difference between model yield risk, credit risk, and reinvestment risk. Give a bilingual reproducibility checklist and identify assumptions that invalidate the simple duration estimate."
+    ]
+  },
+  {
+    "id": "logic_two_sat_implication_scc_certificate",
+    "title": "2-SAT implication graphs with verifiable assignment and contradiction certificates",
+    "domain": "Logic: satisfiability via strongly connected components",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Explain the implication-graph reduction for 2-SAT with clear notation in LaTeX. Use clauses (a or b), (not a or c), (not b or not c), and (a or not c).",
+      "Build a Markdown table mapping each clause to its two directed implications. Enumerate graph vertices and prove that the construction preserves satisfiability.",
+      "Compute strongly connected components for the example by hand. Produce a concrete satisfying assignment and check every original clause explicitly.",
+      "Provide runnable standard-library Python implementing iterative Kosaraju SCC decomposition and a 2-SAT solver with explicit literal encoding.",
+      "Add an independent verifier that checks a returned assignment against the original clause list. Exhaustively cross-check the solver on all small formulas over two variables.",
+      "Create an unsatisfiable example with a variable and its negation in the same SCC. Return two explicit directed paths witnessing the contradiction and verify each path edge against a source clause.",
+      "Add negative tests for malformed literals, out-of-range variables, empty formulas, repeated clauses, and variables not appearing in any clause. Explain supported input contracts.",
+      "Summarize correctness and O(V+E) complexity. Include the condensation DAG, assignment extraction convention, and a bilingual audit checklist that distinguishes evidence for SAT from evidence for UNSAT."
     ]
   }
 ]
