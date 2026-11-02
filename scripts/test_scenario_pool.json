@@ -1,47 +1,5 @@
 [
   {
-    "id": "optics_paraxial_lens_matrix_audit",
-    "title": "Paraxial optics: lens matrices and image-plane consistency",
-    "domain": "optics_paraxial_ray_transfer",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original schematic of an object, a thin converging lens and its image plane in air. Label the optical axis, propagation direction and signed distances. Mark the drawing as schematic. Give a Markdown table of synthetic object distance, focal length and ray coordinates with explicit units.",
-      "Derive the paraxial propagation and thin-lens matrices in LaTeX for the ray vector (height, angle). State the sign convention and show how the zero upper-right matrix entry determines the image distance.",
-      "Write complete runnable standard-library Python for 2 by 2 ray-transfer matrices and thin-lens imaging. Include executable tests for a real image, a virtual image, an object at twice the focal length, and the singular focal-plane case. Reject nonfinite inputs.",
-      "Calculate a synthetic example independently using the thin-lens equation and matrix composition. Provide a Markdown table of three rays before the lens, after refraction and at the image plane; check magnification and determinant conservation.",
-      "Write a Chinese-English reproducibility audit with the LaTeX formulas, complete Python program and boundary tests. Explain why paraxial rays and a thin lens cannot establish diffraction resolution, chromatic correction or the accuracy of the schematic pixels."
-    ]
-  },
-  {
-    "id": "graphs_maxflow_mincut_residual_certificate",
-    "title": "Network flow: residual paths and exact min-cut certificates",
-    "domain": "graph_theory_flow_certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a small directed capacitated network for a synthetic warehouse routing example with six vertices, integer capacities and one source and sink. Supply a Markdown edge table and distinguish directed edges from their residual reverse edges.",
-      "Derive flow conservation, residual capacity and the max-flow min-cut inequality in LaTeX. Explain which invariants must hold after augmenting a path and why a saturated edge alone does not certify optimality.",
-      "Write a complete runnable standard-library Python Edmonds-Karp implementation returning both edge flows and a reachable residual cut. Validate capacities, source and sink and vertex identities; include executable tests.",
-      "Run a hand-checkable augmentation trace for the synthetic graph, using a Markdown table of paths, bottlenecks and total flow. Include a case requiring a reverse residual edge to correct an earlier routing choice.",
-      "Write an independent certificate checker that validates capacity constraints, conservation, total source flow and cut capacity without trusting the optimizer. Explain how equality of feasible flow and cut capacity certifies the optimum.",
-      "Add executable negative tests that mutate an edge flow above capacity, violate conservation at an internal vertex, corrupt the claimed cut and omit an isolated vertex. Ensure the checker rejects each invalid certificate.",
-      "Compare Edmonds-Karp with exhaustive enumeration of source-side cuts on tiny graphs. Provide complete standard-library code and a table of several deterministic graphs, including zero-capacity and disconnected cases.",
-      "Write a Chinese-English audit including the formulas, complete optimizer and checker, and boundary tests. Discuss parallel edges, self-loops, integer overflow assumptions and why an optimal synthetic flow does not prove real warehouse throughput."
-    ]
-  },
-  {
     "id": "geodesy_spherical_arc_bearing_audit",
     "title": "Spherical geodesy: arc distance and initial-bearing conventions",
     "domain": "geodesy_spherical_navigation",
@@ -417,6 +375,48 @@
       "Add a redundant fourth sample consistent with the recovered polynomial. Give a table of evaluations at x=0 through 5 and identify the fourth sample explicitly.",
       "Change the redundant sample by one modulo 17. Give an exact inconsistency certificate for a degree-at-most-two fit, and explain why a cubic can still interpolate all four points.",
       "Summarize algorithmic costs, validation conditions, and robust error messages. Include Python checks for duplicate abscissas and nonprime moduli, keeping interpolation arithmetic exact."
+    ]
+  },
+  {
+    "id": "hydrology_linear_reservoir_recession_audit",
+    "title": "Linear reservoir rainfall response and water balance audit",
+    "domain": "Hydrology: linear reservoir routing",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Draw a labelled schematic of a linear catchment reservoir with rainfall inflow, stored water, and outlet discharge. Explain the lumped model assumptions.",
+      "For dS/dt=I-S/K, K=2 hours, initial S=0 and constant I=6 cubic metres/hour for 3 hours followed by zero inflow, derive the exact storage and outflow functions in LaTeX.",
+      "Provide a Markdown table at t=0,1,2,3,4,6 hours with inflow, storage, and outflow, including units. Verify cumulative rainfall equals storage plus cumulative discharged volume.",
+      "Write standard-library Python for the exact piecewise solution and a numerical Euler integrator. Assert mass balance and demonstrate convergence as the time step is halved.",
+      "Explain recession half-life, parameter identifiability from discharge alone, and model limits during infiltration or outlet saturation. End with a bilingual reproducibility checklist."
+    ]
+  },
+  {
+    "id": "formal_languages_cyk_parse_certificate",
+    "title": "CYK parsing with explicit chart and derivation certificates",
+    "domain": "Formal languages: context-free grammar parsing",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Explain CYK parsing for a grammar in Chomsky normal form. Use S -> AB | BC, A -> BA | a, B -> CC | b, C -> AB | a and input baaba. Define chart indices precisely in LaTeX.",
+      "Construct the full triangular CYK chart for baaba. Use a Markdown table and show how each nonempty cell follows from smaller spans and production rules.",
+      "Reconstruct one parse tree rooted at S. Show a bracketed tree and a complete leftmost derivation, checking that the leaf sequence is exactly baaba.",
+      "Write runnable standard-library Python implementing CYK with backpointers, recognition, and parse reconstruction. Include an explicit check of every returned production and leaf.",
+      "Derive the time and space bounds including grammar size. Explain how ambiguous grammars affect the count of derivations versus the Boolean recognition chart.",
+      "Extend the program to count parse trees using arbitrary precision integers. Cross-check the count by independent exhaustive derivation enumeration limited to this input length.",
+      "Add negative tests for a rejected word, missing terminal productions, non-CNF productions, and the empty string. State clearly which features the implementation supports.",
+      "Write a reproducibility report containing the grammar, chart, parse count, one valid derivation certificate, and pitfalls involving epsilon rules or unit productions. Include a compact bilingual audit checklist."
     ]
   }
 ]

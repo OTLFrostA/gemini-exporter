@@ -60,7 +60,11 @@
         if (element.nodeType === Node.TEXT_NODE) { prose += element.textContent; return; }
         if (element.nodeType !== Node.ELEMENT_NODE) return;
         if (element.hasAttribute('data-evidence-math')) {
-            flush(); pdfSegments.push({ kind: 'math', text: element.dataset.evidenceMath }); return;
+            const text = element.dataset.evidenceMath;
+            // Gemini emits empty data-math placeholders, including empty table cells.
+            // They contribute no authored formula or text to PDF evidence.
+            if (text.trim()) { flush(); pdfSegments.push({ kind: 'math', text }); }
+            return;
         }
         if (element.tagName === 'PRE') {
             flush(); pdfSegments.push({ kind: 'code', text: (element.querySelector('code') || element).textContent }); return;
