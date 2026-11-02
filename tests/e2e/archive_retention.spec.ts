@@ -15,12 +15,12 @@ test('physical archive bytes survive verified local deletion; missing bodies fai
     await page.locator('#includeAssets').check();await expect(page.locator('#includeAssets')).toBeEnabled();
     await page.locator('[data-chat-id="archive_local"] input').check();
     const downloads: Download[]=[];page.on('download',file=>downloads.push(file));await page.locator('#btnExport').click();
-    await expect.poll(()=>downloads.length).toBe(2);await expect(page.locator('body')).toHaveAttribute('data-busy','false');
-    const file=downloads.find(file=>file.suggestedFilename().endsWith('.md'))!;
-    const attachmentFile=downloads.find(file=>file.suggestedFilename().startsWith('attachments_'))!;
-    const bytes=await readFile((await file.path())!);const attachmentBytes=await readFile((await attachmentFile.path())!);
-    const body=bytes.toString('utf8');expect(body).toContain('Preserved local answer');
-    const JSZip=require(path.resolve(__dirname,'../../lib/jszip.min.js'));const zip=await JSZip.loadAsync(attachmentBytes);
+    await expect.poll(()=>downloads.length).toBe(1);await expect(page.locator('body')).toHaveAttribute('data-busy','false');
+    const file=downloads[0];
+    const bytes=await readFile((await file.path())!);
+    const JSZip=require(path.resolve(__dirname,'../../lib/jszip.min.js'));const zip=await JSZip.loadAsync(bytes);
+    const documentPath=Object.keys(zip.files).find(name=>name.endsWith('.md'));expect(documentPath).toBeTruthy();
+    const body=await zip.file(documentPath).async('string');expect(body).toContain('Preserved local answer');
     const attachment=Object.keys(zip.files).find(x=>x.endsWith('.png'));expect(attachment).toBeTruthy();expect(body).toContain(attachment);
     expect(Buffer.from(await zip.file(attachment).async('uint8array'))).toEqual(Buffer.from(png,'base64'));
     await page.locator('[data-chat-id="archive_local"] input').uncheck();await page.locator('[data-chat-id="metadata_only"] input').check();await page.locator('#btnExport').click();await expect(page.locator('#status')).toContainText('failed: 1');
@@ -30,5 +30,5 @@ test('physical archive bytes survive verified local deletion; missing bodies fai
     await expect(page.locator('#btnClearExported')).toBeVisible();
     await page.locator('#btnClearExported').click();await page.locator('#btnCleanupCancel').click();expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').getExportRecord({accountId:id,conversationId:'archive_local'}),accountId)).toBeTruthy();
     await page.locator('#btnMoreActions').click(); await page.locator('#btnClearExported').click();await page.locator('#btnCleanupConfirm').click();await expect(page.locator('#status')).toHaveText('Records cleared');expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').readConversation({accountId:id,conversationId:'archive_local'}),accountId)).toBeTruthy();
-    await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').ingestDeletedConversation(id,'archive_local'),accountId);expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').readConversation({accountId:id,conversationId:'archive_local'}),accountId)).toBeNull();expect(await readFile((await file.path())!)).toEqual(bytes);expect(await readFile((await attachmentFile.path())!)).toEqual(attachmentBytes);
+    await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').ingestDeletedConversation(id,'archive_local'),accountId);expect(await page.evaluate(id=>Reflect.get(globalThis,'uiFixture').readConversation({accountId:id,conversationId:'archive_local'}),accountId)).toBeNull();expect(await readFile((await file.path())!)).toEqual(bytes);
 });

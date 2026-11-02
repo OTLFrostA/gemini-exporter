@@ -463,7 +463,7 @@ class DiskContentTests(unittest.TestCase):
         cdp.call.assert_called_once_with('Browser.setDownloadBehavior', {
             'behavior': 'allow', 'downloadPath': str(self.root), 'eventsEnabled': True})
 
-    def test_standalone_baseline_ignores_separate_attachment_zip(self):
+    def test_standalone_export_rejects_a_separate_attachment_zip(self):
         cdp = MagicMock()
         cdp.call.return_value = {'result': {}}
         markdown = self.root / 'Conversation_123456.md'
@@ -480,10 +480,10 @@ class DiskContentTests(unittest.TestCase):
         cdp.eval.side_effect = export_now
         with patch('scripts.framework.actions.time.sleep'), \
              patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}) as controls:
-            self.assertEqual(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1, allow_standalone=True), str(markdown))
+            self.assertIsNone(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1, allow_standalone=True))
         controls.assert_called_once_with(cdp, None, False, include_assets=True)
 
-    def test_independent_deliveries_are_verified_together_without_changing_bytes(self):
+    def test_split_deliveries_fail_without_merging_or_changing_downloaded_bytes(self):
         cdp = MagicMock()
         cdp.call.return_value = {'result': {}}
         body = self.root / 'conversations_123456.zip'
@@ -502,12 +502,13 @@ class DiskContentTests(unittest.TestCase):
         with patch('scripts.framework.actions.time.sleep'), \
              patch('scripts.framework.actions.ExtensionActions.configure_export_controls', return_value={'ok': True}):
             result = CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1)
-        with zipfile.ZipFile(result) as archive:
-            self.assertEqual(archive.read('Chat_123456.md'), b'final correction')
-            self.assertEqual(archive.read('assets/image.png'), b'actual downloaded bytes')
+        self.assertIsNone(result)
         with zipfile.ZipFile(body) as archive:
             self.assertEqual(archive.read('Chat_123456.md'), b'initial body')
-        self.assertEqual(json.loads(Path(result + '.json').read_text())['deliveries'], [str(body), str(attachments)])
+        with zipfile.ZipFile(attachments) as archive:
+            self.assertEqual(archive.read('Chat_123456.md'), b'final correction')
+            self.assertEqual(archive.read('assets/image.png'), b'actual downloaded bytes')
+        self.assertFalse((self.root / 'verification_deliveries').exists())
 
     def test_export_idle_wait_observes_cleanup_and_trigger_refuses_a_missed_click(self):
         cdp = MagicMock()

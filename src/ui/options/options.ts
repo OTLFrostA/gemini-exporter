@@ -67,7 +67,6 @@ export async function initWorkbench(): Promise<void> {
     let dismissedFailures = false;
     let currentIssues = new ExportIssueCollector();
     let folderSuggestionPending = false;
-    let splitDelivery = false;
     let connectionError: string | null = null;
     // Browser batches are only staged until their final download is initiated.
     const preparedExportKeys = new Set<string>();
@@ -149,10 +148,6 @@ export async function initWorkbench(): Promise<void> {
         new Set(failed.filter(key => key.accountId === state.accountId).map(key => key.conversationId)));
     const render = () => {
         labelPage();
-        el('splitDeliveryHint').hidden = !splitDelivery;
-        el('splitDeliveryHint').textContent = text(
-            'Documents and attachments download separately. Save or extract documents first, then extract the attachment ZIP into the same folder, replacing corrected documents.',
-            '正文与附件分别交付；请先保存或解压正文，再将附件包解压到同一文件夹，覆盖同名的正文修正版。');
         el('btnPlatformPermissions').textContent = text('Site access', '网站授权');
         const moreButton = control('button', 'btnMoreActions');
         moreButton.setAttribute('aria-label', text('More actions', '更多操作'));
@@ -297,13 +292,12 @@ export async function initWorkbench(): Promise<void> {
         } catch { /* Keep actionable guidance until a verified Content source is available. */ }
     };
     const select = async (id: string) => {
-        if (id !== state.accountId) { splitDelivery = false; lastRequest = null; failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false; }
+        if (id !== state.accountId) { lastRequest = null; failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false; }
         state.selectAccount(id); render(); await refresh();
     };
     const perform = async (kind: Action, task: (signal: AbortSignal) => Promise<void>, cancellable = false) => {
         if (busy) return;
         busy = true; action = kind;
-        splitDelivery = false;
         const taskController = new AbortController();
         controller = cancellable ? taskController : null;
         // Never show the previous operation's percent or label at the start of a new run.
@@ -336,8 +330,6 @@ export async function initWorkbench(): Promise<void> {
         const titleFor = (key: UIExportRequest['keys'][number] | undefined) => key
             && state.indexes.find(index => index.key.accountId === key.accountId
                 && index.key.conversationId === key.conversationId)?.title;
-        splitDelivery = request.delivery === 'browserDownload' && request.includeAssets
-            && (request.format === 'markdown' || request.format === 'html' || request.format === 'json');
         failed = []; dismissedFailures = false; preparedExportKeys.clear(); render();
         const processed = new Set<string>();
         const prepared = new Set<string>();

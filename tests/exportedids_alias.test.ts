@@ -87,7 +87,7 @@ test('failed resources persist only minimal partial status after real delivery',
         messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'missing' }] }],
     }, { title: 'Partial', titleSource: 'provider', updatedAt: 100 });
     const result = await runExport(exportRequest(['partial'], { includeAssets: true }));
-    assert.equal(result.exported, 1); assert.equal(result.partial, 1); assert.equal(host.clicks(), 2);
+    assert.equal(result.exported, 1); assert.equal(result.partial, 1); assert.equal(host.clicks(), 1);
     const records = await listExportRecords(accountId);
     assert.equal(records.partial.status, 'partial');
     assert.equal('hasFailedAssets' in records.partial, false);

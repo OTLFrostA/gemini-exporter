@@ -22,7 +22,7 @@ test('body delivery advances its counter while attachments remain active, and ca
         });
         assert.equal(await page.locator('#progText').textContent(),'Prepared 1 conversations · delivered 1 documents · downloaded 0 attachments');
         assert.equal(await page.locator('body').getAttribute('data-busy'),'true');
-        assert.equal(await page.locator('#splitDeliveryHint').isVisible(),true);
+        assert.equal(await page.locator('#splitDeliveryHint').count(),0);
         assert.equal(await page.locator('.status-exported').count(),0);
         await page.locator('#btnCancel').click();
         await page.evaluate(()=>Reflect.get(window,'harness').finishExport());

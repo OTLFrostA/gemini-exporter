@@ -2,7 +2,8 @@ import { CrossWorldEvents } from '../../../protocol/gemini/protocol.js';
 import type { GeminiCaptureContext, GeminiResponseHandler } from './router.js';
 
 // processSession carries length-prefixed WebChannel JSON frames containing base64
-// protobuf messages. Read only the fields needed for turn identity/completion.
+// protobuf messages. A final answered candidate precedes the persistence receipt;
+// wait for both before Application rereads the server history snapshot.
 type Field = { number: number; value: number | Uint8Array };
 function fields(bytes: Uint8Array): Field[] {
     let offset = 0;
@@ -57,17 +58,20 @@ function turn(encoded: string) {
     if (!/^c_[a-f0-9]{8,64}$/i.test(id) || !/^r_[a-f0-9]+$/i.test(responseId)
         || string(message(envelope, 2), 1) !== responseId) return null;
     const candidates = detail.filter(field => field.number === 5);
-    if (!candidates.length) return null;
-    const answered = candidates.every(candidate => {
+    const persisted = detail.some(field => field.number === 26 && field.value instanceof Uint8Array
+        && field.value.length > 0 && field.value.length <= 4096);
+    const answered = candidates.length > 0 && candidates.every(candidate => {
         if (!(candidate.value instanceof Uint8Array)) return false;
         const fields_ = fields(candidate.value);
         return /^rc_[a-f0-9]+$/i.test(string(fields_, 1)) && scalar(message(fields_, 9), 1) === 2;
     });
-    return { id: id.slice(2), responseId, complete: scalar(envelope, 1) === 1 && answered };
+    return { id: id.slice(2), responseId, complete: scalar(envelope, 1) === 1 && answered, persisted };
 }
 
 export function createProcessSessionHandler() {
     const completed = new Set<string>();
+    const answeredTurns = new Set<string>();
+    const persistedTurns = new Set<string>();
     return (context: GeminiCaptureContext): GeminiResponseHandler => {
         let pending = '';
         let invalid = false;
@@ -106,7 +110,11 @@ export function createProcessSessionHandler() {
                                     id: evidence.id, slot: context.slot, requestAccountObservation: context.requestAccountObservation,
                                 } }, location.origin);
                             }
-                            if (evidence.complete) {
+                            if (evidence.complete) answeredTurns.add(identity);
+                            if (evidence.persisted) persistedTurns.add(identity);
+                            if (answeredTurns.has(identity) && persistedTurns.has(identity)) {
+                                answeredTurns.delete(identity);
+                                persistedTurns.delete(identity);
                                 completed.add(identity);
                                 window.__geminiIsStreaming = false;
                                 window.__geminiLastStreamComplete = Date.now();

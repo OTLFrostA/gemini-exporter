@@ -83,9 +83,9 @@ for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
             assert.deepEqual(state.pdfPrepared, ['image', 'file']);
             assert.ok(state.pdfBindings.image); assert.ok(state.pdfBindings.file);
         }
-        assert.equal(state.packages.length, format === 'pdf' ? 1 : 2);
-        assert.deepEqual(state.packages[0], { delivery: 'browserDownload', groups: 1, files: 1 });
-        if (format !== 'pdf') assert.match(deliveries[1][0].fileName, /^attachments_.*\.zip$/);
+        assert.equal(state.packages.length, 1);
+        assert.deepEqual(state.packages[0], { delivery: 'browserDownload', groups: 1, files: format === 'pdf' ? 1 : format === 'json' ? 4 : 3 });
+        assert.equal(deliveries.length, 1);
     });
 }
 test('PDF supplies L4 the referenced original-file IDs and all prepared bytes', async () => {
@@ -247,7 +247,7 @@ test('failed attachments preserve delivered links and produce an explicit report
     assert.equal(result.partial, 1);
     assert.deepEqual(Object.keys(state.rendererCalls[0].bindings), ['image','file','unused']);
     assert.equal(state.jsonInputs[0].detail.assets.length, 3);
-    assert.equal(deliveries.length, 2, 'body and failure report are independently delivered');
+    assert.equal(deliveries.length, 1, 'corrected body and failure report share the final delivery');
     assert.equal(result.attachmentIssues?.length, 3);
 });
 function gate() {
@@ -256,11 +256,12 @@ function gate() {
     return { promise, release };
 }
 for (const delivery of ['folderWriter', 'browserDownload'] as const) {
-    test(`${delivery} delivers all bodies while the first conversation attachments remain blocked`, { timeout: 5000 }, async () => {
+    test(`${delivery} prepares all bodies while the first conversation attachments remain blocked`, { timeout: 5000 }, async () => {
         const ids = ['first', 'second', 'third', 'fourth', 'fifth'];
         for (const id of ids) seed(id, { assets: true, savedAt: 90 });
         const sourceReads: string[] = [];
-        const bodiesDelivered = gate();
+        const bodiesPrepared = gate();
+        let preparedCount = 0;
         const bodyReceipts: string[] = [];
         const attachments = gate();
         provider.fetchConversationDetail = async (_account, id) => {
@@ -273,15 +274,16 @@ for (const delivery of ['folderWriter', 'browserDownload'] as const) {
             return { bytes: Uint8Array.of(1) };
         };
         const exporting = runExport(request({ keys: ids.map(id => key(id)), delivery }), {
-            onBodyDelivered: value => { bodyReceipts.push(value.conversationId); if (bodyReceipts.length === ids.length) bodiesDelivered.release(); },
+            onConversationPrepared: () => { if (++preparedCount === ids.length) bodiesPrepared.release(); },
+            onBodyDelivered: value => { bodyReceipts.push(value.conversationId); },
         });
         try {
-            await bodiesDelivered.promise;
+            await bodiesPrepared.promise;
             await new Promise<void>(resolve => setImmediate(resolve));
             assert.deepEqual(sourceReads, ids, 'a slow attachment never stops later source reads');
-            assert.deepEqual(bodyReceipts, ids);
+            assert.deepEqual(bodyReceipts, delivery === 'folderWriter' ? ids : []);
             assert.equal(state.compositions.length, ids.length, 'all bodies have been composed and rendered independently');
-            assert.equal(deliveries.length, delivery === 'folderWriter' ? ids.length : 1);
+            assert.equal(deliveries.length, delivery === 'folderWriter' ? ids.length : 0);
             assert.equal(records.size, 0, 'body delivery alone must not claim successful attachment delivery');
             assert.deepEqual(state.releasedKeys, [], 'readers remain alive until attachments settle');
         } finally { attachments.release(); }
@@ -336,22 +338,20 @@ test('PDF keeps its complete document behind attachment completion', {timeout:50
     assert.deepEqual(bodyReceipts, ['first']);
     assert.equal(deliveries.length, 1);
 });
-test('attachment delivery does not wait for a slow body ZIP writer', {timeout:5000}, async () => {
+test('one browser ZIP waits for its writer before any receipt or success record', {timeout:5000}, async () => {
     seed('first', {assets:true});
-    const bodyWriter = gate();
-    const attachmentsDelivered = gate();
-    state.onPackage = async archiveName => { if (!archiveName) await bodyWriter.promise; };
-    state.onDelivery = () => {
-        if (deliveries.at(-1)?.[0].fileName.startsWith('attachments_')) attachmentsDelivered.release();
-    };
+    const writerStarted = gate();
+    const finish = gate();
+    state.onPackage = async () => { writerStarted.release(); await finish.promise; };
     const receipts: string[] = [];
     const exporting = runExport(request(), {onBodyDelivered:value=>receipts.push(value.conversationId)});
     try {
-        await attachmentsDelivered.promise;
-        assert.equal(deliveries.length, 1);
+        await writerStarted.promise;
+        assert.equal(deliveries.length, 0);
         assert.deepEqual(receipts, []);
-        assert.equal(records.size, 0, 'both deliveries must succeed before the full ExportRecord');
-    } finally { bodyWriter.release(); await exporting; }
+        assert.equal(records.size, 0);
+    } finally { finish.release(); await exporting; }
+    assert.equal(deliveries.length, 1);
     assert.deepEqual(receipts, ['first']);
     assert.equal(records.get(address(key()))?.status, 'ok');
 });
@@ -359,29 +359,28 @@ for (const delivery of ['browserDownload','folderWriter'] as const) {
     test(`${delivery}: attachment delivery failure leaves the body delivered without claiming full success`, async () => {
         seed('first', {assets:true});
         records.set(address(key()), previous);
-        state.failDelivery = 2;
+        state.failDelivery = delivery === 'folderWriter' ? 2 : 1;
         const delivered: string[] = [];
         const result = await runExport(request({delivery}), {onBodyDelivered:value=>delivered.push(value.conversationId)});
-        assert.deepEqual(delivered, ['first']);
-        assert.equal(deliveries.length, 2);
+        assert.deepEqual(delivered, delivery === 'folderWriter' ? ['first'] : []);
+        assert.equal(deliveries.length, delivery === 'folderWriter' ? 2 : 1);
         assert.equal(result.exported, 0);
         assert.deepEqual(result.failed, [key()]);
         assert.equal(records.get(address(key())), previous);
     });
 }
-test('cancelling after browser body delivery preserves that receipt and cancels only outstanding attachments', {timeout:5000}, async () => {
+test('cancelling after the complete browser ZIP delivery preserves the committed result', async () => {
     seed('first', {assets:true});
-    const finish = gate();
     const controller = new AbortController();
     const receipts: string[] = [];
-    provider.acquireResource = async () => { await finish.promise; return {bytes:Uint8Array.of(1)}; };
     const result = await runExport(request(), {signal:controller.signal, onBodyDelivered:value=>{
-        receipts.push(value.conversationId); controller.abort(); finish.release();
+        receipts.push(value.conversationId); controller.abort();
     }});
     assert.equal(result.aborted, true);
     assert.deepEqual(receipts, ['first']);
     assert.equal(deliveries.length, 1);
-    assert.equal(records.size, 0);
+    assert.equal(result.exported, 1);
+    assert.equal(records.size, 1);
 });
 test('cancellation drains in-flight attachments, saves prepared bodies and stops queued work', async () => {
     for (const id of ['first', 'second', 'third']) seed(id, { assets: true });
@@ -609,7 +608,7 @@ for (const status of [401, 403, 404, 410]) {
         assert.ok(state.rendererCalls.at(-1)?.bindings.replacement);
         assert.equal(state.rendererCalls.at(-1)?.bindings.image, undefined);
         assert.equal(state.builtFiles[0].plan.fileName, state.builtFiles.at(-1)?.plan.fileName, 'correction replaces the original document when packages are merged');
-        assert.equal(deliveries.length, 2);
+        assert.equal(deliveries.length, 1);
     });
 }
 test('persistent resource restriction stays partial after one refresh; server failures do not refresh', async () => {
@@ -634,7 +633,7 @@ for (const reason of ['offline', 'conversation_not_found', 'abort']) {
         assert.equal(result.partial, reason === 'offline' ? 1 : 0);
         assert.equal(result.otherPartial ?? 0, 0);
         assert.equal(result.aborted, reason === 'abort');
-        assert.equal(deliveries.length, reason === 'offline' ? 2 : 1, 'attachment failure cannot take back the delivered body');
+        assert.equal(deliveries.length, reason === 'conversation_not_found' ? 0 : 1, 'only retained conversations enter the final package');
     });
 }
 

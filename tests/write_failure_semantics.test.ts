@@ -141,10 +141,13 @@ test('a missing companion resource leaves a readable main file and a partial rec
     assert.equal(result.exported, 1);
     assert.equal(result.partial, 1);
     assert.deepEqual(result.failed, []);
-    assert.equal(host.clicks(), 2);
-    assert.match(host.filenames[0], /\.md$/);
-    assert.equal(host.blobs.length, 2, 'a failure report replaces the unavailable companion bytes');
-    assert.match(await host.blobs[0].text(), /Readable main answer/);
+    assert.equal(host.clicks(), 1);
+    assert.match(host.filenames[0], /\.zip$/);
+    assert.equal(host.blobs.length, 1, 'the final ZIP includes the document and failure report');
+    const zip = await JSZip.loadAsync(await host.blobs[0].arrayBuffer());
+    const name = Object.keys(zip.files).find(name => name.endsWith('.md'));
+    assert.ok(name);
+    assert.match(await zip.file(name).async('string'), /Readable main answer/);
     assert.equal((await getExportRecord(key))?.status, 'partial');
     assert.deepEqual(await readConversation(key), before, 'resource acquisition never alters the trusted Domain');
 });

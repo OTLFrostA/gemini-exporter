@@ -589,8 +589,8 @@ class ExtensionActions:
                         fp = os.path.abspath(os.path.join(output_dir, f))
                         try:
                             if allow_standalone and f.lower().endswith('.zip'):
-                                # Text and attachments are independent deliveries. Only
-                                # a ZIP containing the conversation can be its baseline.
+                                # Only a ZIP containing the actual conversation
+                                # can serve as the Markdown baseline.
                                 with zipfile.ZipFile(fp) as archive:
                                     if not any(name.endswith('.md') and '/' not in name for name in archive.namelist()):
                                         continue
@@ -607,34 +607,19 @@ class ExtensionActions:
         if downloaded_file and not ExtensionActions.wait_for_export_idle(cdp_opt, max_wait=max_wait):
             print("❌ ZIP downloaded, but export UI/storage cleanup did not finish")
             return None
-        if downloaded_file and not allow_standalone:
-            # Model the documented user operation: unpack this task's body and
-            # attachment deliveries into one folder, applying corrections last.
-            # Keep every original download; the verification ZIP only copies bytes.
+        if downloaded_file:
+            # One export must deliver one physical file. Never merge split downloads
+            # in the harness: that would hide a product packaging regression.
             deliveries = []
             for name in os.listdir(output_dir):
                 path = os.path.abspath(os.path.join(output_dir, name))
-                if name.lower().endswith('.zip') and os.path.getsize(path) > 0:
+                if (name.lower().endswith('.zip') or allow_standalone and name.lower().endswith('.md')) and os.path.getsize(path) > 0:
                     mtime = os.path.getmtime(path)
                     if path not in baseline_files or mtime > baseline_files[path]:
                         deliveries.append(path)
-            if len(deliveries) > 1:
-                deliveries.sort(key=lambda path: (os.path.basename(path).startswith('attachments_'), os.path.getmtime(path)))
-                combined = {}
-                for path in deliveries:
-                    with zipfile.ZipFile(path) as archive:
-                        for entry in archive.infolist():
-                            if not entry.is_dir():
-                                combined[entry.filename] = archive.read(entry)
-                verification_dir = os.path.join(output_dir, 'verification_deliveries')
-                os.makedirs(verification_dir, exist_ok=True)
-                downloaded_file = os.path.join(verification_dir, f'combined_{time.time_ns()}.zip')
-                with zipfile.ZipFile(downloaded_file, 'w', zipfile.ZIP_DEFLATED) as archive:
-                    for name, data in combined.items():
-                        archive.writestr(name, data)
-                with open(downloaded_file + '.json', 'w', encoding='utf-8') as manifest:
-                    json.dump({'operation': 'extract bodies then attachments; preserve original bytes', 'deliveries': deliveries}, manifest, indent=2)
-                print(f"   📦 合并核验 {len(deliveries)} 个实际下载包，原始文件均保留")
+            if len(deliveries) != 1:
+                print(f"❌ Expected one export download, received {len(deliveries)} physical files")
+                return None
         if not downloaded_file:
             state = cdp_opt.eval("""({
                 busy: document.body.dataset.busy,

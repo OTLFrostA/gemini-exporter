@@ -96,8 +96,7 @@ function sourceTransport(t: { after(fn: () => void): void }, entries: Record<str
     return requested;
 }
 
-// Linked documents and attachments have independent browser deliveries.
-// A full record still requires every participating delivery to succeed.
+// Linked documents and attachments share one final browser package.
 test('S-2: a missing Detail fails its Key while two native v2 conversations land in one ZIP', async t => {
     const host = v2ExportHost(t); realZip(t);
     await seedExportConversation('accounting-one');
@@ -339,13 +338,13 @@ test('an unavailable resource leaves its document intact and delivers a failure 
     assert.equal(result.exported, 1);
     assert.equal(result.partial, 1);
     assert.deepEqual(result.failed, []);
-    assert.equal(host.clicks(), 2);
-    assert.match(host.filenames[0], /\.md$/);
-    const markdown = await host.blobs[0].text();
-    assert.match(markdown, /Answer for resource-fails/);
-    assert.match(markdown, /!\[[^\]]*\]\(assets\//);
-    assert.doesNotMatch(markdown, /!\[[^\]]*\]\(https:/);
+    assert.equal(host.clicks(), 1);
+    assert.match(host.filenames[0], /\.zip$/);
     const {files} = await deliveredContents(host);
+    const markdown = String(await files.find(file => file.name.endsWith('.md'))!.async('string'));
+    assert.match(markdown, /Answer for resource-fails/);
+    assert.match(markdown, /unavailable|failed|missing/i);
+    assert.doesNotMatch(markdown, /!\[[^\]]*\]\(https:/);
     assert.equal(files.filter(file=>file.name.startsWith('assets/')).length,0);
     const report = files.find(file=>file.name.startsWith('attachment-reports/'));
     assert.ok(report);
@@ -364,9 +363,8 @@ test('real Gemini L1 bytes follow the L4 resource binding while Domain asset ide
     assert.equal(result.exported, 1);
     assert.equal(result.partial, 0);
     assert.deepEqual(calls, [uri]);
-    assert.equal(host.clicks(), 2);
-    assert.match(host.filenames[0], /\.md$/);
-    assert.match(host.filenames[1], /^attachments_.*\.zip$/);
+    assert.equal(host.clicks(), 1);
+    assert.match(host.filenames[0], /\.zip$/);
     const { files } = await deliveredContents(host);
     const image = files.find(file => file.name.startsWith('assets/') && file.name.endsWith('.png'));
     assert.ok(image, 'planned asset path is present in the actual ZIP');
@@ -430,7 +428,7 @@ test('two v2 conversations with identical asset IDs never share bytes or packagi
     assert.equal(result.exported, 2);
     assert.equal(result.partial, 0);
     assert.deepEqual(calls, [firstUri, secondUri]);
-    assert.equal(host.clicks(), 2);
+    assert.equal(host.clicks(), 1);
     const { files } = await deliveredContents(host);
     const images = files.filter(file => file.name.startsWith('assets/') && file.name.endsWith('.png'));
     assert.equal(images.length, 2);
@@ -453,7 +451,7 @@ test('resource failure makes only the affected v2 conversation partial, not its 
     assert.equal(result.exported, 2);
     assert.equal(result.partial, 1);
     assert.deepEqual(result.failed, []);
-    assert.equal(host.clicks(), 2);
+    assert.equal(host.clicks(), 1);
     assert.equal((await getExportRecord(exportKey('one-good')))?.status, 'ok');
     assert.equal((await getExportRecord(exportKey('one-bad')))?.status, 'partial');
     const { files } = await deliveredContents(host);

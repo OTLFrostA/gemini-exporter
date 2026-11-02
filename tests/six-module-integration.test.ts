@@ -74,7 +74,7 @@ test('six modules: real L1 admission, IDB reload, Application scan/export, ZIP b
         assert.equal(result.exported, 1); assert.deepEqual(result.failed, []);
         assert.equal(await recordsAtClick[0], null, 'delivery precedes Record commit');
         const files = await readDeliveredFiles({filenames,blobs:await Promise.all(deliveries)});
-        assert.equal(deliveries.length,2);
+        assert.equal(deliveries.length,1);
         const main = files.find(file=>file.name.endsWith('.md'));
         const image = files.find(file=>file.name.endsWith('.png'));
         assert.ok(main && image);

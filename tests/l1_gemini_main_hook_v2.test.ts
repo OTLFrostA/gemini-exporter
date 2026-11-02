@@ -300,7 +300,7 @@ test('Fetch: borrowed receiver, native response and non-Error rejection retain t
 });
 
 const {processSessionGen} = require('./fixtures/providers/geminiProcessSession.js');
-const processWire = {partial: processSessionGen('partial'), answered: processSessionGen('answered')};
+const processWire = {partial: processSessionGen('partial'), answered: processSessionGen('complete')};
 const processUrl = 'https://geminiweb-pa.clients6.google.com/v1/processSession';
 test('processSession: XHR progress completes before channel EOF, exactly once across replay', () => {
     const h = hookHarness(async () => new Response(geminiStreamGen('G_STREAM_EMPTY_HTTP_01')));
@@ -315,7 +315,7 @@ test('processSession: XHR progress completes before channel EOF, exactly once ac
     xhr.responseText += processWire.answered; xhr.emit('progress'); xhr.emit('load');
     assert.equal(h.complete().length, 1);
 });
-for (const body of [processWire.partial, processSessionGen('truncated'), processSessionGen('malformed'), processSessionGen('oversized')]) {
+for (const body of [processWire.partial, processSessionGen('answered'), processSessionGen('receipt'), processSessionGen('truncated'), processSessionGen('malformed'), processSessionGen('oversized')]) {
     test('processSession: partial or malformed protocol never completes: ' + body.slice(0, 12), async () => {
         const h = hookHarness(async () => new Response(body));
         await (await h.win.fetch(processUrl)).text(); await settleHook();

@@ -43,21 +43,19 @@ test('Popup rejects malformed current context without download and allows retry 
     await popup.evaluate(()=>{Object.defineProperty(chrome.tabs,'sendMessage',{configurable:true,value:(_id:number,_m:unknown,cb:(v:unknown)=>void)=>cb({ok:'true'})});});
     await popup.locator('#btnCurrent').click();await expect(popup.locator('#status')).toHaveText('No trusted current conversation');await expect(popup.locator('#btnCurrent')).toBeDisabled();expect(downloads).toBe(1);
 });
-for(const format of ['html','markdown','json'] as const)test(`Popup ${format} physical export delivers the body and a final attachment failure correction`,async({context,extensionId})=>{
+for(const format of ['html','markdown','json'] as const)test(`Popup ${format} physical export delivers one package with its corrected body and failure report`,async({context,extensionId})=>{
     const options=await openOptions(context,extensionId);await seedConversations(options,[{id:'a',body:'Body survives',missingAsset:true}]);
     await options.evaluate(async()=>Reflect.get(globalThis,'uiFixture').updateSettings({includeAssets:true}));
     const popup=await openPopup(context,extensionId);await popup.locator(`[data-format="${format}"]`).click();
     const downloads: Download[]=[];popup.on('download',file=>downloads.push(file));await popup.locator('#btnCurrent').click();
-    await expect.poll(()=>downloads.length).toBe(2);await expect(popup.locator('#btnCurrent')).toBeEnabled();
-    const file=downloads.find(file=>!file.suggestedFilename().startsWith('attachments_'))!;
-    const body=await readFile((await file.path())!,'utf8');expect(body).toContain('Body survives');expect(body).not.toContain('assets/never-delivered.png');
-    const correctionFile=downloads.find(file=>file.suggestedFilename().startsWith('attachments_'))!;
-    const JSZip=require(path.resolve(__dirname,'../../lib/jszip.min.js'));const zip=await JSZip.loadAsync(await readFile((await correctionFile.path())!));
-    const corrected=await zip.file(file.suggestedFilename()).async('string');expect(corrected).toContain('Body survives');
+    await expect.poll(()=>downloads.length).toBe(1);await expect(popup.locator('#btnCurrent')).toBeEnabled();
+    const file=downloads[0];
+    const JSZip=require(path.resolve(__dirname,'../../lib/jszip.min.js'));const zip=await JSZip.loadAsync(await readFile((await file.path())!));
+    const documentPath=Object.keys(zip.files).find(name=>name.endsWith(format==='markdown'?'.md':'.'+format));expect(documentPath).toBeTruthy();
+    const corrected=await zip.file(documentPath).async('string');expect(corrected).toContain('Body survives');
     const report=Object.keys(zip.files).find(name=>name.endsWith('/report.json'));expect(report).toBeTruthy();expect(JSON.parse(await zip.file(report).async('string')).failures).toHaveLength(1);
     if(format==='json'){
-        const initial=JSON.parse(body);expect(initial.resources.image).toMatch(/^assets\//);
         const archive=JSON.parse(corrected);expect(archive.transport).toBeUndefined();expect(archive.resources).toEqual({});expect(archive.version).toBe(1);expect(archive.conversation.detail.assets[0].id).toBe('image');
-    }else{expect(body).toContain('assets/');expect(corrected).toMatch(/unavailable|gem-missing-asset|Attachment failed: Unknown error/);}
+    }else{expect(corrected).toMatch(/unavailable|gem-missing-asset|Attachment failed: Unknown error/);}
     await expect(popup.locator('#btnCurrent')).toBeEnabled();await expect(popup.locator('#status')).toContainText('Attachment failures with unknown cause: 1');await expect(popup.locator('#status')).not.toContainText('Conversation export failed:');
 });
