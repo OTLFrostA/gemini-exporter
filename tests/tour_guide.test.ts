@@ -248,6 +248,28 @@ test('tourGuide - clicking the backdrop preserves the tutorial until explicitly 
     assert.equal(await page.evaluate(() => Reflect.get(window, 'testUi').tour.isActive()), false);
     assert.deepEqual(await read(page, 'patches'), []);
 });
+test('tourGuide - internal Blob downloads work while unrelated synthetic clicks remain blocked', async () => {
+    await open(); await start(4);
+    const file = page.waitForEvent('download');
+    const dispatched = await page.evaluate(() => {
+        const anchor = document.createElement('a');
+        anchor.href = URL.createObjectURL(new Blob(['tutorial download contents'], { type: 'text/markdown' }));
+        anchor.download = 'tutorial.md'; document.body.append(anchor);
+        const started = anchor.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        anchor.remove();
+        const button = document.createElement('button'); document.body.append(button);
+        let action = false; button.addEventListener('click', () => { action = true; });
+        const background = button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        button.remove();
+        return { started, background, action };
+    });
+    assert.deepEqual(dispatched, { started: true, background: false, action: false });
+    const downloaded = await file;
+    assert.equal(downloaded.suggestedFilename(), 'tutorial.md');
+    const downloadedPath = await downloaded.path(); assert.ok(downloadedPath);
+    assert.equal(fs.readFileSync(downloadedPath, 'utf8'), 'tutorial download contents');
+    assert.equal(await page.locator('.tour-popover h2').textContent(), 'Export selected conversations');
+});
 
 test('Takeout prompt exposes three actions and closes before delivering their callbacks', async () => {
     await open();

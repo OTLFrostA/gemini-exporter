@@ -59,6 +59,8 @@ async function seed(id: string, options: { doc?: boolean; image?: boolean } = {}
 function fakeBrowser(t: { after: (fn: () => void) => void }, failClick = false) {
     const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
     const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+    const previousMouseEvent = Object.getOwnPropertyDescriptor(globalThis, 'MouseEvent');
+    Object.defineProperty(globalThis, 'MouseEvent', { configurable: true, value: Event });
     const originalCreate = URL.createObjectURL;
     const blobs: Blob[] = [];
     const filenames: string[] = [];
@@ -66,10 +68,11 @@ function fakeBrowser(t: { after: (fn: () => void) => void }, failClick = false) 
     Object.defineProperty(globalThis, 'document', { configurable: true, value: {
         createElement: (tag: string) => {
             assert.equal(tag, 'a');
-            return { href: '', download: '', remove() {}, click() {
+            return { href: '', download: '', remove() {}, dispatchEvent() {
                 clicks++;
                 filenames.push(this.download);
                 if (failClick) throw new Error('Browser download refused');
+                return true;
             } };
         },
         body: { appendChild() {} },
@@ -87,6 +90,8 @@ function fakeBrowser(t: { after: (fn: () => void) => void }, failClick = false) 
         else Reflect.deleteProperty(globalThis, 'document');
         if (previousLocation) Object.defineProperty(globalThis, 'location', previousLocation);
         else Reflect.deleteProperty(globalThis, 'location');
+        if (previousMouseEvent) Object.defineProperty(globalThis, 'MouseEvent', previousMouseEvent);
+        else Reflect.deleteProperty(globalThis, 'MouseEvent');
     });
     return { blobs, filenames, clicks: () => clicks };
 }

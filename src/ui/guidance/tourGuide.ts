@@ -174,6 +174,9 @@ function overlay(
     };
     const guard = (event: MouseEvent) => {
         const node = event.target;
+        // Internal Blob deliveries are programmatic actions, not clicks on the workbench.
+        if (!event.isTrusted && node instanceof HTMLAnchorElement && node.hasAttribute('download')
+            && node.href.startsWith(`blob:${location.origin}/`)) return;
         if (node instanceof Node && (popover.contains(node) || node instanceof Element && !!node.closest('.tour-coach-card') && container.contains(node) || interactive && [currentTarget(), ...currentRelated()].some(item => item?.contains(node)))) return;
         event.preventDefault();
         event.stopImmediatePropagation();

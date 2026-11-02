@@ -33,18 +33,22 @@ export function v2ExportHost(t: TestContext, onClick: () => void = () => {}) {
     const storage = indexStorage();
     const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
     const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+    const previousMouseEvent = Object.getOwnPropertyDescriptor(globalThis, 'MouseEvent');
     const originalObjectUrl = URL.createObjectURL;
     const blobs: Blob[] = [];
     const filenames: string[] = [];
     let clicks = 0;
+    Object.defineProperty(globalThis, 'MouseEvent', { configurable: true, value: Event });
 
     Object.defineProperty(globalThis, 'document', { configurable: true, value: {
         createElement: (tag: string) => {
             if (tag !== 'a') throw new Error('Unexpected document element: ' + tag);
-            const anchor = { href: '', download: '', remove() {}, click() {
+            const anchor = { href: '', download: '', remove() {}, dispatchEvent(event: Event) {
+                if (event.type !== 'click') throw new Error('Unexpected delivery event');
                 clicks++;
                 filenames.push(anchor.download);
                 onClick();
+                return !event.defaultPrevented;
             } };
             return anchor;
         },
@@ -63,6 +67,8 @@ export function v2ExportHost(t: TestContext, onClick: () => void = () => {}) {
         else Reflect.deleteProperty(globalThis, 'document');
         if (previousLocation) Object.defineProperty(globalThis, 'location', previousLocation);
         else Reflect.deleteProperty(globalThis, 'location');
+        if (previousMouseEvent) Object.defineProperty(globalThis, 'MouseEvent', previousMouseEvent);
+        else Reflect.deleteProperty(globalThis, 'MouseEvent');
         storage.restore();
     });
     return { blobs, filenames, clicks: () => clicks, failStorage: storage.fail };

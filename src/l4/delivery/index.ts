@@ -3,7 +3,7 @@ import type { ExportArtifact } from '../artifacts.js';
 import { FsWriter } from './writers/fsWriter.js';
 import { assertExportPath } from '../packaging/exportPath.js';
 
-/** Resolves on the anchor action, without tracking browser download completion. */
+/** Resolves on an uncancelled download action, without tracking browser download completion. */
 export async function startBrowserDownload(file: ExportArtifact): Promise<void> {
     assertExportPath(file.fileName);
     if (file.fileName.includes('/')) throw new Error('Browser download requires a root-level final file');
@@ -15,7 +15,8 @@ export async function startBrowserDownload(file: ExportArtifact): Promise<void> 
         anchor.href = url;
         anchor.download = file.fileName;
         document.body.appendChild(anchor);
-        anchor.click();
+        const started = anchor.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        if (!started) throw new Error('Browser download action was blocked');
     } catch (error) {
         throw operationError(error, 'FILE_WRITE_FAILED');
     } finally {
