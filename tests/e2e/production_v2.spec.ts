@@ -65,6 +65,21 @@ for (const format of ['markdown', 'html', 'json'] as const) test(`production Opt
     await expect(page.locator('#status')).toContainText('Skipped: 1');
 });
 
+test('a cancelled browser download cannot commit an ExportRecord or report success', async ({ context, extensionId }) => {
+    const page = await workbench(context, extensionId); await seed(page);
+    await page.locator('#btnSelectAll').click();
+    await page.evaluate(() => document.addEventListener('click', event => {
+        if (event.target instanceof HTMLAnchorElement && event.target.hasAttribute('download')) {
+            event.preventDefault(); event.stopImmediatePropagation();
+        }
+    }, true));
+    await page.locator('#btnExport').click();
+    await expect(page.locator('#status')).toContainText('Conversation export failed: 1');
+    expect(await page.evaluate(accountId => Reflect.get(globalThis, 'productionProbe')
+        .getExportRecord({ accountId, conversationId: 'production' }), accountId)).toBeNull();
+    await expect(page.locator('#list .item')).not.toContainText('Export successful');
+});
+
 test('production multi-file export creates ZIP; scan reset clears local history while keeping the downloaded ZIP', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId); await seed(page, ['one', 'two']);
     await page.locator('#btnSelectAll').click();

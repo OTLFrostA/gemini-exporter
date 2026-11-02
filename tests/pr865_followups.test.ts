@@ -67,6 +67,8 @@ function captureBrowserDownloads(click?: () => void) {
     const blobs: Blob[] = [];
     const clicked: string[] = [];
     const oldDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    const oldMouseEvent = Object.getOwnPropertyDescriptor(globalThis, 'MouseEvent');
+    Object.defineProperty(globalThis, 'MouseEvent', { configurable: true, value: Event });
     const oldCreate = URL.createObjectURL;
     const oldRevoke = URL.revokeObjectURL;
     Object.defineProperty(globalThis, 'document', {
@@ -78,9 +80,10 @@ function captureBrowserDownloads(click?: () => void) {
                 return {
                     href: '',
                     download: '',
-                    click() {
+                    dispatchEvent() {
                         click?.();
                         clicked.push(this.download);
+                        return true;
                     },
                     remove() {},
                 };
@@ -100,6 +103,8 @@ function captureBrowserDownloads(click?: () => void) {
             URL.revokeObjectURL = oldRevoke;
             if (oldDocument) Object.defineProperty(globalThis, 'document', oldDocument);
             else Reflect.deleteProperty(globalThis, 'document');
+            if (oldMouseEvent) Object.defineProperty(globalThis, 'MouseEvent', oldMouseEvent);
+            else Reflect.deleteProperty(globalThis, 'MouseEvent');
         },
     };
 }

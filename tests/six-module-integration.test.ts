@@ -47,14 +47,17 @@ function environment() {
 test('six modules: real L1 admission, IDB reload, Application scan/export, ZIP bytes, delivery and Record', async () => {
     const env = environment();
     const oldDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    const oldMouseEvent = Object.getOwnPropertyDescriptor(globalThis, 'MouseEvent');
+    Object.defineProperty(globalThis, 'MouseEvent', { configurable: true, value: Event });
     const deliveries: Promise<Blob>[] = [];
     const filenames: string[] = [];
     const recordsAtClick: ReturnType<typeof storage.getExportRecord>[] = [];
     Object.defineProperty(globalThis, 'document', { configurable: true, value: {
-        body: { appendChild() {} }, createElement() { return { href: '', download: '', remove() {}, click() {
+        body: { appendChild() {} }, createElement() { return { href: '', download: '', remove() {}, dispatchEvent() {
             filenames.push(this.download);
             deliveries.push(fetch(this.href).then(response => response.blob()));
             recordsAtClick.push(storage.getExportRecord(key));
+            return true;
         } }; }
     } });
     __setZipConstructor(require('../lib/jszip.min.js'));
@@ -94,6 +97,7 @@ test('six modules: real L1 admission, IDB reload, Application scan/export, ZIP b
         assert.deepEqual(await storage.getAccount(account.id), account);
     } finally {
         if (oldDocument) Object.defineProperty(globalThis, 'document', oldDocument); else Reflect.deleteProperty(globalThis, 'document');
+        if (oldMouseEvent) Object.defineProperty(globalThis, 'MouseEvent', oldMouseEvent); else Reflect.deleteProperty(globalThis, 'MouseEvent');
         env.restore();
     }
 });

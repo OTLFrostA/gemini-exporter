@@ -48,10 +48,15 @@ test('FsWriter serializes same-path writes through close', async () => {
 });
 test('Browser Delivery clicks once, preserves filename/MIME and revokes the URL', async () => {
     const originalDocument = globalThis.document;
+    const originalMouseEvent = Object.getOwnPropertyDescriptor(globalThis, 'MouseEvent');
     const originalCreate = URL.createObjectURL; const originalRevoke = URL.revokeObjectURL;
     let clicks = 0; let removed = 0; let revoked = ''; let captured: Blob | undefined;
-    const anchor = { href: '', download: '', click() { clicks++; }, remove() { removed++; } };
+    const anchor = { href: '', download: '', dispatchEvent(event: Event) {
+        assert.equal(event.type, 'click'); assert.equal(event.cancelable, true); assert.equal(event.bubbles, true);
+        clicks++; return true;
+    }, remove() { removed++; } };
     try {
+        Object.defineProperty(globalThis, 'MouseEvent', { configurable: true, value: Event });
         globalThis.document = { createElement: () => anchor, body: { appendChild: () => {} } } as unknown as Document;
         URL.createObjectURL = blob => { captured = blob as Blob; return 'blob:probe'; };
         URL.revokeObjectURL = url => { revoked = url; };
@@ -59,11 +64,18 @@ test('Browser Delivery clicks once, preserves filename/MIME and revokes the URL'
         assert.equal(clicks, 1); assert.equal(anchor.download, file.fileName); assert.equal(captured!.type, file.mimeType);
         assert.equal(await captured!.text(), 'hello'); assert.equal(removed, 1);
         await new Promise(r => setTimeout(r, 5)); assert.equal(revoked, 'blob:probe');
-        anchor.click = () => { throw new Error('click failed'); };
+        anchor.dispatchEvent = () => false;
+        await assert.rejects(startBrowserDownload(file), error => error instanceof Error
+            && 'code' in error && error.code === 'FILE_WRITE_FAILED' && /blocked/.test(error.message));
+        anchor.dispatchEvent = () => { throw new Error('click failed'); };
         await assert.rejects(startBrowserDownload(file), /click failed/);
         await new Promise(r => setTimeout(r, 5));
-        assert.equal(removed, 2);
-    } finally { globalThis.document = originalDocument; URL.createObjectURL = originalCreate; URL.revokeObjectURL = originalRevoke; }
+        assert.equal(removed, 3);
+    } finally {
+        globalThis.document = originalDocument; URL.createObjectURL = originalCreate; URL.revokeObjectURL = originalRevoke;
+        if (originalMouseEvent) Object.defineProperty(globalThis, 'MouseEvent', originalMouseEvent);
+        else Reflect.deleteProperty(globalThis, 'MouseEvent');
+    }
 });
 
 test('FsWriter.exists only reads exact paths and propagates errors other than NotFound', async () => {
