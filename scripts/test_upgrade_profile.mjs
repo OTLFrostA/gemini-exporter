@@ -72,9 +72,11 @@ async function install(zipPath, name) {
 }
 
 async function launch() {
-  context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true,
+  context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true, chromiumSandbox: true,
     acceptDownloads: true, args: ['--headless=new', `--disable-extensions-except=${installed}`,
-      `--load-extension=${installed}`, '--enable-unsafe-extension-debugging', '--no-sandbox'] });
+      `--load-extension=${installed}`, '--enable-unsafe-extension-debugging'] });
+  // Only the deterministic Gemini route below may serve web responses in the upgrade test.
+  await context.route(/^https?:\/\//, route => route.abort('blockedbyclient'));
   let [worker] = context.serviceWorkers();
   if (!worker) worker = await context.waitForEvent('serviceworker');
   // The native loadUnpacked update preserves the existing extension ID and
