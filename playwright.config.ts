@@ -10,6 +10,7 @@ export default defineConfig({
   workers: process.env.CI ? 2 : 2,
   use: {
     headless: true,
+    launchOptions: { chromiumSandbox: true },
   },
   reporter: [['list']],
 });
