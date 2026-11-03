@@ -5,7 +5,7 @@ import { A, mount, read } from './helpers/uiPortHarness.js';
 
 let browser: Browser;
 let page: Page;
-before(async () => { browser = await chromium.launch({ headless: true }); });
+before(async () => { browser = await chromium.launch({ chromiumSandbox: true, headless: true }); });
 afterEach(async () => { await page?.close(); });
 after(async () => { await browser?.close(); });
 
