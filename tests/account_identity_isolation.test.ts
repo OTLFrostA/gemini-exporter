@@ -215,7 +215,7 @@ test('conversationsStore - refresh does not hijack a selected empty account', as
 });
 
 test('Options renders account display names or email fallbacks and preserves the selected UUID', async () => {
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         await mount(page, 'options', { accounts: [
