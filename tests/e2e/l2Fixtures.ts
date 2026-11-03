@@ -30,9 +30,11 @@ export const test = base.extend<{ context: BrowserContext; extensionId: string }
                 });
             ` }, bundle: true, platform: 'browser', format: 'iife', outfile: join(extension, 'background.js') });
             context = await chromium.launchPersistentContext('', {
-                channel: 'chromium', headless: true,
-                args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--no-sandbox'],
+                channel: 'chromium', headless: true, chromiumSandbox: true,
+                args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
             });
+            // Native extension tests use local fixtures; unexpected external requests fail closed.
+            await context.route(/^https?:\/\//, route => route.abort('blockedbyclient'));
             await use(context);
         } finally {
             await context?.close();

@@ -37,14 +37,16 @@ export const test = base.extend<{
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium', // Use full Chromium binary to support extensions in true headless
       headless: !isHeaded,
+      chromiumSandbox: true,
       args: [
         ...(isHeaded ? [] : ['--headless=new']),
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
-        '--no-sandbox',
-        '--disable-setuid-sandbox'
+
       ],
     });
+    // Fixture tests do not require outbound traffic; an explicit mock route can override this guard.
+    await context.route(/^https?:\/\//, route => route.abort('blockedbyclient'));
     if (grantGemini) {
       const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
       await worker.evaluate(async () => {

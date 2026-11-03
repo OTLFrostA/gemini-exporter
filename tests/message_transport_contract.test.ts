@@ -46,7 +46,7 @@ test('live tab transport returns opaque replies and handles missing or failed re
     }
 });
 test('current Popup consumer rejects malformed context and legacy rich fetch envelopes before exporting',async()=>{
-    const browser=await chromium.launch({headless:true});try{
+    const browser=await chromium.launch({chromiumSandbox: true, headless:true});try{
         for(const contextReply of [null,[],{}, {ok:'true'}, {ok:true}, {ok:true,accountContext:{accountId:123}},
             {ok:true,accountContext:{accountId:'10000000-0000-4000-8000-000000000001',providerId:'other'},conversationId:'a'},
             {success:true,data:{conversation:{detail:{messages:[]}}}}]) {
@@ -82,7 +82,7 @@ test('account resolution requires a verified provider binding, never a ping-only
     }finally{env.restore();}
 });
 test('Scan UI preserves saved counts for partial limits, cancellation and errors without announcing completion',async()=>{
-    const browser=await chromium.launch({headless:true});try{
+    const browser=await chromium.launch({chromiumSandbox: true, headless:true});try{
         for(const status of ['partial_limit','aborted','error']){
             const page=await browser.newPage();await mount(page,'options',{scanCount:3,scanResult:{status,pagesFetched:2,conversationsFetched:3,reason:'remaining pages unavailable'}});
             await page.locator('#btnSyncAll').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');

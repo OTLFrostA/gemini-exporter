@@ -50,7 +50,7 @@ test('only request-bound structured 1096 is a provider limit; ambiguous thrown t
     }finally{env.restore();}
 });
 test('scan UI reports source end, provider limit and local budget as distinct reasons',async()=>{
-    const {chromium}=await import('@playwright/test');const browser=await chromium.launch({headless:true});
+    const {chromium}=await import('@playwright/test');const browser=await chromium.launch({chromiumSandbox: true, headless:true});
     try{for(const [reason,label] of [['complete','Sync complete'],['provider_limit','Source online access limit'],['max_pages','Local page budget reached']]){
         const page=await browser.newPage();await mount(page,'options',{scanResult:{status:reason==='complete'?'complete':'partial_limit',reason,pagesFetched:11,conversationsFetched:550},settings:{takeoutPromptCompleted:true}});
         await page.locator('#btnSyncAll').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
@@ -58,7 +58,7 @@ test('scan UI reports source end, provider limit and local budget as distinct re
     }}finally{await browser.close();}
 });
 test('Options blocks a concurrent import and releases its busy state after completion',async()=>{
-    const {chromium}=await import('@playwright/test');const browser=await chromium.launch({headless:true});
+    const {chromium}=await import('@playwright/test');const browser=await chromium.launch({chromiumSandbox: true, headless:true});
     try{const page=await browser.newPage();await mount(page,'options',{holdImport:true});
         const file={name:'test.zip',mimeType:'application/zip',buffer:Buffer.from('fixture')};
         await page.locator('#takeoutFileInput').setInputFiles(file);await page.waitForFunction(()=>typeof Reflect.get(window,'harness').finishImport==='function');

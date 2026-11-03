@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { mount, read } from './helpers/uiPortHarness.js';
 import { UI_COPY } from '../src/ui/shared/legacyLabels.js';
 let browser: Browser, page: Page;
-before(async () => { browser = await chromium.launch({ headless: true }); });
+before(async () => { browser = await chromium.launch({ chromiumSandbox: true, headless: true }); });
 afterEach(async () => { await page?.close(); }); after(async () => { await browser?.close(); });
 async function open(kind: 'options' | 'popup' = 'options') { page = await browser.newPage(); await mount(page, kind); await page.locator(kind === 'options' ? '#accountIdSelect' : '#currentChatTitle').waitFor(); }
 

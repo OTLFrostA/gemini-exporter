@@ -11,7 +11,7 @@ const { STEPS } = require('../src/ui/guidance/tourSteps.js') as
     typeof import('../src/ui/guidance/tourSteps.js');
 assertUiNodeIsolation();
 let browser: Browser, page: Page;
-before(async () => { browser = await chromium.launch({ headless: true }); });
+before(async () => { browser = await chromium.launch({ chromiumSandbox: true, headless: true }); });
 afterEach(async () => { await page?.close(); }); after(async () => { await browser?.close(); });
 async function open(patch: Record<string, unknown> = {}, query = '') { page = await browser.newPage(); await mount(page, 'options', { tabs: [], ...patch }, query); await page.locator('#list .item').waitFor(); }
 async function start(index = 0) { await page.evaluate(async index => { const tour = Reflect.get(window, 'testUi').tour; await tour.startTour(); await tour.goToStep((index === 0 ? 0 : index + 2)); }, index); }

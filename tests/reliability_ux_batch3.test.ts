@@ -45,7 +45,7 @@ test('P1-7: current persistent settings and record failures propagate without ov
     }finally{env.restore();}
 });
 test('D7: existing website authorization permits the tour even when Tabs or login checks are unavailable',async()=>{
-    const {chromium}=await import('@playwright/test');const browser=await chromium.launch({headless:true});
+    const {chromium}=await import('@playwright/test');const browser=await chromium.launch({chromiumSandbox: true, headless:true});
     try{for(const state of ['error','missing','connected']){
         const page=await browser.newPage();await mount(page,'options');await page.locator('#list .item').waitFor();
         await page.evaluate(state=>{

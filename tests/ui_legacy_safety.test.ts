@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from 'playwright';
 import { mount, read, A } from './helpers/uiPortHarness.js';
 let browser:Browser,page:Page;
-test.before(async()=>{browser=await chromium.launch({headless:true});});test.afterEach(async()=>{await page?.close();});test.after(async()=>{await browser?.close();});
+test.before(async()=>{browser=await chromium.launch({chromiumSandbox: true, headless:true});});test.afterEach(async()=>{await page?.close();});test.after(async()=>{await browser?.close();});
 async function open(patch:Record<string,unknown>={},kind:'options'|'popup'='options'){page=await browser.newPage();await mount(page,kind,patch);}
 // Relocated intact scenarios from mixed module suites; every scenario below
 // executes actual current UI handlers with IO mocked at the owner boundary.

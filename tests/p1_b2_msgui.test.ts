@@ -38,7 +38,7 @@ test('P1-020: missing resource replies terminate with failure; valid reply survi
     }
 });
 test('P1-021: a thrown export releases UI state and permits the next attempt', async () => {
-    const { chromium } = await import('@playwright/test'); const browser = await chromium.launch({headless:true});
+    const { chromium } = await import('@playwright/test'); const browser = await chromium.launch({chromiumSandbox: true, headless:true});
     try {
         const page = await browser.newPage(); await mount(page, 'options', {throwExport:true});
         await page.locator('#btnSelectAll').click(); await page.locator('#btnExport').click();

@@ -14,7 +14,7 @@ const bundle = buildSync({ stdin: { contents: `
 declare global { interface Window { admission: typeof Storage & typeof AccountAdmission & typeof Ingestion } }
 
 test('Chromium contexts serialize L2 fact admission using native IDB readwrite transactions', async () => {
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
     try {
         const context = await browser.newContext();
         await context.route('http://localhost/admission', route => route.fulfill({ body: '<html></html>', contentType: 'text/html' }));

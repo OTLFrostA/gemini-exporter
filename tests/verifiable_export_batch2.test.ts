@@ -14,7 +14,7 @@ for(const loop of [false,true]) test('D3: Detail pagination reports '+(loop?'cur
 });
 // Failure is a transient task outcome, never a persisted failed ExportRecord.
 test('D5: failed tasks show retry UI and no fabricated success badge',async()=>{
-    const {chromium}=await import('@playwright/test');const browser=await chromium.launch({headless:true});
+    const {chromium}=await import('@playwright/test');const browser=await chromium.launch({chromiumSandbox: true, headless:true});
     try{const page=await browser.newPage();await mount(page,'options',{failExport:true});
         await page.locator('#btnSelectAll').click();await page.locator('#btnExport').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
         assert.equal(await page.locator('#btnRetryFailed').isVisible(),true);

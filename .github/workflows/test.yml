@@ -94,6 +94,10 @@ jobs:
         if: steps.filter.outputs.only_scenarios != 'true'
         run: npx playwright install --with-deps chromium
 
+      - name: Permit sandboxed Playwright on Ubuntu
+        if: steps.filter.outputs.only_scenarios != 'true'
+        run: bash scripts/setup-playwright-sandbox.sh
+
       - name: Run Unit Tests & Syntax Verification
         if: steps.filter.outputs.only_scenarios != 'true'
         run: npm run test:unit
@@ -170,6 +174,10 @@ jobs:
       - name: Install Playwright System Dependencies Only
         if: steps.filter.outputs.only_scenarios != 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
+
+      - name: Permit sandboxed Playwright on Ubuntu
+        if: steps.filter.outputs.only_scenarios != 'true'
+        run: bash scripts/setup-playwright-sandbox.sh
 
       - name: Run Playwright E2E Test Suite
         if: steps.filter.outputs.only_scenarios != 'true'

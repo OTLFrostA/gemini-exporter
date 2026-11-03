@@ -38,7 +38,7 @@ test('Batch 4 - Canonical classifyDetailError and isConfirmedDeletedError in Gem
 test('Batch 4 - listView constructs fixed-origin links and renders untrusted titles as text', async () => {
     const { chromium } = await import('playwright');
     const { mount, A } = require('./helpers/uiPortHarness.js') as typeof import('./helpers/uiPortHarness.js');
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         const title = '<img src=x onerror=alert(1)>';
@@ -62,7 +62,7 @@ test('Batch 4 - listView constructs fixed-origin links and renders untrusted tit
 test('Conversation links use each selected provider with encoded identity', async () => {
     const { chromium } = await import('playwright');
     const { mount, A } = require('./helpers/uiPortHarness.js') as typeof import('./helpers/uiPortHarness.js');
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
     try {
         for (const [providerId, origin] of [['claude', 'https://claude.ai/chat/'], ['chatgpt', 'https://chatgpt.com/c/']]) {
             const page = await browser.newPage();

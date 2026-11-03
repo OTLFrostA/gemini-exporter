@@ -114,7 +114,7 @@ interface TextParts { body: string[]; asset: string[]; }
  */
 async function htmlTextParts(html: string): Promise<TextParts> {
     const { chromium } = await import('playwright');
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         await page.setContent(html);
