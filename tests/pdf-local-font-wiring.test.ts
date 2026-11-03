@@ -455,3 +455,35 @@ test('F: real Typst WASM embeds the mounted Mono font in a PDF containing code',
         restore();
     }
 });
+
+test('Runtime font reads overlap with a small pool and retain fallback order on failure', async () => {
+    let active = 0;
+    let maximum = 0;
+    const mounted: Uint8Array[][] = [];
+    const fonts = Array.from({ length: 5 }, (_, index) => ({
+        family: 'Local ' + index,
+        postscriptName: 'Local' + index,
+        style: 'Regular',
+        source: 'local' as const,
+        getBytes: async () => {
+            active++;
+            maximum = Math.max(maximum, active);
+            try {
+                await new Promise<void>(resolve => setImmediate(resolve));
+                if (index === 2) throw new Error('font unavailable');
+                return Uint8Array.of(index + 1);
+            } finally { active--; }
+        },
+    }));
+    const result = await mountRuntimeFonts(
+        { fonts, diagnostics: [], fallbackChain: [], localFontsAvailable: true },
+        { setRuntimeFonts: (bytes: Uint8Array[]) => { mounted.push(bytes); } },
+    );
+    assert.strictEqual(maximum, 3, 'font bytes must be read concurrently but with bounded memory');
+    assert.strictEqual(active, 0);
+    assert.deepStrictEqual(mounted[0].map(bytes => bytes[0]), [1, 2, 4, 5]);
+    assert.deepStrictEqual(result.mountedNames.map((name: string) => name.split(' (')[0]),
+        ['Local 0', 'Local 1', 'Local 3', 'Local 4']);
+    assert.strictEqual(result.diagnostics.length, 1);
+    assert.match(result.diagnostics[0].message, /font unavailable/);
+});

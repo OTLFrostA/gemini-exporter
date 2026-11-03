@@ -211,3 +211,42 @@ test('An unavailable selected Gemini account cannot fall back to another Gemini 
     await assert.rejects(route.resolveScanTarget(A), /Open Gemini/);
     assert.equal(discoveries, 0);
 });
+
+test('Unselected scan discovers independent providers concurrently', async t => {
+    withChrome(t, { runtime: { lastError: null }, tabs: { query: async () => [] } });
+    const started: string[] = [];
+    const discover = (platform: string) => async () => {
+        started.push(platform);
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.deepEqual(started, ['chatgpt', 'claude', 'grok'], 'provider probes should already be in flight');
+        return [];
+    };
+    const route = router({
+        'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: discover('chatgpt') },
+        'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: discover('claude') },
+        'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: discover('grok') },
+    });
+    await assert.rejects(route.resolveScanTarget(), /Open Gemini/);
+});
+
+test('Selected ChatGPT scan does not probe unrelated platforms', async t => {
+    const chatgpt = { id: B, providerId: 'chatgpt', providerAccountId: '["user","workspace"]' };
+    const previous = accounts[B];
+    accounts[B] = chatgpt;
+    t.after(() => { accounts[B] = previous; });
+    withChrome(t, { runtime: { lastError: null }, tabs: { query: async () => [] } });
+    const calls: string[] = [];
+    const route = router({
+        'src/runtime/capabilities/chatgptDiscovery.js': {
+            discoverChatGPTAccounts: async () => { calls.push('chatgpt'); return [chatgpt]; },
+        },
+        'src/runtime/capabilities/claudeDiscovery.js': {
+            discoverClaudeAccounts: async () => { calls.push('claude'); throw new Error('Unrelated Claude probe'); },
+        },
+        'src/runtime/capabilities/grokDiscovery.js': {
+            discoverGrokAccounts: async () => { calls.push('grok'); throw new Error('Unrelated Grok probe'); },
+        },
+    });
+    assert.equal(await route.resolveScanTarget(B), B);
+    assert.deepEqual(calls, ['chatgpt']);
+});

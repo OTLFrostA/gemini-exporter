@@ -24,25 +24,34 @@ export async function mountRuntimeFonts(
     const bytes: Uint8Array[] = [];
     const names: string[] = [];
     const diagnostics: RenderDiagnostic[] = [];
-    for (const font of resolution.fonts) {
-        try {
-            const data = await font.getBytes();
-            if (data && data.length > 0) {
-                bytes.push(data);
-                names.push(`${font.family} (local, ${font.postscriptName})`);
-            } else {
-                diagnostics.push({
-                    severity: 'warning',
-                    code: 'TYPST_LOCAL_FONT_READ_FAILED',
-                    message: `Local font "${font.family}" (${font.postscriptName}) returned empty bytes; it will not be mounted in the Typst sandbox.`,
-                });
-            }
-        } catch (e) {
+    type FontRead = { ok: true; data: Uint8Array } | { ok: false; error: unknown };
+    const reads: FontRead[] = [];
+    const remaining = resolution.fonts.entries();
+    const readNext = async (): Promise<void> => {
+        for (const [index, font] of remaining) {
+            try { reads[index] = { ok: true, data: await font.getBytes() }; }
+            catch (error) { reads[index] = { ok: false, error }; }
+        }
+    };
+    // Read independent font blobs in a small pool; preserve resolution order for Typst fallbacks.
+    await Promise.all(Array.from({ length: Math.min(3, resolution.fonts.length) }, readNext));
+    for (const [index, font] of resolution.fonts.entries()) {
+        const read = reads[index];
+        if (read.ok && read.data?.length > 0) {
+            bytes.push(read.data);
+            names.push(`${font.family} (local, ${font.postscriptName})`);
+        } else if (read.ok) {
+            diagnostics.push({
+                severity: 'warning',
+                code: 'TYPST_LOCAL_FONT_READ_FAILED',
+                message: `Local font "${font.family}" (${font.postscriptName}) returned empty bytes; it will not be mounted in the Typst sandbox.`,
+            });
+        } else {
             diagnostics.push({
                 severity: 'warning',
                 code: 'TYPST_LOCAL_FONT_READ_FAILED',
                 message: `Local font "${font.family}" (${font.postscriptName}) failed to read bytes (${
-                    e instanceof Error ? e.message : String(e)
+                    read.error instanceof Error ? read.error.message : String(read.error)
                 }); it will not be mounted in the Typst sandbox.`,
             });
         }

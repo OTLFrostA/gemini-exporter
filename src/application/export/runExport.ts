@@ -382,11 +382,27 @@ export async function runExport(request: ExportRequest, options: {
                 const prepare = async (source: ExportSource, plan: ExportPathPlan | undefined, previous?: PreparedResources): Promise<PendingExport> => {
                     const reused = new Set<string>();
                     if (directory && plan) {
-                        for (const id of source.requiredIds) {
-                            signal.throwIfAborted();
+                        const checks = [...source.requiredIds].flatMap(id => {
                             const path = plan.resources[id];
-                            if (path && await folderFileExists(directory, path)) reused.add(id);
-                        }
+                            return path ? [{ id, path }] : [];
+                        });
+                        const remaining = checks.values();
+                        let stopped = false;
+                        const checkExisting = async (): Promise<void> => {
+                            try {
+                                for (const { id, path } of remaining) {
+                                    if (stopped) return;
+                                    signal.throwIfAborted();
+                                    if (await folderFileExists(directory, path)) reused.add(id);
+                                }
+                            } catch (error) {
+                                stopped = true;
+                                throw error;
+                            }
+                        };
+                        // Independent read-only folder probes must not serialize every attachment.
+                        const settled = await Promise.allSettled(Array.from({ length: Math.min(4, checks.length) }, checkExisting));
+                        for (const outcome of settled) if (outcome.status === 'rejected') throw outcome.reason;
                     }
                     // A refresh retries failed identities only; successful bytes remain task-owned.
                     const requiredIds = new Set([...source.requiredIds].filter(id => !reused.has(id) && !previous?.get(id)?.ok));
