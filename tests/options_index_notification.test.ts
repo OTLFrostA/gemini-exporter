@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 import { mount, A, B } from './helpers/uiPortHarness.js';
 
 test('Options refreshes accepted current-account Index facts on focus without legacy syncUpdate IPC', async () => {
-    const browser = await chromium.launch({ headless: true }); try {
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true }); try {
         const page = await browser.newPage(); await mount(page, 'options'); await page.locator('#list .item').waitFor();
         await page.evaluate(({ A, B }) => { const h = Reflect.get(window, 'harness');
             h.indexes.push({ key: { accountId: A, conversationId: 'fresh' }, title: 'Accepted current account', updatedAt: 10 },
