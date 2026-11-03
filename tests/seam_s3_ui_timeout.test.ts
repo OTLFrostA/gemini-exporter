@@ -8,7 +8,7 @@ import { mount, read } from './helpers/uiPortHarness.js';
 // Popup/Options response to the frozen mocked v2 transport is under test.
 
 test('failed Scan releases Options controls and reports the Runtime/Sync error', async () => {
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         await mount(page, 'options', { failScan: true });
@@ -20,7 +20,7 @@ test('failed Scan releases Options controls and reports the Runtime/Sync error',
 });
 
 test('Popup passes a bounded v2 current-context request and releases busy state on error', async () => {
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         await mount(page, 'popup');
