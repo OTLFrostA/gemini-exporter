@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { chromium, type Browser, type Page } from 'playwright';
 import { A, B, mount, read } from './helpers/uiPortHarness.js';
 let browser: Browser, page: Page;
-before(async () => { browser = await chromium.launch({ headless: true }); });
+before(async () => { browser = await chromium.launch({ chromiumSandbox: true, headless: true }); });
 afterEach(async () => { await page?.close(); });
 after(async () => { await browser?.close(); });
 const records = (count: number) => Object.fromEntries(Array.from({ length: count }, (_, i) => [String(i), { status: 'ok', format: 'markdown', exportedAt: 1 }]));
