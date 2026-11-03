@@ -7,7 +7,7 @@ import { getSettings, updateSettings } from '../src/application/settings/index.j
 import { isVersionGreater } from '../src/shared/utils/pathUtils.js';
 import { FEATURE_RELEASES, getLatestEligibleFeature } from '../src/ui/guidance/featureReleases.js';
 let browser: Browser, page: Page;
-before(async () => { browser = await chromium.launch({ headless: true }); });
+before(async () => { browser = await chromium.launch({ chromiumSandbox: true, headless: true }); });
 afterEach(async () => { await page?.close(); }); after(async () => { await browser?.close(); });
 test('feature version comparison uses numeric components at the current shared owner', () => {
     for (const [a, b, expected] of [['1.10.0', '1.9.0', true], ['1.5.0', '1.5.0', false], ['1.4.0', '1.5.0', false], ['2.0.0', '1.99.99', true]] as const) assert.equal(isVersionGreater(a, b), expected);
