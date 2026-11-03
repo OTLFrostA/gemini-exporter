@@ -69,9 +69,11 @@ export class GrokProvider implements AIProvider {
             const result = await this.apiRead(path, account.providerAccountId, body);
             signal?.throwIfAborted(); return result;
         };
-        const metadata = await read('/rest/app-chat/conversations_v2/' + id + '?includeWorkspaces=true&includeTaskResult=true');
         const base = '/rest/app-chat/conversations/' + id;
-        const tree = await read(base + '/response-node?includeThreads=true');
+        const [metadata, tree] = await Promise.all([
+            read('/rest/app-chat/conversations_v2/' + id + '?includeWorkspaces=true&includeTaskResult=true'),
+            read(base + '/response-node?includeThreads=true'),
+        ]);
         const nodes = grokObject(tree).responseNodes;
         if (!Array.isArray(nodes)) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Invalid Grok response nodes');
         const ids = nodes.map(value => { const id = grokObject(value).responseId;
