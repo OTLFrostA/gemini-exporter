@@ -35,6 +35,8 @@ jobs:
         run: npm ci
       - name: Install Chromium for mocked DOM component suites
         run: npx playwright install --with-deps chromium
+      - name: Permit sandboxed Playwright on Ubuntu
+        run: bash scripts/setup-playwright-sandbox.sh
       - name: Run UI suites independently of unrelated module type errors
         run: |
           node - <<'NODE'
