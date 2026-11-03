@@ -820,3 +820,24 @@ for (const format of ['markdown', 'html', 'json'] as const) {
         assert.ok(!records.get(address(key()))?.attachmentIssues?.some(issue => issue.resourceId === 'image'));
     });
 }
+
+test('Folder preflight overlaps independent attachment lookups before acquiring missing bytes', async () => {
+    seed('first', { assets: true });
+    let active = 0;
+    let maximum = 0;
+    const probed: string[] = [];
+    Object.defineProperty(state.existingFiles, 'has', { value: async (path: string) => {
+        probed.push(path);
+        active++;
+        maximum = Math.max(maximum, active);
+        await new Promise<void>(resolve => setImmediate(resolve));
+        active--;
+        return path === 'mock/image';
+    } });
+    const result = await runExport(request({ format: 'json', delivery: 'folderWriter' }));
+    assert.equal(result.exported, 1);
+    assert.equal(result.partial, 0);
+    assert.equal(maximum, 3, 'independent path existence checks should overlap');
+    assert.deepEqual(probed, ['mock/image', 'mock/file', 'mock/unused']);
+    assert.deepEqual(events.filter(event => event.startsWith('acquire:')), ['acquire:file', 'acquire:unused']);
+});
