@@ -98,3 +98,62 @@ for (const persistent of [false, true]) test(`fsWriter - stale snapshot retry is
     assert.equal(writes, opened);
     assert.equal(aborted, persistent ? 3 : 1);
 });
+
+test('Folder delivery overlaps distinct files with a bounded pool but preserves duplicate-path order', async () => {
+    const { writeToFolder } = require('../src/l4/delivery/index.js');
+    const writes: Array<{ name: string; content: unknown }> = [];
+    let active = 0;
+    let maximum = 0;
+    const directory = {
+        queryPermission: async () => 'granted',
+        getFileHandle: async (name: string) => ({ createWritable: async () => ({
+            write: async (content: unknown) => {
+                active++;
+                maximum = Math.max(maximum, active);
+                await new Promise<void>(resolve => setImmediate(resolve));
+                writes.push({ name, content });
+                active--;
+            },
+            close: async () => {},
+            abort: async () => {},
+        }) }),
+    };
+    const files = [
+        { fileName: 'a.txt', content: 'first', mimeType: 'text/plain' },
+        { fileName: 'b.txt', content: 'b', mimeType: 'text/plain' },
+        { fileName: 'c.txt', content: 'c', mimeType: 'text/plain' },
+        { fileName: 'a.txt', content: 'second', mimeType: 'text/plain' },
+        { fileName: 'd.txt', content: 'd', mimeType: 'text/plain' },
+    ];
+    await writeToFolder(files, directory);
+    assert.equal(maximum, 3, 'file writes should overlap but stay bounded');
+    assert.equal(active, 0);
+    assert.equal(writes.length, 5);
+    assert.deepStrictEqual(writes.filter(write => write.name === 'a.txt').map(write => write.content),
+        ['first', 'second'], 'same-path writes must retain their input order');
+});
+
+test('Folder delivery drains in-flight writes before rejecting and stops scheduling new files', async () => {
+    const { writeToFolder } = require('../src/l4/delivery/index.js');
+    const started: string[] = [];
+    let active = 0;
+    const directory = {
+        queryPermission: async () => 'granted',
+        getFileHandle: async (name: string) => ({ createWritable: async () => ({
+            write: async () => {
+                started.push(name);
+                active++;
+                try {
+                    await new Promise<void>(resolve => setImmediate(resolve));
+                    if (name === 'fail.txt') throw new Error('disk full');
+                } finally { active--; }
+            },
+            close: async () => {},
+            abort: async () => {},
+        }) }),
+    };
+    await assert.rejects(writeToFolder(['fail.txt', 'b.txt', 'c.txt', 'later.txt'].map(fileName =>
+        ({ fileName, content: fileName, mimeType: 'text/plain' })), directory), /disk full/);
+    assert.equal(active, 0, 'no writable may remain active after rejection');
+    assert.ok(!started.includes('later.txt'), 'failed delivery should stop scheduling further files');
+});
