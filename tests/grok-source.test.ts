@@ -401,3 +401,31 @@ test('Grok image metadata reuses verified identity and preserves captured-image 
         generation: { providerRequestId: uuid },
     }]);
 });
+
+test('Grok detail overlaps independent metadata and initial tree requests', async () => {
+    const env = indexStorage();
+    try {
+        const f = fixture();
+        const account = await getOrCreateAccount('grok', '11111111-1111-4111-8111-111111111111');
+        let treeReads = 0;
+        const provider = new GrokProvider({
+            images: async () => [],
+            apiRead: async path => {
+                if (path.includes('conversations_v2')) {
+                    await new Promise<void>(resolve => setImmediate(resolve));
+                    assert.equal(treeReads, 1, 'initial tree request must start before metadata completes');
+                    return metadataGen('GR_METADATA_01');
+                }
+                if (path.endsWith('response-node?includeThreads=true')) {
+                    treeReads++;
+                    return treeGen('GR_TREE_STABLE_01');
+                }
+                if (path.endsWith('load-responses')) return responsesGen('GR_RESPONSES_01');
+                throw new Error('Unexpected Grok source request: ' + path);
+            },
+        });
+        await provider.fetchConversationDetail(account.id, f.id);
+        assert.equal((await getDetail({ accountId: account.id, conversationId: f.id }))?.quality.status, 'complete');
+        assert.equal(treeReads, 2, 'snapshot verification must still re-read the tree');
+    } finally { env.restore(); }
+});
