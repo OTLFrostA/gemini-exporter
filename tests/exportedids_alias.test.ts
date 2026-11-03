@@ -105,7 +105,7 @@ test('empty conversations use current ok/partial status without the retired empt
 test('legacy partial export record shows incomplete export badge in both locales', async () => {
     const { chromium } = await import('playwright');
     const { mount, A } = require('./helpers/uiPortHarness.js') as typeof import('./helpers/uiPortHarness.js');
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         await mount(page, 'options', { records: { [A]: { a: { ...record(100), status: 'partial' } } } });
