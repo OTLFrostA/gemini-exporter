@@ -52,7 +52,7 @@ function currentContracts(request: ExportRequest, progress: ExportProgress): voi
 void currentContracts;
 
 test('current completion result distinguishes failed exports and exposes retry without a durable session banner', async () => {
-    const browser = await chromium.launch({ headless: true }); try {
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true }); try {
         for (const failExport of [false, true]) {
             const page = await browser.newPage(); await mount(page, 'options', { failExport });
             await page.locator('#btnSelectAll').click(); await page.locator('#btnExport').click(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
