@@ -67,7 +67,8 @@ def main(argv=None):
     args, extra = parser.parse_known_args(argv)
     extra = extra[1:] if extra[:1] == ['--'] else extra
     # Keep the identity and log paths controlled by this launcher.
-    reserved = ('--user-data-dir', '--remote-debugging', '--log-file', '--enable-logging')
+    reserved = ('--user-data-dir', '--remote-debugging', '--log-file', '--enable-logging',
+                '--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security')
     if any(arg.startswith(reserved) for arg in extra):
         parser.error('Profile, debug endpoint and log flags are managed by the launcher')
     profile = Path(args.profile).resolve()
@@ -86,7 +87,8 @@ def main(argv=None):
         log_dir = profile / 'diagnostics' / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S') + f'-{os.getpid()}')
         log_dir.mkdir(parents=True)
         command = [args.chrome, f'--user-data-dir={profile}', f'--load-extension={Path(args.repo).resolve()}',
-                   f'--remote-debugging-port={args.port}', '--enable-unsafe-extension-debugging',
+                   f'--remote-debugging-port={args.port}', '--remote-debugging-address=127.0.0.1',
+                   '--enable-unsafe-extension-debugging',
                    '--no-first-run', '--no-default-browser-check', '--enable-logging',
                    f'--log-file={log_dir / "chrome.log"}', *extra]
         metadata = dict(started_at=timestamp(), command=command, profile=str(profile),
