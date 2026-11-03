@@ -26,7 +26,7 @@ for (const input of Object.keys(build.metafile.inputs)) {
 const bundle = build.outputFiles[0].text;
 
 before(async () => {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ chromiumSandbox: true, headless: true });
     page = await browser.newPage();
     await page.route('http://localhost/storage-test', route => route.fulfill({ body: '<html></html>', contentType: 'text/html' }));
     await page.goto('http://localhost/storage-test');
