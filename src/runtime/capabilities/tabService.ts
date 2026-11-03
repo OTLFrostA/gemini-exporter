@@ -91,19 +91,22 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
         if (accounts.has(preferred.id)) return preferred.id;
         throw new ScanConnectionError('gemini', 'Open Gemini, log in and refresh the page before scanning.');
     }
-    try {
-        for (const account of await discoverChatGPTAccounts()) accounts.add(account.id);
-    } catch (error) {
-        if (preferred?.providerId === 'chatgpt') throw error;
+    const discoveries = [
+        { providerId: 'chatgpt', run: discoverChatGPTAccounts },
+        { providerId: 'claude', run: discoverClaudeAccounts },
+        { providerId: 'grok', run: discoverGrokAccounts },
+    ] as const;
+    // Selected accounts never need to probe other platforms. Unselected discovery is independent.
+    const selected = discoveries.some(source => source.providerId === preferred?.providerId) ? preferred?.providerId : null;
+    const sources = selected ? discoveries.filter(source => source.providerId === selected) : discoveries;
+    const results = await Promise.allSettled(sources.map(source => source.run()));
+    for (const [index, outcome] of results.entries()) {
+        if (outcome.status === 'rejected') {
+            if (preferred?.providerId === sources[index].providerId) throw outcome.reason;
+            continue;
+        }
+        for (const account of outcome.value) accounts.add(account.id);
     }
-    try {
-        for (const account of await discoverClaudeAccounts()) accounts.add(account.id);
-    } catch (error) {
-        if (preferred?.providerId === 'claude') throw error;
-    }
-    try {
-        for (const account of await discoverGrokAccounts()) accounts.add(account.id);
-    } catch (error) { if (preferred?.providerId === 'grok') throw error; }
     if (preferred?.providerId === 'grok' && !accounts.has(preferred.id)) throw new ScanConnectionError('grok', 'Open Grok, log in and connect the selected account before scanning.');
     if (preferredAccountId && accounts.has(preferredAccountId)) return preferredAccountId;
     if (preferred?.providerId === 'chatgpt') throw new ScanConnectionError('chatgpt', 'Open ChatGPT, log in and connect the selected account before scanning.');
