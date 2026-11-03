@@ -30,10 +30,24 @@ export async function writeToFolder(files: readonly ExportArtifact[], directory:
     for (const file of files) assertExportPath(file.fileName);
     const writer = new FsWriter(directory);
     await writer.init();
-    for (const file of files) {
-        const path = await writer.writeFile(file.fileName, file.content);
-        if (path !== file.fileName) throw new Error('Folder writer changed planned path');
-    }
+    const remaining = files.values();
+    let stopped = false;
+    const writeNext = async (): Promise<void> => {
+        try {
+            for (const file of remaining) {
+                if (stopped) return;
+                const path = await writer.writeFile(file.fileName, file.content);
+                if (path !== file.fileName) throw new Error('Folder writer changed planned path');
+            }
+        } catch (error) {
+            stopped = true;
+            throw error;
+        }
+    };
+    // Files at different paths can progress independently; FsWriter serializes duplicate paths.
+    // Wait for every in-flight write before returning an error so no late writes escape delivery.
+    const settled = await Promise.allSettled(Array.from({ length: Math.min(3, files.length) }, writeNext));
+    for (const outcome of settled) if (outcome.status === 'rejected') throw outcome.reason;
 }
 
 /** Read-only lookup inside the selected export root. */
