@@ -250,3 +250,19 @@ test('boundary reader includes TSX components and resolves their runtime imports
     const view = resolve(core, 'ui/options/views/listView.ts');
     assert.ok(dependencies(view).some(edge => edge.runtime && edge.target === 'ui/options/views/conversationList.tsx'));
 });
+
+test('UI export session owns observations while state models and React views stay separate', () => {
+    const session = 'ui/options/controllers/exportSession.ts';
+    const file = sources.get(session);
+    assert.ok(file);
+    const imports = specifiers(readFileSync(file, 'utf8'));
+    assert.ok(imports.every(specifier => specifier !== 'react' && !specifier.startsWith('react-dom')));
+    for (const edge of graph.get(session) ?? []) if (edge.runtime) {
+        assert.ok(edge.target.startsWith('ui/') && !edge.target.startsWith('ui/options/views/'),
+            `${session} bypasses its UI observation boundary through ${edge.target}`);
+    }
+    for (const owner of ['ui/options/state/exportIssues.ts', 'ui/options/state/foregroundTask.ts']) {
+        assert.ok(sources.has(owner));
+        assert.ok((graph.get(owner) ?? []).every(edge => !edge.runtime), `${owner} must remain a data model`);
+    }
+});

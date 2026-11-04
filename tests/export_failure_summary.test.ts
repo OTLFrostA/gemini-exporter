@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ExportIssueCollector, copyExportFailures, failureGroupLabel } from '../src/ui/options/views/exportFailures.js';
+import { ExportIssueCollector } from '../src/ui/options/state/exportIssues.js';
+import { copyExportFailures, failureGroupLabel } from '../src/ui/options/views/exportFailures.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { exportSummary } from '../src/ui/shared/exportSummary.js';
 import type { OperationIssue } from '../src/shared/errors/operationError.js';

@@ -146,3 +146,96 @@ test('failed export temporarily overrides an old success badge and retry clears 
         assert.equal(await page.locator('.status-failed').count(), 0);
     } finally { await browser.close(); }
 });
+
+test('cancelling and final refresh keep one operation owner and reject subsequent progress', async () => {
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
+    try {
+        const page = await browser.newPage();
+        await mount(page, 'options', { holdExport: true, holdRefresh: true });
+        await page.locator('#btnSelectAll').click();
+        await page.locator('#btnExport').click();
+        await page.waitForFunction(() => !!Reflect.get(window, 'harness').finishExport);
+        await page.evaluate(() => {
+            const h = Reflect.get(window, 'harness');
+            h.aborts = 0;
+            h.exportOptions.signal.addEventListener('abort', () => h.aborts++);
+        });
+        await page.locator('#btnCancel').click();
+        assert.equal(await page.locator('#btnCancel').isDisabled(), true);
+        assert.equal(await page.locator('#btnCancel').innerText(), 'Cancelling…');
+        await page.locator('#btnCancel').dispatchEvent('click');
+        await page.evaluate(() => {
+            const h = Reflect.get(window, 'harness');
+            h.exportOptions.onResourceProgress({ downloaded: 99, completed: 99, total: 100 });
+        });
+        assert.equal(await page.locator('#status').innerText(), 'Cancelling…');
+        assert.equal(await page.evaluate(() => Reflect.get(window, 'harness').aborts), 1);
+        await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
+        await page.waitForFunction(() => !!Reflect.get(window, 'harness').finishRefresh);
+        assert.equal(await page.locator('#btnCancel').innerText(), 'Refreshing history…');
+        assert.equal(await page.locator('#btnExport').isDisabled(), true);
+        assert.equal(await page.locator('#btnSyncAll').isDisabled(), true);
+        await page.locator('#langToggle').uncheck();
+        assert.equal(await page.locator('#btnCancel').innerText(), '正在刷新记录…');
+        await page.evaluate(() => Reflect.get(window, 'harness').finishRefresh());
+        await page.waitForFunction(() => document.body.dataset.foregroundBusy === 'false');
+        assert.equal(await page.locator('#btnCancel').isVisible(), false);
+        assert.equal(await page.locator('#btnExport').isEnabled(), true);
+    } finally { await browser.close(); }
+});
+
+test('a settled export cannot mutate a new task through retained Application callbacks', async () => {
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
+    try {
+        const page = await browser.newPage();
+        await mount(page, 'options', { holdExport: true });
+        await page.locator('#btnSelectAll').click();
+        await page.locator('#btnExport').click();
+        await page.waitForFunction(() => !!Reflect.get(window, 'harness').finishExport);
+        await page.evaluate(() => {
+            const h = Reflect.get(window, 'harness');
+            h.oldOptions = h.exportOptions;
+            h.finishExport();
+        });
+        await page.waitForFunction(() => document.body.dataset.foregroundBusy === 'false');
+        await page.locator('#btnExport').click();
+        await page.waitForFunction(() => Reflect.get(window, 'harness').exports.length === 2);
+        const before = await page.locator('#progText').innerText();
+        await page.evaluate(() => {
+            const h = Reflect.get(window, 'harness');
+            const key = h.exports[0].keys[0];
+            h.oldOptions.onResourceProgress({ key, downloaded: 999, completed: 999, total: 999 });
+            h.oldOptions.onItemUpdate({ key, status: 'failed', diagnostic: { key, stage: 'export', code: 'EXPORT_FAILED', message: 'Old task failure' } });
+            h.oldOptions.onDiagnostic({ key, stage: 'source_parse', code: 'OLD_WARNING', severity: 'warning', message: 'Old task warning' });
+        });
+        assert.equal(await page.locator('#progText').innerText(), before);
+        assert.equal(await page.locator('.status-failed').count(), 0);
+        assert.equal(await page.locator('#exportFailureCard').isVisible(), false);
+        await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
+        await page.waitForFunction(() => document.body.dataset.foregroundBusy === 'false');
+    } finally { await browser.close(); }
+});
+
+test('live failure details retain their expansion across progress and language changes', async () => {
+    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
+    try {
+        const page = await browser.newPage();
+        await mount(page, 'options', { holdExport: true });
+        await page.locator('#btnSelectAll').click();
+        await page.locator('#btnExport').click();
+        await page.evaluate(() => {
+            const h = Reflect.get(window, 'harness');
+            const key = h.exports[0].keys[0];
+            h.exportOptions.onItemUpdate({ key, status: 'failed', diagnostic: { key, stage: 'export', code: 'EXPORT_FAILED', message: 'Live failure' } });
+        });
+        const details = page.locator('#exportFailureList details');
+        await details.locator('summary').click();
+        assert.equal(await page.locator('#btnRetryFailed').isDisabled(), true);
+        await page.locator('#langToggle').uncheck();
+        await page.evaluate(() => Reflect.get(window, 'harness').exportOptions.onResourceProgress({ downloaded: 2, completed: 2, total: 3 }));
+        assert.equal(await details.evaluate((node: HTMLDetailsElement) => node.open), true);
+        assert.match(await details.locator('summary').innerText(), /未知错误/);
+        await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
+        await page.waitForFunction(() => document.body.dataset.foregroundBusy === 'false');
+    } finally { await browser.close(); }
+});
