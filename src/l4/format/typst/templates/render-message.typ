@@ -22,8 +22,21 @@
 }
 
 #let render-messages(messages) = {
-  for message in messages {
-    render-message(message)
+  for (index, message) in messages.enumerate() {
+    let next = messages.at(index + 1, default: none)
+    let opening = if next != none and next.variant == "flow" { next.blocks.at(0, default: none) } else { none }
+    // Only link to independently breakable prose. A figure or a paragraph
+    // already bound to a following visual must not drag the question forward.
+    let follows-prose = opening != none and opening.type == "paragraph" and not opening.layout.keepWithNext
+    // Put the keep-with-next constraint on the page flow, outside the
+    // bubble's context/layout wrappers. Keep long prompts breakable.
+    if message.variant == "bubble" and follows-prose {
+      context {
+        let body = render-message(message)
+        let compact = measure(width: content-width, body).height < user-elevation-max-height
+        block(sticky: compact, breakable: true, above: 0pt, below: 0pt)[#body]
+      }
+    } else { render-message(message) }
     if message.gapAfterPt > 0 { v(message.gapAfterPt * 1pt) }
   }
 }
