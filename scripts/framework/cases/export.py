@@ -94,8 +94,8 @@ def select_format_targets(cdp_opt, ctx, format_type):
         for (const item of items) {{
             const cid = normalize(item.dataset.chatId), cb = item.querySelector('input[type=checkbox]');
             if (!cb) continue;
-            cb.checked = [...required, ...optional].includes(cid);
-            cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            const selected = [...required, ...optional].includes(cid);
+            if (cb.checked !== selected) cb.click();
             if (cb.checked) matched.push(cid);
         }}
         return {{ matched, missing: required.filter(cid => !matched.includes(cid)),
@@ -534,9 +534,8 @@ class StaleTabImageExportCase(FeatureTestCase):
                         if (cb) {{
                             document.querySelector('.tour-popover button')?.click();
                             document.querySelectorAll('#list input[type=checkbox]:checked').forEach(input => input.click());
-                            cb.checked = true;
-                            cb.dispatchEvent(new Event('change', {{bubbles: true}}));
-                            return true;
+                            if (!cb.checked) cb.click();
+                            return cb.checked;
                         }}
                         await new Promise(resolve => setTimeout(resolve, 250));
                     }}
@@ -607,7 +606,7 @@ class FastSkipExportedCase(FeatureTestCase):
                 if (!skip || !btn || !skip.checked) return { error: 'v2 Skip controls unavailable' };
                 for (const it of items) {
                     const cb = it.querySelector('input[type=checkbox]');
-                    if (cb) { cb.checked = exported.includes(it); cb.dispatchEvent(new Event('change', { bubbles: true })); }
+                    if (cb && cb.checked !== exported.includes(it)) cb.click();
                 }
                 return { count: exported.length, log: document.getElementById('status')?.textContent || '' };
             })()
@@ -661,7 +660,7 @@ class FastSkipExportedCase(FeatureTestCase):
                 const unexported = items.find(it => !state.records[it.dataset.chatId] && available.has(it.dataset.chatId));
                 for (const it of items) {
                     const cb = it.querySelector('input[type=checkbox]');
-                    if (cb) { cb.checked = it === exported || it === unexported; cb.dispatchEvent(new Event('change', { bubbles: true })); }
+                    if (cb && cb.checked !== (it === exported || it === unexported)) cb.click();
                 }
                 return { exportedId: exported?.dataset.chatId, unexportedId: unexported?.dataset.chatId,
                          unexportedSourceVerified: !!unexported };

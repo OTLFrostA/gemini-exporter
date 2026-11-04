@@ -230,6 +230,60 @@ test('Tier 2 Takeout probe reads source-bound archive bytes and actual UI-import
 });
 
 
+test('Tier 2 individual selection updates controlled rows and export eligibility', async ({ context, extensionId }) => {
+    const page = await workbench(context, extensionId);
+    await page.evaluate(async accountId => {
+        for (const id of ['probe', 'other']) await Reflect.get(globalThis, 'probeFixture').ingestDetail(accountId, id, {
+            savedAt: 100, quality: { status: 'complete' }, assets: [], messages: [
+                { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Question' }] }] },
+                { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Answer' }] }] },
+            ],
+        }, { title: 'Selection probe', titleSource: 'provider', updatedAt: 100 });
+        window.dispatchEvent(new Event('focus'));
+    }, accountId);
+    const row = page.locator('#list .item[data-chat-id="probe"]');
+    await expect(row).toHaveCount(1);
+    const select = (checked: boolean) => execFileSync('python3', ['-c', [
+        'from scripts.framework.actions import CDPActions',
+        'class Capture:',
+        '    def eval(self, script, **kwargs):',
+        '        print(script)',
+        '        return True',
+        `CDPActions.select_workbench_item(Capture(), "probe", ${checked ? 'True' : 'False'})`,
+    ].join('\n')], { cwd: root }).toString();
+    await expect(page.locator('#btnExport')).toBeDisabled();
+    expect(await page.evaluate(select(true))).toBe(true);
+    await expect(row).toHaveAttribute('data-selected', 'true');
+    await expect(page.locator('#btnExport')).toBeEnabled();
+    // Repeating the desired state must not toggle it off.
+    expect(await page.evaluate(select(true))).toBe(true);
+    await page.locator('#langToggle').click();
+    await expect(row.locator('input')).toBeChecked();
+    expect(await page.evaluate(select(false))).toBe(true);
+    await expect(row).toHaveAttribute('data-selected', 'false');
+    await expect(page.locator('#btnExport')).toBeDisabled();
+    expect(await page.evaluate(select(false))).toBe(true);
+    await page.locator('#skipExported').uncheck();
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    await page.locator('#btnSelectAll').click();
+    const bulk = execFileSync('python3', ['-c', [
+        'from unittest.mock import patch, MagicMock',
+        'from scripts.framework.cases.export import select_format_targets',
+        'class Capture:',
+        '    def eval(self, script, **kwargs):',
+        '        print(script)',
+        '        return {"matched": ["probe"]}',
+        'ctx = MagicMock(chat_records=[{"chat_id": "probe"}])',
+        'with patch("scripts.framework.cases.export.DESIGNATED_HISTORICAL_CHATS", []), patch("scripts.framework.actions.CDPActions.wait_for_export_idle", return_value=True), patch("scripts.framework.actions.CDPActions.configure_export_controls", return_value={"ok": True}):',
+        '    select_format_targets(Capture(), ctx, "markdown")',
+    ].join('\n')], { cwd: root }).toString();
+    expect(await page.evaluate(bulk)).toMatchObject({ matched: ['probe'], missing: [] });
+    await page.locator('#langToggle').click();
+    await expect(row).toHaveAttribute('data-selected', 'true');
+    await expect(page.locator('#list .item[data-chat-id="other"]')).toHaveAttribute('data-selected', 'false');
+    await expect(page.locator('#btnExport')).toBeEnabled();
+});
+
 test('Tier 2 export controls leave folder delivery through the real radio handler and await persisted Settings', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);
     await page.locator('input[name="delivery"][value="folderWriter"]').check();

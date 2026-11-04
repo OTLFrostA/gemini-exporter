@@ -190,3 +190,50 @@ is not evidence of either tier.
   archive is `temp/react-task-trial.zip`. `git diff --check` passed.
 - Scenario pool remains 20/20; no live scenarios consumed. No Tier 2/3 or
   performance benchmark is claimed.
+
+## Follow-up: live Tier 2 acceptance (2026-11-04)
+
+Full `npm run test:tier2` acceptance passed after repairing the test driver's
+selection actions: **24 PASS, 1 WARN, 0 FAIL, 0 SKIP**, 713.6 seconds. All 25
+features ran, including clean installation/onboarding, two new 5/8-turn chats,
+confirmed deletion and atomic local cleanup, Takeout import/title upgrade,
+activity promotion, new/continued live-save, pagination, Markdown/HTML/PDF,
+image comparison, skip filtering, stale-tab recovery and uninstall isolation.
+Eight exported conversations and their index were checked on disk. HTML/PDF
+checks verified all 15 live turns, including the two follow-up questions.
+
+The first run exposed a test-driver assumption from the legacy renderer:
+assigning checkbox `.checked` and dispatching `change` did not update React's
+controlled selection. The initial single export stayed disabled; later bulk
+selection left the earlier select-all intent intact. The first run ended with
+11 PASS, 4 FAIL and 10 dependency skips and is not acceptance evidence.
+Single-row, format-target, stale-tab and skip-test selection now use checkbox
+clicks. No production selection bypass or React-specific test hook was added.
+A real browser regression reproduces the original failure, verifies repeat
+selection/deselection, removes unrelated bulk targets and checks persistence
+through language-triggered rerenders. Existing driver checks passed (122 tests),
+and full `npm test` passed with all **212 Playwright tests** after the fix.
+
+An intervening retry failed environment preparation because the fresh install's
+onboarding page was absent; no scenarios were consumed. After restoring a
+Gemini tab, the final run performed a fresh installation and the complete plan.
+All temporary manifest permission changes were restored; the source manifest
+has no diff. Four scenarios consumed across the two live runs were replaced
+with new mechanics/compiler/optics/matching topics; the pool is validated 20/20.
+
+The WARN is the existing structured/Markdown differential audit: 85/85 replies
+captured, 35 matches, 50 differences (27 content/metadata, 23 structure/format),
+0 unavailable, 0 errors and 0 incomplete. This audit remains **needs review**;
+neither representation is an oracle and equivalence is not established. It is
+nonblocking under the current Tier 2 gate and is not a React acceptance failure.
+No parser changes were made in this follow-up.
+
+Local evidence (ignored by Git):
+
+- Final machine report: `tests/output/tier2/react-task-retry2/tier2-report.json`
+- Differential report: `tests/output/tier2/react-task-retry2/gemini/gemini_dual_parse/report/REPORT.md`
+- Final live log: `temp/react-task-tier2-retry2.log`
+- First live log: `temp/react-task-tier2.log`
+- Full Tier 1 log: `temp/react-tier2-fix-tier1.log`
+
+Tier 3 and performance benchmarks remain unrun.
