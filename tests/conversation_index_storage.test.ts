@@ -4,8 +4,8 @@ import { indexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './helpers/accountIds.js';
 import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../src/l2/ingestion.js';
 import { listIndexes, getIndex, getDetail, putExportRecord, getExportRecord } from '../src/l3a/storageService.js';
-import { mergeConversationIndex, restoreConversationIndex, indexActivityTime } from '../src/l2/conversationIndex.js';
-import type { DomainConversationIndex } from '../src/l2/conversationIndex.js';
+import { mergeConversationIndex, indexActivityTime } from '../src/l2/conversationIndex.js';
+import { makeConversationIndex } from './helpers/conversationIndexFixture.js';
 const key = (id = 'chat', accountId = ACCOUNT_UUID) => ({ accountId, conversationId: id });
 const fields = () => ({ title: 'Research', titleSource: 'provider' as const, updatedAt: 50 });
 const detail = () => ({ quality: { status: 'complete' as const }, assets: [],
@@ -92,8 +92,8 @@ test('concurrent Detail imports retain unrelated indexes, title authority and ot
 });
 
 test('Index activity belongs to source metadata and never introduces cloud availability fields', () => {
-    const old: DomainConversationIndex = { key: key(), ...fields(), createdAt: 10 };
-    const incoming = restoreConversationIndex({ key: key(), updatedAt: 300 });
+    const old = makeConversationIndex({ key: key(), ...fields(), createdAt: 10 });
+    const incoming = makeConversationIndex({ key: key(), title: undefined, titleSource: undefined, updatedAt: 300 });
     const merged = mergeConversationIndex(old, incoming);
     assert.equal(indexActivityTime(merged), 300); assert.equal(merged.createdAt, 10);
     assert.equal(Object.hasOwn(merged, 'cloudAvailability'), false);

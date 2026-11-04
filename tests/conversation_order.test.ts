@@ -7,8 +7,8 @@ import { makeConversationIndex } from './helpers/conversationIndexFixture.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 
 test('index ordering prioritizes authored activity over creation and leaves unknown times after known times', () => {
-    const records = [indexFixture({ id: 'recent', title: 'Recent', createdAt: 5000 }), indexFixture({ id: 'unknown-time', title: 'Unknown', lastSeen: 99999 }),
-        indexFixture({ id: 'revived', title: 'Revived', createdAt: 1000, updatedAt: 6000 })];
+    const records = [makeConversationIndex({ key: { conversationId: 'recent' }, title: 'Recent', createdAt: 5000 }), indexFixture({ id: 'unknown-time', title: 'Unknown', lastSeen: 99999 }),
+        makeConversationIndex({ key: { conversationId: 'revived' }, title: 'Revived', createdAt: 1000, updatedAt: 6000 })];
     assert.deepEqual(records.sort(compareConversationIndexes).map(item => item.key.conversationId), ['revived', 'recent', 'unknown-time']);
     assert.equal(indexActivityTime(records[2]), undefined);
 });

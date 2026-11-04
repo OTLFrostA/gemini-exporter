@@ -4,6 +4,7 @@ import { ACCOUNT_UUID } from './helpers/accountIds.js';
 import { readAccount, readAccountParameters, readAccountRegistry } from '../src/l2/accountRegistry.js';
 import { conversationKey, readConversationKey } from '../src/l2/conversationKey.js';
 import { mergeConversationIndex, restoreConversationIndex } from '../src/l2/conversationIndex.js';
+import { makeConversationIndex } from './helpers/conversationIndexFixture.js';
 
 const key = { accountId: ACCOUNT_UUID, conversationId: 'p1-check' };
 
@@ -59,9 +60,9 @@ test('L2 index recovery narrows source metadata with exact optional field semant
 });
 
 test('L2 index merging derives coupled title fields and timestamps without non-null assertions', () => {
-    const initial = restoreConversationIndex({ key, title: 'Provider title', titleSource: 'provider',
+    const initial = makeConversationIndex({ key, title: 'Provider title', titleSource: 'provider',
         createdAt: 20, updatedAt: 100 });
-    const newer = restoreConversationIndex({ key, title: 'User title', titleSource: 'user',
+    const newer = makeConversationIndex({ key, title: 'User title', titleSource: 'user',
         createdAt: 10, updatedAt: 80, activityAt: 120 });
     const result = mergeConversationIndex(initial, newer);
     assert.deepEqual(result, { key, title: 'User title', titleSource: 'user',
