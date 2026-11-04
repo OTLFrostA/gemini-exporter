@@ -16,6 +16,9 @@ Provider fixture references can be audited without a browser via `node scripts/a
 默认值为独立 Gemini Key、派生标题，时间仅在场景明确提供时存在；每次调用返回独立对象。
 `key` 支持局部覆盖，标题与来源仍须成对合法。不要把原始 RPC、迁移、Schema 校验、类型负例或
 测试无效数据的输入改成该工厂；这些测试需要保留显式原始输入。工厂不代替 Detail 摄入或模块隔离 mock。
+工厂会加载真实 L2 恢复校验器，因此 UI / Runtime / Application / Storage 等隔离单测中的
+外部 Index DTO 继续使用类型契约和所属模块的 mock，不为了复用工厂跨越模块边界。
+标题缺失是测试条件时，显式传入 `title: undefined, titleSource: undefined`，避免默认标题影响用例。
 
 ---
 

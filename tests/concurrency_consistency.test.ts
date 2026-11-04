@@ -5,6 +5,7 @@ import { ingestIndexes } from '../src/l2/ingestion.js';
 import { getIndex, listIndexes } from '../src/l3a/storageService.js';
 import { mergeConversationIndex } from '../src/l2/conversationIndex.js';
 import { conversationKey } from '../src/l2/conversationKey.js';
+import { makeConversationIndex } from './helpers/conversationIndexFixture.js';
 useIndexStorage();
 const accountId = '10000000-0000-4000-8000-000000000001';
 const key = (id: string) => conversationKey(accountId, id);
@@ -20,10 +21,10 @@ test('Domain ingestIndexes patches only the target record and rejects missing id
     assert.equal((await listIndexes(accountId)).length, 3);
 });
 test('mergeConversationIndex keeps source updatedAt monotonic and earliest createdAt', () => {
-    const previous = { key: key('monotonic'), title: 'Before', titleSource: 'provider' as const, updatedAt: 1700000050000, createdAt: 1700000000000 };
-    const older = mergeConversationIndex(previous, { key: previous.key, title: 'Old RPC', titleSource: 'provider', updatedAt: 1700000010000, createdAt: 1700000005000 });
+    const previous = makeConversationIndex({ key: key('monotonic'), title: 'Before', titleSource: 'provider', updatedAt: 1700000050000, createdAt: 1700000000000 });
+    const older = mergeConversationIndex(previous, makeConversationIndex({ key: previous.key, title: 'Old RPC', titleSource: 'provider', updatedAt: 1700000010000, createdAt: 1700000005000 }));
     assert.equal(older.updatedAt, previous.updatedAt); assert.equal(older.createdAt, previous.createdAt);
-    const newer = mergeConversationIndex(previous, { key: previous.key, updatedAt: 1700000090000, createdAt: 1699999990000 });
+    const newer = mergeConversationIndex(previous, makeConversationIndex({ key: previous.key, title: undefined, titleSource: undefined, updatedAt: 1700000090000, createdAt: 1699999990000 }));
     assert.equal(newer.updatedAt, 1700000090000); assert.equal(newer.createdAt, 1699999990000);
 });
 test('overlapping ingestIndexes transactions preserve both independent changes', async () => {

@@ -5,11 +5,12 @@ import { normId } from '../src/shared/utils/pathUtils.js';
 import { conversationKey } from '../src/l2/conversationKey.js';
 import type { DomainConversationIndex } from '../src/l2/conversationIndex.js';
 import type { ExportRecord } from '../src/application/export/types.js';
+import { makeConversationIndex } from './helpers/conversationIndexFixture.js';
 
 const A = '10000000-0000-4000-8000-000000000001';
 const B = '10000000-0000-4000-8000-000000000002';
 const accounts = [A, B].map(id => ({ id, providerId: 'gemini', providerAccountId: id }));
-const row = (id: string, accountId = A, updatedAt = 10): DomainConversationIndex => ({ key: conversationKey(accountId, id), title: id, updatedAt });
+const row = (id: string, accountId = A, updatedAt = 10): DomainConversationIndex => makeConversationIndex({ key: conversationKey(accountId, id), title: id, updatedAt });
 function view(rows = [row('one')], records: Record<string, ExportRecord> = {}) {
     return new ConversationViewState({ listAccounts: async () => accounts,
         listIndexes: async id => rows.filter(row => row.key.accountId === id), listExportRecords: async () => records });

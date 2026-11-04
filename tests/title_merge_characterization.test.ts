@@ -6,11 +6,12 @@ import { mergeConversationIndex, restoreConversationIndex } from '../src/l2/conv
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseLegacyConversationIndex } from './helpers/recordFixture/parseIndex.js';
 import { indexFixture } from './helpers/indexFixture.js';
+import { makeConversationIndex } from './helpers/conversationIndexFixture.js';
 
 test('index title authority survives weaker observations and adopts same-tier renames', () => {
-    for (const [strong, weak] of [['user', 'provider'], ['provider', 'derived']]) {
-        const a = indexFixture({ id: 'title-order', title: 'Authority', titleSource: strong });
-        const b = indexFixture({ id: a.key.conversationId, title: 'Fallback', titleSource: weak });
+    for (const [strong, weak] of [['user', 'provider'], ['provider', 'derived']] as const) {
+        const a = makeConversationIndex({ key: { conversationId: 'title-order' }, title: 'Authority', titleSource: strong });
+        const b = makeConversationIndex({ key: a.key, title: 'Fallback', titleSource: weak });
         for (const [old, incoming] of [[a, b], [b, a]]) {
             const result = mergeConversationIndex(old, incoming);
             assert.equal(result.title, 'Authority');
@@ -22,7 +23,7 @@ test('index title authority survives weaker observations and adopts same-tier re
     }
 });
 test('placeholder and malformed provenance are handled before index merging', () => {
-    const old = indexFixture({ id: 'empty-title', title: 'Stored RPC title', titleSource: 'rpc' });
+    const old = makeConversationIndex({ key: { conversationId: 'empty-title' }, title: 'Stored RPC title', titleSource: 'provider' });
     for (const title of ['', '   ', '\t\n', 'Google Gemini']) {
         const incoming = parseGeminiIndexObservation({ id: old.key.conversationId, title, titleSource: 'rpc' }, 'detail');
         assert.equal(incoming.fields.title, undefined);
