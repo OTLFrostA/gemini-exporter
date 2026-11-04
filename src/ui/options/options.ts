@@ -20,7 +20,7 @@ import { createSourceResourceContext } from '../../l1/resources/sourceResources.
 import { handleTakeoutImport } from './controllers/takeoutController.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
-import { renderList } from './views/listView.js';
+import { renderList, unmountList } from './views/listView.js';
 import { ExportIssueCollector, renderExportFailures, copyExportFailures } from './views/exportFailures.js';
 import { EXPORT_FORMATS, readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
 import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
@@ -889,6 +889,7 @@ export async function initWorkbench(): Promise<void> {
     });
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
+        unmountList();
         importedResources.release();
         stopSettings(); stopDomainChanges(); chrome.storage.onChanged.removeListener(onOpenedAccountChange);
         clearTimeout(domainRefreshTimer); pendingDomainAccounts.clear();

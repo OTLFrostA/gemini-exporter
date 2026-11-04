@@ -209,6 +209,10 @@
   }
   .item{display:flex;gap:8px;padding:8px;border-radius:8px;align-items:flex-start;transition:background 0.15s;cursor:pointer;user-select:none}
   .item:hover{background:#1a1c2b}
+  #list .item[data-selected="true"]{background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:inset 2px 0 var(--accent)}
+  #list .item:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:-2px}
+  @media(prefers-reduced-motion:reduce){#list .item{transition:none}}
+
   .item input{margin-top:4px}
   .item .title{flex:1;font-size:13px;line-height:1.35}
   .item .meta{font-size:11px;color:var(--muted)}

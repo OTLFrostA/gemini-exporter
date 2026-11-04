@@ -10,7 +10,7 @@ interface Edge { target: string; runtime: boolean }
 function files(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
         const path = resolve(dir, entry.name);
-        return entry.isDirectory() ? files(path) : /\.[cm]?[jt]s$/.test(entry.name) ? [path] : [];
+        return entry.isDirectory() ? files(path) : /\.(?:[cm]?[jt]s|[jt]sx)$/.test(entry.name) ? [path] : [];
     });
 }
 const sources = new Map(files(core).map(file => [relative(core, file).replace(/\\/g, '/'), file]));
@@ -72,11 +72,12 @@ function specifiers(source: string): string[] {
 }
 /** esbuild determines runtime edges; source tokens retain erased type-only dependencies. */
 function dependencies(file: string, text = readFileSync(file, 'utf8')): Edge[] {
-    const output = transformSync(text, { loader: file.endsWith('.ts') ? 'ts' : 'js', format: 'esm', legalComments: 'none' }).code;
+    const output = transformSync(text, { loader: file.endsWith('.tsx') ? 'tsx' : file.endsWith('.ts') ? 'ts' : 'js', format: 'esm', legalComments: 'none' }).code;
     const runtime = new Set(specifiers(output));
     return specifiers(text).filter(specifier => specifier.startsWith('.')).map(specifier => {
         let target = resolve(dirname(file), specifier).replace(/\.js$/, '.ts');
-        if (!/\.[cm]?[jt]s$/.test(target)) target += '.ts';
+        if (!/\.(?:[cm]?[jt]s|[jt]sx)$/.test(target)) target += '.ts';
+        if (!existsSync(target) && target.endsWith('.ts') && existsSync(target + 'x')) target += 'x';
         return { target: relative(core, target).replace(/\\/g, '/'), runtime: runtime.has(specifier) };
     });
 }
@@ -241,4 +242,11 @@ test('passive Storage cannot own Domain selection or scan lifecycle rules', () =
         'l3a/conversationDetailStore.ts', 'l1/parsers/legacyStorage/parseConversation.ts']) {
         assert.equal(sources.has(retired), false, `${retired} leaves an alternate v1 path`);
     }
+});
+
+// A .js specifier can resolve to TSX under the production bundler.
+test('boundary reader includes TSX components and resolves their runtime imports', () => {
+    assert.ok(sources.has('ui/options/views/conversationList.tsx'));
+    const view = resolve(core, 'ui/options/views/listView.ts');
+    assert.ok(dependencies(view).some(edge => edge.runtime && edge.target === 'ui/options/views/conversationList.tsx'));
 });

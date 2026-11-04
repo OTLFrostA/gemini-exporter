@@ -92,7 +92,7 @@ def normalize_repo_path(path: str, base_dir: str = REPO_DIR) -> str:
 def resolve_import_path(source_file: str, import_str: str, base_dir: str = REPO_DIR) -> Optional[str]:
     """
     根据源码路径与 import 字符串，解析出在仓库中存在的标准目标文件路径。
-    支持 .js -> .ts 互转与 index.ts/js 解析。
+    支持 .js -> .ts/.tsx 互转与 index.ts/tsx/js 解析。
     """
     if not import_str.startswith("."):
         return None  # 外部包或内置库
@@ -102,15 +102,17 @@ def resolve_import_path(source_file: str, import_str: str, base_dir: str = REPO_
 
     candidates = [target_base]
     if target_base.endswith(".js"):
-        candidates.append(target_base[:-3] + ".ts")
-    elif target_base.endswith(".ts"):
-        candidates.append(target_base[:-3] + ".js")
+        candidates.extend([target_base[:-3] + ".ts", target_base[:-3] + ".tsx"])
+    elif target_base.endswith((".ts", ".tsx")):
+        candidates.append(os.path.splitext(target_base)[0] + ".js")
     else:
         candidates.extend([
             target_base + ".ts",
+            target_base + ".tsx",
             target_base + ".js",
             target_base + ".json",
             os.path.join(target_base, "index.ts"),
+            os.path.join(target_base, "index.tsx"),
             os.path.join(target_base, "index.js"),
         ])
 
@@ -133,7 +135,7 @@ class DependencyGraph:
         for root, dirs, files in os.walk(self.base_dir):
             dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
             for f in files:
-                if f.endswith((".ts", ".js")):
+                if f.endswith((".ts", ".tsx", ".js")):
                     full_p = os.path.join(root, f)
                     rel_p = normalize_repo_path(full_p, self.base_dir)
                     try:

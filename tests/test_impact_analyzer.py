@@ -69,6 +69,14 @@ class TestImpactAnalyzer(unittest.TestCase):
         self.assertIn("tests/e2e/account_registry.spec.ts", res.target_e2e_specs)
         self.assertNotIn("tests/e2e/native_parser.spec.ts", res.target_e2e_specs)
 
+    def test_tsx_component_dependencies_reach_the_workbench(self):
+        target = "src/ui/options/views/conversationList.tsx"
+        self.assertEqual(resolve_import_path("src/ui/options/views/listView.ts", "./conversationList.js", BASE_DIR), target)
+        self.assertIn("src/ui/options/views/listView.ts", self.graph.get_transitive_dependents({target}))
+        self.assertIn("src/ui/options/options.ts", self.graph.get_transitive_dependents({target}))
+        # Scanning TSX's own imports matters when a lower-level dependency changes.
+        self.assertIn(target, self.graph.get_transitive_dependents({"src/ui/shared/exportSummary.ts"}))
+
     def test_global_config_fallback_triggers_all(self):
         """修改 package.json 或 tsconfig.json 等核心配置必须兜底触发全量测试"""
         for gf in ["package.json", "tsconfig.json", "build.js"]:
