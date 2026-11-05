@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch one isolated Chrome, retaining diagnostics outside disposable worktrees."""
+"""Launch isolated Chrome without desktop windows; use --headed for manual login."""
 import argparse
 import errno
 import json
@@ -64,8 +64,21 @@ def main(argv=None):
     parser.add_argument('--profile', required=True)
     parser.add_argument('--repo', required=True)
     parser.add_argument('--port', type=int, default=9222)
+    parser.add_argument('--headed', action='store_true',
+                        help='Open desktop windows for manual login/debugging (can take focus)')
     args, extra = parser.parse_known_args(argv)
     extra = extra[1:] if extra[:1] == ['--'] else extra
+    # Shell/PowerShell/CMD wrappers forward Chrome arguments after '--'. Accept
+    # the explicit login escape hatch there too, without passing it to Chrome.
+    headed = args.headed or '--headed' in extra
+    extra = [arg for arg in extra if arg != '--headed']
+    headless = [arg for arg in extra if arg == '--headless' or arg.startswith('--headless=')]
+    if headed and headless:
+        parser.error('--headed cannot be combined with --headless')
+    if any(arg not in ('--headless', '--headless=new') for arg in headless):
+        parser.error('Only unified --headless=new is supported for background tests')
+    extra = [arg for arg in extra if arg not in headless]
+    display_args = [] if headed else ['--headless=new']
     # Keep the identity and log paths controlled by this launcher.
     reserved = ('--user-data-dir', '--remote-debugging', '--log-file', '--enable-logging',
                 '--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security')
@@ -90,8 +103,9 @@ def main(argv=None):
                    f'--remote-debugging-port={args.port}', '--remote-debugging-address=127.0.0.1',
                    '--enable-unsafe-extension-debugging',
                    '--no-first-run', '--no-default-browser-check', '--enable-logging',
-                   f'--log-file={log_dir / "chrome.log"}', *extra]
-        metadata = dict(started_at=timestamp(), command=command, profile=str(profile),
+                   f'--log-file={log_dir / "chrome.log"}', *display_args, *extra]
+        metadata = dict(started_at=timestamp(), mode='headed' if headed else 'headless',
+                        command=command, profile=str(profile),
                         log_dir=str(log_dir), browser=None)
 
         def save():
@@ -118,6 +132,8 @@ def main(argv=None):
                 verify_process(version, process.pid)
                 metadata['browser'] = version
                 save()
+                print('Desktop windows enabled (manual login/debugging).' if headed else
+                      'Background Chrome: no desktop windows; CDP screenshots and input remain available.', flush=True)
                 print(f'Chrome PID {process.pid}; diagnostic logs: {log_dir}', flush=True)
                 return 0
             except (OSError, ValueError, RuntimeError):

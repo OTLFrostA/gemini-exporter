@@ -636,6 +636,10 @@ def test_framework_environment_suite():
     res = subprocess.run(cmd, capture_output=True, text=True)
     assert res.returncode == 0, f"test_framework_environment.py failed: {res.stderr or res.stdout}"
     print("  ✓ Tier 2 TestEnvironment & Unified Lifecycle test suite passed")
+    res = subprocess.run([sys.executable, "-m", "unittest", "tests.test_chrome_diagnostics"],
+                         cwd=BASE_DIR, capture_output=True, text=True)
+    assert res.returncode == 0, f"Chrome launch/diagnostics regression checks failed: {res.stderr or res.stdout}"
+    print("  ✓ Background Chrome launcher & diagnostics regression checks passed")
 
 def test_tier2_platforms_suite():
     import subprocess

@@ -62,7 +62,7 @@ Write-Host "🚀 Launching Gemini Exporter Isolated Test Browser" -ForegroundCol
 Write-Host "📁 Profile Directory : $ProfileDir" -ForegroundColor Gray
 Write-Host "🧩 Extension Source  : $RepoDir" -ForegroundColor Gray
 Write-Host "🌐 Remote Debug Port : 9222" -ForegroundColor Gray
-Write-Host "💡 Hint: Please log in with a dedicated TEST account (avoid using your primary personal account)." -ForegroundColor Yellow
+Write-Host "💡 Default: background, no desktop windows. Use --headed for manual test-account login, quit Chrome, then relaunch normally." -ForegroundColor Yellow
 Write-Host "==================================================" -ForegroundColor Cyan
 
 # Use the same diagnostic launcher as macOS/Linux. Do not kill existing Chrome.

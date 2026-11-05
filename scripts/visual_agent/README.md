@@ -93,11 +93,28 @@ product files. Do not claim uncovered or blocked items passed.
 
 ## Chrome diagnostics (Tier 2 and shared Tier 3 launch)
 
-All three `open_test_chrome` launchers use `scripts/launch_test_chrome.py`.
+All three `open_test_chrome` launchers use `scripts/launch_test_chrome.py` and
+start unified `--headless=new` Chrome by default. Tier 2 (all platforms) and Tier 3
+share this browser: tab activation, extension popups, CDP screenshots and input
+remain in Chrome's virtual windows, so they cannot activate a desktop window.
+Tier 3 still uses the same screenshot-only perception and seven CLI primitives;
+this changes the browser display mode, not the exploration protocol.
+
+For first login or manual debugging, run `./scripts/open_test_chrome.sh --headed`
+(or add `--headed` to the PowerShell/CMD launcher). This explicit mode can take
+focus. It uses the same persistent test profile. After login, quit that dedicated
+Chrome normally and relaunch without `--headed` before running tests. An already
+running headed browser cannot be converted in place; the launcher refuses to
+replace it. Do not run automated tests against the manual-login instance if you
+need uninterrupted desktop focus. `--headed` and `--headless` are mutually exclusive.
+
+Headless Chrome has no window close button. To close it gracefully, connect to
+its **browser** WebSocket from `http://127.0.0.1:9222/json/version` and issue CDP
+`Browser.close` (only against the dedicated test browser). Normal test teardown
+still leaves the browser running to retain the shared session.
 The launcher refuses an occupied port 9222 or a profile with a live lock owner; it does
 not terminate or replace the existing browser. Launches are detached from the
-shell process group and return once CDP is ready. Quit the dedicated browser
-normally through Chrome when you need to close it. Direct launcher calls accept
+shell process group and return once CDP is ready. Direct launcher calls accept
 `--port` for isolated diagnostics (the standard launchers use 9222). Test teardown only disconnects
 its CDP sessions.
 
