@@ -28,7 +28,7 @@ function getTsFiles(dir: string): string[] {
         const st = fs.statSync(full);
         if (st.isDirectory()) {
             files.push(...getTsFiles(full));
-        } else if (item.endsWith('.ts') && !item.endsWith('.d.ts')) {
+        } else if (/\.tsx?$/.test(item) && !item.endsWith('.d.ts')) {
             files.push(full);
         }
     }
@@ -46,7 +46,9 @@ test('arch: zero circular dependencies across all modules in src/', () => {
             if (!spec.startsWith('.')) continue;
             let resolved = path.resolve(path.dirname(file), spec);
             if (resolved.endsWith('.js')) resolved = resolved.slice(0, -3) + '.ts';
+            if (!fs.existsSync(resolved) && resolved.endsWith('.ts') && fs.existsSync(resolved + 'x')) resolved += 'x';
             if (!fs.existsSync(resolved) && fs.existsSync(resolved + '.ts')) resolved += '.ts';
+            if (!fs.existsSync(resolved) && fs.existsSync(resolved + '.tsx')) resolved += '.tsx';
             if (!fs.existsSync(resolved) && fs.existsSync(path.join(resolved, 'index.ts'))) resolved = path.join(resolved, 'index.ts');
             if (fs.existsSync(resolved) && !imports.includes(resolved)) imports.push(resolved);
         }

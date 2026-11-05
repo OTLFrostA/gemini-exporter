@@ -304,12 +304,11 @@ class ExtensionActions:
             const item = document.querySelector('{item_sel}');
             if (!item) return false;
             const cb = item.querySelector('{WorkbenchSelectors.CHECKBOX}');
-            if (!cb) return false;
-            if (cb.checked !== {str(checked).lower()}) {{
-                cb.checked = {str(checked).lower()};
-                cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-            }}
-            return true;
+            if (!cb || cb.disabled) return false;
+            // Click follows the control's event path, including React onChange.
+            // Assigning checked plus dispatching change only mutates the DOM.
+            if (cb.checked !== {str(checked).lower()}) cb.click();
+            return cb.checked === {str(checked).lower()};
         }})()
         """))
 

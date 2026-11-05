@@ -1,89 +1,5 @@
 [
   {
-    "id": "biology_logistic_growth_parameter_audit",
-    "title": "Population dynamics: logistic growth and parameter checks",
-    "domain": "biology_population_growth_models",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original schematic of a closed microbial culture and a qualitative population-versus-time curve. Mark the drawing as schematic. Give a Markdown table of explicitly synthetic population observations, time units and carrying-capacity assumptions.",
-      "Derive the logistic differential equation solution and its linearized parameter relation in LaTeX. State positivity conditions and distinguish exponential early growth from saturation.",
-      "Write complete runnable standard-library Python to evaluate the logistic curve and recover parameters from exact synthetic observations when identifiable. Include executable tests for the initial condition, equilibrium, monotonicity and invalid inputs.",
-      "Compare analytic predictions with a step-refined numerical integration, reporting a Markdown table of values and errors. Use synthetic data only and explain when a parameter estimate is not identifiable.",
-      "Write a Chinese-English reproducibility audit with formulas, complete code and negative tests. Explain why this closed-population model cannot establish clinical treatment outcomes, nutrient kinetics or the accuracy of schematic pixels."
-    ]
-  },
-  {
-    "id": "databases_conflict_serializability_cycle_certificate",
-    "title": "Database schedules: conflict graphs and serializability certificates",
-    "domain": "databases_conflict_serializability",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a synthetic interleaved schedule of three database transactions over named items with read and write operations. Give a Markdown operation table and distinguish conflict serializability from recovery properties.",
-      "Define conflicts and precedence edges in LaTeX. Prove why an acyclic conflict graph admits a topological serial ordering, and state which assumptions are needed for the equivalence claim.",
-      "Write complete runnable standard-library Python that validates a schedule, builds its conflict graph and returns either a topological order or an explicit directed cycle. Include executable tests.",
-      "Construct one acyclic schedule and one cyclic schedule. Provide a Markdown table of conflicting operation pairs and verify every edge against the original operation order.",
-      "Write an independent certificate checker for both topological orders and cycle witnesses. Reject missing transactions, repeated vertices, invented edges and invalid transaction identifiers.",
-      "Add exhaustive checks on tiny operation permutations to compare the graph classifier with enumeration of conflict-preserving serial orders. Supply complete deterministic Python code.",
-      "Add executable boundary tests for read-only transactions, repeated accesses, no transactions, one transaction, duplicate operation IDs and distinct items. Explain which schedules remain nonrecoverable despite conflict serializability.",
-      "Write a Chinese-English audit containing definitions, proof, full classifier and checker, and negative tests. Explain why this exercise does not establish database isolation guarantees, deadlock freedom or recoverability of a real engine."
-    ]
-  },
-  {
-    "id": "acoustics_two_source_interference_phase_audit",
-    "title": "Acoustics two source interference and phase audit",
-    "domain": "acoustics_wave_interference",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original teaching illustration of two coherent loudspeakers producing sound interference in a classroom. Label the source separation, observation point and path difference; avoid a stock diagram.",
-      "For equal amplitude sources at 440 Hz and sound speed 343 m/s derive pressure and intensity versus path difference using complex phasors. Explain the distinction between amplitude and intensity.",
-      "Make a Markdown table of normalized intensity for path differences 0, lambda/8, lambda/4, 3lambda/8 and lambda/2. Show exact symbolic results and rounded values.",
-      "Write a self contained Python function computing intensity with unequal source amplitudes and a phase offset; include limiting case assertions for constructive and destructive interference.",
-      "Discuss how finite bandwidth, reflections and source phase drift change the predicted nulls. Give an ordered measurement procedure and a short uncertainty budget with equations."
-    ]
-  },
-  {
-    "id": "epidemiology_sir_invariant_peak_certificate",
-    "title": "SIR epidemic invariant and peak certificate",
-    "domain": "epidemiology_sir_dynamics",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Introduce the closed population SIR model with normalized population, beta=0.3 per day, gamma=0.1 per day, S0=0.99 and I0=0.01. Define all variables and units.",
-      "Derive conservation of population and the phase plane invariant I+S-(gamma/beta) log S. Explain the domain assumptions.",
-      "Derive the infected peak condition and calculate the peak infected fraction from the invariant. Keep intermediate expressions exact where possible.",
-      "Use a Markdown table to compare beta values 0.15, 0.2, 0.3 and 0.4 while gamma remains fixed. Include initial growth rate, effective reproduction number and peak fraction.",
-      "Write a dependency free Python RK4 solver with adaptive step halving, nonnegativity checks and conservation diagnostics.",
-      "Explain how to verify the numerical solution against the invariant without conflating local error and global error. Supply assertions.",
-      "Derive the final size equation and describe a bracketed root method that excludes the irrelevant branch; explain why the root is unique in the chosen bracket.",
-      "Summarize limitations from heterogeneous contacts and parameter uncertainty. Provide a numbered validation checklist and distinguish a teaching calculation from a real forecast."
-    ]
-  },
-  {
     "id": "chemistry_buffer_titration_mass_charge_balance",
     "title": "Buffer titration: mass balance, charge balance and numerical pH",
     "domain": "chemistry_buffer_titration",
@@ -417,6 +333,90 @@
       "Independently verify the result by enumerating all source-sink cuts for this small graph. Supply complete Python and a table comparing the optimum certificate with the enumeration.",
       "Add negative and boundary tests for zero capacity, disconnected sink, parallel and antiparallel edges, self loops, and invalid endpoints. State the chosen self-loop convention explicitly.",
       "Write a Chinese-English audit containing the derivation, complete runnable code, tables and tests. Explain integer-capacity assumptions, floating-point limitations and the algorithm’s complexity."
+    ]
+  },
+  {
+    "id": "mechanics_damped_oscillator_energy_audit",
+    "title": "Damped oscillator: energy decay and sampling checks",
+    "domain": "mechanics_damped_oscillator",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic of a horizontal spring-mass-damper system, with displacement, velocity and force arrows clearly labelled as schematic. Give a Markdown table of explicitly synthetic SI parameters and initial conditions for an underdamped example.",
+      "Derive the homogeneous damped oscillator solution in LaTeX and its mechanical energy derivative. Distinguish underdamped, critically damped and overdamped regimes; state parameter units and sign assumptions.",
+      "Write complete runnable standard-library Python for the analytic displacement and velocity in all three regimes, including the critical limit. Include executable tests for initial conditions, zero damping and invalid mass or negative damping.",
+      "Compare the analytic solution with step-refined numerical integration in a Markdown error table. Audit whether the discrete energy is monotone and explain how numerical error can imitate physical energy injection. Use only synthetic data.",
+      "Write a Chinese-English reproducibility report containing equations, full code and negative tests. Explain aliasing when recording oscillations and why the schematic image cannot verify force balance or identify physical damping parameters."
+    ]
+  },
+  {
+    "id": "compilers_dominator_fixed_point_certificate",
+    "title": "Control-flow graphs: dominators and independent certificates",
+    "domain": "compilers_control_flow_dominators",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a synthetic directed control-flow graph with a named entry, a branch, a join, a loop and an unreachable node. Provide Markdown tables of nodes and edges. Define precisely which nodes participate in dominance.",
+      "Express the dominator fixed-point equations in LaTeX over entry-reachable nodes. Explain initialization and prove termination and correctness, distinguishing a fixed point from a path-based dominance claim.",
+      "Write complete runnable standard-library Python to validate the graph and compute dominator sets by fixed-point iteration. Include executable tests and deterministic ordering.",
+      "Trace each iteration for the synthetic graph in a Markdown table. Derive immediate dominators and explain the strict-dominator ordering that makes them unique for reachable non-entry nodes.",
+      "Implement an independent certificate checker using reachability after vertex removal instead of the fixed-point recurrence. Reject missing nodes, invented nodes, incorrect entry dominance and false dominance claims.",
+      "Enumerate all tiny directed graphs up to a clearly bounded size and compare the fixed-point solver with the independent checker. Provide full deterministic Python, finite bounds and an honest complexity estimate.",
+      "Add executable tests for self-loops, duplicate edges, an entry with incoming edges, disconnected cycles, unknown endpoints and a one-node graph. State the policy for unreachable nodes and show how the checker enforces it.",
+      "Write a Chinese-English audit including definitions, proof, complete solver/checker code and negative tests. Explain why dominance alone does not prove variable liveness, correct SSA construction or semantic equivalence of compiler optimizations."
+    ]
+  },
+  {
+    "id": "optics_jones_polarization_power_audit",
+    "title": "Polarization optics: Jones vectors and power conservation",
+    "domain": "optics_polarization_jones_calculus",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original schematic of a synthetic optical bench with an ideal linear polarizer, a quarter-wave plate and an analyzer. Label propagation direction and optical axes; distinguish schematic arrows from measured light fields. Give a Markdown table of synthetic angles and normalized input powers.",
+      "Derive the Jones matrices and transmitted intensity in LaTeX for a stated phase convention. Explain global phase, normalized polarization vectors and when Jones calculus cannot represent partially polarized light.",
+      "Write complete runnable standard-library Python using complex numbers to compose the matrices and compute intensity. Include executable tests for unitary retarders, crossed polarizers, Malus law and invalid normalization.",
+      "Provide a Markdown table sweeping analyzer angles for linear and circular input. Independently check power bounds and angle periodicity, including degree-versus-radian negative tests. Use explicitly synthetic values only.",
+      "Write a Chinese-English audit with formulas, full reproducible code and negative tests. Distinguish lossless retarders from lossy polarizers and explain why a schematic image cannot certify actual polarization, alignment or optical power."
+    ]
+  },
+  {
+    "id": "algorithms_bipartite_matching_vertex_cover_certificate",
+    "title": "Bipartite matching: augmenting paths and vertex-cover certificates",
+    "domain": "algorithms_bipartite_matching_certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a small synthetic bipartite assignment graph with named left and right vertices, at least one isolated vertex and competing choices. Give Markdown tables for vertices and edges. Distinguish maximum-cardinality matching from a maximal matching.",
+      "Define augmenting paths in LaTeX and prove why their absence characterizes maximum matching. State the bipartite partition assumptions and explain the symmetric-difference argument.",
+      "Write complete runnable standard-library Python that validates a bipartite graph and computes a maximum matching via augmenting paths. Include deterministic traversal and executable tests.",
+      "Trace each augmentation on the example in a Markdown table showing the matching before and after, the alternating path and its cardinality. Include an example where a greedy maximal matching is suboptimal.",
+      "Derive a minimum vertex cover using alternating reachability from unmatched left vertices. Prove that it covers every edge and has the same size as the maximum matching.",
+      "Implement an independent certificate checker for matching validity, edge coverage and equal cardinality. Reject repeated endpoints, nonedges, invented vertices and uncovered edges, including executable negative tests.",
+      "Enumerate every graph for a bounded tiny bipartition and compare the solver against brute-force matching and vertex-cover enumeration. Provide complete deterministic Python and explicit computational bounds.",
+      "Write a Chinese-English audit containing the proof, full solver and independent checker, tables and negative tests. Explain why this unweighted graph exercise does not solve weighted assignment, capacity constraints or real-world allocation fairness."
     ]
   }
 ]

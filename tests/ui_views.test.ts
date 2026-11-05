@@ -409,3 +409,58 @@ test('successful exports retain precise user/tool notes without presenting sourc
     assert.equal(await page.locator('[data-chat-id="unconfirmed"] .source-turn-status').innerText(), '原回答结束状态未确认，已保存可用正文');
     assert.equal(await page.locator('[data-chat-id="finished"] .source-turn-status').count(), 0);
 });
+
+test('React list preserves focused checkbox and expanded details across domain refresh and row reorder', async () => {
+    await open({ settings: { developerMode: true }, indexes: rows,
+        records: { [A]: { one: { status: 'partial', format: 'markdown', exportedAt: 100,
+            attachmentIssues: [{ resourceId: 'image', name: 'preview.png', code: 'RESOURCE_UNAVAILABLE' }] } } } });
+    const row = page.locator('[data-chat-id="one"]');
+    await row.locator('summary').click();
+    const checkbox = await row.locator('input').elementHandle();
+    assert.ok(checkbox);
+    await checkbox.focus();
+    await page.evaluate(({ A }) => {
+        const h = Reflect.get(window, 'harness');
+        h.indexes = h.indexes.map((index: { key: { conversationId: string } }) =>
+            index.key.conversationId === 'one' ? { ...index, title: 'Alpha refreshed', updatedAt: 30 } : index);
+        h.domainListener(A);
+    }, { A });
+    await page.waitForFunction(() => document.querySelector('#list .chat-title')?.textContent === 'Alpha refreshed');
+    assert.equal(await checkbox.evaluate(input => input.isConnected && document.activeElement === input), true);
+    assert.equal(await row.locator('details').evaluate((details: HTMLDetailsElement) => details.open), true);
+    await page.keyboard.press('Space');
+    assert.equal(await row.locator('input').isChecked(), true);
+    assert.equal(await row.getAttribute('data-selected'), 'true');
+});
+
+test('React attachment permission control survives unrelated redraws without repeating its access query', async () => {
+    const sourceUrl = 'https://cdn.sanity.io/images/project/preview.png';
+    await open({ settings: { developerMode: true }, indexes: rows,
+        records: { [A]: { one: { status: 'partial', format: 'markdown', exportedAt: 100,
+            attachmentIssues: [{ resourceId: 'image', name: 'preview.png', code: 'RESOURCE_UNAVAILABLE', sourceUrl }] } } } });
+    const row = page.locator('[data-chat-id="one"]');
+    await row.locator('summary').click();
+    await row.locator('.authorize-resource').waitFor({ state: 'visible' });
+    const queries = await read(page, 'resourceAccessChecks');
+    await row.locator('input').check();
+    await page.locator('#list [data-chat-id="two"] input').check();
+    await row.locator('input').uncheck();
+    assert.equal(await read(page, 'resourceAccessChecks'), queries);
+    assert.equal(await row.locator('details').evaluate((details: HTMLDetailsElement) => details.open), true);
+    assert.deepEqual(await read(page, 'resourceRequests'), undefined);
+});
+
+test('React list gives same-id conversations in different accounts independent row identity', async () => {
+    await open({ settings: { developerMode: true }, indexes: [rows[0], { ...rows[0], key: { accountId: B, conversationId: 'one' }, title: 'Other account' }],
+        records: { [A]: { one: { status: 'partial', format: 'markdown', exportedAt: 100,
+            attachmentIssues: [{ resourceId: 'image', name: 'preview.png', code: 'RESOURCE_UNAVAILABLE' }] } } } });
+    const oldCheckbox = await page.locator('#list input').elementHandle();
+    assert.ok(oldCheckbox);
+    await page.locator('#list summary').click();
+    await oldCheckbox.check();
+    await page.locator('#accountIdSelect').selectOption(B);
+    await page.waitForFunction(() => document.querySelector('#list .chat-title')?.textContent === 'Other account');
+    assert.equal(await oldCheckbox.evaluate(input => input.isConnected), false);
+    assert.equal(await page.locator('#list input').isChecked(), false);
+    assert.equal(await page.locator('#list details').count(), 0);
+});

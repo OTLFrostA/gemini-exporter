@@ -1,51 +1,6 @@
-import type { ConversationKey } from '../../../l2/conversationKey.js';
-import type { ExportDiagnostic } from '../../../application/export/types.js';
 import { text } from '../../shared/settings.js';
 import { resourceIssueKind } from '../../../shared/resources/resourceResult.js';
-
-interface AffectedConversation { key: ConversationKey; title?: string }
-export interface ExportIssueGroup {
-    category: string;
-    httpStatus?: number;
-    severity: 'warning' | 'error';
-    occurrences: number;
-    diagnostic: ExportDiagnostic;
-    conversations: AffectedConversation[];
-}
-const SOURCE_STATE_CODES = new Set(['SOURCE_TURN_UNFINISHED', 'SOURCE_TURN_INTERRUPTED', 'SOURCE_TURN_HANDOFF',
-    'SOURCE_TURN_AWAITING_REPLY', 'SOURCE_TURN_TOOL_PENDING', 'SOURCE_TURN_UNKNOWN']);
-const GENERIC_CODES = new Set(['EXPORT_FAILED', 'EXPORT_RUN_FAILED', 'SOURCE_REFRESH_FAILED', 'RESOURCE_REFRESH_FAILED']);
-const LEGACY_ISSUES = new Set([...GENERIC_CODES, 'DETAIL_NOT_COMPLETE', 'DETAIL_STALE']);
-
-/** Collect before diagnostic-log truncation. Only reported categories/statuses determine grouping. */
-export class ExportIssueCollector {
-    private readonly entries = new Map<string, { group: ExportIssueGroup; keys: Set<string> }>();
-    add(diagnostic: ExportDiagnostic, title?: string): void {
-        // Source termination is not an export problem, including legacy warning diagnostics.
-        if (SOURCE_STATE_CODES.has(diagnostic.code) || diagnostic.severity === 'info' || ['EXPORT_CANCELLED', 'SOURCE_CONVERSATION_EMPTY'].includes(diagnostic.code)) return;
-        if (!diagnostic.severity && !LEGACY_ISSUES.has(diagnostic.code)) return;
-        const category = diagnostic.issue?.code ?? (GENERIC_CODES.has(diagnostic.code) ? 'UNKNOWN_ERROR' : diagnostic.code);
-        const httpStatus = diagnostic.issue?.httpStatus;
-        const signature = JSON.stringify([category, httpStatus, category === 'UNKNOWN_ERROR' ? diagnostic.stage : null]);
-        let entry = this.entries.get(signature);
-        if (!entry) {
-            entry = { group: { category, httpStatus, severity: diagnostic.severity === 'warning' ? 'warning' : 'error',
-                occurrences: 0, diagnostic, conversations: [] }, keys: new Set() };
-            this.entries.set(signature, entry);
-        }
-        entry.group.occurrences++;
-        if (diagnostic.severity === 'error' || diagnostic.code === 'EXPORT_FAILED') entry.group.severity = 'error';
-        if (diagnostic.key) {
-            const id = JSON.stringify([diagnostic.key.accountId, diagnostic.key.conversationId]);
-            if (!entry.keys.has(id)) {
-                entry.keys.add(id);
-                entry.group.conversations.push({ key: diagnostic.key, title });
-            }
-        }
-    }
-    groups(): ExportIssueGroup[] { return [...this.entries.values()].map(entry => entry.group); }
-    toJSON(): ExportIssueGroup[] { return this.groups(); }
-}
+import type { ExportIssueGroup } from '../state/exportIssues.js';
 
 const LABELS: ReadonlyMap<string, readonly [string, string]> = new Map([
     ['ACCOUNT_UNAVAILABLE', ['Selected account unavailable', '所选账号不可用']],
@@ -102,27 +57,6 @@ export function failureGroupLabel(group: ExportIssueGroup): string {
     return reason + (group.httpStatus !== undefined ? ` (HTTP ${group.httpStatus})` : '')
         + ' · ' + (count ? text(`${count} conversations`, `${count} 条会话`) : text('Export task', '导出任务'))
         + ' · ' + text(`${group.occurrences} occurrences`, `${group.occurrences} 次`);
-}
-export function renderExportFailures(container: HTMLElement, groups: readonly ExportIssueGroup[]): void {
-    container.replaceChildren();
-    for (const group of groups) {
-        const details = document.createElement('details');
-        details.dataset.severity = group.severity;
-        const summary = document.createElement('summary');
-        summary.textContent = failureGroupLabel(group);
-        details.append(summary);
-        const diagnostic = document.createElement('div');
-        diagnostic.style.overflowWrap = 'anywhere';
-        diagnostic.textContent = text('Example diagnostic: ', '示例诊断：')
-            + `[${group.diagnostic.stage} / ${group.diagnostic.code}] ${group.diagnostic.message}`;
-        details.append(diagnostic);
-        for (const { key, title } of group.conversations) {
-            const line = document.createElement('div');
-            line.textContent = title ? `${title} (${key.conversationId})` : key.conversationId;
-            details.append(line);
-        }
-        container.append(details);
-    }
 }
 export function copyExportFailures(groups: readonly ExportIssueGroup[]): string {
     return groups.map(group => [failureGroupLabel(group),

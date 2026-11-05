@@ -1,184 +1,48 @@
-import { resourceDownloadOrigin } from '../../../shared/platformHosts.js';
-import { hasResourceAccess, requestResourceAuthorization } from '../../../runtime/capabilities/platformAuthorization.js';
+import { createElement } from 'react';
+import { flushSync } from 'react-dom';
+import { createRoot, type Root } from 'react-dom/client';
 import { elementById, requiredElement } from '../../shared/elements.js';
-import { attachmentFailure, attachmentIssueText } from '../../shared/exportSummary.js';
-import { resourceIssueKind } from '../../../shared/resources/resourceResult.js';
-import { indexActivityTime } from '../../../l2/conversationIndex.js';
-import type { DomainConversationIndex } from '../../../l2/conversationIndex.js';
-import type { ExportRecord } from '../../../application/export/types.js';
 import type { ConversationViewState } from '../state/conversationsStore.js';
-import { text, uiLocale, isDeveloperMode } from '../../shared/settings.js';
+import { text, isDeveloperMode } from '../../shared/settings.js';
+import { ConversationList } from './conversationList.js';
 
-/** Display recent ExportRecord facts and transient delivery results; Application still owns Skip. */
-function viewStatus(index: DomainConversationIndex, record: ExportRecord | undefined, prepared: boolean, failed: boolean) {
-    if (failed) return { label: text('Export failed', '导出失败'), className: 'status-failed' };
-    if (prepared) return { label: text('Rendered, awaiting download', '渲染成功，等待下载'), className: 'status-prepared' };
-    if (!record) return { label: '', className: '' };
-    if (record.status === 'partial' && (isDeveloperMode() || record.otherContentMissing || !record.attachmentIssues?.length)) {
-        if (record.otherContentMissing || !record.attachmentIssues?.length)
-            return { label: text('Incomplete export', '导出不完整'), className: 'status-partial' };
-        const onlyExpired = record.attachmentIssues.every(issue =>
-            resourceIssueKind(attachmentFailure(issue)) === 'expired');
-        return onlyExpired
-            ? { label: text('Some source attachments unavailable', '部分来源附件无法获取'), className: 'status-unavailable' }
-            : { label: text('Some attachments failed', '部分附件获取失败'), className: 'status-unavailable' };
-    }
-    if (record.chatTime !== undefined && index.updatedAt !== undefined
-        && Number.isSafeInteger(record.chatTime) && Number.isSafeInteger(index.updatedAt)
-        && index.updatedAt > record.chatTime)
-        return { label: text('Updated', '有更新'), className: 'status-updated' };
-    return { label: text(`Export successful (${date(record.exportedAt)})`, `导出成功（${date(record.exportedAt)}）`), className: 'status-exported' };
-}
-function date(value: number | undefined): string {
-    return value === undefined || !Number.isFinite(value) ? '' : new Date(value).toLocaleString(uiLocale());
-}
+// Only this adapter touches the legacy workbench's DOM and mutable selection.
+// React exclusively owns #list's descendants; Application owns all export facts.
+const roots = new WeakMap<HTMLElement, Root>();
 
-function createRow(state: ConversationViewState, id: string) {
-    const row = document.createElement('div');
-    row.className = 'item'; row.dataset.chatId = id;
-    row.dataset.accountId = state.accountId ?? '';
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    const select = () => {
-        if (checkbox.disabled) return;
-        if (checkbox.checked) {
-            if (document.body.dataset.guidedSelection === 'true') {
-                state.selected.clear();
-                elementById('list').querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach(input => { input.checked = input === checkbox; });
-            }
-            state.selected.add(id);
-        } else state.selected.delete(id);
-        updateStat(state);
-    };
-    checkbox.addEventListener('change', select);
-    row.addEventListener('click', event => {
-        if (checkbox.disabled || event.target instanceof Element && event.target.closest('input, a, details')) return;
-        checkbox.checked = !checkbox.checked;
-        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    const body = document.createElement('div');
-    body.style.cssText = 'flex:1;min-width:0;cursor:pointer';
-    const open = document.createElement('a');
-    open.target = '_blank'; open.rel = 'noopener noreferrer'; open.className = 'open-link';
-    row.append(checkbox, body, open);
-    return {row, checkbox, body, open};
+export function unmountList(): void {
+    const list = elementById('list');
+    roots.get(list)?.unmount();
+    roots.delete(list);
 }
-
-const listViews = new WeakMap<ConversationViewState, Map<string, ReturnType<typeof createRow>>>();
 
 export function renderList(state: ConversationViewState, disabled: boolean, preparedKeys?: ReadonlySet<string>, failedKeys?: ReadonlySet<string>): void {
     const list = elementById('list');
-    let views = listViews.get(state);
-    if (!views) { views = new Map(); listViews.set(state, views); }
-    const visible = state.visible();
-    const visibleIds = new Set(visible.map(index => index.key.conversationId));
-    for (const [id, view] of views) {
-        if (!visibleIds.has(id) || view.row.dataset.accountId !== state.accountId) {
-            view.row.remove(); views.delete(id);
-        }
-    }
-    if (!list.children.length) list.textContent = '';
-    let positionIndex = 0;
-    for (const index of visible) {
-        const id = index.key.conversationId;
-        const record = state.records[id];
-        const status = viewStatus(index, record, preparedKeys?.has(id) ?? false, failedKeys?.has(id) ?? false);
-        let view = views.get(id);
-        if (!view) {
-            view = createRow(state, id);
-            views.set(id, view);
-        }
-        const { row, checkbox, body, open } = view;
-        checkbox.checked = state.selected.has(id);
-        checkbox.disabled = disabled;
-        checkbox.setAttribute('aria-label', text('Select conversation', '选择会话'));
-        const content = document.createElement('div');
-        content.style.cssText = body.style.cssText;
-        const heading = document.createElement('div');
-        heading.style.cssText = 'display:flex;align-items:center;flex-wrap:wrap;gap:4px';
-        const title = document.createElement('span'); title.className = 'chat-title title';
-        title.textContent = index.title || id;
-        if (!index.title) title.style.color = 'var(--warn)';
-        heading.append(title);
-        if (status.className) {
-            const badge = document.createElement('span');
-            badge.className = 'status-tag ' + status.className;
-            badge.textContent = status.label;
-            heading.append(badge);
-        }
-        const meta = document.createElement('small'); meta.className = 'meta'; meta.style.display = 'block';
-        const seen = date(indexActivityTime(index));
-        meta.textContent = [seen, record ? `${text('Last export', '上次导出')} · ${record.format}` : ''].filter(Boolean).join(' · ');
-        content.append(heading, meta);
-        if (record?.sourceTurn && record.sourceTurn !== 'finished') {
-            const note = document.createElement('div');
-            note.className = 'source-turn-status';
-            note.textContent = record.sourceTurn === 'unfinished' ? text('Source reply has not ended', '原回答尚未结束')
-                : record.sourceTurn === 'interrupted' ? text('Source reply was interrupted', '原回答已中断')
-                : record.sourceTurn === 'handoff' ? text('Source is at a handoff', '原对话停在交接步骤')
-                : record.sourceTurn === 'awaiting_reply' ? text('Source ends with a user message', '来源最后为用户消息')
-                : record.sourceTurn === 'tool_pending' ? text('Source ends at a tool step', '来源停在工具步骤')
-                : text('Source reply completion unconfirmed; available content saved', '原回答结束状态未确认，已保存可用正文');
-            content.append(note);
-        }
-        if (isDeveloperMode() && record?.attachmentIssues?.length) {
-            const details = document.createElement('details'); details.className = 'attachment-issues';
-            details.open = body.querySelector('details')?.open ?? false;
-            details.addEventListener('click', event => event.stopPropagation());
-            const summary = document.createElement('summary');
-            summary.textContent = text(`Attachment details (${record.attachmentIssues.length})`, `附件详情（${record.attachmentIssues.length}）`);
-            details.append(summary);
-            for (const issue of record.attachmentIssues) {
-                const line = document.createElement('div'); line.textContent = attachmentIssueText(issue);
-                if (issue.sourceUrl) {
-                    try {
-                        const url = new URL(issue.sourceUrl);
-                        if (url.protocol === 'https:' && !url.username && !url.password) {
-                            const source = document.createElement('a'); source.href = url.href;
-                            source.textContent = text('Open source', '查看来源'); source.target = '_blank'; source.rel = 'noopener noreferrer';
-                            line.append(' ', source);
-                            const sourceUrl = issue.sourceUrl;
-                            if (resourceDownloadOrigin(sourceUrl) && issue.httpStatus === undefined
-                                && ['RESOURCE_DOWNLOAD_FAILED', 'RESOURCE_UNAVAILABLE'].includes(issue.code)) {
-                                const allow = document.createElement('button');
-                                allow.type = 'button'; allow.className = 'authorize-resource'; allow.hidden = true;
-                                const label = text(`Allow downloads from ${url.hostname}`, `允许从 ${url.hostname} 下载`);
-                                allow.textContent = label;
-                                void hasResourceAccess(sourceUrl).then(granted => { allow.hidden = granted; });
-                                allow.addEventListener('click', () => {
-                                    const request = requestResourceAuthorization(sourceUrl);
-                                    allow.disabled = true;
-                                    void request.then(granted => {
-                                        allow.disabled = granted;
-                                        allow.textContent = granted ? text('Access allowed; export this conversation again', '已授权，请重新导出此会话') : label;
-                                    });
-                                });
-                                line.append(' ', allow);
-                            }
-                        }
-                    } catch { /* Older records may contain an invalid source locator. */ }
-                }
-                details.append(line);
-            }
-            content.append(details);
-        }
-        // Keep the row and controls connected across refreshes so an in-flight
-        // mouse/keyboard gesture keeps its target. Preserve unchanged details too.
-        if (!body.isEqualNode(content)) body.replaceChildren(...content.childNodes);
-
-        // Never link a provider-supplied URL. Construct a fixed-origin destination from the trusted conversation ID.
-        const provider = state.accounts.find(account => account.id === state.accountId)?.providerId;
-        const chatgpt = provider === 'chatgpt';
-        const claude = provider === 'claude';
-        open.href = (provider === 'grok' ? 'https://grok.com/c/' : claude ? 'https://claude.ai/chat/' : chatgpt ? 'https://chatgpt.com/c/' : 'https://gemini.google.com/app/') + encodeURIComponent(id);
-        open.title = provider === 'grok' ? text('Open in Grok', '在 Grok 中打开') : claude ? text('Open in Claude', '在 Claude 中打开')
-            : chatgpt ? text('Open in ChatGPT', '在 ChatGPT 中打开') : text('Open in Gemini', '在 Gemini 中打开');
-        open.textContent = '↗';
-        open.setAttribute('aria-label', open.title);
-        const position = list.children[positionIndex++];
-        if (position !== row) list.insertBefore(row, position ?? null);
-    }
-    if (!list.children.length) list.textContent = text('No conversations match this view', '当前视图没有对话');
+    let root = roots.get(list);
+    if (!root) { root = createRoot(list); roots.set(list, root); }
+    const provider = state.accounts.find(account => account.id === state.accountId)?.providerId;
+    const rows = state.visible().map(index => ({
+        index,
+        record: state.records[index.key.conversationId],
+        selected: state.selected.has(index.key.conversationId),
+        prepared: preparedKeys?.has(index.key.conversationId) ?? false,
+        failed: failedKeys?.has(index.key.conversationId) ?? false,
+    }));
+    // Existing workbench code and guidance read the DOM immediately after render.
+    // Keep that synchronous contract at the migration boundary only.
+    flushSync(() => root.render(createElement(ConversationList, {
+        rows, disabled, provider, developerMode: isDeveloperMode(),
+        onSelect: (id: string, selected: boolean) => {
+            if (disabled) return;
+            if (selected) {
+                if (document.body.dataset.guidedSelection === 'true') state.selected.clear();
+                state.selected.add(id);
+            } else state.selected.delete(id);
+            renderList(state, disabled, preparedKeys, failedKeys);
+            // The legacy tour observes selection intent, including row-title clicks.
+            list.dispatchEvent(new Event('conversation-selection-change'));
+        },
+    })));
     updateStat(state);
 }
 
