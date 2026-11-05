@@ -152,6 +152,52 @@ class TestChromeDiagnostics(unittest.TestCase):
             self.assertTrue((Path(metadata['log_dir']) / 'stderr.log').exists())
             self.assertTrue(spawn.call_args.kwargs['start_new_session'])
             self.assertIn('--enable-logging', metadata['command'])
+            self.assertIn('--headless=new', metadata['command'])
+            self.assertEqual(metadata['mode'], 'headless')
+
+    def test_manual_login_mode_works_directly_and_through_all_wrapper_arguments(self):
+        for suffix in (['--headed'], ['--', 'about:blank', '--headed']):
+            with self.subTest(suffix=suffix), tempfile.TemporaryDirectory() as directory:
+                process = SimpleNamespace(pid=123, poll=lambda: None)
+                with patch('scripts.launch_test_chrome.ensure_port_free'), \
+                        patch('scripts.launch_test_chrome.browser_version', return_value={
+                            'Browser': 'Chrome/test', 'webSocketDebuggerUrl': 'ws://original'}), \
+                        patch('scripts.launch_test_chrome.verify_process'), \
+                        patch('scripts.launch_test_chrome.subprocess.Popen', return_value=process):
+                    self.assertEqual(main(['--chrome', 'chrome', '--profile', directory,
+                                           '--repo', directory, *suffix]), 0)
+                metadata = json.loads((Path(directory) / 'chrome-launch.json').read_text())
+                self.assertEqual(metadata['mode'], 'headed')
+                self.assertNotIn('--headed', metadata['command'])
+                self.assertFalse(any(arg.startswith('--headless') for arg in metadata['command']))
+
+    def test_legacy_explicit_headless_argument_keeps_single_unified_flag(self):
+        for flag in ('--headless', '--headless=new'):
+            with self.subTest(flag=flag), tempfile.TemporaryDirectory() as directory:
+                process = SimpleNamespace(pid=123, poll=lambda: None)
+                with patch('scripts.launch_test_chrome.ensure_port_free'), \
+                        patch('scripts.launch_test_chrome.browser_version', return_value={
+                            'Browser': 'Chrome/test', 'webSocketDebuggerUrl': 'ws://original'}), \
+                        patch('scripts.launch_test_chrome.verify_process'), \
+                        patch('scripts.launch_test_chrome.subprocess.Popen', return_value=process):
+                    main(['--chrome', 'chrome', '--profile', directory,
+                          '--repo', directory, '--', flag, 'about:blank'])
+                metadata = json.loads((Path(directory) / 'chrome-launch.json').read_text())
+                self.assertEqual([arg for arg in metadata['command'] if arg.startswith('--headless')],
+                                 ['--headless=new'])
+
+    def test_conflicting_or_unsupported_modes_never_spawn_chrome(self):
+        for suffix in (['--headed', '--', '--headless=new'],
+                       ['--', '--headed', '--headless'], ['--', '--headless=old'],
+                       ['--', '--headless=false']):
+            with self.subTest(suffix=suffix), tempfile.TemporaryDirectory() as directory:
+                with patch('scripts.launch_test_chrome.subprocess.Popen') as spawn:
+                    with self.assertRaises(SystemExit) as raised:
+                        main(['--chrome', 'chrome', '--profile', directory,
+                              '--repo', directory, *suffix])
+                    self.assertEqual(raised.exception.code, 2)
+                    spawn.assert_not_called()
+                self.assertFalse((Path(directory) / '.chrome-launch.lock').exists())
 
     def test_startup_exit_preserves_exit_code_and_stderr_path(self):
         with tempfile.TemporaryDirectory() as directory:

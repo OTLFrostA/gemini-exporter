@@ -51,7 +51,7 @@
 ### 第二层：真实调试 Chrome 全流程实跑测试 (Tier 2: Live Debug Staging)
 * **执行命令**：`npm run test:tier2`（对应 `python3 scripts/test_live_chat_and_export.py`）。
 * **适用场景**：修改了 Protobuf/JSPB 解析引擎、Google Takeout 导入逻辑、会话排序、网络请求拦截或发布新版本前。
-* **环境准备**：需先通过 `./scripts/open_test_chrome.sh`（Windows 环境运行 `.\scripts\open_test_chrome.ps1` 或 `.\scripts\open_test_chrome.cmd`）启动开启 9222 调试端口的独立 Chrome 并登录测试账号。
+* **环境准备**：需先通过 `./scripts/open_test_chrome.sh`（Windows 环境运行 `.\scripts\open_test_chrome.ps1` 或 `.\scripts\open_test_chrome.cmd`）启动开启 9222 调试端口的独立 Chrome。三个启动器默认使用 `--headless=new`，所有平台 Tier 2 / Tier 3 共用后台虚拟窗口，避免抢占桌面焦点。首次登录手动加 `--headed`，登录后正常关闭该测试 Chrome，再不带 `--headed` 重启；不要用手动登录实例跑自动测试。已有有窗口实例不能原地切换，启动器仍拒绝替换或终止占用 9222 的浏览器。
 * **运行模式与场景调度机制**：
   * **统一标准模式：动态 20 题多模态场景池机制（默认行为）**：
     1. 项目在 `scripts/test_scenario_pool.json` 维护了 20 个覆盖 10+ 领域的高价值测试场景（包含 AI 图像生成、LaTeX 公式、Markdown 表格、多语言混排、长代码等全模态特性）；

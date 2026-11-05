@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/open_test_chrome.sh - 一键拉起携带固化登录态与自动加载插件的独立 Chrome 窗口
+# scripts/open_test_chrome.sh - 一键拉起携带固化登录态与自动加载插件的后台 Chrome
 
 set -e
 
@@ -52,7 +52,7 @@ echo "📁 测试 Profile 目录: $PROFILE_DIR"
 echo "🧩 自动挂载扩展源码: $REPO_DIR"
 echo "🔨 确保扩展最新生产构建 (node build.js)..."
 (cd "$REPO_DIR" && node build.js)
-echo "💡 提示: 首次打开请在弹出的窗口中登录 Google 账号，后续将永远保持登录与插件就绪状态！"
+echo "💡 默认后台无窗口运行。首次登录请加 --headed；登录后关闭测试 Chrome，再按默认方式启动。"
 echo "=================================================="
 
 exec python3 "$REPO_DIR/scripts/launch_test_chrome.py" \
