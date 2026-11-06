@@ -1,4 +1,4 @@
-# 🌌 Gemini Exporter - Save All Your Chats
+# 🌌 Gemini Exporter - Bulk Export All Chats & Auto Backup, Free!
 
 <p align="left">
   <a href="./README.md">English</a> | <b>简体中文</b>
