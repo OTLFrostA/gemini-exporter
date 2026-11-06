@@ -694,9 +694,16 @@ class CDPAssertions:
                 turns_clean = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in raw_turns]
                 best_file = None
                 best_match_count = 0
+                expected_id = sc.get('chat_id')
                 for mf in all_mds:
                     with open(mf, "r", encoding="utf-8", errors="ignore") as f:
                         txt = f.read()
+                    if expected_id:
+                        matched_id = re.search(r'''(?m)^id:\s*["']?([^"'\s]+)''', txt.split('\n---\n', 1)[0])
+                        if matched_id and matched_id.group(1).removeprefix('c_') == expected_id.removeprefix('c_'):
+                            best_file = mf
+                            break
+                        continue
                     matches = sum(1 for t in turns_clean if t and t[:14] in txt)
                     if matches > best_match_count:
                         best_match_count = matches
@@ -710,13 +717,23 @@ class CDPAssertions:
                 with open(matched_file, "r", encoding="utf-8", errors="ignore") as f:
                     file_text = f.read()
 
+                users = [message['content'] for message in markdown_messages(file_text)
+                         if message['role'] == 'user']
                 missing_turns = []
                 for t_idx, p_str in enumerate(turns_clean, 1):
-                    if p_str[:14] not in file_text:
+                    # Compare complete prompts in ordered user messages through
+                    # Markdown's grammar: e.g. b=\[6,12,3\] renders as b=[6,12,3].
+                    if (not p_str or t_idx > len(users)
+                            or normalized_answer(p_str) not in normalized_answer(
+                                users[t_idx - 1], markdown=True, visible_reference=p_str)):
                         missing_turns.append((t_idx, p_str[:20]))
 
                 if missing_turns:
                     return False, f"场景 {idx} 存在缺失轮次: {missing_turns}", {"scenario": sc.get("title"), "missing": missing_turns}
+                if 'turn_evidence' in sc:
+                    complete, message = assert_turn_content(file_text, sc['turn_evidence'])
+                    if not complete:
+                        return False, f"场景 {idx} 全文核对失败: {message}", {"scenario": sc.get('title')}
                 scenario_results.append({"scenario": sc.get("title"), "turns_matched": len(turns_clean)})
 
         # 运行 ExportSpecificationAsserter

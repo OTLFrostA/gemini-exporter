@@ -48,7 +48,8 @@ class GeminiSelectors:
 
     # ─── 弹窗与确认交互 ───
     DIALOG: str = 'mat-dialog-container, [role="dialog"], .mat-mdc-dialog-container'
-    RETRY_BTN: str = 'button[aria-label*="Retry"], button[aria-label*="重试"]'
+    RETRY_BTN: str = ('button[aria-label*="Retry"], button[aria-label*="重试"], '
+                      'response-failure-notice [data-test-id="banner-action-button"] button')
     TOAST: str = 'toast-content, .toast, .error-message, [role="alert"]'
 
     # ─── 模型与推理开关菜单 ───

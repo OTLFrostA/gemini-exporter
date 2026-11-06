@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const source = readFileSync('scripts/framework/driver/authored_response.js', 'utf8');
 
@@ -180,4 +181,68 @@ test('empty native math placeholders do not become fabricated PDF formulas', asy
     expect(evidence.pdfSegments.filter(segment => segment.kind === 'math')).toEqual([{kind:'math',text:'x=1'}]);
     expect(evidence.pdfSegments.map(segment => segment.text).join('').replace(/\s/g,'')).toBe(evidence.text.replace(/\s/g,''));
     expect(await page.locator('[data-math=""]').count()).toBe(1);
+});
+
+const replyScripts: { send: string; wait: string; retry: string } = JSON.parse(execFileSync('python3', ['-c', `
+import json
+from scripts.framework.pipeline.actions import SingleClickSendAction, AwaitStreamSettledAction
+class Capture:
+    def __init__(self, result): self.result, self.expressions = result, []
+    def eval(self, expression):
+        self.expressions.append(expression)
+        return self.result
+send, wait = Capture({'clicked': True}), Capture({'error': 'capture only'})
+SingleClickSendAction(send_btn_selector='#send').execute(None, send)
+AwaitStreamSettledAction().execute(None, wait)
+class RetryCapture(Capture):
+    def eval(self, expression):
+        self.expressions.append(expression)
+        return self.result if len(self.expressions) == 1 else False
+retry = RetryCapture({'error': 'Page shows a retry control', 'newReply': True, 'replyId': 'current'})
+AwaitStreamSettledAction().execute(None, retry)
+print(json.dumps({'send': send.expressions[0], 'wait': wait.expressions[0], 'retry': retry.expressions[1]}))
+`], { encoding: 'utf8' }));
+
+test('live reply observation rejects Gemini response failure notices without aria labels', async ({ page }) => {
+    await page.setContent('<model-response><model-response-content>Incomplete answer.</model-response-content>'
+        + '<response-failure-notice><gem-banner data-test-id="response-failure-notice">An error occurred'
+        + '<gem-button data-test-id="banner-action-button"><button>Try again</button></gem-button>'
+        + '</gem-banner></response-failure-notice></model-response>');
+    expect(await page.evaluate(replyScripts.wait)).toMatchObject({error: 'Page shows a retry control'});
+});
+
+test('provider retry stays bound to the failed current response and never submits another prompt', async ({ page }) => {
+    const notice = '<response-failure-notice><gem-button data-test-id="banner-action-button"><button onclick="this.dataset.clicked=\'true\'">Try again</button></gem-button></response-failure-notice>';
+    await page.setContent('<button id="send" onclick="this.dataset.clicked=\'true\'">Send</button>'
+        + `<div class="conversation-container" id="old"><model-response>${notice}</model-response></div>`
+        + '<div class="conversation-container" id="current"><user-query>Actual prompt</user-query><model-response>Pending</model-response></div>');
+    expect(await page.evaluate(replyScripts.retry)).toBe(false);
+    await expect(page.locator('[data-clicked]')).toHaveCount(0);
+    await page.locator('#current model-response').evaluate((element, notice) => element.innerHTML += notice, notice);
+    expect(await page.evaluate(replyScripts.retry)).toBe(true);
+    await expect(page.locator('#current button')).toHaveAttribute('data-clicked', 'true');
+    await expect(page.locator('#old button')).not.toHaveAttribute('data-clicked');
+    await expect(page.locator('#send')).not.toHaveAttribute('data-clicked');
+    await expect(page.locator('user-query')).toHaveCount(1);
+    await page.locator('#current').evaluate(element => { element.id = 'replaced'; });
+    expect(await page.evaluate(replyScripts.retry)).toBe(false);
+});
+
+test('live reply detection follows turn IDs when Gemini virtualizes or recycles five mounted responses', async ({ page }) => {
+    await page.setContent('<button id="send">Send</button><div class="ql-editor" contenteditable="true"></div>'
+        + Array.from({length: 5}, (_, i) => `<div class="conversation-container" id="turn-${i}"><model-response><model-response-content>OK</model-response-content></model-response></div>`).join(''));
+    await page.evaluate(replyScripts.send);
+    expect(await page.evaluate(replyScripts.wait)).toMatchObject({newReply: false, modelCount: 5});
+    // Rerendering the old response must not count as a new answer.
+    await page.evaluate(() => {
+        const last = document.querySelectorAll('model-response')[4];
+        last.replaceWith(last.cloneNode(true));
+    });
+    expect(await page.evaluate(replyScripts.wait)).toMatchObject({newReply: false, modelCount: 5});
+    // Recycle the existing node with the next turn ID and identical prose.
+    await page.evaluate(() => { document.getElementById('turn-4')!.id = 'turn-5'; });
+    expect(await page.evaluate(replyScripts.wait)).toMatchObject({newReply: true, modelCount: 5, beforeSendCount: 5, replyId: 'turn-5'});
+    // Removing older responses can even decrease the mounted count.
+    await page.evaluate(() => { document.getElementById('turn-0')!.remove(); });
+    expect(await page.evaluate(replyScripts.wait)).toMatchObject({newReply: true, modelCount: 4});
 });

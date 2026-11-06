@@ -168,3 +168,20 @@ AssertIdleAction(max_wait=1).execute(None, Capture())
     await expect(page.locator('#btnSyncAll')).toBeDisabled();
     expect(await page.evaluate(probe)).toBe(true);
 });
+
+test('cancelled directory selection has readable feedback which clears when a scan starts', async ({ context, extensionId }) => {
+    await attachLoggedInGemini(context);
+    const page = await openOptions(context, extensionId);
+    await page.evaluate(() => {
+        Reflect.set(window, 'showDirectoryPicker', async () => {
+            throw new DOMException("Failed to execute 'showDirectoryPicker' on 'Window': The user aborted a request.", 'AbortError');
+        });
+    });
+    await page.locator('input[name="delivery"][value="folderWriter"]').check();
+    await page.locator('#btnSetDir').click();
+    await expect(page.locator('#status')).toContainText('Operation cancelled');
+    await expect(page.locator('#status')).not.toContainText('showDirectoryPicker');
+    await expect(page.locator('#log')).toContainText('showDirectoryPicker');
+    await page.locator('#btnSyncAll').click();
+    await expect(page.locator('#status')).not.toContainText('Operation cancelled');
+});

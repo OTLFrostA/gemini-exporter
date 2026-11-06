@@ -189,7 +189,7 @@ test('i18n - known and unexpected errors localize in UI while logs preserve raw 
     assert.match(await page.locator('#log').textContent() ?? '', /Injected scan failure/);
     const logged = await page.locator('#log').textContent();
     await page.locator('#langToggle').setChecked(true);
-    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Injected scan failure');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Operation failed. Please retry; details are available in the logs or diagnostic report.');
     assert.equal(await page.locator('#log').textContent(), logged);
 });
 

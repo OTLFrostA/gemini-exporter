@@ -200,26 +200,57 @@ class TestEnvironment:
         return tab or self.get_options_tab()
 
     def get_popup_tab(self) -> Optional[Dict[str, Any]]:
-        """获取本次测试扩展的 Popup 标签页。"""
-        return self._get_extension_tab("/src/ui/popup/popup.html")
+        """Resolve an action popup, excluding standalone tabs of the same URL."""
+        ext_id = self.get_extension_id()
+        if not ext_id:
+            return None
+        for tab in self.get_tabs():
+            url = urllib.parse.urlsplit(tab.get('url', ''))
+            if (tab.get('type', 'page') != 'page' or url.scheme != 'chrome-extension'
+                    or url.netloc != ext_id or url.path != '/src/ui/popup/popup.html'
+                    or not tab.get('webSocketDebuggerUrl')):
+                continue
+            cdp = CDPConnection(tab['webSocketDebuggerUrl'])
+            try:
+                if cdp.eval('chrome.tabs.getCurrent().then(tab => !tab)', await_promise=True):
+                    return tab
+            finally:
+                cdp.close()
+        return None
 
     def ensure_popup_tab(self) -> Optional[Dict[str, Any]]:
-        """发现或幂等创建 Popup 动作中心标签页"""
+        """Open Chrome's real action popup against a supported source tab.
+
+        A popup.html tab makes tabs.query(active/currentWindow) resolve itself,
+        so it cannot exercise the current-conversation flow.
+        """
         tab = self.get_popup_tab()
-        if not tab:
-            ext_id = self.get_extension_id()
-            if not ext_id:
-                return None
-            base_url = f"chrome-extension://{ext_id}/src/ui/popup/popup.html"
-            try:
-                new_url = f"http://127.0.0.1:{self.port}/json/new?{base_url}"
-                req = urllib.request.Request(new_url, method="PUT")
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    tab = json.loads(resp.read().decode("utf-8"))
-                    time.sleep(1.0)
-            except Exception as e:
-                print(f"   ⚠️ 自动创建 Popup 标签页异常: {e}")
-        return tab or self.get_popup_tab()
+        if tab:
+            return tab
+        options = self.ensure_options_tab()
+        if not options:
+            return None
+        cdp = CDPConnection(options['webSocketDebuggerUrl'])
+        try:
+            cdp.eval("""(async () => {
+                const tabs = await chrome.tabs.query({});
+                const sources = tabs.filter(tab => tab.url &&
+                    ['gemini.google.com', 'chatgpt.com', 'claude.ai', 'grok.com'].includes(new URL(tab.url).hostname));
+                const source = sources.find(tab => tab.active) ||
+                    sources.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
+                if (source) await chrome.tabs.update(source.id, {active: true});
+                const windowId = source?.windowId || (await chrome.windows.getLastFocused()).id;
+                await chrome.action.openPopup({windowId});
+            })()""", await_promise=True, user_gesture=True)
+        finally:
+            cdp.close()
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            tab = self.get_popup_tab()
+            if tab:
+                return tab
+            time.sleep(0.1)
+        raise RuntimeError('Chrome action popup did not open; refusing standalone popup.html fallback')
 
     def ensure_tab(self, target: str) -> Optional[Dict[str, Any]]:
         """统一按逻辑名解析并确保标签页就绪 (gemini|chat, options|workbench, 或 popup)"""

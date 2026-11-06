@@ -12,15 +12,15 @@ test('P1-118: dynamic IDs and title updates stay literal and cannot escape into 
 test('P1-120: File input resets after success and failure so the same archive can be selected again',async()=>{
     for(const failImport of [false,true]){
         await open('options',{failImport});for(let i=0;i<2;i++) {await page.locator('#takeoutFileInput').setInputFiles({name:'original.zip',mimeType:'application/zip',buffer:Buffer.from('fixture')});await page.waitForFunction(()=>document.body.dataset.busy!=='true');assert.equal(await page.locator('#takeoutFileInput').inputValue(),'');assert.equal((await read(page,'imports')).length,i+1);}
-        assert.match(await page.locator('#status').textContent()??'',failImport?/Invalid ZIP/:/Imported 2/);await page.close();
+        assert.match(await page.locator('#status').textContent()??'',failImport?/Operation failed/:/Imported 2/);await page.close();
     }
 });
-test('P1-121: failed focus refresh reports its original error in the workbench status',async()=>{
-    await open();await page.locator('#list input').waitFor();await page.evaluate(()=>{Reflect.get(window,'harness').failRead=true;window.dispatchEvent(new Event('focus'));});await page.waitForFunction(()=>document.getElementById('status')?.textContent==='Injected load failure');
+test('P1-121: failed focus refresh reports readable feedback in the workbench status',async()=>{
+    await open();await page.locator('#list input').waitFor();await page.evaluate(()=>{Reflect.get(window,'harness').failRead=true;window.dispatchEvent(new Event('focus'));});await page.waitForFunction(()=>document.getElementById('status')?.textContent==='Operation failed. Please retry; details are available in the logs or diagnostic report.');
     assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);
 });
 test('P1-122: both UI entry points report readiness failures without unhandled startup rejections',async()=>{
-    for(const kind of ['options','popup'] as const){await open(kind,{failReady:true});await page.waitForFunction(()=>document.getElementById('status')?.textContent==='Injected readiness failure');assert.equal(await page.locator(kind==='popup'?'#btnCurrent':'#btnExport').isDisabled(),true);await page.close();}
+    for(const kind of ['options','popup'] as const){await open(kind,{failReady:true});await page.waitForFunction(()=>document.getElementById('status')?.textContent==='Operation failed. Please retry; details are available in the logs or diagnostic report.');assert.equal(await page.locator(kind==='popup'?'#btnCurrent':'#btnExport').isDisabled(),true);await page.close();}
 });
 test('P1-123: current Settings language changes refresh Popup labels and keep current format',async()=>{
     await open('popup');await page.locator('#btnCurrent').waitFor();await page.evaluate(()=>{const h=Reflect.get(window,'harness');h.settings.language='zh';h.settings.defaultFormat='html';h.fireSettingsChange();});await page.waitForFunction(()=>document.getElementById('btnCurrent')?.textContent?.includes('导出当前对话'));assert.equal(await page.locator('[data-format="html"]').getAttribute('aria-pressed'),'true');

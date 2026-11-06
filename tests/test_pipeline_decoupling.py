@@ -207,6 +207,35 @@ class TestPipelineDecoupling(unittest.TestCase):
         state['error'] = 'Page shows a retry control'
         self.assertFalse(self.run_wait([state])[0].success)
 
+    def test_failed_current_response_can_retry_once_then_must_stabilize(self):
+        failed = dict(self.settled_state(), error='Page shows a retry control', replyId='current')
+        ready = self.settled_state(replyId='current'); ready['content'] = 'Recovered answer'
+        result, cdp = self.run_wait([failed, True] + [ready] * 4)
+        self.assertTrue(result.success)
+        self.assertIn('"current"', cdp.eval_history[1])
+        self.assertIn('retry.click()', cdp.eval_history[1])
+        self.assertNotIn('targetBtn.click()', cdp.eval_history[1])
+        result, cdp = self.run_wait([failed, True, failed])
+        self.assertFalse(result.success)
+        self.assertEqual(len(cdp.eval_history), 3, 'a second provider retry must not be clicked')
+
+    def test_retry_cannot_resubmit_an_old_reply_or_a_replaced_target(self):
+        failed = dict(self.settled_state(), error='Page shows a retry control', replyId='current')
+        failed['newReply'] = False
+        result, cdp = self.run_wait([failed])
+        self.assertFalse(result.success)
+        self.assertEqual(len(cdp.eval_history), 1)
+        failed['newReply'] = True
+        result, _ = self.run_wait([failed, False])
+        self.assertFalse(result.success)
+
+    def test_retry_can_preserve_a_draft_but_cannot_accept_unchanged_failed_content(self):
+        failed = dict(self.settled_state(), error='Page shows a retry control', replyId='current')
+        ready = dict(self.settled_state(), replyId='current', editorReady=False, content='Recovered answer')
+        self.assertTrue(self.run_wait([failed, True] + [ready] * 4)[0].success)
+        ready['content'] = failed['content']
+        self.assertFalse(self.run_wait([failed, True] + [ready] * 8, timeout=7)[0].success)
+
     def test_mock_driver_pipeline_orchestration(self):
         """Verify SerialActionExecutor executes custom platform driver's pipeline."""
         mock_cdp = MockCDP()

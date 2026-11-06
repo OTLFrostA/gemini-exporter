@@ -262,6 +262,23 @@ class TestVisualSandbox(unittest.TestCase):
                 self.sandbox.capture_screen("wrong")
         self.assertFalse(os.path.exists(os.path.join(self.temp_dir,"wrong.png")))
 
+    def test_action_popup_uses_native_surface_for_screenshot_and_click_coordinates(self):
+        self.sandbox.active_target = "popup"
+        self.sandbox._is_mock = False
+        original = self.mock_cdp.call
+        def call(method, params=None):
+            if method == "Page.getLayoutMetrics":
+                return {"result": {"cssLayoutViewport": {"clientWidth": 360, "clientHeight": 296}}}
+            if method == "Page.captureScreenshot":
+                png = b"\x89PNG\r\n\x1a\n" + b"\0" * 8 + struct.pack(">II", 360, 296)
+                return {"result": {"data": base64.b64encode(png).decode()}}
+            return original(method, params)
+        with patch.object(self.mock_cdp, "call", side_effect=call):
+            self.sandbox._setup_viewport()
+            shot = self.sandbox.capture_screen("native-popup")
+            self.assertEqual(shot.viewport, (360, 296))
+            self.assertEqual(self.sandbox._to_pixel(0.5, 0.5), (180, 148))
+
     @patch("scripts.visual_agent.playground.time.sleep")
     @patch("scripts.visual_agent.playground.time.monotonic", side_effect=[0,0,11])
     def test_wrong_target_never_falls_back_to_another_page(self, clock, sleep):

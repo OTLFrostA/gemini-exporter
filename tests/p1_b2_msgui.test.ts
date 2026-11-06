@@ -42,7 +42,7 @@ test('P1-021: a thrown export releases UI state and permits the next attempt', a
     try {
         const page = await browser.newPage(); await mount(page, 'options', {throwExport:true});
         await page.locator('#btnSelectAll').click(); await page.locator('#btnExport').click();
-        await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Injected export failure');
+        await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Operation failed. Please retry; details are available in the logs or diagnostic report.');
         assert.equal(await page.locator('#btnExport').isEnabled(), true);
         await page.evaluate(() => { Reflect.get(window, 'harness').throwExport = false; });
         await page.locator('#btnExport').click(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');

@@ -57,7 +57,10 @@ export async function initPopup(): Promise<void> {
     const status = el('status');
     let currentStatus: (() => string) | null = null;
     const showStatus = (message: () => string) => { currentStatus = message; status.textContent = message(); };
-    const showError = (error: unknown) => showStatus(() => errorText(error));
+    const showError = (error: unknown) => {
+        console.error('[Popup]', error);
+        showStatus(() => errorText(error));
+    };
     let settings: GlobalSettings;
     let key: ConversationKey | null = null;
     let indexTitle: string | null = null;

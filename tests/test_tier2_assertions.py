@@ -1649,6 +1649,52 @@ class Tier2LifecycleOrderingTests(unittest.TestCase):
             self.assertLess(order.index(before), order.index(after), (before, after))
 
 
+class ScenarioIdentityTests(unittest.TestCase):
+    def check_prompt(self, exported, expected, evidence=None):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / 'export.zip'
+            with zipfile.ZipFile(archive, 'w') as zf:
+                zf.writestr('target_bbbbbb.md', '---\nid: targetbbbbbb\n---\n' + exported)
+            scenario = {'title': 'target', 'chat_id': 'targetbbbbbb', 'turns': [expected]}
+            if evidence is not None:
+                scenario['turn_evidence'] = evidence
+            with patch('scripts.framework.assertions.ExportSpecificationAsserter') as oracle:
+                oracle.return_value.run_all_assertions.return_value = True
+                return CDPAssertions.assert_exported_zip_spec(
+                    str(archive), str(Path(directory) / 'extracted'), expected_scenarios=[scenario])
+
+    def test_full_prompt_comparison_accepts_markdown_escaping_and_rejects_changed_numbers(self):
+        prompt = 'For b=[6,12,3], characterize every solution.'
+        exported = '## 👤 You\nFor b=\\[6,12,3\\], characterize every solution.\n## 🤖 Assistant\nAnswer.'
+        self.assertTrue(self.check_prompt(exported, prompt)[0])
+        self.assertFalse(self.check_prompt(exported.replace('12,3', '13,3'), prompt)[0])
+
+    def test_scenario_prompt_must_be_in_the_user_turn_and_full_answer_must_match(self):
+        prompt = 'A complete prompt with a distinct suffix.'
+        exported = '## 👤 You\nA complete prompt with the wrong suffix.\n## 🤖 Assistant\n' + prompt
+        self.assertFalse(self.check_prompt(exported, prompt)[0])
+        exported = '## 👤 You\n' + prompt + '\n## 🤖 Assistant\nOnly the end.'
+        evidence = [{'prompt': prompt, 'response': 'Essential middle evidence. Only the end.'}]
+        self.assertFalse(self.check_prompt(exported, prompt, evidence)[0])
+
+    def test_zip_assertion_never_matches_another_conversation_with_similar_prompts(self):
+        import tempfile
+        import zipfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / 'export.zip'
+            with zipfile.ZipFile(archive, 'w') as zf:
+                zf.writestr('unrelated_aaaaaa.md', '---\nid: otheraaaaaa\n---\nExpected prompt from current test')
+                zf.writestr('target_bbbbbb.md', '---\nid: targetbbbbbb\n---\nDifferent actual prompt')
+            ok, message, details = CDPAssertions.assert_exported_zip_spec(
+                str(archive), str(Path(directory) / 'extracted'),
+                expected_scenarios=[{'title': 'target', 'chat_id': 'targetbbbbbb',
+                                     'turns': ['Expected prompt from current test']}])
+            self.assertFalse(ok)
+            self.assertIn('缺失轮次', message)
+            self.assertEqual(details['missing'][0][0], 1)
+
+
 class LongConversationGoldenContracts(unittest.TestCase):
     def check_golden(self, bodies):
         turns = [
