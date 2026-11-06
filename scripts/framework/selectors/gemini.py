@@ -54,7 +54,7 @@ class GeminiSelectors:
     # ─── 模型与推理开关菜单 ───
     MODE_MENU_BTN: str = '[data-test-id="bard-mode-menu-button"], button.input-area-switch'
     MODE_MENU: str = 'gem-menu[data-test-id="gem-mode-menu"], [role="menu"]'
-    MODE_MENU_ITEM: str = 'gem-menu-item, [role="menuitem"], [role="menuitemcheckbox"]'
+    MODE_MENU_ITEM: str = 'gem-menu-item, [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]'
 
     # ─── 页面端悬浮导出徽标 ───
     INPAGE_EXPORT_BADGE: str = '#geminiExportBadge, #gemini-export-badge, .gemini-export-badge, [data-test-id="gemini-export-badge"]'

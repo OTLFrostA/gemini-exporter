@@ -125,6 +125,40 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         """等待 Gemini 页面核心输入框与 DOM 挂载就绪"""
         return CDPActions.wait_for_gemini_ready(self.cdp, max_wait=int(timeout))
 
+    def _open_thinking_submenu(self):
+        """Expand the thinking picker when Gemini uses a nested menu."""
+        return self.cdp.eval(f"""
+        (() => {{
+            const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
+            if (!menu) return false;
+            const item = menu.querySelector('[value="thinking_level"]') ||
+                Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'))
+                    .find(el => (el.textContent || '').trim().toLowerCase() === 'thinking level');
+            if (!item) return false;
+            if (item.getAttribute('aria-expanded') !== 'true') item.click();
+            return true;
+        }})()
+        """)
+
+    def _read_model_menu(self):
+        return self.cdp.eval(f"""
+        (() => {{
+            const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
+            if (!menu) return null;
+            // Submenus may be nested or rendered in a separate overlay.
+            const thinking = menu.querySelector('[value="thinking_level"]');
+            const submenu = thinking && document.getElementById(thinking.getAttribute('aria-controls'));
+            const items = Array.from(new Set([
+                ...menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'),
+                ...(submenu ? submenu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}') : [])
+            ])).filter(el => el.getClientRects().length > 0);
+            return items.map(el => ({{
+                text: (el.textContent || '').trim().replace(/\\s+/g, ' '),
+                isSelected: el.classList.contains('selected') || el.getAttribute('aria-checked') === 'true'
+            }}));
+        }})()
+        """)
+
     def ensure_model(self, target_model: str = "3.8 Flash", target_thinking: bool = True, force_menu_check: bool = False, **kwargs) -> bool:
         """
         严格校验并锁定 Gemini 模型与思考模式。
@@ -193,17 +227,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             menu_info = None
             menu_deadline = time.monotonic() + 5.0
             while time.monotonic() < menu_deadline:
-                menu_info = cdp.eval(f"""
-                (() => {{
-                    const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
-                    if (!menu) return null;
-                    const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
-                    return items.map(el => ({{
-                        text: (el.textContent || '').trim().replace(/\\s+/g, ' '),
-                        isSelected: el.classList.contains('selected') || el.getAttribute('aria-checked') === 'true'
-                    }}));
-                }})()
-                """)
+                menu_info = self._read_model_menu()
                 if menu_info:
                     break
                 time.sleep(0.25)
@@ -213,6 +237,17 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
                 continue
             saw_menu = True
+
+            if target_thinking and any(it["text"].lower() == "thinking level" for it in menu_info):
+                self._open_thinking_submenu()
+                submenu_deadline = time.monotonic() + 5.0
+                while time.monotonic() < submenu_deadline:
+                    expanded_info = self._read_model_menu()
+                    if expanded_info:
+                        menu_info = expanded_info
+                        if any(it["text"].lower().split(" ", 1)[0] == "medium" for it in menu_info):
+                            break
+                    time.sleep(0.25)
 
             if "3.8" in target_model.lower() and "flash" in target_model.lower():
                 has_target_model_opt = any(
@@ -292,11 +327,18 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                     """)
                     time.sleep(0.5)
 
+                if any(it["text"].lower() == "thinking level" for it in menu_info):
+                    self._open_thinking_submenu()
+                    time.sleep(0.5)
+
                 cdp.eval(f"""
                 (() => {{
                     const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
                     if (!menu) return;
-                    const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
+                    const thinking = menu.querySelector('[value="thinking_level"]');
+                    const submenu = thinking && document.getElementById(thinking.getAttribute('aria-controls'));
+                    const scope = submenu || menu;
+                    const items = Array.from(scope.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
                     for (const el of items) {{
                         const t = (el.textContent || '').trim().toLowerCase();
                         if (/^medium(?:\\s|$)/.test(t)) {{

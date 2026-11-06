@@ -68,6 +68,45 @@ class TestGeminiDriverSuite(unittest.TestCase):
         with patch("scripts.framework.driver.gemini_driver.time.sleep"):
             self.assertTrue(GeminiDriver(cdp).ensure_model(force_menu_check=True))
 
+    def test_model_gate_expands_nested_thinking_menu_and_verifies_medium(self):
+        status = {"text": "Flash Medium", "label": "Flash Medium", "disabled": False}
+        root = [it for it in self.model_menu() if not it["text"].startswith(("Low ", "Medium ", "High "))]
+        root.append({"text": "Thinking level", "isSelected": False})
+        cdp = MockCDP()
+        cdp.eval_responses = [status, status, True, root, True, self.model_menu(level="Medium")]
+        with patch("scripts.framework.driver.gemini_driver.time.sleep"):
+            self.assertTrue(GeminiDriver(cdp).ensure_model())
+        scripts = [script for kind, script, *rest in cdp.calls if kind == "eval"]
+        self.assertTrue(any('thinking_level' in script and 'item.click()' in script for script in scripts))
+        self.assertFalse(cdp.eval_responses)
+
+    def test_model_gate_reopens_submenu_to_switch_low_and_high(self):
+        status = {"text": "Flash", "label": "Flash", "disabled": False}
+        for level in ["Low", "High"]:
+            with self.subTest(level=level):
+                root = [it for it in self.model_menu() if not it["text"].startswith(("Low ", "Medium ", "High "))]
+                root.append({"text": "Thinking level", "isSelected": False})
+                expanded = self.model_menu(level=level) + [root[-1]]
+                cdp = MockCDP()
+                cdp.eval_responses = [
+                    status, status, True, root, True, expanded,
+                    False, True, True, True,  # reopen parent, submenu, select
+                    status, True, root, True, self.model_menu(level="Medium")
+                ]
+                with patch("scripts.framework.driver.gemini_driver.time.sleep"):
+                    self.assertTrue(GeminiDriver(cdp).ensure_model())
+                self.assertFalse(cdp.eval_responses, "selection must be re-read after changing the nested level")
+
+    def test_model_only_does_not_expand_thinking_submenu(self):
+        root = [it for it in self.model_menu() if not it["text"].startswith(("Low ", "Medium ", "High "))]
+        root.append({"text": "Thinking level", "isSelected": False})
+        cdp = MockCDP()
+        status = {"text": "Flash", "label": "Flash", "disabled": False}
+        cdp.eval_responses = [status, status, True, root]
+        with patch("scripts.framework.driver.gemini_driver.time.sleep"):
+            self.assertTrue(GeminiDriver(cdp).ensure_model(target_thinking=False))
+        self.assertFalse(any('item.click()' in script for kind, script, *rest in cdp.calls if kind == "eval"))
+
     def test_model_gate_reports_google_verification_instead_of_missing_model(self):
         cdp = MockCDP()
         cdp.eval_responses = [{'blocked': True}]
