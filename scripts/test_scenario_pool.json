@@ -1,47 +1,5 @@
 [
   {
-    "id": "chemistry_buffer_titration_mass_charge_balance",
-    "title": "Buffer titration: mass balance, charge balance and numerical pH",
-    "domain": "chemistry_buffer_titration",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational illustration of a weak-acid buffer titration experiment, with a burette, beaker and pH probe. Explain what each component measures; distinguish the schematic from quantitative data.",
-      "For 100 mL containing 0.10 M acetic acid and 0.10 M sodium acetate at 25 C, derive mass balance and charge balance equations. Use Ka=1.8e-5 and Kw=1e-14, with ideal activities. Display all equations in LaTeX.",
-      "Add 5.00 mL of 0.100 M HCl. Calculate the stoichiometric estimate and then the full equilibrium pH including dilution. Provide a Markdown table comparing both methods and their assumptions.",
-      "Write self-contained Python code using only the standard library to solve the charge-balance equation by bisection for several HCl volumes. Include brackets, a convergence criterion and a mass-balance residual check in a fenced code block.",
-      "Explain where Henderson-Hasselbalch becomes unreliable as titration approaches buffer exhaustion. Give a concise bilingual English/Chinese conclusion and a table of numerical checks without claiming that the illustration supplied measurements."
-    ]
-  },
-  {
-    "id": "signals_discrete_aliasing_reconstruction_certificate",
-    "title": "Sampling theory: alias classes and discrete reconstruction evidence",
-    "domain": "signals_discrete_sampling_aliasing",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Consider x(t)=cos(2*pi*700*t)+0.5*sin(2*pi*1100*t), sampled at 1600 Hz. Derive the discrete sequence and explain frequency alias equivalence using explicit LaTeX equations.",
-      "Calculate the first eight samples and present a Markdown table of sample index, time and both component contributions. State the phase convention and numerical precision.",
-      "Derive which signed baseband frequencies represent the two components. Show why folding a sine frequency changes the sign in this example, rather than relying only on absolute frequency.",
-      "Provide self-contained standard-library Python code that compares the original and aliased sequences across 64 samples and asserts the maximum error stays below 1e-10.",
-      "Explain why finite discrete samples alone cannot determine which continuous-time alias produced them. Construct two explicit distinct continuous signals sharing the same sample sequence.",
-      "For a hypothetical low-pass anti-alias filter, state the needed cutoff constraints and distinguish transition-band limitations from the ideal sampling theorem. Summarize in a comparison table.",
-      "Compute the 16-point DFT formula and explain spectral leakage when a component does not align to a frequency bin. Include executable Python for direct DFT and avoid external packages.",
-      "Finish with a bilingual English/Chinese audit checklist separating proven sample equality, assumed band limits and reconstruction claims. Include equations and a compact Markdown table."
-    ]
-  },
-  {
     "id": "electrochemistry_galvanic_cell_nernst_audit",
     "title": "Galvanic cells: Nernst potentials and reaction bookkeeping",
     "domain": "electrochemistry_galvanic_cells",
@@ -417,6 +375,48 @@
       "Implement an independent certificate checker for matching validity, edge coverage and equal cardinality. Reject repeated endpoints, nonedges, invented vertices and uncovered edges, including executable negative tests.",
       "Enumerate every graph for a bounded tiny bipartition and compare the solver against brute-force matching and vertex-cover enumeration. Provide complete deterministic Python and explicit computational bounds.",
       "Write a Chinese-English audit containing the proof, full solver and independent checker, tables and negative tests. Explain why this unweighted graph exercise does not solve weighted assignment, capacity constraints or real-world allocation fairness."
+    ]
+  },
+  {
+    "id": "circuits_rc_step_energy_consistency_audit",
+    "title": "RC step response: transient energy and numerical convergence",
+    "domain": "circuits_rc_transient_energy",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original educational illustration of a series resistor-capacitor circuit connected to a switched DC voltage source. Label current direction and capacitor voltage; state that the illustration is schematic, not measured data.",
+      "For an initially uncharged 100 microfarad capacitor charged through a 2.2 kilohm resistor by a 5 V ideal source at t=0, derive the differential equation and analytic current and capacitor voltage. Define the time constant and show equations in LaTeX.",
+      "Calculate capacitor voltage, current, stored energy, and cumulative resistor dissipation at t/tau=0, 0.5, 1, 2, and 5. Present a Markdown table with units and verify source energy equals capacitor energy plus resistor heat.",
+      "Write self-contained standard-library Python using explicit Euler integration at dt/tau=0.1, 0.05, and 0.025. Compare against the analytic solution, print maximum voltage error, and check the approximate energy-balance residual. Include the code in a fenced block.",
+      "Discuss numerical stability, first-order convergence, and why an ideal charging circuit dissipates half the final source energy in the resistor even for a small positive resistance. Finish with a bilingual English/Chinese summary and a table separating ideal assumptions from real parasitics."
+    ]
+  },
+  {
+    "id": "geometry_convex_hull_orientation_certificate",
+    "title": "Convex hull: exact orientation and independent containment witnesses",
+    "domain": "computational_geometry_convex_hull",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Use the planar integer points [(0,0),(4,0),(4,4),(0,4),(2,2),(1,0),(4,2),(2,4),(0,2),(0,0),(3,1)]. Define the signed orientation determinant in LaTeX and explain how its sign classifies a turn.",
+      "Derive Andrew’s monotone-chain convex hull algorithm. State a deterministic convention: remove duplicate points, return extreme vertices counterclockwise beginning at the lexicographically smallest vertex, and omit intermediate collinear boundary points.",
+      "Work through the sorted points and record lower-hull stack pushes and pops in a Markdown table. Explain the determinant and removal condition at each nontrivial pop.",
+      "Provide self-contained standard-library Python implementing the hull with exact integer arithmetic. Include executable assertions for the expected hull, all-identical points, two points, and a fully collinear set in fenced code.",
+      "Construct an independent certificate checker that verifies every original point lies in or on the returned convex polygon using exact orientation tests. Explain special handling of hulls with fewer than three vertices and include Python.",
+      "Prove the O(n log n) time bound, including why each point is popped at most once per chain. Distinguish sorting cost, stack traversal, and certificate-checking complexity in a Markdown table.",
+      "Show an explicit example where a naive fixed epsilon for floating-point orientation can change a hull decision. Explain translation, scaling, exact arithmetic, and robust predicates without claiming one universal epsilon works.",
+      "Conclude with a bilingual English/Chinese audit of vertex order, duplicates, collinear boundaries, containment, and numerical assumptions. Include the final hull and a compact invariant table."
     ]
   }
 ]
