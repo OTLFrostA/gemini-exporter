@@ -362,7 +362,12 @@ class SingleClickSendAction(AtomicAction):
                     const label = (sendBtn.getAttribute('aria-label') || '').toLowerCase();
                     if (!label.includes('stop') && !label.includes('停止')) {{
                         const targetBtn = sendBtn.tagName === 'BUTTON' ? sendBtn : (sendBtn.querySelector('button') || sendBtn);
-                        window.__tier2ReplyCountBeforeSend = document.querySelectorAll('model-response').length;
+                        const replies = [...document.querySelectorAll('model-response')];
+                        window.__tier2ReplyCountBeforeSend = replies.length;
+                        window.__tier2RepliesBeforeSend = {{
+                            ids: new Set(replies.map(el => el.closest('.conversation-container[id]')?.id).filter(Boolean)),
+                            nodes: new WeakSet(replies)
+                        }};
                         targetBtn.click();
                         return {{ clicked: true }};
                     }}
@@ -446,6 +451,8 @@ class AwaitStreamSettledAction(AtomicAction):
         deadline = time.monotonic() + self.timeout
         previous, stable = None, 0
         last_state, last_error = {}, None
+        retried_response = False
+        retry_started, failed_content = False, None
         cfg = self.config
         while time.monotonic() < deadline:
             try:
@@ -460,8 +467,16 @@ class AwaitStreamSettledAction(AtomicAction):
                     body?.querySelectorAll('follow-up, elicitations, elicitations-group, .elicitations-container, [hide-from-message-actions], mini-app, thought-container, thought-box, .thought-container, .thought-wrapper, .model-thought, [data-thought]').forEach(el => el.remove());
                     body?.querySelectorAll('button').forEach(el => {{ if (!el.querySelector('img')) el.remove(); }});
                     const content = body?.innerHTML || '';
+                    const replyId = last?.closest('.conversation-container[id]')?.id || null;
+                    const before = window.__tier2RepliesBeforeSend;
                     return {{
-                        newReply: models.length > (window.__tier2ReplyCountBeforeSend ?? 0),
+                        // Gemini virtualizes old turns: the sixth reply can replace
+                        // the first while the mounted response count stays at five.
+                        // Stable turn IDs also reject a re-render of the old answer.
+                        newReply: !!last && (before
+                            ? replyId ? !before.ids.has(replyId) : !before.nodes.has(last)
+                            : models.length > (window.__tier2ReplyCountBeforeSend ?? 0)),
+                        replyId,
                         modelCount: models.length,
                         beforeSendCount: window.__tier2ReplyCountBeforeSend ?? 0,
                         busy: !!(stop && stop.offsetWidth > 0) || !!document.querySelector('{cfg.streaming_indicators_selector}'),
@@ -483,11 +498,38 @@ class AwaitStreamSettledAction(AtomicAction):
             last_state = {key: value for key, value in state.items() if key != 'content'}
             last_state['contentLength'] = len(state.get('content') or '')
             if state.get('error'):
+                if (state['error'] == 'Page shows a retry control' and not retried_response
+                        and state.get('newReply') and state.get('replyId')):
+                    # Retry only the provider's failed current response, never
+                    # resubmit a prompt or act on an older turn's retry button.
+                    clicked = cdp.eval(f"""
+                    (() => {{
+                        const last = [...document.querySelectorAll('{cfg.model_response_selector}')].at(-1);
+                        if (last?.closest('.conversation-container[id]')?.id !== {json.dumps(state['replyId'])}) return false;
+                        const retry = last.querySelector('{cfg.retry_btn_selector}');
+                        if (!retry || !retry.getClientRects().length || retry.disabled || retry.getAttribute('aria-disabled') === 'true') return false;
+                        retry.click();
+                        return true;
+                    }})()
+                    """)
+                    if clicked is True:
+                        print('         ↻ Gemini current response failed; clicked its Retry once without resubmitting the prompt')
+                        retried_response = True
+                        failed_content = state.get('content')
+                        previous, stable = None, 0
+                        time.sleep(1.0)
+                        continue
                 return ActionResult(False, state['error'])
-            ready = (state.get('newReply') and not state.get('busy') and state.get('editorReady')
-                     and state.get('hasContent'))
+            if retried_response and (state.get('busy') or state.get('content') != failed_content):
+                retry_started = True
+            # Gemini can retain the restored failed prompt as an unsent draft
+            # after Retry. Reply identity and a fresh retry transition supply
+            # completion evidence without treating that draft as a new send.
+            ready = (state.get('newReply') and not state.get('busy')
+                     and (state.get('editorReady') or retried_response)
+                     and (not retried_response or retry_started) and state.get('hasContent'))
             if ready:
-                snapshot = state.get('content')
+                snapshot = (state.get('replyId'), state.get('content'))
                 stable = stable + 1 if snapshot == previous else 1
                 previous = snapshot
                 if stable >= 4:
@@ -495,7 +537,7 @@ class AwaitStreamSettledAction(AtomicAction):
             else:
                 previous, stable = None, 0
             time.sleep(1.0)
-        diagnostics = {**last_state, "stableSamples": stable}
+        diagnostics = {**last_state, "stableSamples": stable, "retriedResponse": retried_response}
         if last_error:
             diagnostics["lastObservationError"] = last_error
         return ActionResult(False, f"Reply did not become idle and stable within {self.timeout}s; "

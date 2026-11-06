@@ -688,7 +688,8 @@ test('empty and failed tutorial scans stay on scan; stale completion cannot adva
     await page.evaluate(() => { const h = Reflect.get(window, 'harness'); h.failScan = true; });
     await page.locator('#btnSyncAll').click();
     await page.waitForFunction(() => document.body.dataset.busy === 'false');
-    assert.match(await page.locator('#scanStatus').textContent() ?? '', /Injected scan failure/);
+    assert.match(await page.locator('#scanStatus').textContent() ?? '', /Operation failed/);
+    assert.match(await page.locator('#log').textContent() ?? '', /Injected scan failure/);
     assert.equal(await page.locator('.tour-popover h2').textContent(), 'Scan conversations');
     await page.evaluate(() => { const h = Reflect.get(window, 'harness'); h.failScan = false; h.holdScan = true; });
     await page.locator('#btnSyncAll').click();

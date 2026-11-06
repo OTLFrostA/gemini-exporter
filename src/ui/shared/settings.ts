@@ -62,13 +62,15 @@ const ERROR_ZH: ReadonlyMap<string, string> = new Map(Object.entries({
     'Unsupported Takeout structure': '不支持此 Takeout 压缩包的结构。'
 }));
 export function errorText(error: unknown): string {
+    if (error instanceof DOMException && error.name === 'AbortError')
+        return text('Operation cancelled. You can try again.', '操作已取消，可以重试。');
     const message = error instanceof Error ? error.message : String(error);
     if (message === 'JSZip 库未加载，无法解析 ZIP')
         return text('ZIP reader unavailable; cannot parse the archive.', message);
     const translation = ERROR_ZH.get(message);
     if (translation) return text(message, translation);
     // Unexpected diagnostics remain available in the logs, not leaked as untranslated UI.
-    return text(message || 'Operation failed', '操作失败，请重试；详情请查看日志或诊断报告。');
+    return text('Operation failed. Please retry; details are available in the logs or diagnostic report.', '操作失败，请重试；详情请查看日志或诊断报告。');
 }
 /** Translate static UI nodes only; dynamic titles, messages, paths and logs are rendered by their views. */
 export function labelPage(): void {

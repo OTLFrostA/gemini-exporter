@@ -323,7 +323,13 @@ class MultimodalSpecCase(FeatureTestCase):
 
         extract_dir = os.path.join(ctx.output_dir, "extracted_verify_" + str(int(time.time())))
         golden_chats = [dict(c) for c in DESIGNATED_HISTORICAL_CHATS]
-        expected_scenarios = ctx.scenarios[:2] if ctx.chat_records else []
+        if len(ctx.chat_records) != 2:
+            return False, '现场两会话尚未完整生成；不能将未完成场景匹配到其他 Markdown', {
+                'completedChatIds': [record['chat_id'] for record in ctx.chat_records],
+                'expectedChats': 2,
+            }
+        expected_scenarios = [dict(sc, chat_id=record['chat_id'], turn_evidence=record['turn_evidence'])
+                              for sc, record in zip(ctx.scenarios[:2], ctx.chat_records)]
         min_conversations = len(ctx.chat_records) + sum(not h.get('optional') for h in DESIGNATED_HISTORICAL_CHATS)
         uploaded_files = [ctx.shared_data["uploaded_test_file"]] if "uploaded_test_file" in ctx.shared_data else None
 

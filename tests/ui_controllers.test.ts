@@ -83,7 +83,13 @@ test('syncController passes source resolution errors through without starting a 
         scanAll: async () => { scans++; throw Error('Unexpected Scan'); },
     }), error => error === failure);
     assert.equal(scans, 0);
-    assert.equal(errorText(failure), failure.message);
+    assert.equal(errorText(failure), 'Operation failed. Please retry; details are available in the logs or diagnostic report.');
+    assert.equal(failure.message, 'Receiving end does not exist', 'the diagnostic error stays intact');
+});
+
+test('native picker cancellation is readable and never exposes the browser API exception', () => {
+    assert.equal(errorText(new DOMException("Failed to execute 'showDirectoryPicker' on 'Window': The user aborted a request.", 'AbortError')),
+        'Operation cancelled. You can try again.');
 });
 
 test('takeoutController uses v2 Account/Settings/Import mocks with selected Account UUID', async () => {

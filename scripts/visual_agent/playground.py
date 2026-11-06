@@ -155,6 +155,18 @@ class VisualPlayground:
 
     def _setup_viewport(self):
         """Force standardized physical viewport and remove scaling distortions."""
+        if self.active_target == "popup" and not self._is_mock:
+            # Action popups retain Chrome's native surface size. Emulating a
+            # full page changes layout metrics but not the captured surface.
+            self.cdp.call("Emulation.clearDeviceMetricsOverride", {})
+            response = self.cdp.call("Page.getLayoutMetrics", {})
+            viewport = response.get("result", response).get("cssLayoutViewport", {})
+            width, height = viewport.get("clientWidth", 0), viewport.get("clientHeight", 0)
+            if width <= 0 or height <= 0:
+                raise RuntimeError("Action popup has no usable native viewport")
+            self.viewport_size = (width, height)
+            self.width, self.height = self.viewport_size
+            return
         if hasattr(self, "env") and self.env and not self._is_mock:
             response = self.cdp.call("Page.getLayoutMetrics", {})
             viewport = response.get("result", response).get("cssLayoutViewport", {})
@@ -271,7 +283,7 @@ class VisualPlayground:
             if attempt == 9:
                 raise RuntimeError(f"Screenshot viewport mismatch: expected {self.viewport_size}, got {actual}")
             time.sleep(0.1)
-            self.env.setup_viewport(self.cdp, self.viewport_size)
+            self._setup_viewport()
 
         file_path = os.path.join(self.output_dir, f"{step_name}.png")
         with open(file_path, "wb") as f:

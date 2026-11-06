@@ -4,8 +4,9 @@ import { chromium } from 'playwright';
 import { mount, A } from './helpers/uiPortHarness.js';
 import { errorText } from '../src/ui/shared/settings.js';
 
-test('headless UI status helpers preserve errors without requiring a DOM', () => {
-    assert.equal(errorText(new Error('Offline')), 'Offline'); assert.equal(errorText('Aborted'), 'Aborted');
+test('headless UI status helpers present readable failures without requiring a DOM', () => {
+    const expected = 'Operation failed. Please retry; details are available in the logs or diagnostic report.';
+    assert.equal(errorText(new Error('Offline')), expected); assert.equal(errorText('Aborted'), expected);
 });
 test('body delivery advances its counter while attachments remain active, and cancellation reports the preserved document', async () => {
     const browser = await chromium.launch({chromiumSandbox: true, headless:true});

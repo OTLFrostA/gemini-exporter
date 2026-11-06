@@ -14,7 +14,7 @@ test('failed Scan releases Options controls and reports the Runtime/Sync error',
         await mount(page, 'options', { failScan: true });
         await page.locator('#btnSyncAll').click();
         await page.waitForFunction(() => document.body.dataset.busy !== 'true');
-        assert.equal(await page.locator('#scanStatus').textContent(), 'Injected scan failure');
+        assert.equal(await page.locator('#scanStatus').textContent(), 'Operation failed. Please retry; details are available in the logs or diagnostic report.');
         assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
     } finally { await browser.close(); }
 });
@@ -31,7 +31,7 @@ test('Popup passes a bounded v2 current-context request and releases busy state 
             chrome.tabs.sendMessage = (async () => { throw new Error('Context request timed out'); }) as typeof chrome.tabs.sendMessage;
         });
         await page.locator('#btnCurrent').click();
-        await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Context request timed out');
+        await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Operation failed. Please retry; details are available in the logs or diagnostic report.');
         assert.equal(await page.locator('#btnCurrent').isEnabled(), true);
         const second = await read(page, 'tabRequests');
         assert.deepEqual(second.at(-1), { tabId: 1, message: { action: 'getAccountContext' }, timeoutMs: 3000 });

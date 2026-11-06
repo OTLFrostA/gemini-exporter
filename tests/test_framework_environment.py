@@ -145,9 +145,27 @@ class TestFrameworkEnvironment(unittest.TestCase):
                 ]
                 get_tab = getattr(self.env, f"get_{kind}_tab")
                 self.assertIsNone(get_tab())
-                current = {"type": "page", "url": f"chrome-extension://current_id{path}?test=1#ready"}
+                current = {"type": "page", "url": f"chrome-extension://current_id{path}?test=1#ready",
+                           "webSocketDebuggerUrl": "ws://mock/current"}
                 mock_get_tabs.return_value.append(current)
-                self.assertIs(get_tab(), current)
+                with patch('scripts.framework.environment.CDPConnection') as connection:
+                    connection.return_value.eval.return_value = True
+                    self.assertIs(get_tab(), current)
+
+    @patch('scripts.framework.environment.CDPConnection')
+    @patch('scripts.framework.environment.get_tabs')
+    def test_popup_discovery_rejects_standalone_popup_html_tab(self, tabs, connection):
+        self.env.ext_id = 'current_id'
+        standalone = {'type': 'page', 'url': 'chrome-extension://current_id/src/ui/popup/popup.html',
+                      'webSocketDebuggerUrl': 'ws://mock/standalone'}
+        popup = dict(standalone, webSocketDebuggerUrl='ws://mock/action')
+        tabs.return_value = [standalone, popup]
+        first, second = MagicMock(), MagicMock()
+        first.eval.return_value, second.eval.return_value = False, True
+        connection.side_effect = [first, second]
+        self.assertIs(self.env.get_popup_tab(), popup)
+        first.close.assert_called_once()
+        second.close.assert_called_once()
 
     @patch("scripts.framework.environment.urllib.request.urlopen")
     @patch("scripts.framework.environment.get_extension_id", return_value=None)

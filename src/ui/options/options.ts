@@ -321,6 +321,7 @@ export async function initWorkbench(): Promise<void> {
     };
     const scan = async (forceFull = false) => {
         if (isBusy() || scanController) return;
+        feedback = { kind: 'empty' };
         const taskController = new AbortController();
         scanController = taskController;
         const signal = taskController.signal;

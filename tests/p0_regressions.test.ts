@@ -16,6 +16,7 @@ const CredManager = require('../src/l1/client/gemini/api/credentialManager.js').
 import { composeFixture } from './helpers/documentFixture.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { indexStorage } from './helpers/indexStorage.js';
+import type { ConsoleMessage } from '@playwright/test';
 
 function readSrc(rel: string): string {
     return fs.readFileSync(path.join(__dirname, rel), 'utf8');
@@ -104,9 +105,13 @@ test('P0-5: popup displays export errors to the user', async () => {
     const { mount } = require('./helpers/uiPortHarness.js');
     const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
     try {
-        const page = await browser.newPage(); await mount(page, 'popup', { throwExport: true });
+        const page = await browser.newPage();
+        const errors: string[] = [];
+        page.on('console', (message: ConsoleMessage) => { if (message.type() === 'error') errors.push(message.text()); });
+        await mount(page, 'popup', { throwExport: true });
         await page.locator('#btnCurrent').click();
-        await page.waitForFunction(() => document.body.textContent?.includes('Injected export failure'));
+        await page.waitForFunction(() => document.body.textContent?.includes('Operation failed. Please retry'));
+        assert.ok(errors.some(message => message.includes('Injected export failure')));
     } finally { await browser.close(); }
 });
 
