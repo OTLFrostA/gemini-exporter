@@ -78,7 +78,8 @@ export interface GeminiAttachmentNode {
 
 export interface GeminiFileNode { nodeType: 24; id: string; title: string }
 
-/** Inline fragments share one paragraph; wire field 13 is not a line break. */
+/** Field 13 groups inline fragments into a text block. The contained text
+ * declares paragraph/heading semantics; the group itself is not a line break. */
 export interface GeminiCompositeParagraph { nodeType: 'paragraph'; children: GeminiStructuredNode[] }
 export interface GeminiFileCitation { nodeType: 'citation'; number: number; title: string; url?: string }
 export interface GeminiCitationGroup { nodeType: 'citationGroup'; children: GeminiFileCitation[] }
@@ -212,7 +213,8 @@ export function decodeGeminiCitationReference(citation: unknown): GeminiCitation
         || typeof citation[0][0] !== 'string'
         || !isWireArray(citation[1]) || !citation[1].length) return null;
     if (citation.length >= 3 && (!isWireArray(citation[2]) || citation[2].length !== 2
-        || typeof citation[2][0] !== 'string' || citation[2][1] !== 0)) return null;
+        || typeof citation[2][0] !== 'string' || typeof citation[2][1] !== 'number'
+        || !Number.isSafeInteger(citation[2][1]) || citation[2][1] < 0)) return null;
     // Older file references carry an explicit opening citation marker.
     // It is protocol metadata, not authored paragraph text.
     if (citation.length === 4 && (!isWireArray(citation[3]) || citation[3].length !== 2
@@ -304,6 +306,8 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
             t = 5; // emphasis (subtle/italic)
         } else if (flag === 3) {
             t = 7; // inline code; captured RPC style flag, not internal annotation enum
+        } else if (flag === 4) {
+            t = 12; // strikethrough; confirmed against the independent raw Markdown
         }
     } else if (style.length > 1 && isWireArray(style[1])) {
         const s1 = style[1];
@@ -541,10 +545,11 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
     if (w[16] != null) {
         const payload = w[16];
         if (!w.every((value, index) => value == null || index === 16)
-            || !isWireArray(payload) || payload.length !== 1
-            || !isWireArray(payload[0]) || !payload[0].length) return null;
+            || !isWireArray(payload) || payload.length > 1) return null;
+        const rawChildren = payload.length === 0 ? [] : payload[0];
+        if (!isWireArray(rawChildren)) return null;
         const children: GeminiStructuredNode[] = [];
-        for (const raw of payload[0]) {
+        for (const raw of rawChildren) {
             const child = decodeGeminiStructuredNode(raw, issues);
             if (!child) return null;
             children.push(child);

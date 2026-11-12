@@ -37,7 +37,34 @@ const fileLocations = (marker: string): string => {
     const reference = citation([fileSource()], marker);
     return response({ children: workspaceBody(reference) }, [reference], `A claim. [cite:${marker}]`);
 };
+const heading = (level: number, text = 'A heading.'): unknown[] => [null, [null, level, text, []]];
+const group = (children: unknown[]): unknown[] => citationField(13, [children]);
+const headingBody = (reference: unknown, nested = false): unknown[] => {
+    const children = [heading(4), citationField(31, [reference])];
+    return group(nested ? [group(children)] : children);
+};
 export const nativeCitationCases = {
+    'G_NATIVE_CITATION_QUOTE_METADATA': () => {
+        const reference = citation([fileSource()], '1', 6);
+        reference[2] = ['Quoted source text', 1];
+        return response([[[...workspaceBody(reference)]]], [reference]);
+    },
+    'G_NATIVE_CITATION_HEADING_LEVELS': () => {
+        const reference = citation([[workspace(false)]]);
+        return response([[[...Array.from({ length: 6 }, (_, index) => group([
+            heading(index + 1, `Heading ${index + 1}.`), citationField(31, [reference]),
+        ]))]]], [reference], Array.from({ length: 6 }, (_, index) => `${'#'.repeat(index + 1)} Heading ${index + 1}. [cite: 1]`).join('\n\n'));
+    },
+    'G_NATIVE_CITATION_HEADING_COMPOUND': () => response([[[headingBody(compoundReference)]]], [compoundReference], '#### A heading.[cite:1.4]'),
+    'G_NATIVE_CITATION_HEADING_MIXED_SOURCES': () => {
+        const reference = citation([fileSource(), webSource(2)], '1,2');
+        return response([[[headingBody(reference)]]], [reference], '#### A heading.[cite:1,2]');
+    },
+    'G_NATIVE_CITATION_HEADING_NESTED': () => response([[[headingBody(compoundReference, true)]]], [compoundReference], '#### A heading.[cite:1.4]'),
+    'G_NATIVE_CITATION_HEADING_MIXED_LEVELS': () => response([[[group([heading(2), heading(4)])]]], [], '## First heading.\n\n#### Second heading.'),
+    'G_NATIVE_CITATION_HEADING_MIXED_PARAGRAPH': () => response([[[group([heading(4), citationText('Body text.')])]]], [], '#### A heading.\n\nBody text.'),
+    'G_NATIVE_CITATION_HEADING_TABLE': () => response({ children: [{ nodeType: 17, rows: [{ cells: [{ children: [headingBody(compoundReference)] }] }] }] }, [compoundReference], '| Heading |\n| --- |\n| A heading. |'),
+    'G_NATIVE_CITATION_HEADING_BLOCK_CHILD': () => response([[[group([heading(4), citationField(3, ['code', 'text'])])]]], [], '#### A heading.\n\n```text\ncode\n```'),
     'G_NATIVE_CITATION_WORKSPACE': () => {
         const reference = citation([[workspace(true)]]);
         return response([[workspaceBody(reference)]], [reference]);

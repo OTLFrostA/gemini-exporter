@@ -89,8 +89,7 @@ test('captured native blockquote retains paragraph formatting without Markdown f
     const nested = successful(parseKey('G_STRUCTURED_CITATIONS_04'));
     assert.equal(nested.content[0].type, 'list');
     assert.ok(JSON.stringify(nested.content).includes('different quoted text'));
-    for (const key of ['G_STRUCTURED_CITATIONS_05', 'G_STRUCTURED_CITATIONS_06',
-        'G_STRUCTURED_CITATIONS_07', 'G_STRUCTURED_CITATIONS_08'] as const) {
+    for (const key of ['G_STRUCTURED_CITATIONS_07', 'G_STRUCTURED_CITATIONS_08'] as const) {
         rejected(parseKey(key), 'decode_rejected');
     }
     rejected(parseKey('G_STRUCTURED_CITATIONS_09'), 'decode_rejected');
@@ -156,7 +155,7 @@ test('source resolution never borrows another candidate source table', () => {
 
 test('unknown composite children, malformed citations and ambiguous wire fields reject the complete document', () => {
     for (const key of ['G_STRUCTURED_CITATIONS_20', 'G_STRUCTURED_CITATIONS_21',
-        'G_STRUCTURED_CITATIONS_22', 'G_STRUCTURED_CITATIONS_23', 'G_STRUCTURED_CITATIONS_24'] as const) {
+        'G_STRUCTURED_CITATIONS_22', 'G_STRUCTURED_CITATIONS_23'] as const) {
         const result = parseKey(key);
         assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'));
         assert.ok(JSON.stringify(result.conversation.detail.messages[1].content).includes(fallback));
