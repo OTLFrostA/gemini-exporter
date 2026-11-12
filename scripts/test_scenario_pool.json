@@ -1,89 +1,5 @@
 [
   {
-    "id": "finance_coupon_bond_duration_convexity_audit",
-    "title": "Coupon bond cash flows and interest-rate sensitivity audit",
-    "domain": "Finance: fixed-income valuation and sensitivity",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Draw an original labelled cash-flow timeline for a three-year annual coupon bond with face value 100 and coupon rate 4 percent. Explain payment dates and redemption.",
-      "At annual yield 5 percent, derive the present value, Macaulay duration, modified duration, and convexity using LaTeX. State the compounding convention and all units.",
-      "Provide a Markdown table of discounted cash flows, time weights, and sensitivity contributions. Compute exact repricing for yields 4 percent and 6 percent and compare first- and second-order approximations.",
-      "Write runnable standard-library Python that prices the bond and calculates analytic derivatives. Independently verify derivatives with central finite differences and explicit numerical tolerances.",
-      "Explain the difference between model yield risk, credit risk, and reinvestment risk. Give a bilingual reproducibility checklist and identify assumptions that invalidate the simple duration estimate."
-    ]
-  },
-  {
-    "id": "logic_two_sat_implication_scc_certificate",
-    "title": "2-SAT implication graphs with verifiable assignment and contradiction certificates",
-    "domain": "Logic: satisfiability via strongly connected components",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Explain the implication-graph reduction for 2-SAT with clear notation in LaTeX. Use clauses (a or b), (not a or c), (not b or not c), and (a or not c).",
-      "Build a Markdown table mapping each clause to its two directed implications. Enumerate graph vertices and prove that the construction preserves satisfiability.",
-      "Compute strongly connected components for the example by hand. Produce a concrete satisfying assignment and check every original clause explicitly.",
-      "Provide runnable standard-library Python implementing iterative Kosaraju SCC decomposition and a 2-SAT solver with explicit literal encoding.",
-      "Add an independent verifier that checks a returned assignment against the original clause list. Exhaustively cross-check the solver on all small formulas over two variables.",
-      "Create an unsatisfiable example with a variable and its negation in the same SCC. Return two explicit directed paths witnessing the contradiction and verify each path edge against a source clause.",
-      "Add negative tests for malformed literals, out-of-range variables, empty formulas, repeated clauses, and variables not appearing in any clause. Explain supported input contracts.",
-      "Summarize correctness and O(V+E) complexity. Include the condensation DAG, assignment extraction convention, and a bilingual audit checklist that distinguishes evidence for SAT from evidence for UNSAT."
-    ]
-  },
-  {
-    "id": "crystallography_bragg_synthetic_peak_audit",
-    "title": "Crystallography: synthetic Bragg peaks and lattice spacing",
-    "domain": "crystallography_diffraction",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original schematic of parallel crystal planes and incident/reflected X-ray rays. Label the interplanar spacing and Bragg angle. Mark the drawing as schematic and give a Markdown table of explicitly synthetic wavelengths and angles with units.",
-      "Derive Bragg’s law and the cubic-lattice spacing relation in LaTeX. State whether each angle is theta or two-theta, order constraints, and the range in which the inverse sine is defined.",
-      "Write complete runnable standard-library Python converting synthetic two-theta peaks into lattice-spacing estimates. Reject invalid angles, nonpositive wavelengths, and zero Miller indices; include executable tests.",
-      "Produce a Markdown table comparing several synthetic cubic peaks with predicted angles, recovered lattice constants and numerical residuals. Propagate a stated angular uncertainty and distinguish random from systematic errors.",
-      "Write a Chinese-English reproducibility audit containing formulas, complete Python, boundary tests and units. Explain why this synthetic geometric calculation cannot identify a real material without independent evidence."
-    ]
-  },
-  {
-    "id": "network_flow_residual_cut_certificate",
-    "title": "Network flow: residual edges and a minimum-cut certificate",
-    "domain": "graph_maximum_flow",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a small directed capacitated network with a source, sink, antiparallel edges and a disconnected vertex. Present its synthetic capacities in a Markdown table with a textual diagram.",
-      "Derive flow conservation, residual forward/reverse capacity and the cut upper bound in LaTeX. Explain how antiparallel original edges differ from algorithmic reverse edges.",
-      "Write complete runnable standard-library Python for Edmonds-Karp using separately indexed residual edges. Validate vertices and finite nonnegative capacities, and include executable unit tests.",
-      "Trace each augmenting path with a Markdown table of bottleneck, flow value and changed residual capacities. Explain which changes undo an earlier routing choice.",
-      "Compute the residual source-reachable set and its corresponding cut. Provide a machine-checkable certificate that flow value equals cut capacity, with all conservation residuals.",
-      "Independently verify the result by enumerating all source-sink cuts for this small graph. Supply complete Python and a table comparing the optimum certificate with the enumeration.",
-      "Add negative and boundary tests for zero capacity, disconnected sink, parallel and antiparallel edges, self loops, and invalid endpoints. State the chosen self-loop convention explicitly.",
-      "Write a Chinese-English audit containing the derivation, complete runnable code, tables and tests. Explain integer-capacity assumptions, floating-point limitations and the algorithm’s complexity."
-    ]
-  },
-  {
     "id": "mechanics_damped_oscillator_energy_audit",
     "title": "Damped oscillator: energy decay and sampling checks",
     "domain": "mechanics_damped_oscillator",
@@ -417,6 +333,90 @@
       "Add tests for reversed bounds, zero-width intervals, a cubic polynomial, sin(x) on [0,pi], and an invalid function value. Give expected results or failure categories in a table.",
       "Construct a narrow smooth bump that can evade coarse sampling. Explain why the estimator is conditional and compare with an independent dense-grid diagnostic without claiming universal certification.",
       "Finish with an English/Chinese implementation audit, complexity discussion and a certificate table separating exact polynomial tests, estimated error bounds and unresolved pathological cases."
+    ]
+  },
+  {
+    "id": "electrochemistry_nernst_concentration_cell_audit",
+    "title": "Concentration cell potential and charge-balance audit",
+    "domain": "electrochemistry_concentration_cells",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Draw an original labelled diagram of a copper concentration cell with copper sulfate concentrations 0.010 M and 1.00 M at 298.15 K. Explain electrode polarity, electron direction, and the salt bridge.",
+      "Derive the Nernst equation for this concentration cell using LaTeX. Calculate the ideal initial voltage, stating activities, electron number, gas constant, Faraday constant, and sign convention.",
+      "Build a Markdown table of voltage for concentration ratios 1, 10, 100, and 1000. Explain why no net voltage is available at equal activities and identify limitations of substituting molarity for activity.",
+      "Write standard-library Python that computes voltage, validates units, and checks reversal of concentration ratio changes only the sign. Add independent numerical assertions with stated tolerances.",
+      "Explain ion migration, finite-volume concentration changes during discharge, and why charge conservation matters. End with a bilingual checklist separating thermodynamic predictions from electrode kinetics."
+    ]
+  },
+  {
+    "id": "optimization_assignment_primal_dual_certificate",
+    "title": "Assignment problem with independently checkable primal and dual certificates",
+    "domain": "optimization_assignment_primal_dual",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Use cost matrix [[9,2,7,8],[6,4,3,7],[5,8,1,8],[7,6,9,4]] to explain minimum-cost assignment. Show the data as a Markdown table and define each decision variable.",
+      "Write the primal linear program and its dual in LaTeX. Explain feasible assignments, row and column constraints, weak duality, and complementary slackness.",
+      "Find an optimal assignment and valid dual potentials. Present assigned pairs, individual costs, total cost, and reduced costs in Markdown tables.",
+      "Derive an augmenting-path algorithm with potentials and describe every invariant needed for correctness. Include pseudocode and explain how ties are handled.",
+      "Implement a runnable standard-library Python solver that returns both the assignment and dual certificate for rectangular inputs with at least as many columns as rows.",
+      "Write an independent verifier for bijection constraints, all dual inequalities, complementary slackness on chosen edges, and equality of primal and dual objectives.",
+      "Cross-check small randomly generated cases against exhaustive enumeration with a fixed seed. Include negative costs, tied optima, an empty matrix, and invalid ragged inputs.",
+      "Give a bilingual review of complexity and numerical assumptions. Distinguish a feasible assignment from a certificate of optimality and summarize the complete reproducibility procedure."
+    ]
+  },
+  {
+    "id": "astronomy_orbital_resonance_period_ratio_audit",
+    "title": "Orbital resonance and Kepler-law consistency audit",
+    "domain": "astronomy_orbital_resonance",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original labelled schematic of two planets orbiting a Sun-mass star near a 3:2 period resonance. State that the drawing is schematic and identify the inner and outer orbit.",
+      "Derive the relationship between period ratio and semimajor-axis ratio from Kepler’s third law using LaTeX. For an inner period of 100 days, calculate the outer period and both semimajor axes with explicit units.",
+      "Provide a Markdown table comparing period ratios 1:1, 4:3, 3:2, and 2:1 and the corresponding semimajor-axis ratios. Explain the assumptions and distinguish an approximate ratio from demonstrated dynamical resonance.",
+      "Write runnable standard-library Python that computes periods, axes, and residuals. Independently verify the round trip and the scaling with stellar mass using numerical tolerances.",
+      "Explain resonant angles, why period ratios alone are insufficient, and what time-series observations would establish libration. Give a bilingual reproducibility checklist and state the limits of the two-body approximation."
+    ]
+  },
+  {
+    "id": "information_theory_huffman_canonical_certificate",
+    "title": "Canonical Huffman coding with independent prefix and round-trip checks",
+    "domain": "information_theory_prefix_coding",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Use symbol frequencies A:45, B:13, C:12, D:16, E:9, F:5 to introduce binary prefix coding. Show frequencies and probabilities in a Markdown table.",
+      "Construct a Huffman merge tree with an explicit deterministic tie-breaking rule. Show each merge, its weight, and the resulting code lengths.",
+      "Derive entropy, expected code length, Kraft sum, and the entropy bound in LaTeX. Compute the values for this frequency distribution.",
+      "Transform the lengths into canonical Huffman codes ordered first by length and then by symbol. Present a Markdown table of symbol, length, code, and weighted contribution.",
+      "Write a runnable standard-library Python encoder that constructs the lengths and canonical codebook and encodes messages with this alphabet.",
+      "Write an independent decoder and verifier that checks prefix freedom, Kraft inequality, encoded bit count, and exact decode-encode round trips.",
+      "Provide negative tests for truncated streams, invalid bits, unseen symbols, zero or negative frequencies, tied frequencies, and a single-symbol alphabet. State the single-symbol convention explicitly.",
+      "Explain metadata costs, why Huffman coding is not encryption, and when arithmetic coding can improve efficiency. End with a bilingual checklist for reproducible interoperability."
     ]
   }
 ]

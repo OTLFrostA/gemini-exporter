@@ -76,7 +76,8 @@ export function parseGeminiBody(
             severity: 'warning', code: 'GEMINI_STRUCTURED_FALLBACK',
             message: 'Structured body could not be adapted; using Markdown fallback',
             sourceRef: context.sourceRef, details: { reason: 'adapter_rejected',
-                structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content },
+                structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content,
+                ...(context.sourceCitations?.size ? { sourceCitationsJson: JSON.stringify([...context.sourceCitations]) } : {}) },
         });
     }
     // GM-MD-004: display fences without blank lines; fenced code preserves its

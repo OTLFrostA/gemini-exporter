@@ -231,6 +231,13 @@ function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSo
             const converted = convertCellChildren(child.children, sources);
             if (converted === null) return null;
             inlines.push(...converted);
+        } else if (child.nodeType === 'sourceReference') {
+            const bound = sources.get(child.marker);
+            for (const source of child.sources) {
+                const citation = bound?.find(item => source.url ? item.url === source.url : !item.url && item.title === source.title);
+                if (!citation) return null;
+                if (source.url) inlines.push({ type: 'citationRef', citationId: citation.id });
+            }
         } else if (child.nodeType === 'citation') {
             if (!Number.isSafeInteger(child.number) || child.number < 1 || !child.title) return null;
             const citationId = `grounding-${child.number}`;
@@ -270,6 +277,7 @@ export function geminiStructuredToContent(
     for (const node of doc.children) {
         switch (node.nodeType) {
             case 'citation':
+            case 'sourceReference':
             case 'citationGroup': {
                 const children = convertCellChildren([node], sources);
                 if (children === null) return null;

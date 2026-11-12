@@ -16,7 +16,7 @@ export function linkCitationMarkers(
         const out: InlineNode[] = [];
         for (const n of nodes) {
             if (n.type === 'text') {
-                const re = /\[(?:cite:\s*)?(\d+(?:\s*,\s*\d+)*)\]/gi;
+                const re = /\[(?:cite:\s*)?(\d+(?:[.-]\d+)?(?:\s*,\s*\d+(?:[.-]\d+)?)*)\]/gi;
                 let last = 0;
                 let mt: RegExpExecArray | null;
                 let replaced = false;
@@ -27,14 +27,14 @@ export function linkCitationMarkers(
 
                     if (isCite) {
                         if (!groundingMap?.size) continue;
-                        const entries = groundingMap.get(matchedStr) ?? groundingMap.get(matchedStr.toLowerCase().replace(/\s+/g, ' '));
+                        const entries = groundingMap.get(matchedStr) ?? groundingMap.get(matchedStr.toLowerCase().replace(/\s+/g, ''));
                         if (!entries?.length) continue;
                         targets = entries.map(entry => ({ citationId: entry.citation.id, label: entry.displayLabel }));
                     } else {
                         if (!hasWebCits) continue;
                         // Plain web markers stay single-number only; a plain
                         // [1,2] list is authored text, not a citation marker.
-                        if (mt[1].includes(',')) continue;
+                        if (!/^\d+$/.test(mt[1])) continue;
                         const cit = byIndex.get(Number(mt[1]));
                         if (!cit) continue;
                         targets = [{ citationId: cit.id, label: matchedStr }];
