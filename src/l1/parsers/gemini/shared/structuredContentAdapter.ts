@@ -30,6 +30,58 @@ function isLeafAnnotation(type: GeminiAnnotation['type']): boolean {
     return type === 4 || type === 7;
 }
 
+/** Citations annotate a span, but render as a reference after that span. They
+ * need not form a nested formatting tree. Keep code/math atomic when an
+ * attribution ends inside a leaf, placing its reference after that leaf. */
+function insertSourceReferences(
+    nodes: InlineNode[], annotations: GeminiAnnotation[], sources: GeminiSourceCitations,
+): InlineNode[] {
+    const pending = annotations.filter(a => a.type === 'source').sort((a, b) => a.end - b.end);
+    let index = 0;
+    const length = (node: InlineNode): number => {
+        if ('children' in node) return node.children.reduce((sum, child) => sum + length(child), 0);
+        if (node.type === 'text') return node.text.length;
+        if (node.type === 'inlineCode') return node.code.length;
+        if (node.type === 'inlineMath') return node.source.length;
+        return node.type === 'lineBreak' ? 1 : 0;
+    };
+    const emit = (end: number, output: InlineNode[]): void => {
+        while (index < pending.length && pending[index].end <= end) {
+            const emitted = new Set<string>();
+            for (const id of pending[index++].sourceIds ?? []) for (const citation of sources.get(id) ?? []) {
+                if (!emitted.has(citation.id)) output.push({ type: 'citationRef', citationId: citation.id });
+                emitted.add(citation.id);
+            }
+        }
+    };
+    const visit = (children: InlineNode[], start: number): InlineNode[] => {
+        const output: InlineNode[] = [];
+        let offset = start;
+        emit(offset, output);
+        for (const node of children) {
+            const end = offset + length(node);
+            if (index < pending.length && pending[index].end < end) {
+                if (node.type === 'text') {
+                    let cursor = offset;
+                    while (index < pending.length && pending[index].end < end) {
+                        const boundary = pending[index].end;
+                        if (boundary > cursor) output.push({ type: 'text', text: node.text.slice(cursor - offset, boundary - offset) });
+                        emit(boundary, output);
+                        cursor = boundary;
+                    }
+                    if (cursor < end) output.push({ type: 'text', text: node.text.slice(cursor - offset) });
+                } else if ('children' in node) {
+                    output.push({ ...node, children: visit(node.children, offset) });
+                } else output.push(node);
+            } else output.push(node);
+            emit(end, output);
+            offset = end;
+        }
+        return output;
+    };
+    return visit(nodes, 0);
+}
+
 export function convertGeminiInlines(
     text: string,
     annotations?: GeminiAnnotation[],
@@ -54,6 +106,12 @@ export function convertGeminiInlines(
         // 12: strikethrough
         if (a.type === 'source') {
             if (!a.sourceIds?.length || a.sourceIds.some(id => !sources.get(id)?.length)) return null;
+            // UTF-16 offsets must not split a Unicode surrogate pair when a
+            // source endpoint becomes a text/citation boundary.
+            for (const boundary of [a.start, a.end]) {
+                const before = text.charCodeAt(boundary - 1), after = text.charCodeAt(boundary);
+                if (before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff) return null;
+            }
         } else if (![0, 2, 4, 5, 6, 7, 12].includes(a.type)) {
             return null; // Unknown annotation type -> fallback
         }
@@ -63,13 +121,11 @@ export function convertGeminiInlines(
     // 1. start asc
     // 2. length desc (larger spans wrap smaller ones)
     // 3. container annotations before leaf annotations
-    const sorted = [...annotations].sort((a, b) => {
+    const sorted = annotations.filter(a => a.type !== 'source').sort((a, b) => {
         if (a.start !== b.start) return a.start - b.start;
         const lenA = a.end - a.start;
         const lenB = b.end - b.start;
         if (lenA !== lenB) return lenB - lenA;
-        if (a.type === 'source' && b.type !== 'source') return -1;
-        if (b.type === 'source' && a.type !== 'source') return 1;
         const leafA = isLeafAnnotation(a.type) ? 1 : 0;
         const leafB = isLeafAnnotation(b.type) ? 1 : 0;
         return leafA - leafB;
@@ -127,7 +183,7 @@ export function convertGeminiInlines(
                     type: 'inlineCode',
                     code: rawSlice,
                 });
-            } else if (a.type === 'source' || [0, 2, 5, 6, 12].includes(a.type)) {
+            } else if ([0, 2, 5, 6, 12].some(type => a.type === type)) {
                 // Container annotation with potential nested annotations
                 const innerAnnots = curAnnots.filter(
                     (c) => c !== a && c.start >= a.start && c.end <= a.end,
@@ -135,15 +191,7 @@ export function convertGeminiInlines(
                 const children = convertRange(a.start, a.end, innerAnnots);
                 if (children === null) return null;
 
-                if (a.type === 'source') {
-                    nodes.push(...children);
-                    const emitted = new Set<string>();
-                    for (const id of a.sourceIds ?? []) for (const citation of sources.get(id) ?? []) {
-                        if (emitted.has(citation.id)) continue;
-                        emitted.add(citation.id);
-                        nodes.push({ type: 'citationRef', citationId: citation.id });
-                    }
-                } else if (a.type === 0) {
+                if (a.type === 0) {
                     nodes.push({ type: 'strong', children });
                 } else if (a.type === 2 || a.type === 5) {
                     nodes.push({ type: 'emphasis', children });
@@ -166,7 +214,8 @@ export function convertGeminiInlines(
         return nodes;
     }
 
-    return convertRange(0, text.length, sorted);
+    const converted = convertRange(0, text.length, sorted);
+    return converted === null ? null : insertSourceReferences(converted, annotations, sources);
 }
 
 function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSourceCitations): InlineNode[] | null {
@@ -182,9 +231,22 @@ function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSo
             const converted = convertCellChildren(child.children, sources);
             if (converted === null) return null;
             inlines.push(...converted);
+        } else if (child.nodeType === 'sourceReference') {
+            const bound = sources.get(child.marker);
+            for (const source of child.sources) {
+                const citation = bound?.find(item => source.url ? item.url === source.url : !item.url && item.title === source.title);
+                if (!citation) return null;
+                if (source.url) inlines.push({ type: 'citationRef', citationId: citation.id });
+            }
         } else if (child.nodeType === 'citation') {
             if (!Number.isSafeInteger(child.number) || child.number < 1 || !child.title) return null;
             const citationId = `grounding-${child.number}`;
+            if (child.url) {
+                const citation = sources.get(citationId)?.find(source => source.url === child.url);
+                if (!citation) return null;
+                inlines.push({ type: 'citationRef', citationId: citation.id });
+                continue;
+            }
             if (!sources.get(citationId)?.some(citation => citation.id === citationId)) return null;
             // Native uploaded-file chips are hidden in the authored webpage text.
             // Keep their source metadata, but do not invent a visible numbered marker.
@@ -195,6 +257,9 @@ function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSo
             inlines.push({ type: 'inlineMath', source: child.FTa });
         } else if (child.nodeType === 13) {
             inlines.push({ type: 'lineBreak', kind: 'hard' });
+        } else if (child.nodeType === 0) {
+            // Attachments inside composite paragraphs belong to the same
+            // resource pipeline as root attachments; do not duplicate them.
         } else {
             // Unsupported node inside table cell -> fallback
             return null;
@@ -212,6 +277,7 @@ export function geminiStructuredToContent(
     for (const node of doc.children) {
         switch (node.nodeType) {
             case 'citation':
+            case 'sourceReference':
             case 'citationGroup': {
                 const children = convertCellChildren([node], sources);
                 if (children === null) return null;

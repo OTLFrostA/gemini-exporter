@@ -2,8 +2,8 @@ import type { BlockNode } from '../../../../l2/content/blocks.js';
 
 /** Gemini hides confirmed grounding tokens in code, but quoted code literals are authored data. */
 export function closeGeminiCodeCitations(blocks: BlockNode[], markers: readonly string[] = []): void {
-    const normalize = (value: string): string => value.toLowerCase().replace(/\s+/g, ' ');
-    const confirmed = new Set(markers.filter(marker => /^\[cite:\s*\d+(?:\s*,\s*\d+)*\]$/i.test(marker)).map(normalize));
+    const normalize = (value: string): string => value.toLowerCase().replace(/\s+/g, '');
+    const confirmed = new Set(markers.filter(marker => /^\[cite:\s*\d+(?:[.-]\d+)?(?:\s*,\s*\d+(?:[.-]\d+)?)*\]$/i.test(marker)).map(normalize));
     if (!confirmed.size) return;
     const clean = (code: string): string => {
         let output = '', quote = '';
@@ -25,7 +25,7 @@ export function closeGeminiCodeCitations(blocks: BlockNode[], markers: readonly 
                 continue;
             }
             if (char === '[') {
-                const marker = /^\[cite:\s*\d+(?:\s*,\s*\d+)*\]/i.exec(code.slice(i))?.[0];
+                const marker = /^\[cite:\s*\d+(?:[.-]\d+)?(?:\s*,\s*\d+(?:[.-]\d+)?)*\]/i.exec(code.slice(i))?.[0];
                 if (marker && confirmed.has(normalize(marker))) { i += marker.length; continue; }
             }
             output += code[i++];

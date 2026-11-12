@@ -50,21 +50,46 @@ function citationsOf(message: GeminiMessageEvidence): { citations: DomainCitatio
     for (const attribution of message.sourceAttributions ?? []) {
         sourceCitations.set(attribution.sourceId, attribution.sources.map(addSource));
     }
-    const files = new Map<number, Set<string>>();
+    const files = new Map<string, Set<string>>();
     const visit = (nodes: GeminiStructuredNode[]): void => {
         for (const node of nodes) {
-            if (node.nodeType === 'citation') {
-                const titles = files.get(node.number) ?? new Set<string>();
+            if (node.nodeType === 'sourceReference') {
+                const sources = sourceCitations.get(node.marker) ?? [];
+                for (const [index, source] of node.sources.entries()) {
+                    let citation: DomainCitation;
+                    if (source.url) citation = addSource({ url: source.url, title: source.title });
+                    else {
+                        const id = `grounding-native-${encodeURIComponent(node.marker)}-${index}`;
+                        const titles = files.get(id) ?? new Set<string>();
+                        titles.add(source.title);
+                        files.set(id, titles);
+                        citation = { id, title: source.title };
+                    }
+                    if (!sources.some(item => item.id === citation.id)) sources.push(citation);
+                }
+                sourceCitations.set(node.marker, sources);
+            } else if (node.nodeType === 'citation') {
+                if (node.url) {
+                    const key = `grounding-${node.number}`;
+                    const sources = sourceCitations.get(key) ?? [];
+                    const citation = addSource({ url: node.url, title: node.title });
+                    if (!sources.some(source => source.id === citation.id)) sources.push(citation);
+                    sourceCitations.set(key, sources);
+                    continue;
+                }
+                const key = `grounding-${node.number}`;
+                const titles = files.get(key) ?? new Set<string>();
                 titles.add(node.title);
-                files.set(node.number, titles);
+                files.set(key, titles);
             } else if ('children' in node) visit(node.children);
             else if ('items' in node) node.items.forEach(item => visit(item.children));
             else if ('rows' in node) node.rows.forEach(row => row.cells.forEach(cell => visit(cell.children)));
         }
     };
+    visit(message.groundingReferences ?? []);
     if (message.structuredContent) visit(message.structuredContent.children);
-    for (const [number, titles] of files) {
-        const citation = { id: `grounding-${number}`, title: [...titles].join('; ') };
+    for (const [id, titles] of files) {
+        const citation = { id, title: [...titles].join('; ') };
         citations.push(citation);
         sourceCitations.set(citation.id, [citation]);
     }
@@ -85,6 +110,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
     const contentDiagnostics: Diagnostic[] = [];
     const messages: DomainMessage[] = evidence.messages.map((message, index) => {
         const sourceRef = { providerId: 'gemini', providerMessageId: message.id, locator: `messages[${index}]` };
+        const { citations, legacyCitations, sourceCitations } = citationsOf(message);
         const extraction = message.structuredExtraction;
         if (extraction && extraction.status !== 'decoded') contentDiagnostics.push({
             severity: extraction.status === 'decode_rejected' ? 'warning' : 'info',
@@ -94,10 +120,10 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             details: { reason: extraction.status, ...(extraction.status === 'decode_rejected' ? {
                 issue: { ...extraction.issue }, rawDocument: extraction.rawDocument,
                 documentSource: 'turn[3][12]', candidateIndex: 0, fallbackMarkdown: message.content,
+                ...(sourceCitations.size ? { sourceCitationsJson: JSON.stringify([...sourceCitations]) } : {}),
             } : {}) },
         });
         const reasoning = parseSourceReasoning(message.thoughts, { diagnostics: contentDiagnostics, sourceRef });
-        const { citations, legacyCitations, sourceCitations } = citationsOf(message);
         const closed = closeSourceCitations({
             ...(message.id.trim() ? { id: message.id } : {}),
             role: message.role === 'model' ? 'assistant' : 'user',
@@ -108,7 +134,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             ...(message.model ? { model: message.model } : {}),
             ...(reasoning !== undefined ? { reasoning } : {}),
             ...(legacyCitations.length ? { citations: legacyCitations } : {}),
-        }, message.groundingCitationMarkers);
+        }, message.groundingCitationMarkers, sourceCitations);
         if (message.role === 'model') {
             const fileIds = new Set(citations.filter(citation => citation.id.startsWith('grounding-') && citation.title && !citation.url).map(citation => citation.id));
             hideGeminiFileCitations(closed.content, fileIds);

@@ -80,13 +80,19 @@ export interface GeminiFileNode { nodeType: 24; id: string; title: string }
 
 /** Inline fragments share one paragraph; wire field 13 is not a line break. */
 export interface GeminiCompositeParagraph { nodeType: 'paragraph'; children: GeminiStructuredNode[] }
-export interface GeminiFileCitation { nodeType: 'citation'; number: number; title: string }
+export interface GeminiFileCitation { nodeType: 'citation'; number: number; title: string; url?: string }
 export interface GeminiCitationGroup { nodeType: 'citationGroup'; children: GeminiFileCitation[] }
+export interface GeminiCitationSource { title: string; url?: string }
+/** Excerpt locations can outnumber files, or use compound source identifiers. */
+export interface GeminiSourceReference { nodeType: 'sourceReference'; marker: string; sources: GeminiCitationSource[] }
+
+export type GeminiCitationReference = GeminiFileCitation | GeminiCitationGroup | GeminiSourceReference;
 
 export type GeminiStructuredNode =
     | GeminiCompositeParagraph
     | GeminiFileCitation
     | GeminiCitationGroup
+    | GeminiSourceReference
     | GeminiTextNode
     | GeminiMathBlockNode
     | GeminiCodeBlockNode
@@ -132,6 +138,104 @@ function decodeSourceIds(value: unknown): string[] | null {
     if (!isWireArray(value) || value.length === 0) return null;
     return value.every((id): id is string => typeof id === 'string' && /^spp_[\w-]+$/.test(id))
         ? [...value] : null;
+}
+
+/** Citation sources are a wire union: Workspace, uploaded file, or web page.
+ * Excerpts and highlight regions describe the source, not authored body text. */
+function decodeCitationSource(source: unknown, number?: number): GeminiCitationSource | null {
+    if (!isWireArray(source)) return null;
+    const workspace = source.length === 1
+        || source.length === 3 && source[1] === null && source[2] === '' ? source[0] : undefined;
+    if (isWireArray(workspace) && isWireArray(workspace[0]) && workspace[0].length === 1
+        && typeof workspace[0][0] === 'number' && [1, 2, 3].includes(workspace[0][0])
+        && typeof workspace[1] === 'string' && /^https:\/\//.test(workspace[1])
+        && typeof workspace[2] === 'string' && workspace[2]
+        && (workspace.length === 3 || workspace.length >= 12
+            && isWireArray(workspace[3]) && workspace[3].length > 0
+            && workspace[3].every(id => typeof id === 'string') && workspace[11] === 4)) {
+        return { title: workspace[2], url: workspace[1] };
+    }
+    if (source[0] === null && (source.length === 2
+        || source.length === 3 && typeof source[2] === 'string'
+        || source.length === 5 && typeof source[2] === 'string' && source[3] === null
+            && isWireArray(source[4]) && isJsonValue(source[4]))) {
+        const file = source[1];
+        const metadata = isWireArray(file) ? file[0] : undefined;
+        if (isWireArray(file) && isWireArray(metadata) && typeof metadata[2] === 'string' && metadata[2]
+            && typeof metadata[11] === 'string'
+            && (file[6] === metadata[2] || file.length === 5 && typeof source[2] === 'string'
+                && typeof file[4] === 'number' && Number.isSafeInteger(file[4]) && file[4] > 0)) {
+            return { title: metadata[2] };
+        }
+    }
+    if (source.length === 4 && source.slice(0, 3).every(value => value === null)) {
+        const page = source[3];
+        const metadata = isWireArray(page) ? page[0] : undefined;
+        const title = isWireArray(metadata) ? metadata[metadata.length === 2 ? 1 : 2] : undefined;
+        if (isWireArray(page) && page.length === 6 && typeof page[1] === 'number'
+            && Number.isSafeInteger(page[1]) && page[1] > 0 && (number === undefined || page[1] === number)
+            && isWireArray(metadata) && metadata.length >= 2
+            && typeof metadata[0] === 'string' && /^https:\/\//.test(metadata[0])
+            && (metadata.length === 2 || typeof metadata[1] === 'string' && /^https:\/\//.test(metadata[1]))
+            && typeof title === 'string' && title
+            && isWireArray(page[5]) && isJsonValue(page[5])) {
+            return { title, url: metadata[0] };
+        }
+    }
+    return null;
+}
+
+function citationTokens(marker: string): string[] | null {
+    const match = /^\[cite:\s*(\d+(?:[.-]\d+)?(?:\s*,\s*\d+(?:[.-]\d+)?)*)\]$/i.exec(marker.trim());
+    if (!match) return null;
+    const tokens = match[1].split(',').map(token => token.trim());
+    const identities = tokens.map(token => /^\d+$/.test(token) ? Number(token) : token);
+    if (new Set(identities).size !== tokens.length || tokens.some(token => {
+        const parts = token.split(/[.-]/).map(Number);
+        return parts.some(part => !Number.isSafeInteger(part) || part < 1)
+            || token.includes('-') && parts[0] > parts[1];
+    })) return null;
+    return tokens;
+}
+
+/** Field 31 and the selected candidate's field 44 carry the same source-reference tuple. */
+export function decodeGeminiCitationReference(citation: unknown): GeminiCitationReference | null {
+    // An empty reference placeholder has no sources and no authored text.
+    if (isWireArray(citation) && citation.length === 1 && isWireArray(citation[0])
+        && citation[0].length === 1 && typeof citation[0][0] === 'string'
+        && /^\s*\[cite:\s*\]\s*$/.test(citation[0][0])) {
+        return { nodeType: 'citationGroup', children: [] };
+    }
+    if (!isWireArray(citation) || citation.length < 2 || citation.length > 4
+        || !isWireArray(citation[0]) || (citation[0].length !== 1 && citation[0].length !== 2)
+        || citation[0].length === 2 && citation[0][1] !== 0
+        || typeof citation[0][0] !== 'string'
+        || !isWireArray(citation[1]) || !citation[1].length) return null;
+    if (citation.length >= 3 && (!isWireArray(citation[2]) || citation[2].length !== 2
+        || typeof citation[2][0] !== 'string' || citation[2][1] !== 0)) return null;
+    // Older file references carry an explicit opening citation marker.
+    // It is protocol metadata, not authored paragraph text.
+    if (citation.length === 4 && (!isWireArray(citation[3]) || citation[3].length !== 2
+        || citation[3][0] !== '[cite_start]' || typeof citation[3][1] !== 'number'
+        || !Number.isSafeInteger(citation[3][1]) || citation[3][1] < 0)) return null;
+    const tokens = citationTokens(citation[0][0]);
+    if (!tokens) return null;
+    const oneToOne = tokens.length === citation[1].length;
+    // File excerpts can bind several line locations to one source. A legacy
+    // chip without excerpts still requires one source per marker token.
+    if (!oneToOne && (citation[1].length > tokens.length || !citation[1].every(source =>
+        isWireArray(source) && source[0] === null && typeof source[2] === 'string'))) return null;
+    const numbered = oneToOne && tokens.every(token => /^\d+$/.test(token));
+    const sources: GeminiCitationSource[] = [];
+    const children: GeminiFileCitation[] = [];
+    for (const [index, source] of citation[1].entries()) {
+        const decoded = decodeCitationSource(source, numbered ? Number(tokens[index]) : undefined);
+        if (!decoded) return null;
+        sources.push(decoded);
+        if (numbered) children.push({ nodeType: 'citation', number: Number(tokens[index]), ...decoded });
+    }
+    if (!numbered) return { nodeType: 'sourceReference', marker: `[cite: ${tokens.join(', ')}]`, sources };
+    return children.length === 1 ? children[0] : { nodeType: 'citationGroup', children };
 }
 
 export function decodeGeminiAnnotation(wa: unknown, issues?: DecodeIssues): GeminiAnnotation | null {
@@ -241,8 +345,19 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         const node = w;
         const nodeType = node.nodeType;
         switch (nodeType) {
+            case 'sourceReference': {
+                const tokens = typeof node.marker === 'string' ? citationTokens(node.marker) : null;
+                if (!tokens || !isWireArray(node.sources) || !node.sources.length) return null;
+                const sources: GeminiCitationSource[] = [];
+                for (const source of node.sources) {
+                    if (!isRecord(source) || typeof source.title !== 'string' || !source.title
+                        || source.url !== undefined && (typeof source.url !== 'string' || !/^https:\/\//.test(source.url))) return null;
+                    sources.push({ title: source.title, ...(typeof source.url === 'string' ? { url: source.url } : {}) });
+                }
+                return { nodeType, marker: `[cite: ${tokens.join(', ')}]`, sources };
+            }
             case 'citationGroup': {
-                if (!isWireArray(node.children) || !node.children.length) return null;
+                if (!isWireArray(node.children)) return null;
                 const children: GeminiFileCitation[] = [];
                 for (const child of node.children) {
                     const decoded = decodeGeminiStructuredNode(child, issues);
@@ -264,7 +379,8 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
             case 'citation': {
                 const number = node.number;
                 return Number.isSafeInteger(number) && typeof number === 'number' && number > 0 && typeof node.title === 'string' && node.title
-                    ? { nodeType, number, title: node.title } : null;
+                    && (node.url === undefined || (typeof node.url === 'string' && /^https:\/\//.test(node.url)))
+                    ? { nodeType, number, title: node.title, ...(typeof node.url === 'string' ? { url: node.url } : {}) } : null;
             }
             case 18: {
                 if (typeof node.text !== "string") return null;
@@ -376,33 +492,12 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
     }
     if (!isWireArray(w)) return null;
 
-    // Captured file citation. The quote is source metadata, never visible body text.
+    // Source references share marker/number binding across wire variants.
     if (w[31] != null) {
         const payload = w[31];
         if (!w.every((value, index) => value == null || index === 31)
             || !isWireArray(payload) || payload.length !== 1) return null;
-        const citation = payload[0];
-        if (!isWireArray(citation) || citation.length !== 3
-            || !isWireArray(citation[0]) || citation[0].length !== 2 || citation[0][1] !== 0
-            || typeof citation[0][0] !== 'string'
-            || !isWireArray(citation[1]) || !citation[1].length
-            || !isWireArray(citation[2]) || citation[2].length !== 2
-            || typeof citation[2][0] !== 'string' || citation[2][1] !== 0) return null;
-        const match = /^\[cite:\s*(\d+(?:\s*,\s*\d+)*)\]$/i.exec(citation[0][0]);
-        if (!match) return null;
-        const numbers = match[1].split(',').map(Number);
-        if (numbers.length !== citation[1].length || new Set(numbers).size !== numbers.length
-            || numbers.some(number => !Number.isSafeInteger(number) || number < 1)) return null;
-        const children: GeminiFileCitation[] = [];
-        for (const [index, source] of citation[1].entries()) {
-            const file = isWireArray(source) && source.length === 2 && source[0] === null ? source[1] : undefined;
-            const metadata = isWireArray(file) ? file[0] : undefined;
-            if (!isWireArray(file) || typeof file[6] !== 'string' || !file[6]
-                || !isWireArray(metadata) || metadata[2] !== file[6]
-                || typeof metadata[11] !== 'string') return null;
-            children.push({ nodeType: 'citation', number: numbers[index], title: file[6] });
-        }
-        return children.length === 1 ? children[0] : { nodeType: 'citationGroup', children };
+        return decodeGeminiCitationReference(payload[0]);
     }
 
     if (w[13] != null) {
@@ -637,7 +732,17 @@ export function decodeGeminiStructuredPayload(raw: unknown, issues?: DecodeIssue
             nodeArray = [nodeArray[0]];
         }
         if (nodeArray.length === 1 && isWireArray(nodeArray[0])) {
-            if (nodeArray[0].length === 1 && isWireArray(nodeArray[0][0])) {
+            const envelope = nodeArray[0];
+            const layout = envelope[1];
+            // The body sequence may carry a separate numeric rendering trailer.
+            // Decode only the captured trailer grammar; another body sequence or
+            // nonnumeric payload is not metadata and must not be discarded.
+            if (envelope.length === 2 && isWireArray(envelope[0])
+                && isWireArray(layout) && layout.length === 5
+                && layout.slice(0, 4).every(value => value === null)
+                && typeof layout[4] === 'number' && Number.isSafeInteger(layout[4]) && layout[4] >= 0) {
+                nodeArray = envelope[0];
+            } else if (nodeArray[0].length === 1 && isWireArray(nodeArray[0][0])) {
                 nodeArray = nodeArray[0][0];
             } else if (nodeArray[0].length > 1 && isWireArray(nodeArray[0][0])) {
                 nodeArray = nodeArray[0];

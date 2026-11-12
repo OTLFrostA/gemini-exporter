@@ -1,7 +1,7 @@
 import type { GeminiSourceAttribution } from './sourceAttributions.js';
 import type { ImageAttachment, DocLink } from './sourceAttachments.js';
 import type { Citation, TitleResult } from './extractors.js';
-import type { GeminiStructuredDocument, GeminiStructuredExtraction } from './structuredContent.js';
+import type { GeminiStructuredDocument, GeminiStructuredExtraction, GeminiCitationReference } from './structuredContent.js';
 import type { SourceGeneratedMediaIdentity } from '../../shared/resources/generationEvent.js';
 import type { classifyDetailBody } from './emptyDetail.js';
 
@@ -64,6 +64,8 @@ export interface GeminiMessageEvidence {
     structuredContent?: GeminiStructuredDocument;
     structuredExtraction?: GeminiStructuredExtraction;
     groundingCitationMarkers?: string[];
+    /** Native marker/source bindings survive a rejected structured body. */
+    groundingReferences?: GeminiCitationReference[];
 }
 
 export interface GeminiDetailDebugEvidence {

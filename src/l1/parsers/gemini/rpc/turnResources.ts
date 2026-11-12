@@ -1,4 +1,4 @@
-import { GEMINI_JSPB_SCHEMA, type DecodedGeminiTurn, type DecodedGeminiCandidate } from './extractors.js';
+import { deepWalk, GEMINI_JSPB_SCHEMA, type DecodedGeminiTurn, type DecodedGeminiCandidate } from './extractors.js';
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence, GeminiMessageEvidence } from './detailEvidence.js';
 import {
@@ -13,7 +13,7 @@ import {
     type UserFileAttachment,
     type DeepResearchDocMeta,
 } from './sourceAttachments.js';
-import { inspectStructuredContent, type GeminiStructuredExtraction } from './structuredContent.js';
+import { inspectStructuredContent, decodeGeminiCitationReference, type GeminiStructuredExtraction, type GeminiCitationReference } from './structuredContent.js';
 import { stripInternalChipMarkdown } from '../../shared/chipUtils.js';
 import { RESEARCH_PROMPT_PREFIX_RE } from '../../../../shared/utils/titleText.js';
 import { shortId } from '../../../../shared/utils/pathUtils.js';
@@ -32,6 +32,7 @@ export interface DecodedGeminiCandidateResources {
     generatedFiles: GeminiAttachmentEvidence[];
     documents: GeminiDocumentEvidence[];
     structuredExtraction: GeminiStructuredExtraction;
+    groundingReferences: GeminiCitationReference[];
 }
 
 export const DOC_TITLE_FALLBACK_RE = /^#\s+(.+)$/m;
@@ -68,6 +69,14 @@ export function decodeGeminiCandidateResources(
         turnDocument, candidateIndex
     });
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
+    const groundingReferences: GeminiCitationReference[] = [];
+    deepWalk(cand, node => {
+        const field = wireArray(node) ? node[44] : '44' in node ? node['44'] : undefined;
+        if (wireArray(field)) for (const raw of field) {
+            const reference = decodeGeminiCitationReference(raw);
+            if (reference) groundingReferences.push(reference);
+        }
+    });
     const rawAnswerDocument = candidateIndex === 0 ? turnDocument : undefined;
     const { images: candImages, structuredImages } = extractResponseImageEvidence(
         cand, [answerBody, rawAnswerDocument], candidate.text, structuredContent
@@ -151,6 +160,7 @@ export function decodeGeminiCandidateResources(
         generatedFiles,
         documents: docDetails,
         structuredExtraction,
+        groundingReferences,
     };
 }
 
@@ -248,7 +258,7 @@ function parseCandidateResponse(
     const ts = turn.timestamp;
     const candidateId = candidate.id;
     let responseText = candidate.text;
-    const { images: candImages, filteredImages, generatedFiles, documents: docDetails, structuredExtraction, structuredImages } = resources;
+    const { images: candImages, filteredImages, generatedFiles, documents: docDetails, structuredExtraction, structuredImages, groundingReferences } = resources;
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
 
     const { thoughts, citations, sourceAttributions, groundingCitationMarkers } = candidate;
@@ -339,7 +349,8 @@ function parseCandidateResponse(
         structuredExtraction,
         structuredImages,
         ...(sourceAttributions.length ? { sourceAttributions } : {}),
-        ...(groundingCitationMarkers.length ? { groundingCitationMarkers } : {})
+        ...(groundingCitationMarkers.length ? { groundingCitationMarkers } : {}),
+        ...(groundingReferences.length ? { groundingReferences } : {})
     };
 }
 
