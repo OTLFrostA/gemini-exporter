@@ -170,15 +170,12 @@ test('unknown composite children, malformed citations and ambiguous wire fields 
     rejected(parseKey('G_STRUCTURED_CITATIONS_38'), 'decode_rejected');
 });
 
-test('malformed/unresolved attribution, crossing ranges and source annotations inside leaves fail closed', () => {
+test('malformed and unresolved attributions still fail closed', () => {
     for (const key of ['G_STRUCTURED_CITATIONS_29', 'G_STRUCTURED_CITATIONS_30',
         'G_STRUCTURED_CITATIONS_31', 'G_STRUCTURED_CITATIONS_32',
         'G_STRUCTURED_CITATIONS_33'] as const) {
         const result = parseKey(key);
         assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'));
-    }
-    for (const key of ['G_STRUCTURED_CITATIONS_34', 'G_STRUCTURED_CITATIONS_35'] as const) {
-        rejected(parseKey(key), 'adapter_rejected');
     }
     const table = sourceTable();
     const entries = table[1] as unknown[][];
@@ -187,4 +184,17 @@ test('malformed/unresolved attribution, crossing ranges and source annotations i
     rejected(parseKey('G_STRUCTURED_CITATIONS_36'), 'adapter_rejected');
     rejected(parseKey('G_STRUCTURED_CITATIONS_37'), 'adapter_rejected');
     assert.equal(decodeGeminiAnnotation([0, 4, [null, null, null, ['wrong', ['spp_fixture']]]]), null);
+});
+
+test('source ranges may cross formatting and end inside atomic inline code', () => {
+    const crossed = successful(parseKey('G_STRUCTURED_CITATIONS_34'));
+    assert.deepEqual(crossed.content[0], { type: 'paragraph', children: [
+        { type: 'text', text: 'bo' },
+        { type: 'strong', children: [{ type: 'text', text: 'd' },
+            { type: 'citationRef', citationId: 'citation-0' }, { type: 'text', text: 'y' }] },
+    ] });
+    const code = successful(parseKey('G_STRUCTURED_CITATIONS_35'));
+    assert.deepEqual(code.content[0], { type: 'paragraph', children: [
+        { type: 'inlineCode', code: 'body' }, { type: 'citationRef', citationId: 'citation-0' },
+    ] });
 });

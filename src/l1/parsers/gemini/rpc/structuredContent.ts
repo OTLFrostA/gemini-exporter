@@ -80,7 +80,7 @@ export interface GeminiFileNode { nodeType: 24; id: string; title: string }
 
 /** Inline fragments share one paragraph; wire field 13 is not a line break. */
 export interface GeminiCompositeParagraph { nodeType: 'paragraph'; children: GeminiStructuredNode[] }
-export interface GeminiFileCitation { nodeType: 'citation'; number: number; title: string }
+export interface GeminiFileCitation { nodeType: 'citation'; number: number; title: string; url?: string }
 export interface GeminiCitationGroup { nodeType: 'citationGroup'; children: GeminiFileCitation[] }
 
 export type GeminiStructuredNode =
@@ -264,7 +264,8 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
             case 'citation': {
                 const number = node.number;
                 return Number.isSafeInteger(number) && typeof number === 'number' && number > 0 && typeof node.title === 'string' && node.title
-                    ? { nodeType, number, title: node.title } : null;
+                    && (node.url === undefined || (typeof node.url === 'string' && /^https:\/\//.test(node.url)))
+                    ? { nodeType, number, title: node.title, ...(typeof node.url === 'string' ? { url: node.url } : {}) } : null;
             }
             case 18: {
                 if (typeof node.text !== "string") return null;
@@ -382,12 +383,16 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         if (!w.every((value, index) => value == null || index === 31)
             || !isWireArray(payload) || payload.length !== 1) return null;
         const citation = payload[0];
-        if (!isWireArray(citation) || citation.length !== 3
+        if (!isWireArray(citation) || (citation.length !== 3 && citation.length !== 4)
             || !isWireArray(citation[0]) || citation[0].length !== 2 || citation[0][1] !== 0
             || typeof citation[0][0] !== 'string'
             || !isWireArray(citation[1]) || !citation[1].length
             || !isWireArray(citation[2]) || citation[2].length !== 2
             || typeof citation[2][0] !== 'string' || citation[2][1] !== 0) return null;
+        // Older file references carry an explicit opening citation marker.
+        // It is protocol metadata, not authored paragraph text.
+        if (citation.length === 4 && (!isWireArray(citation[3]) || citation[3].length !== 2
+            || citation[3][0] !== '[cite_start]' || citation[3][1] !== 0)) return null;
         const match = /^\[cite:\s*(\d+(?:\s*,\s*\d+)*)\]$/i.exec(citation[0][0]);
         if (!match) return null;
         const numbers = match[1].split(',').map(Number);
@@ -395,7 +400,23 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
             || numbers.some(number => !Number.isSafeInteger(number) || number < 1)) return null;
         const children: GeminiFileCitation[] = [];
         for (const [index, source] of citation[1].entries()) {
-            const file = isWireArray(source) && source.length === 2 && source[0] === null ? source[1] : undefined;
+            // Captured Workspace citations carry their own source URL, unlike
+            // uploaded-file chips. Keep that URL bound to this numbered source.
+            const workspace = isWireArray(source) && (source.length === 1
+                || (source.length === 3 && source[1] === null && source[2] === '')) ? source[0] : undefined;
+            if (isWireArray(workspace) && isWireArray(workspace[0]) && workspace[0].length === 1
+                && typeof workspace[0][0] === 'number' && [1, 2, 3].includes(workspace[0][0])
+                && typeof workspace[1] === 'string' && /^https:\/\//.test(workspace[1])
+                && typeof workspace[2] === 'string' && workspace[2]
+                && isWireArray(workspace[3]) && workspace[3].length > 0
+                && workspace[3].every(id => typeof id === 'string') && workspace[11] === 4) {
+                children.push({ nodeType: 'citation', number: numbers[index], title: workspace[2], url: workspace[1] });
+                continue;
+            }
+            // A captured variant adds a quoted source excerpt after the file.
+            const file = isWireArray(source) && (source.length === 2
+                || (source.length === 3 && typeof source[2] === 'string'))
+                && source[0] === null ? source[1] : undefined;
             const metadata = isWireArray(file) ? file[0] : undefined;
             if (!isWireArray(file) || typeof file[6] !== 'string' || !file[6]
                 || !isWireArray(metadata) || metadata[2] !== file[6]

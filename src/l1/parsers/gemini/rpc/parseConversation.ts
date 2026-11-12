@@ -54,6 +54,14 @@ function citationsOf(message: GeminiMessageEvidence): { citations: DomainCitatio
     const visit = (nodes: GeminiStructuredNode[]): void => {
         for (const node of nodes) {
             if (node.nodeType === 'citation') {
+                if (node.url) {
+                    const key = `grounding-${node.number}`;
+                    const sources = sourceCitations.get(key) ?? [];
+                    const citation = addSource({ url: node.url, title: node.title });
+                    if (!sources.some(source => source.id === citation.id)) sources.push(citation);
+                    sourceCitations.set(key, sources);
+                    continue;
+                }
                 const titles = files.get(node.number) ?? new Set<string>();
                 titles.add(node.title);
                 files.set(node.number, titles);
