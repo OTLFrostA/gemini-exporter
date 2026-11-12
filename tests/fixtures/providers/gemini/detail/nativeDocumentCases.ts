@@ -19,6 +19,12 @@ function trailerMatrix(): string {
 }
 
 export const nativeDocumentCases = {
+    'G_NATIVE_DOCUMENT_EMPTY_QUOTES': () => dualAuditWire('Before.\n\nAfter.', [[[
+        citationText('Before.'), citationField(16, []), citationField(16, [[]]), citationText('After.'),
+    ]]]),
+    'G_NATIVE_DOCUMENT_STRIKETHROUGH': () => dualAuditWire('Keep ~~old~~ new.', [[[
+        citationText('Keep old new.', [[5, 8, [[null, null, null, null, 4]]]]),
+    ]]]),
     'G_NATIVE_DOCUMENT_TRAILER_MATRIX': () => trailerMatrix(),
     'G_NATIVE_DOCUMENT_SECOND_BODY': () => fallback([[body(), [citationText('Second body.')]]]),
     'G_NATIVE_DOCUMENT_TRAILER_CONTENT': () => fallback([[body(), [null, null, 'authored text', null, 1]]]),

@@ -1,4 +1,4 @@
-import type { BlockNode, ListItem, TableCell, TableRow } from '../../../../l2/content/blocks.js';
+import type { BlockNode, HeadingBlock, ListItem, TableCell, TableRow } from '../../../../l2/content/blocks.js';
 import type { DomainCitation } from '../../../../l2/conversationDetail.js';
 import type { InlineNode } from '../../../../l2/content/inline.js';
 import type {
@@ -218,17 +218,42 @@ export function convertGeminiInlines(
     return converted === null ? null : insertSourceReferences(converted, annotations, sources);
 }
 
-function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSourceCitations): InlineNode[] | null {
+/** Field 13 groups one text block; its text fragments declare paragraph or heading.
+ * References and attachments do not declare a second block. Conflicting text
+ * levels remain ambiguous, including across nested groups. */
+function compositeHeadingLevel(children: GeminiStructuredNode[]): HeadingBlock['level'] | 0 | null | undefined {
+    let level: HeadingBlock['level'] | 0 | undefined;
+    for (const child of children) {
+        let declared: HeadingBlock['level'] | 0 | undefined;
+        if (child.nodeType === 18) {
+            const value = child.jJ ?? 0;
+            if (value !== 0 && value !== 1 && value !== 2 && value !== 3 && value !== 4 && value !== 5 && value !== 6) return null;
+            declared = value;
+        } else if (child.nodeType === 'paragraph') {
+            const nested = compositeHeadingLevel(child.children);
+            if (nested === null) return null;
+            declared = nested;
+        }
+        if (declared !== undefined) {
+            if (level !== undefined && level !== declared) return null;
+            level = declared;
+        }
+    }
+    return level;
+}
+
+function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSourceCitations,
+    level: HeadingBlock['level'] | 0 = 0): InlineNode[] | null {
     const inlines: InlineNode[] = [];
     for (let i = 0; i < children.length; i++) {
         const child = children[i];
         if (child.nodeType === 18) {
-            if (child.jJ && child.jJ > 0) return null;
+            if ((child.jJ ?? 0) !== level) return null;
             const converted = convertGeminiInlines(child.text, child.annotations, sources);
             if (converted === null) return null;
             inlines.push(...converted);
         } else if (child.nodeType === 'paragraph' || child.nodeType === 'citationGroup') {
-            const converted = convertCellChildren(child.children, sources);
+            const converted = convertCellChildren(child.children, sources, level);
             if (converted === null) return null;
             inlines.push(...converted);
         } else if (child.nodeType === 'sourceReference') {
@@ -287,9 +312,12 @@ export function geminiStructuredToContent(
                 break;
             }
             case 'paragraph': {
-                const children = convertCellChildren(node.children, sources);
+                const level = compositeHeadingLevel(node.children);
+                if (level === null) return null;
+                const children = convertCellChildren(node.children, sources, level ?? 0);
                 if (children === null) return null;
-                blocks.push({ type: 'paragraph', children });
+                blocks.push(level === undefined || level === 0
+                    ? { type: 'paragraph', children } : { type: 'heading', level, children });
                 break;
             }
             case 18: {
@@ -366,7 +394,7 @@ export function geminiStructuredToContent(
                     { children: node.children }, sources,
                 );
                 if (quoteBlocks === null) return null;
-                blocks.push({
+                if (quoteBlocks.length) blocks.push({
                     type: 'quote',
                     blocks: quoteBlocks,
                 });
