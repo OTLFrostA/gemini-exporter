@@ -34,6 +34,45 @@ test('another body, unknown trailer payload or unsupported child rejects the ent
         [null, null, null, null, 1] ]]), null);
 });
 
+test('document trailer variants pass native RPC extraction and retain every paragraph in both body paths', () => {
+    for (const mode of ['structured', 'markdown'] as const) {
+        const result = parseGeminiRpcConversation(detailGen('G_NATIVE_DOCUMENT_TRAILER_MATRIX'), {
+            account: fixtureAccount('gemini'), providerId: 'gemini', bodyRepresentation: mode,
+        });
+        assert.ok(!result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'));
+        const replies = result.conversation.detail.messages.filter(message => message.role === 'assistant');
+        assert.equal(replies.length, 25);
+        for (const [index, message] of replies.entries()) {
+            const count = [1, 2, 3, 14, 25][Math.floor(index / 5)];
+            assert.deepEqual(message.content, Array.from({ length: count }, (_, paragraph) => ({
+                type: 'paragraph', children: [{ type: 'text', text: `Paragraph ${paragraph}.` }],
+            })));
+        }
+        assertDomainClosure(result.conversation.detail);
+    }
+});
+
+test('ambiguous and unsupported native documents explicitly fall back without leaking extra body branches', () => {
+    for (const key of [
+        'G_NATIVE_DOCUMENT_SECOND_BODY', 'G_NATIVE_DOCUMENT_TRAILER_CONTENT',
+        'G_NATIVE_DOCUMENT_TRAILER_UNKNOWN_FLAG', 'G_NATIVE_DOCUMENT_TRAILER_NEGATIVE_FLAG',
+        'G_NATIVE_DOCUMENT_MULTIPLE_BRANCHES', 'G_NATIVE_DOCUMENT_UNKNOWN_CHILD',
+    ] as const) for (const mode of ['structured', 'markdown'] as const) {
+        const result = parseGeminiRpcConversation(detailGen(key), {
+            account: fixtureAccount('gemini'), providerId: 'gemini', bodyRepresentation: mode,
+        });
+        if (mode === 'structured') {
+            const fallback = result.diagnostics.find(d => d.code === 'GEMINI_STRUCTURED_FALLBACK');
+            assert.ok(fallback?.details && typeof fallback.details === 'object' && !Array.isArray(fallback.details), key);
+            assert.equal(fallback.details.reason, 'decode_rejected', key);
+        }
+        const replies = result.conversation.detail.messages.filter(message => message.role === 'assistant');
+        assert.equal(replies.length, 1, key);
+        assert.deepEqual(replies[0].content, [{ type: 'paragraph', children: [{ type: 'text', text: 'Known body.' }] }], key);
+        assertDomainClosure(result.conversation.detail);
+    }
+});
+
 test('citation marker metadata is a nonnegative integer rather than a fixed enum', () => {
     for (const offset of [0, 1, 2, 13, 128]) {
         const node = citationField(31, [citation([fileSource()], '1', offset)]);
