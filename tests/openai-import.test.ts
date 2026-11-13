@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
-import { importOpenAI } from '../src/l1/imports/openai/importOpenAI.js';
+import { importOpenAI } from '../src/application/imports/importOpenAI.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { getDetail, getIndex, getCoverage, getExportRecord } from '../src/l3a/storageService.js';
 import { assertDomainClosure } from '../src/l2/closure.js';

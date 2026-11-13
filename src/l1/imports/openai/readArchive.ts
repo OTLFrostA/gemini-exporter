@@ -1,3 +1,4 @@
+import { OperationError } from '../../../shared/errors/operationError.js';
 import { validateZipFile, validateZipEntries } from '../../parsers/shared/archive/zipBombGuard.js';
 
 export interface OpenAIArchiveEntry {
@@ -21,7 +22,7 @@ export async function readOpenAIArchive(file: Blob | Uint8Array): Promise<OpenAI
     validateZipFile(file);
     const loader: unknown = Reflect.get(globalThis, 'JSZip');
     if ((!record(loader) && typeof loader !== 'function') || !('loadAsync' in loader) || typeof loader.loadAsync !== 'function')
-        throw new Error('ZIP reader unavailable; cannot parse the archive.');
+        throw new OperationError('ARCHIVE_READER_UNAVAILABLE', 'ZIP reader unavailable; cannot parse the archive.');
     const raw: unknown = await Reflect.apply(loader.loadAsync, loader, [file]);
     if (!record(raw) || !record(raw.files)) throw new TypeError('Invalid OpenAI ZIP inventory');
     validateZipEntries(raw);
@@ -57,11 +58,11 @@ export async function readOpenAIArchive(file: Blob | Uint8Array): Promise<OpenAI
     if (entries.has('export_manifest.json')) {
         const manifest = await json('export_manifest.json');
         if (!record(manifest) || manifest.version !== 1 || !record(manifest.logical_files))
-            throw new Error('Unsupported OpenAI export manifest');
+            throw new OperationError('ARCHIVE_MANIFEST_UNSUPPORTED', 'Unsupported OpenAI export manifest');
         for (const [name, value] of Object.entries(manifest.logical_files)) {
             if (!record(value) || !array(value.files) || !value.files.length
                 || !value.files.every((path): path is string => typeof path === 'string' && entries.has(path)))
-                throw new Error('OpenAI export manifest references missing files');
+                throw new OperationError('ARCHIVE_MANIFEST_MISSING_FILES', 'OpenAI export manifest references missing files');
             logical.set(name, value.files);
         }
     }

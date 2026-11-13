@@ -1,5 +1,6 @@
 import { preparePlatformTab } from './platformInjection.js';
 import { ScanConnectionError } from './scanConnection.js';
+import { OperationError } from '../../shared/errors/operationError.js';
 import { getAccount } from '../../l3a/storageService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
 import { ensureV2Ready } from '../api/runtimeReady.js';
@@ -112,8 +113,9 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
     if (preferred?.providerId === 'chatgpt') throw new ScanConnectionError('chatgpt', 'Open ChatGPT, log in and connect the selected account before scanning.');
     if (preferred?.providerId === 'claude') throw new ScanConnectionError('claude', 'Open Claude, log in and connect the selected account before scanning.');
     if (accounts.size === 1) return [...accounts][0];
-    throw new Error(accounts.size ? 'Multiple provider accounts are connected. Select the account to scan.'
-        : 'Open Gemini, ChatGPT, Claude or Grok and connect an account before scanning.');
+    throw new OperationError(accounts.size ? 'MULTIPLE_ACCOUNTS_CONNECTED' : 'NO_CONNECTED_ACCOUNT',
+        accounts.size ? 'Multiple provider accounts are connected. Select the account to scan.'
+            : 'Open Gemini, ChatGPT, Claude or Grok and connect an account before scanning.');
 }
 export async function sendToGeminiTab(message: unknown, accountId?: string, timeoutMs?: number): Promise<unknown> {
     if (!accountId) throw new TypeError('Tab routing requires an Account UUID');

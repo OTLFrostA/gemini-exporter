@@ -1,3 +1,4 @@
+import { OperationError } from '../../shared/errors/operationError.js';
 import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { createBackoffNotice } from '../shared/backoffNotice.js';
 import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
@@ -16,8 +17,8 @@ import type { UIExportRequest } from './controllers/exportController.js';
 import { runExportSession, type ExportRunDiagnostic } from './controllers/exportSession.js';
 import { startSync } from './controllers/syncController.js';
 import type { ScanResult } from '../../application/sync/scanController.js';
-import { importOpenAI } from '../../l1/imports/openai/importOpenAI.js';
-import { createSourceResourceContext } from '../../l1/resources/sourceResources.js';
+import { importOpenAI } from '../../application/imports/importOpenAI.js';
+import { createSourceResourceContext } from '../../application/resources.js';
 import { handleTakeoutImport } from './controllers/takeoutController.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
@@ -287,7 +288,7 @@ export async function initWorkbench(): Promise<void> {
                 prepare: async () => {
                     await fonts;
                     if (request.delivery === 'folderWriter' && !await Directory.verifyDirPermission(Directory.getDirHandle()))
-                        throw new Error('Authorize a folder first');
+                        throw new OperationError('DIRECTORY_PERMISSION_REQUIRED', 'Authorize a folder first');
                 },
                 onStart: status, onProgress: progress, onIssuesChanged: paintTaskPanel,
                 onBodyDelivered: key => {
@@ -415,11 +416,12 @@ export async function initWorkbench(): Promise<void> {
             if (signal.aborted) reportScan(() => text('Sync stopped', '同步已停止'));
             else {
                 reportScan(() => errorText(error), 'error', error instanceof Error ? error.message : String(error));
-                if (error instanceof ScanConnectionError) connectionFailure = error;
-                if (error instanceof Error &&
-                    (error.message === 'Open Gemini, ChatGPT, Claude or Grok and connect an account before scanning.'
-                        || error.message === 'Open Gemini, log in and refresh the page before scanning.'))
+                if (error instanceof ScanConnectionError) {
+                    connectionFailure = error;
+                    if (error.platform === 'gemini') connectionError = error.message;
+                } else if (error instanceof OperationError && error.code === 'NO_CONNECTED_ACCOUNT') {
                     connectionError = error.message;
+                }
             }
         } finally {
             try { await refresh(); } catch (error) { reportScan(() => errorText(error), 'error'); }
@@ -499,7 +501,7 @@ export async function initWorkbench(): Promise<void> {
                 void (async () => {
                     try {
                         if (!await permission || !await Directory.verifyDirPermission(Directory.getDirHandle()))
-                            throw new Error('Folder permission denied');
+                            throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
                         directoryAvailable = true;
                         await updateSettings({ exportDelivery: 'folderWriter' });
                         settings = await readSettings(); render();
@@ -532,7 +534,7 @@ export async function initWorkbench(): Promise<void> {
         if (isBusy() || settings?.exportDelivery !== 'folderWriter') return;
         const permission = Directory.getPendingPermissionHandle() ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle();
         void perform('cleanup', async () => {
-            if (!await permission) throw new Error('Folder permission denied');
+            if (!await permission) throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
             directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
             status(() => text('Folder authorized', '目录已授权'));
         });
@@ -555,9 +557,9 @@ export async function initWorkbench(): Promise<void> {
             try {
                 if (permission) {
                     try {
-                        if (!await permission) throw new Error('Folder permission denied');
+                        if (!await permission) throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
                         directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
-                        if (!directoryAvailable) throw new Error('Folder permission denied');
+                        if (!directoryAvailable) throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
                         status(() => text('Folder authorized. Enable Live Save to continue.', '目录已授权，开启实时保存即可继续。'));
                     } catch (error) {
                         if (!(error instanceof DOMException && error.name === 'AbortError')) throw error;

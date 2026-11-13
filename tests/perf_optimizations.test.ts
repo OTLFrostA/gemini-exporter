@@ -90,7 +90,7 @@ test('perf - geminiClient 429 throws after exceeding maxRetries', async () => {
 });
 
 test('perf - Takeout import yields to the event loop and reports monotonic progress for 120 conversations', async (t: import('node:test').TestContext) => {
-    const { importTakeout } = require('../src/l1/imports/takeout/importTakeout.js');
+    const { importTakeout } = require('../src/application/imports/importTakeout.js');
     const { listIndexes } = require('../src/l3a/storageService.js');
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'JSZip');
     const JSZip = require('../lib/jszip.min.js');

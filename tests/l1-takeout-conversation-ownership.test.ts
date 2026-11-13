@@ -5,7 +5,7 @@ import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './helpers/accountIds.js';
 import { activityHtml, takeoutArchive } from './helpers/l1SourceFixture.js';
 import { decodeTakeoutHtml, decodeTakeoutHtmlAsync } from '../src/l1/parsers/gemini/takeout/decodeHtml.js';
 import { parseGeminiTakeoutArchive, parseGeminiTakeoutArchiveAsync, parseGeminiTakeoutConversation } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
-import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { importTakeout } from '../src/application/imports/importTakeout.js';
 import { getDetail, listIndexes } from '../src/l3a/storageService.js';
 
 useIndexStorage();

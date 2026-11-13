@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { activityHtml, takeoutArchive } from './helpers/l1SourceFixture.js';
-import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { importTakeout } from '../src/application/imports/importTakeout.js';
 import { stripHtmlTags } from '../src/l1/parsers/gemini/takeout/decodeHtml.js';
 import { parseGeminiTakeoutZipArchive } from '../src/l1/imports/takeout/readArchive.js';
 import { parseGeminiTakeoutArchive } from '../src/l1/parsers/gemini/takeout/parseConversation.js';

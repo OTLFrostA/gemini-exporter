@@ -177,8 +177,9 @@ test('i18n - known and unexpected errors localize in UI while logs preserve raw 
     await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
     const labels = await page.evaluate(() => {
         const { errorText } = Reflect.get(window, 'testUi').settings;
-        return [errorText(new Error('Directory picker unavailable')),
-            errorText(new Error('Select a Gemini account before importing Takeout')),
+        const { OperationError } = Reflect.get(window, 'harness');
+        return [errorText(new OperationError('DIRECTORY_UNAVAILABLE', 'Custom raw diagnostic 1')),
+            errorText(new OperationError('GEMINI_ACCOUNT_REQUIRED', 'Custom raw diagnostic 2')),
             errorText(new Error('Injected scan failure'))];
     });
     assert.deepEqual(labels, ['当前浏览器无法打开文件夹选择器。', '导入 Takeout 前，请先选择 Gemini 账号。',
