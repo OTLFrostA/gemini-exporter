@@ -107,7 +107,7 @@ export async function initWorkbench(): Promise<void> {
     };
     const failureGroups = () => currentIssues.groups();
     const paintTaskPanel = () => taskPanel.render({
-        task: foreground, feedback, percent,
+        task: foreground, feedback, percent, scanning: scanController !== null,
         scanMessage: currentScanStatus === null ? null : resolveUiMessage(currentScanStatus), scanSlow,
         groups: failureGroups(), failedCount: failed.length, dismissed: dismissedFailures,
         developerMode: settings?.developerMode ?? false, ready: !!settings,
