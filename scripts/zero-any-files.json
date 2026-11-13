@@ -134,5 +134,19 @@
   "src/l1/client/gemini/api/retryPolicy.ts",
   "src/l1/parsers/shared/time.ts",
   "src/l1/parsers/gemini/capturedSource.ts",
-  "src/l1/sniffer/gemini/captureReceiver.ts"
+  "src/l1/sniffer/gemini/captureReceiver.ts",
+  "src/l1/sniffer/chatgpt/messageBridge.ts",
+  "src/l1/sniffer/claude/messageBridge.ts",
+  "src/l1/sniffer/grok/messageBridge.ts",
+  "src/l2/exportRecord.ts",
+  "src/l2/settings.ts",
+  "src/l2/sourceCooldown.ts",
+  "src/runtime/api/contentReady.ts",
+  "src/runtime/api/contentAccountRegistry.ts",
+  "src/runtime/api/contentDomainIngestion.ts",
+  "src/runtime/api/contentSettings.ts",
+  "src/shared/types/directoryHandle.ts",
+  "src/shared/types/export.ts",
+  "src/shared/utils/devMode.ts",
+  "src/ui/shared/readSettings.ts"
 ]

@@ -463,8 +463,10 @@ def test_takeout_limit_modal_and_wall_detection():
         sync = f.read()
     with open(os.path.join(BASE_DIR, "src/application/settings/index.ts"), encoding="utf-8") as f:
         settings = f.read()
+    with open(os.path.join(BASE_DIR, "src/l2/settings.ts"), encoding="utf-8") as f:
+        settings_schema = f.read()
     assert "takeoutFileInput" in options and "handleTakeoutImport" in options
-    assert "takeoutPromptCompleted" in settings and "takeoutPromptCompleted" in options
+    assert "takeoutPromptCompleted" in settings_schema and "takeoutPromptCompleted" in options
     assert "showTakeoutPrompt" in guide and "importFile()" in guide
     assert "scanAll" in sync and "AbortSignal" in sync, "Scan is a local typed Application invocation"
     for old in ("deepScan", "hitGoogleLimit", "gemini_pending_takeout_prompt"):
@@ -525,7 +527,7 @@ def test_storage_keys_and_constants_ssot():
             return f.read()
 
     storage = source("src/l3a/storageService.ts")
-    settings = source("src/application/settings/index.ts")
+    settings = source("src/application/settings/index.ts") + "\n" + source("src/l2/settings.ts")
     exporter = source("src/application/export/runExport.ts")
     constants = source("src/shared/utils/constants.ts")
 

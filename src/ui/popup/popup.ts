@@ -14,7 +14,8 @@ import { updateSettings, type GlobalSettings } from '../../application/settings/
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { warmLocalFontCache } from '../../l4/format/pdf/typst/fonts/localFontProvider.js';
 import { runExport } from '../options/controllers/exportController.js';
-import { EXPORT_FORMATS, readSettings, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
+import { EXPORT_FORMATS, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
+import { readSettings } from '../shared/readSettings.js';
 
 /** Only the explicitly opened Popup inspects its active tab; URLs never establish Account identity. */
 export function platformForTabUrl(url: string | undefined): SourcePlatform | null {

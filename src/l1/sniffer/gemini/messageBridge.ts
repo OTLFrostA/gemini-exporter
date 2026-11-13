@@ -1,7 +1,7 @@
 import { parseGeminiCapturedSource } from '../../parsers/gemini/capturedSource.js';
 import { GeminiCaptureReceiver, type GeminiCaptureCallbacks } from './captureReceiver.js';
 import { registerCleanup } from '../../../runtime/content/cleanupRegistry.js';
-import { isDevMode } from '../../../runtime/devMode.js';
+import { isDevMode } from '../../../shared/utils/devMode.js';
 
 let receiver: GeminiCaptureReceiver | null = null;
 let listening = false;

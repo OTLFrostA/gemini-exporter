@@ -15,10 +15,13 @@ function ownedTypeScriptFiles(relativeDir) {
 const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
     .concat(['src/l1/parsers/gemini', 'src/l1/client/gemini', 'src/l1/sniffer/gemini', 'src/l1/imports/takeout', 'src/l1/imports/openai', 'src/l1/parsers/shared/resources'])
     .flatMap(ownedTypeScriptFiles)
-    .concat(['src/shared/platformHosts.ts', 'src/runtime/api/accountRegistry.ts', 'src/runtime/api/domainIngestion.ts',
+    .concat(['src/shared/platformHosts.ts', 'src/shared/types/export.ts', 'src/shared/types/directoryHandle.ts', 'src/shared/utils/devMode.ts',
+        'src/runtime/api/accountRegistry.ts', 'src/runtime/api/domainIngestion.ts',
+        'src/runtime/api/contentReady.ts', 'src/runtime/api/contentAccountRegistry.ts',
+        'src/runtime/api/contentDomainIngestion.ts', 'src/runtime/api/contentSettings.ts',
         'src/runtime/capabilities/platformAuthorization.ts', 'src/runtime/capabilities/platformInjection.ts',
         'src/ui/shared/platformAuthorization.ts', 'src/l1/resources/attachmentBytes.ts',
-        'src/ui/shared/elements.ts', 'src/ui/shared/settings.ts', 'src/ui/options/options.ts',
+        'src/ui/shared/elements.ts', 'src/ui/shared/settings.ts', 'src/ui/shared/readSettings.ts', 'src/ui/options/options.ts',
         'src/ui/popup/popup.ts', 'src/ui/options/views/cleanupPrompt.ts',
         'src/ui/options/views/directWritePrompt.ts', 'src/ui/options/views/listView.ts',
         'src/ui/options/views/conversationList.tsx', 'src/ui/options/views/taskPanel.tsx',
@@ -28,7 +31,9 @@ const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
         'src/l1/client/claude/claudeProvider.ts', 'src/l1/client/claude/claudeSource.ts',
         'src/l1/client/grok/grokSource.ts', 'src/ui/guidance/tourGuide.ts', 'src/ui/guidance/tourSteps.ts',
         'src/runtime/content/chatgptContent.ts', 'src/runtime/content/claudeContent.ts',
-        'src/runtime/content/grokContent.ts', 'src/ui/badge/badgeView.ts',
+        'src/runtime/content/grokContent.ts', 'src/l1/sniffer/chatgpt/messageBridge.ts',
+        'src/l1/sniffer/claude/messageBridge.ts', 'src/l1/sniffer/grok/messageBridge.ts',
+        'src/ui/badge/badgeView.ts',
         'src/runtime/content/liveSaveCoordinator.ts', 'src/l1/client/chatgpt/imageAssets.ts',
         'src/l1/parsers/chatgpt/parseExportConversation.ts',
         'src/l1/parsers/claude/parseList.ts', 'src/l1/parsers/chatgpt/parseList.ts',

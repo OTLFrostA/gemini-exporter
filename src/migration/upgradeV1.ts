@@ -3,8 +3,9 @@ import { upgradeReleasedV17 } from './releasedV17.js';
 import { readAccountRegistry } from '../l2/accountRegistry.js';
 import { restoreConversationIndex } from '../l2/conversationIndex.js';
 import { conversationKey } from '../l2/conversationKey.js';
-import type { ExportRecord, ExportFormat } from '../application/export/types.js';
-import type { GlobalSettings } from '../application/settings/index.js';
+import type { ExportFormat } from '../shared/types/export.js';
+import type { ExportRecord } from '../l2/exportRecord.js';
+import type { GlobalSettings } from '../l2/settings.js';
 import { putAccount, putIndexes, putExportRecord, patchStoredSettings, setDirectoryHandle } from '../l3a/storageService.js';
 
 const INITIALIZED = 'gemini_exporter_v2_initialized';

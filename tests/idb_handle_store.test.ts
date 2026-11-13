@@ -5,7 +5,7 @@ import { useStorageUnitEnvironment as useIndexStorage } from './helpers/l3aStora
 import { fixtureKey } from './helpers/domainFixture.js';
 
 import { openStorageDB } from '../src/l3a/idb.js';
-import { isDirectoryHandle } from '../src/runtime/capabilities/directoryHandle.js';
+import { isDirectoryHandle } from '../src/shared/types/directoryHandle.js';
 useIndexStorage();
 test('directory selection uses the single default key in the shared v2 DB', async () => {
     assert.equal(await storage.getDirectoryHandle(), null);

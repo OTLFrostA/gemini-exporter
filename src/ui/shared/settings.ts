@@ -1,4 +1,4 @@
-import { getSettings, type GlobalSettings } from '../../application/settings/index.js';
+import type { GlobalSettings } from '../../l2/settings.js';
 import { UI_COPY } from './legacyLabels.js';
 export const EXPORT_FORMATS = ['markdown', 'html', 'pdf', 'docx', 'json'] as const satisfies readonly GlobalSettings['defaultFormat'][];
 let language = 'en';
@@ -23,9 +23,6 @@ export function labelThemeToggle(button: HTMLButtonElement, settings?: GlobalSet
     button.title = label;
     button.setAttribute('aria-label', label);
     button.setAttribute('aria-pressed', String(light));
-}
-export async function readSettings(): Promise<GlobalSettings> {
-    const settings = await getSettings(); useSettings(settings); return settings;
 }
 export function observeSettings(refresh: () => void): () => void {
     const listener = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {

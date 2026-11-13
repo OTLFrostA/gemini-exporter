@@ -1,4 +1,4 @@
-import { ensureV2Ready } from '../api/runtimeReady.js';
+import { ensureContentReady } from '../api/contentReady.js';
 import { initBootstrap } from '../../l1/client/gemini/bootstrap.js';
 import { MessageRouter } from './messageRouter.js';
 import { MessageBridge } from '../../l1/sniffer/gemini/messageBridge.js';
@@ -26,7 +26,7 @@ MessageBridge.init({ onDetailChanged: key => {
     void LiveSaveCoordinator.executeLiveSave(key, true).catch(error => console.warn('[Runtime] Live Save failed', error));
 } });
 // Capture source events at document_start; their L2/Registry ports await readiness.
-void ensureV2Ready().then(() => {
+void ensureContentReady().then(() => {
     if (!active) return;
     const mountBadge = () => {
         if (active) BadgeView.ensureBadge();
