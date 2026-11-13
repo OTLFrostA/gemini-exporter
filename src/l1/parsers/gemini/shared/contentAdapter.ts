@@ -59,8 +59,19 @@ export function parseGeminiBody(
 ): BlockNode[] {
     const cleaned = cleanGeminiBody(content);
     if (structuredContent) {
-        const structured = geminiStructuredToContent(structuredContent, context.sourceCitations);
+        let sourceFallback = false;
+        const structured = geminiStructuredToContent(structuredContent, context.sourceCitations,
+            { ...context, onSourceFallback: () => { sourceFallback = true; } });
         if (structured !== null && (structured.length > 0 || !cleaned.trim())) {
+            if (sourceFallback) {
+                context.onStructuredFallback?.();
+                context.diagnostics.push({ severity: 'warning', code: 'GEMINI_SOURCE_ANNOTATION_FALLBACK',
+                    message: 'Preserved native body and available sources; exact source anchoring is unverified',
+                    sourceRef: context.sourceRef, details: { reason: 'source_annotations_unrepresented',
+                        structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content,
+                        ...(context.sourceCitations?.size ? { sourceCitationsJson: JSON.stringify([...context.sourceCitations]) } : {}) },
+                });
+            }
             if (context.recoverLiteralMath !== false && cleaned.includes('$') && hasLiteralMathText(structured)) {
                 const markdown = parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', {
                     ...context, diagnostics: [], lineStartDisplayMath: true, preserveCodeFenceFinalNewline: true,

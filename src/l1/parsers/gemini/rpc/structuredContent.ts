@@ -1,5 +1,7 @@
 import { extractImageEvidence, type ImageAttachment } from "./sourceAttachments.js";
 import { isJsonValue, type JsonValue } from "../../../../shared/utils/jsonTypes.js";
+import { isHttpUrl, decodeDocumentLinks, decodeResearchPlan, decodeMapCard, decodeFlightCard, decodeBusinessCard, decodeFinanceCard, decodeMailCard } from './cardNodes.js';
+import { matchesCandidateBody } from './structuredBodyMatch.js';
 
 export type GeminiAnnotation = { start: number; end: number } & (
     | { type: 0 | 2 | 4 | 5 | 7 | 12 }
@@ -79,6 +81,9 @@ export interface GeminiFileNode { nodeType: 24; id: string; title: string }
 /** Field 13 groups inline fragments into a text block. The contained text
  * declares paragraph/heading semantics; the group itself is not a line break. */
 export interface GeminiCompositeParagraph { nodeType: 'paragraph'; children: GeminiStructuredNode[] }
+/** A provider container with block children and no extra quote/list semantics. */
+export interface GeminiStructuredFragment { nodeType: 'fragment'; children: GeminiStructuredNode[] }
+export interface GeminiMarkupNode { nodeType: 'markup'; format: 'html' | 'markdown'; source: string }
 export interface GeminiFileCitation { nodeType: 'citation'; number: number; title: string; url?: string }
 export interface GeminiCitationGroup { nodeType: 'citationGroup'; children: GeminiFileCitation[] }
 export interface GeminiCitationSource { title: string; url?: string }
@@ -88,6 +93,8 @@ export interface GeminiSourceReference { nodeType: 'sourceReference'; marker: st
 export type GeminiCitationReference = GeminiFileCitation | GeminiCitationGroup | GeminiSourceReference;
 
 export type GeminiStructuredNode =
+    | GeminiStructuredFragment
+    | GeminiMarkupNode
     | GeminiCompositeParagraph
     | GeminiFileCitation
     | GeminiCitationGroup
@@ -135,7 +142,7 @@ function isWireArray(value: unknown): value is unknown[] {
  * the same source-ID grammar and never leak unchecked arrays. */
 function decodeSourceIds(value: unknown): string[] | null {
     if (!isWireArray(value) || value.length === 0) return null;
-    return value.every((id): id is string => typeof id === 'string' && /^spp_[\w-]+$/.test(id))
+    return value.every((id): id is string => typeof id === 'string' && /^(?:(?:spp_|sp_|cit_)[\w-]+|0)$/.test(id))
         ? [...value] : null;
 }
 
@@ -282,8 +289,28 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
                 return { start, end, type: 'source', sourceIds };
             }
         }
+        // A second reference encoding carries a citation identity in slot 2.
+        // Preserve it without inventing a registry binding. The adapter can
+        // retain text and report an unresolved reference when no source exists.
+        const reference = attribution.length === 1 ? attribution[0] : undefined;
+        if (isWireArray(reference) && reference.length === 3 && reference[0] === null && reference[1] === null
+            && typeof reference[2] === 'string' && /^(?:cit_[\w-]+|0)$/.test(reference[2])
+            && style.every((value, index) => value == null || index === 3)) return { start, end, type: 'source', sourceIds: [reference[2]] };
     }
     if (attribution != null) return null;
+    // Rich Places annotations are hyperlinks with preview metadata. The link
+    // target comes from the annotation's own place record, never a source-ID
+    // guess or another candidate's registry.
+    const preview = isWireArray(style[5]) && isWireArray(style[5][6]) ? style[5][6][0] : undefined;
+    if (isWireArray(preview) && isHttpUrl(preview[12])
+        && typeof preview[13] === 'string' && style.every((value, index) => value == null || index === 5)) {
+        return { start, end, type: 6, url: preview[12] };
+    }
+    const placeLink = isWireArray(style[5]) && style[5].length === 1 ? style[5][0] : undefined;
+    const linkTarget = isWireArray(placeLink) && isWireArray(placeLink[1]) && placeLink[1].length === 1 ? placeLink[1][0] : undefined;
+    if (isWireArray(placeLink) && isWireArray(placeLink[0]) && typeof placeLink[0][0] === 'string'
+        && placeLink[4] === 2 && isWireArray(placeLink[5]) && isHttpUrl(linkTarget)
+        && style.every((value, index) => value == null || index === 5)) return { start, end, type: 6, url: linkTarget };
     let t: 0 | 4 | 5 | 6 | 7 | 12 | null = null;
     let url: string | undefined;
 
@@ -337,6 +364,9 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         const node = w;
         const nodeType = node.nodeType;
         switch (nodeType) {
+            case 'markup':
+                return (node.format === 'html' || node.format === 'markdown') && typeof node.source === 'string'
+                    ? { nodeType, format: node.format, source: node.source } : null;
             case 'sourceReference': {
                 const tokens = typeof node.marker === 'string' ? citationTokens(node.marker) : null;
                 if (!tokens || !isWireArray(node.sources) || !node.sources.length) return null;
@@ -358,6 +388,7 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
                 }
                 return { nodeType, children };
             }
+            case 'fragment':
             case 'paragraph': {
                 if (!isWireArray(node.children)) return null;
                 const children: GeminiStructuredNode[] = [];
@@ -484,6 +515,18 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
     }
     if (!isWireArray(w)) return null;
 
+    // Explicit empty placeholders carry no authored content. A nonempty unknown
+    // tuple must still reject; never flatten arbitrary arrays into body text.
+    if (w.length === 0 || w.length === 1 && isWireArray(w[0]) && w[0].length === 0) {
+        return { nodeType: 'fragment', children: [] };
+    }
+    if (w[27] != null) {
+        return w.every((value, index) => value == null || index === 27) ? decodeResearchPlan(w[27]) : null;
+    }
+    for (const { field, decode } of [{ field: 4, decode: decodeFlightCard }, { field: 5, decode: decodeBusinessCard },
+        { field: 6, decode: decodeMapCard }, { field: 8, decode: decodeFinanceCard }, { field: 30, decode: decodeMailCard }]) {
+        if (w[field] != null) return w.every((value, index) => value == null || index === field) ? decode(w[field]) : null;
+    }
     // Source references share marker/number binding across wire variants.
     if (w[31] != null) {
         const payload = w[31];
@@ -513,12 +556,12 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
     }
 
     // A generated code-document chip retains its position and source identity.
-    if (isWireArray(w[24]) && w[24].length === 1) {
+    if (isWireArray(w[24])) {
         if (!w.every((value, index) => value == null || index === 24)) return null;
         const chip = w[24][0];
-        if (isWireArray(chip) && chip[7] === 26 && typeof chip[1] === 'string' && chip[1]
+        if (w[24].length === 1 && isWireArray(chip) && chip[7] === 26 && typeof chip[1] === 'string' && chip[1]
             && typeof chip[3] === 'string') return { nodeType: 24, id: chip[1], title: chip[3] };
-        return null;
+        return decodeDocumentLinks(w[24]);
     }
 
     if (w.length > 23 && w[23] !== null && w[23] !== undefined) {
@@ -651,6 +694,16 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         if (knownPanels && isJsonValue(w[9])) {
             return { nodeType: 0, images: extractImageEvidence(w[9]) };
         }
+        const images: ImageAttachment[] = [];
+        for (const panel of panels) {
+            if (!w.every((value, index) => value == null || index === 9)
+                || !isWireArray(panel) || panel.length !== 12 || !isWireArray(panel[0]) || !isWireArray(panel[0][3])
+                || !isWireArray(panel[1]) || panel[1].length !== 1 || !isHttpUrl(panel[1][0])) return null;
+            const mimeType = panel[0][3][11];
+            if (typeof mimeType !== 'string' || !/^image\/[\w.+-]+$/.test(mimeType)) return null;
+            images.push({ sourceUrl: panel[1][0], mimeType });
+        }
+        if (images.length) return { nodeType: 0, images };
         return null;
     }
 
@@ -777,7 +830,7 @@ export function decodeGeminiStructuredPayload(raw: unknown, issues?: DecodeIssue
 }
 
 export type GeminiStructuredExtraction =
-    | { status: 'decoded'; document: GeminiStructuredDocument }
+    | { status: 'decoded'; document: GeminiStructuredDocument; rawDocument?: JsonValue }
     | { status: 'missing' | 'candidate_unmatched' }
     | { status: 'decode_rejected'; issue: GeminiStructuredDecodeIssue; rawDocument?: JsonValue };
 
@@ -797,15 +850,32 @@ function rejectedValuePath(document: JsonValue, target: JsonValue, path = ''): s
 interface GeminiStructuredEvidenceInput {
     turnDocument: unknown;
     candidateIndex: number;
+    candidateBody?: string;
+}
+
+function emptyDocumentPlaceholder(value: unknown): boolean {
+    return isWireArray(value) && value.every(emptyDocumentPlaceholder);
 }
 
 export function inspectStructuredContent(input: GeminiStructuredEvidenceInput): GeminiStructuredExtraction {
     // Turn-level document field 12 belongs only to primary Candidate 0 (PR #705).
-    if (input.turnDocument == null) return { status: 'missing' };
+    if (input.turnDocument == null || emptyDocumentPlaceholder(input.turnDocument)) return { status: 'missing' };
     if (input.candidateIndex !== 0) return { status: 'candidate_unmatched' };
     const issues: DecodeIssues = [];
     const document = decodeGeminiStructuredPayload(input.turnDocument, issues);
     if (document) return { status: 'decoded', document };
+    // Several native bodies are alternatives, not concatenated chat segments.
+    // Require exactly one independently matching body. Position alone does not
+    // establish ownership, and duplicate matches stay explicitly unsupported.
+    if (input.candidateBody && isWireArray(input.turnDocument) && input.turnDocument.length > 1
+        && input.turnDocument.every(branch => isWireArray(branch) && branch.length === 1 && isWireArray(branch[0]))) {
+        const matches: Array<{ document: GeminiStructuredDocument; rawDocument: JsonValue }> = [];
+        for (const branch of input.turnDocument) {
+            const candidate = decodeGeminiStructuredPayload([branch]);
+            if (candidate && isJsonValue(branch) && matchesCandidateBody(candidate, input.candidateBody)) matches.push({ document: candidate, rawDocument: [branch] });
+        }
+        if (matches.length === 1) return { status: 'decoded', ...matches[0] };
+    }
     const issue = issues[0] ?? { kind: 'payload' };
     if (!isJsonValue(input.turnDocument)) return { status: 'decode_rejected', issue };
     if (!issues.length) { issue.rawValue = input.turnDocument; issue.path = ''; }

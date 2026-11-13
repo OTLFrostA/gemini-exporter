@@ -361,6 +361,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
                     yield* node.images ?? [];
                     break;
                 case 'paragraph':
+                case 'fragment':
                 case 15:
                     yield* structuredImageEvidence(node.children);
                     break;

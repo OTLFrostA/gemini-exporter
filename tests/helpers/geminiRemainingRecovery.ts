@@ -6,6 +6,7 @@ import { mergeConversationPages } from '../../src/l1/parsers/gemini/rpc/mergePag
 import { validateParserDomain } from '../../src/l2/runtimeValidation.js';
 import { composeDomainDocument } from '../../src/l3b/compose/composeDomainDocument.js';
 import { renderDocumentMarkdown } from '../../src/l4/format/markdown/renderMarkdown.js';
+import { mapContentAssetReferences } from '../../src/l2/content/assetReferences.js';
 
 interface RecoveryExpectation {
     key: Parameters<typeof detailGen>[0];
@@ -14,6 +15,7 @@ interface RecoveryExpectation {
     ordered?: readonly string[];
     image?: string;
     linkedLabels?: ReadonlyArray<readonly [string, string]>;
+    surrounded?: false;
 }
 
 // Independently authored output requirements, never produced by a decoder.
@@ -46,6 +48,19 @@ export const remainingRecoveryExpectations: readonly RecoveryExpectation[] = [
         links: ['https://example.com/cafe', 'https://example.com/bakery'], ordered: ['Fixture Cafe', 'Fixture Bakery'] },
     { key: 'G_REMAINING_EMPTY', visible: ['Body after empty node.'], links: [] },
     { key: 'G_REMAINING_NESTED_EMPTY', visible: ['Body after empty node.'], links: [] },
+    { key: 'G_REMAINING_ANNOTATION_PLACE', visible: ['Fixture Museum'], links: ['https://example.com/place'], surrounded: false },
+    { key: 'G_REMAINING_ANNOTATION_PLACE_HTTP', visible: ['Fixture Museum'], links: ['http://example.com/place'], surrounded: false },
+    { key: 'G_REMAINING_MAP_API', visible: ['API Museum', 'API address', 'API description', '123-456', '4.6 (123)'],
+        links: ['https://example.com/api-place', 'https://example.com/place-site', 'https://example.com/map-search'] },
+    { key: 'G_REMAINING_GMAIL_PREVIEW', visible: ['Fixture mail subject', 'Fixture mail summary', 'Fixture mail preview', 'Fixture sender'],
+        links: ['https://example.com/mail'] },
+    { key: 'G_REMAINING_GMAIL_SUMMARY', visible: ['Fixture mail subject', 'Fixture mail summary', 'Fixture sender'],
+        links: ['https://example.com/mail'] },
+    { key: 'G_REMAINING_GMAIL_IMAGE', visible: ['Fixture mail subject', 'Fixture mail body.'], links: ['https://example.com/mail'],
+        image: 'https://example.com/mail-image.png' },
+    { key: 'G_REMAINING_PLACEHOLDER_MARKDOWN', visible: ['Authoritative Markdown body.'], links: [], surrounded: false },
+    { key: 'G_REMAINING_ALTERNATIVE_FIRST', visible: ['Selected body.'], links: [], surrounded: false },
+    { key: 'G_REMAINING_ALTERNATIVE_SECOND', visible: ['Selected body.'], links: [], surrounded: false },
 ];
 
 export function parseRemainingFixture(key: Parameters<typeof detailGen>[0]) {
@@ -71,7 +86,7 @@ export function assertRemainingRecovery(expected: RecoveryExpectation, result = 
         assert.ok(index > previous, `${expected.key}: content order: ${text}`);
         previous = index;
     }
-    if (expected.key !== 'G_REMAINING_EMPTY' && expected.key !== 'G_REMAINING_NESTED_EMPTY') {
+    if (expected.surrounded !== false && expected.key !== 'G_REMAINING_EMPTY' && expected.key !== 'G_REMAINING_NESTED_EMPTY') {
         const before = markdown.indexOf('Before card.'), after = markdown.indexOf('After card.');
         assert.ok(before >= 0 && after > before, `${expected.key}: surrounding paragraphs must survive`);
         for (const text of expected.visible) {
@@ -81,9 +96,18 @@ export function assertRemainingRecovery(expected: RecoveryExpectation, result = 
     if (expected.image) {
         const asset = domain.detail.assets.find(asset => asset.sourceUri === expected.image);
         assert.equal(asset?.kind, 'image', `${expected.key}: missing image resource`);
-        assert.ok(domain.detail.messages.some(message => message.attachmentIds?.includes(asset?.id ?? '')), 'image must belong to a message');
+        let owned = false;
+        for (const message of domain.detail.messages) {
+            if (message.attachmentIds?.includes(asset?.id ?? '')) owned = true;
+            mapContentAssetReferences(message.content, ref => {
+                if (ref === asset?.id) owned = true;
+                return ref;
+            });
+        }
+        assert.ok(owned, 'image must belong to a message body or attachment');
     }
     assert.doesNotMatch(markdown, /opaque-|Fallback body remains available|File attachment was not previously registered/);
     assert.equal(merged.diagnostics.filter(d => d.code === 'GEMINI_STRUCTURED_FALLBACK' && d.severity === 'warning').length, 0,
         `${expected.key}: native recovery still falls back`);
+    assert.equal(domain.detail.quality.status, 'complete', `${expected.key}: recovered body must be complete`);
 }

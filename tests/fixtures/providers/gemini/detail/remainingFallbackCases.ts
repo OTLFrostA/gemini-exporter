@@ -43,15 +43,20 @@ function flight(code: string, url: string, price: string): unknown[] {
     return [[[code], url, 'AAA', 'BBB', null, null, 0, '10:00', '12:00', '2 hours'], null, url, price];
 }
 
-function gmailCard(): unknown[] {
+function gmailCard(mode: 'full' | 'preview' | 'summary' | 'image' = 'full'): unknown[] {
+    const link = ['https://example.com/mail', null, null, null, null, null,
+        ['Mail', 'https://example.com/mail', 'https://example.com/icon', 'Mail account']];
+    const summary = { 133: [null, null, [null, 'Fixture mail subject', 'Fixture mail summary', ['Fixture sender'], ['opaque-message-id']]] };
+    if (mode === 'summary') return citationField(30, [[link, summary]]);
     return citationField(30, [[
-        ['https://example.com/mail', null, null, null, null, null,
-            ['Mail', 'https://example.com/mail', 'https://example.com/icon', 'Mail account']],
+        link,
         [[2, 0, 'opaque-request-id', 'opaque-thread-id', { 1144: [
             'opaque-message-id', null, null, ['Fixture mail preview', '', 'opaque-author-id'],
-            [['<p>Fixture mail body.</p>', 'opaque-message-id', 'opaque-thread-id']], 2, false,
+            mode === 'preview' ? null : [[mode === 'image'
+                ? '<p>Fixture mail body.<img src="https://example.com/mail-image.png" alt="Mail image"></p>'
+                : '<p>Fixture mail body.</p>', 'opaque-message-id', 'opaque-thread-id']], 2, false,
         ] }]], null, null, ['opaque-thread-id'],
-        { 133: [null, null, [null, 'Fixture mail subject', 'Fixture mail summary', ['Fixture sender'], ['opaque-message-id']]] },
+        summary,
     ]]);
 }
 
@@ -131,6 +136,34 @@ export const remainingFallbackCases = {
     ], 'https://example.com/flights', ['https://example.com/flights', null, 'Fixture flight search', null, null, null,
         ['Flights', 'https://example.com/flights', null, 'Flights']], 'Fixture Airport AAA', 'Fixture Airport BBB', 'Fixture date', null, '1 adult']])),
     'G_REMAINING_GMAIL': () => surrounding(gmailCard()),
+    'G_REMAINING_GMAIL_PREVIEW': () => surrounding(gmailCard('preview')),
+    'G_REMAINING_GMAIL_SUMMARY': () => surrounding(gmailCard('summary')),
+    'G_REMAINING_GMAIL_IMAGE': () => surrounding(gmailCard('image')),
+    'G_REMAINING_MAP_API': () => {
+        const metadata = Object.assign(Array(52).fill(null), {
+            6: '123-456', 8: 'API address', 13: 4.6, 14: 'https://example.com/api-place',
+            15: 'https://example.com/place-site', 27: 123, 30: ['API Museum', 'en'],
+            31: ['Museum', 'en'], 51: ['API description', 'en'],
+        });
+        const result = Object.assign(Array(22).fill(null), { 3: metadata, 21: true });
+        return surrounding(citationField(6, [[], [[[result]], null, ['https://example.com/map-search']]]));
+    },
+    'G_REMAINING_ANNOTATION_PLACE_HTTP': () => body([citationText('Fixture Museum', [[0, 14,
+        [null, null, null, null, null, [[['Fixture Museum'], ['http://example.com/place'], [], null, 2, []]]],
+    ]])]),
+    'G_REMAINING_PLACEHOLDER_MARKDOWN': () => wire([[[]]], undefined, 'Authoritative Markdown body.'),
+    'G_REMAINING_ALTERNATIVE_FIRST': () => wire([
+        [[citationText('Selected body.')]], [[citationText('Other body.')]],
+    ], undefined, 'Selected body.'),
+    'G_REMAINING_ALTERNATIVE_SECOND': () => wire([
+        [[citationText('Other body.')]], [[citationText('Selected body.')]],
+    ], undefined, '**Selected** body.'),
+    'G_REMAINING_ALTERNATIVE_DUPLICATE': () => wire([
+        [[citationText('Selected body.')]], [[citationText('Selected body.')]],
+    ], undefined, 'Selected body.'),
+    'G_REMAINING_ALTERNATIVE_RESOURCE': () => wire([
+        [[citationText('Other body.'), attachmentCard()]], [[citationText('Selected body.')]],
+    ], undefined, 'Selected body.'),
     'G_REMAINING_FINANCE': () => surrounding(financeCard()),
     'G_REMAINING_ATTACHMENT': () => surrounding(attachmentCard()),
     'G_REMAINING_BUSINESSES': () => surrounding(citationField(5, [[], [[
