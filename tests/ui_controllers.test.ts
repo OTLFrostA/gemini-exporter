@@ -108,9 +108,9 @@ test('takeoutController uses v2 Account/Settings/Import mocks with selected Acco
             assert.strictEqual(actual, file);
             assert.equal(id, A);
             progress?.(100);
-            return { imported: 1, status: 'ok' as const };
+            return { imported: 1, added: 0, status: 'ok' as const };
         },
     });
     assert.deepEqual(seen, [['target', A], ['settings', { takeoutPromptCompleted: true }], ['progress', 100]]);
-    assert.deepEqual(result, { imported: 1, status: 'ok' });
+    assert.deepEqual(result, { imported: 1, added: 0, status: 'ok' });
 });

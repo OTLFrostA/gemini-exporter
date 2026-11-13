@@ -153,11 +153,11 @@ test('clicking the actual list label toggles its checkbox and selection statisti
 });
 test('status updates replace previous progress text instead of duplicating log rows', async () => {
     await open({ holdScan: true }); await page.locator('#btnSyncAll').click();
-    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent?.includes('Committed 2 pages'));
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent?.includes('Sync in progress'));
     assert.equal(await page.locator('#scanStatus').count(), 1);
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
     await page.waitForFunction(() => document.body.dataset.busy !== 'true');
-    assert.doesNotMatch(await page.locator('#scanStatus').textContent() ?? '', /Committed 2 pages/);
+    assert.doesNotMatch(await page.locator('#scanStatus').textContent() ?? '', /Sync in progress/);
 });
 test('failed export is displayed and a retry remains available after the task ends', async () => {
     await open({ failExport: true }); await page.locator('#btnSelectAll').click(); await page.locator('#btnExport').click();
@@ -165,9 +165,9 @@ test('failed export is displayed and a retry remains available after the task en
     assert.match(await page.locator('#status').textContent() ?? '', /failed: 1/);
     assert.equal(await page.locator('#btnExport').isEnabled(), true);
 });
-test('scan progress exposes committed page counts and returns controls to idle', async () => {
+test('scan progress exposes committed conversation counts and returns controls to idle', async () => {
     await open({ holdScan: true }); await page.locator('#btnSyncAll').click();
-    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent?.includes('150 source entries'));
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent?.includes('Scanned: 150'));
     assert.equal(await page.locator('#btnSyncAll').isVisible(), true);
     assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
     assert.equal(await page.locator('#btnCancel').isVisible(), false);
@@ -239,7 +239,7 @@ test('zero-account Takeout creates the first Gemini default only after ZIP selec
     const chooser = await chooserPromise;
     assert.equal((await read(page, 'events')).includes('create'), false, 'Opening the picker must not create an account');
     await chooser.setFiles({ name: 'Takeout.zip', mimeType: 'application/zip', buffer: Buffer.from('fixture') });
-    await page.waitForFunction(() => document.getElementById('status')?.textContent?.includes('Imported 2'));
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent?.includes('Takeout import partially completed · Read: 2'));
     assert.deepEqual(await read(page, 'imports'), [A]);
     assert.equal((await read(page, 'events')).filter((value: string) => value === 'create').length, 1);
     assert.equal((await read(page, 'accounts')).length, 1);
@@ -387,9 +387,9 @@ test('scan retains a 429 notice across page progress and removes it when the wai
         h.scanDiagnostic({ code: 'CHATGPT_BACKOFF_WAIT', details: { requestId: 'scan', retryAt: Date.now() + 60000 } });
         h.scanProgress({ pagesFetched: 3, conversationsFetched: 200 });
     });
-    assert.match(await page.locator('#scanStatus').innerText(), /Committed 3 pages.*429.*backing off/);
+    assert.match(await page.locator('#scanStatus').innerText(), /Scanned: 200.*429.*backing off/);
     await page.evaluate(() => Reflect.get(window, 'harness').scanDiagnostic({ code: 'CHATGPT_BACKOFF_END', details: { requestId: 'scan' } }));
-    assert.equal(await page.locator('#scanStatus').innerText(), 'Committed 3 pages, 200 source entries');
+    assert.equal(await page.locator('#scanStatus').innerText(), 'Sync in progress · Scanned: 200 · Total conversations: 1');
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
     await page.waitForFunction(() => document.body.dataset.busy !== 'true');
 });

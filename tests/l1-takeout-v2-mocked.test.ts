@@ -23,8 +23,10 @@ function archive(read?: () => void): File {
 
 test('Takeout calls only the frozen v2 Detail ingestion port with keyless source facts', async () => {
     const progress: number[] = [];
+    ports.detailDecision = { accepted: true, changed: true, indexAdded: true };
     const result = await importTakeout(archive(), GEMINI_ACCOUNT.id, value => progress.push(value));
     assert.equal(result.imported, 1);
+    assert.equal(result.added, 1);
     assert.equal(ports.details.length, 1);
     assert.equal(ports.details[0].accountId, GEMINI_ACCOUNT.id);
     assert.equal(ports.details[0].conversationId, chat);

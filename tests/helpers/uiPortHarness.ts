@@ -94,8 +94,8 @@ export const scanAll = async (request,options) => {h.scans.push(request);if(h.fa
 export const clearLocalExportRecords = async id => {h.clears.push(['exports',id]);};
 export const clearLocalScanRecords = async id => {h.clears.push(['scan',id]);h.indexes=h.indexes.filter(row=>row.key.accountId!==id);delete h.records[id];};
 export const createSourceResourceContext = () => ({ retainParsed(){},retain(){},has(){return false;},release(){},releaseConversation(){},async acquire(){throw Error('No resource');} });
-export const importOpenAI = async (file,id,progress,resources) => {h.imports.push(id);if(h.failImport)throw new Error('Invalid ZIP');progress?.(100);return h.openaiResult ?? {imported:2,skipped:0,missingAssets:0,status:'ok'};};
-export const importTakeout = async (file,id,progress) => {h.imports.push(id);if(h.holdImport)await new Promise(resolve=>h.finishImport=resolve);if(h.failImport)throw new Error('Invalid ZIP');progress?.(100);return {imported:2,status:'partial'};};
+export const importOpenAI = async (file,id,progress,resources) => {h.imports.push(id);if(h.failImport)throw new Error('Invalid ZIP');progress?.(100);h.indexes.push(...(h.importIndexes??[]).filter(row=>!h.indexes.some(old=>old.key.accountId===row.key.accountId&&old.key.conversationId===row.key.conversationId)));return h.openaiResult ?? {read:2,imported:2,added:0,skipped:0,missingAssets:0,status:'ok'};};
+export const importTakeout = async (file,id,progress) => {h.imports.push(id);if(h.holdImport)await new Promise(resolve=>h.finishImport=resolve);if(h.failImport)throw new Error('Invalid ZIP');progress?.(100);h.indexes.push(...(h.importIndexes??[]).filter(row=>!h.indexes.some(old=>old.key.accountId===row.key.accountId&&old.key.conversationId===row.key.conversationId)));return h.takeoutResult ?? {imported:2,added:0,status:'partial'};};
 export const getDirectoryHandle = async () => h.directory;
 export const setDirectoryHandle = async handle => {h.directory=handle;};
 export const clearDirectoryHandle = async () => {};

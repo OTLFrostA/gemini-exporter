@@ -43,7 +43,7 @@ type Contract = [
     Assert<Equal<Parameters<Takeout>[0], File>>,
     Assert<Equal<Parameters<Takeout>[1], Account['id']>>,
     Assert<Equal<ReturnType<Takeout>, Promise<TakeoutParseResult>>>,
-    Assert<Equal<TakeoutParseResult, { imported: number; status: 'ok' | 'partial' }>>,
+    Assert<Equal<TakeoutParseResult, { imported: number; added: number; status: 'ok' | 'partial' }>>,
 ];
 const verified: Contract = [
     true, true, true, true, true, true, true, true,

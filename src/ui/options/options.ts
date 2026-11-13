@@ -7,6 +7,7 @@ import { ScanConnectionError } from '../../runtime/capabilities/scanConnection.j
 import { elementById as el, requiredElement as control } from '../shared/elements.js';
 import { observeDomainChanges } from '../../runtime/api/domainChanges.js';
 import { exportSummary } from '../shared/exportSummary.js';
+import { conversationSourceSummary, type ConversationSourceSummary } from '../shared/conversationSourceSummary.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { updateSettings, isLiveSaveEffective, type GlobalSettings } from '../../application/settings/index.js';
 import * as Cleanup from '../../application/localCleanup.js';
@@ -31,7 +32,7 @@ import { DIRECT_WRITE_THRESHOLD, FEEDBACK_URL } from '../../shared/utils/constan
 import { showDirectWritePrompt } from './views/directWritePrompt.js';
 import { confirmCleanup } from './views/cleanupPrompt.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
-import type { ForegroundTask, TaskFeedback, UiMessage } from './state/foregroundTask.js';
+import type { ForegroundTask, ScanEvidence, TaskFeedback, UiMessage } from './state/foregroundTask.js';
 import { mountTaskPanel } from './views/taskPanelView.js';
 
 type Level = 'info' | 'warn' | 'error';
@@ -50,7 +51,8 @@ export async function initWorkbench(): Promise<void> {
     const taskPanel = mountTaskPanel();
     let scanController: AbortController | null = null;
     let advanceTutorialScan: (() => void) | undefined;
-    let currentScanStatus: UiMessage | null = null;
+    let currentScanStatus: UiMessage | ConversationSourceSummary | null = null;
+    let scanEvidence: ScanEvidence | undefined;
     let themeSaving = false;
     let presentationSaving = false;
     let lastRequest: UIExportRequest | null = null;
@@ -92,10 +94,12 @@ export async function initWorkbench(): Promise<void> {
     };
     const statusError = (error: unknown, level: Level = 'error') =>
         status(() => errorText(error), level, error instanceof Error ? error.message : String(error));
-    const reportScan = (message: UiMessage, level: Level = 'info', rawLogMessage?: string) => {
+    const resolveSourceMessage = (message: UiMessage | ConversationSourceSummary) => typeof message === 'object'
+        ? conversationSourceSummary(message, state.indexes.length) : resolveUiMessage(message);
+    const reportScan = (message: UiMessage | ConversationSourceSummary, level: Level = 'info', rawLogMessage?: string) => {
         currentScanStatus = message;
         paintTaskPanel();
-        log.push({ at: Date.now(), level, message: rawLogMessage ?? resolveUiMessage(message) });
+        log.push({ at: Date.now(), level, message: rawLogMessage ?? resolveSourceMessage(message) });
         if (log.length > 400) log.shift();
         renderLog();
     };
@@ -108,7 +112,9 @@ export async function initWorkbench(): Promise<void> {
     const failureGroups = () => currentIssues.groups();
     const paintTaskPanel = () => taskPanel.render({
         task: foreground, feedback, percent,
-        scanMessage: currentScanStatus === null ? null : resolveUiMessage(currentScanStatus), scanSlow,
+        scanMessage: currentScanStatus === null ? null : resolveSourceMessage(currentScanStatus), scanEvidence, scanSlow,
+        sourceSummary: currentScanStatus !== null && typeof currentScanStatus === 'object'
+            ? { ...currentScanStatus, accountId: state.accountId, total: state.indexes.length } : undefined,
         groups: failureGroups(), failedCount: failed.length, dismissed: dismissedFailures,
         developerMode: settings?.developerMode ?? false, ready: !!settings,
         onCancel: cancel, onRetry: retryFailed, onDismiss: dismissFailures, onCopy: copyFailures,
@@ -246,7 +252,10 @@ export async function initWorkbench(): Promise<void> {
         } catch { /* Keep actionable guidance until a verified Content source is available. */ }
     };
     const select = async (id: string) => {
-        if (id !== state.accountId) { lastRequest = null; failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false; }
+        if (id !== state.accountId) {
+            lastRequest = null; failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false;
+            currentScanStatus = null; scanEvidence = undefined;
+        }
         state.selectAccount(id); render(); await refresh();
     };
     const perform = async (kind: Action, task: (signal: AbortSignal) => Promise<void>) => {
@@ -345,6 +354,7 @@ export async function initWorkbench(): Promise<void> {
                 return;
             }
             const startedAt = Date.now();
+            scanEvidence = undefined;
             reportScan(() => text('Resolving conversation source…', '正在确认会话来源…'));
             const backoff = createBackoffNotice();
             const diagnostics: Diagnostic[] = [];
@@ -359,8 +369,9 @@ export async function initWorkbench(): Promise<void> {
                 },
                 onTarget: select, onProgress: p => {
                     if (signal.aborted) return;
-                    scanProgressMessage = () => text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
-                        `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`);
+                    scanEvidence = { accountId: state.accountId, progress: p };
+                    scanProgressMessage = () => conversationSourceSummary({ method: 'sync', status: 'running',
+                        read: p.conversationsFetched }, state.indexes.length);
                     paintScanProgress();
                     if (advanceTutorialScan && p.conversationsFetched > 0) {
                         scanHasResults = true;
@@ -374,29 +385,19 @@ export async function initWorkbench(): Promise<void> {
             scanHasResults ||= result.conversationsFetched > 0;
             scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result, diagnostics });
             if (scanRuns.length > 10) scanRuns.shift();
-            const reasons = new Map(Object.entries({
-                provider_limit: () => text('Source online access limit', '来源在线访问范围限制'),
-                max_pages: () => state.accounts.find(a => a.id === state.accountId)?.providerId === 'claude'
-                    ? text('Claude list coverage cannot yet be verified', 'Claude 列表完整性尚无法验证')
-                    : text('Local page budget reached', '已达到本地页数预算'),
-                invalid_response: () => text('Scan failed: invalid Gemini response', '扫描失败：Gemini 返回无效响应'),
-                aborted: () => text('Scan cancelled', '扫描已取消'), error: () => text('Scan failed', '扫描失败')
-            }));
             const reason = result.diagnostics?.failure ?? result.reason ?? result.status;
             const succeeded = result.status === 'complete' || result.status === 'up_to_date';
-            const completionSummary = () => {
-                if (!result.indexChanges) return text('Sync complete', '同步完成');
-                const { added, updated } = result.indexChanges;
-                return added === 0 && updated === 0
-                    ? text('Sync complete · All conversations are up to date', '同步完成 · 所有对话均为最新')
-                    : text(`Sync complete · ${added} new ${added === 1 ? 'conversation' : 'conversations'} · ${updated} ${updated === 1 ? 'conversation' : 'conversations'} updated`,
-                        `同步完成 · 新发现 ${added} 个对话 · 更新 ${updated} 个对话信息`);
-            };
-            reportScan(() => succeeded ? completionSummary()
-                : `${reasons.get(reason)?.() ?? (result.status === 'error' ? text('Scan failed', '扫描失败') : text('Scan finished', '扫描已结束'))} · ${result.pagesFetched} / ${result.conversationsFetched}`,
+            const committedProgress = { pagesFetched: result.pagesFetched, conversationsFetched: result.conversationsFetched };
+            scanEvidence = { accountId: state.accountId, progress: committedProgress,
+                result: { ...committedProgress, status: result.status, reason: result.reason } };
+            await refresh();
+            reportScan({ method: 'sync',
+                status: succeeded ? 'complete' : result.status === 'partial_limit' ? 'partial'
+                    : result.status === 'aborted' ? 'aborted' : 'error',
+                read: result.conversationsFetched, added: result.indexChanges?.added, updated: result.indexChanges?.updated,
+            },
                 result.status === 'error' ? 'error' : result.status === 'aborted' || result.status === 'partial_limit' ? 'warn' : 'info',
-                // Keep upstream diagnostic details in the log without exposing untranslated UI text.
-                result.status === 'error' ? `Scan failed (${result.reason ?? 'unknown'}) · ${result.pagesFetched} / ${result.conversationsFetched}` : undefined);
+                `Sync ${result.status} (${reason}) · ${result.pagesFetched} pages · ${result.conversationsFetched} source entries`);
             settings = await readSettings();
             if (state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini'
                 && result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
@@ -574,24 +575,33 @@ export async function initWorkbench(): Promise<void> {
         const accountId = state.accountId;
         const account = state.accounts.find(a => a.id === accountId);
         return perform('takeout', async () => {
+            currentScanStatus = null;
+            if (!scanController) scanEvidence = undefined;
             try {
                 if (account?.providerId === 'chatgpt') {
                     status(() => text('Importing OpenAI ZIP…', '正在导入 OpenAI ZIP…'));
                     const result = await importOpenAI(file, account.id,
                         percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent), importedResources);
+                    await refresh();
+                    feedback = { kind: 'empty' };
+                    reportScan({ method: 'openai',
+                        status: result.status === 'partial' ? 'partial' : 'complete', read: result.read, added: result.added,
+                    }, result.status === 'ok' ? 'info' : 'warn');
                     if (result.status === 'empty') status(() => text(
                         'This OpenAI ZIP contains no conversation bodies. No conversations were imported.',
                         '此 OpenAI ZIP 没有聊天正文，未导入任何会话。'), 'warn');
-                    else status(() => text(
-                        `Imported ${result.imported} conversations; skipped ${result.skipped}; unavailable attachments ${result.missingAssets}.${result.status === 'partial' ? ' Import partially completed.' : ''}`,
-                        `已导入 ${result.imported} 条会话；跳过 ${result.skipped} 条；${result.missingAssets} 个附件不可用。${result.status === 'partial' ? '导入部分完成。' : ''}`),
-                        result.status === 'partial' ? 'warn' : 'info');
+                    else if (result.skipped || result.missingAssets) status(() => text(
+                        `Skipped: ${result.skipped}; unavailable attachments: ${result.missingAssets}.`,
+                        `跳过 ${result.skipped} 条；${result.missingAssets} 个附件不可用。`), 'warn');
                 } else {
                     status(() => text('Importing Takeout ZIP…', '正在导入 Takeout ZIP…'));
                     const result = await handleTakeoutImport(file, accountId, { onTarget: select,
                         onProgress: percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent) });
-                    status(() => text(`Imported ${result.imported} conversations (${result.status})`,
-                        `已提交 ${result.imported} 条对话（${result.status === 'ok' ? '完成' : result.status === 'partial' ? '部分完成' : '未知'}）`));
+                    await refresh();
+                    feedback = { kind: 'empty' };
+                    reportScan({ method: 'takeout',
+                        status: result.status === 'ok' ? 'complete' : 'partial', read: result.imported, added: result.added,
+                    }, result.status === 'ok' ? 'info' : 'warn');
                 }
             } finally { fileInput.value = ''; }
         });

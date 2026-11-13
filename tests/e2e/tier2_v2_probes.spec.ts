@@ -171,27 +171,26 @@ test('Tier 2 raw fetch probe captures the actual export RPC without consuming it
 
 test('Tier 2 Scan observer preserves provider and local page limit reasons and rejects changed accounts', async ({ context }) => {
     const page = await context.newPage();
-    for (const kind of ['idle','provider_limit','max_pages','changed','resolved','complete']) {
+    for (const kind of ['idle','provider_limit','max_pages','changed','resolved','complete','localized','missing']) {
         await page.setContent('<body data-scanning="false"><select id="accountIdSelect"><option value="account">Account</option><option value="other">Other</option></select><button id="btnSyncAll">Scan</button><p id="scanStatus"></p></body>');
         await page.evaluate(kind => {
             document.getElementById('btnSyncAll')!.onclick = () => {
                 if (kind === 'idle') return;
                 document.body.dataset.scanning = 'true';
-                if (kind === 'changed') {
-                    document.getElementById('scanStatus')!.textContent = 'Committed 1 pages, 2 source entries';
-                    queueMicrotask(() => {
-                        (document.getElementById('accountIdSelect') as HTMLSelectElement).value = 'other';
-                        document.getElementById('scanStatus')!.textContent = 'Reached the end of this Recent source · 1 / 2';
-                        document.body.dataset.scanning = 'false';
-                    });
-                    return;
-                }
-                if (kind === 'resolved') (document.getElementById('accountIdSelect') as HTMLSelectElement).value = 'other';
-                document.getElementById('scanStatus')!.textContent = 'Committed 1 pages, 2 source entries';
+                const account = document.getElementById('accountIdSelect') as HTMLSelectElement;
+                if (kind === 'resolved') account.value = 'other';
+                const accountId = account.value;
+                const node = document.getElementById('scanStatus')!;
+                const progress = { pagesFetched: 1, conversationsFetched: 2 };
+                if (kind !== 'missing') node.dataset.syncEvidence = JSON.stringify({ accountId, progress });
+                node.textContent = kind === 'localized' ? '累计扫描 2 条对话 · 当前共 4 条对话' : 'Scanning conversations';
                 queueMicrotask(() => {
-                    document.getElementById('scanStatus')!.textContent = kind === 'provider_limit' ? 'Source online access limit · 1 / 2'
-                        : kind === 'max_pages' ? 'Local page budget reached · 1 / 2'
-                        : 'Sync complete · 1 new conversations · 1 conversations updated';
+                    if (kind === 'changed') account.value = 'other';
+                    const limited = kind === 'provider_limit' || kind === 'max_pages';
+                    if (kind !== 'missing') node.dataset.syncEvidence = JSON.stringify({ accountId, progress,
+                        result: { ...progress, status: limited ? 'partial_limit' : 'complete',
+                            ...(limited ? { reason: kind } : {}) } });
+                    node.textContent = kind === 'localized' ? '在线同步完成 · 当前共 4 条对话' : 'Source results updated';
                     document.body.dataset.scanning = 'false';
                 });
             };
@@ -200,6 +199,7 @@ test('Tier 2 Scan observer preserves provider and local page limit reasons and r
         const evidence = await page.evaluate(() => Reflect.get(window,'__tier2ScanEvidence'));
         if (kind === 'idle') expect(evidence.finished).toBe(false);
         else if (kind === 'changed') expect(evidence.error).toMatch(/account changed/);
+        else if (kind === 'missing') expect(evidence.response).toBeUndefined();
         else {
             expect(evidence.response.status).toBe(kind === 'provider_limit' || kind === 'max_pages' ? kind : 'complete');
             expect(evidence.response).toMatchObject({ pagesFetched: 1, conversationsFetched: 2 });
@@ -220,7 +220,10 @@ test('Tier 2 Takeout probe reads source-bound archive bytes and actual UI-import
     expect(source.ids.length).toBeGreaterThan(0);
     expect(Object.values(source.resources).flat().length).toBeGreaterThan(0);
     await page.locator('#takeoutFileInput').setInputFiles({name:'source-fixture.zip',mimeType:'application/zip',buffer:Buffer.from(encoded,'base64')});
-    await expect(page.locator('#status')).toContainText(/Imported .*\((ok|partial)\)/);
+    await expect(page.locator('#scanStatus')).toContainText(/Takeout import (?:complete|partially completed) · Read:/);
+    const summary = await page.locator('#scanStatus').getAttribute('data-source-summary');
+    if (!summary) throw new Error('Missing committed source summary');
+    expect(JSON.parse(summary)).toMatchObject({ method: 'takeout', accountId, read: source.ids.length, added: source.ids.length });
     await expect(page.locator('body')).toHaveAttribute('data-busy','false');
     const persisted = await page.evaluate(ids => Reflect.get(globalThis,'__tier2V2').conversations(ids),source.ids);
     for (const record of persisted) {

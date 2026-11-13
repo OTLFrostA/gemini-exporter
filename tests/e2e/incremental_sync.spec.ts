@@ -34,7 +34,7 @@ test('diagnostic download includes the failed scan page and its native error env
     }));
     const options = await openOptions(context, extensionId);
     await options.click('#btnSyncAll');
-    await expect(options.locator('#scanStatus')).toContainText('Scan failed: invalid Gemini response');
+    await expect(options.locator('#scanStatus')).toContainText('Sync failed');
     await expect(options.locator('#log')).toContainText('invalid_response');
     await expect(options.locator('body')).toHaveAttribute('data-scanning', 'false');
     await options.check('#devToggle');

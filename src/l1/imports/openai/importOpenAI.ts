@@ -7,7 +7,9 @@ import type { SourceResourceContext } from '../../resources/sourceResources.js';
 import { readOpenAIArchive, type OpenAIArchive, type OpenAIArchiveEntry } from './readArchive.js';
 
 export interface OpenAIImportResult {
+    read: number;
     imported: number;
+    added: number;
     skipped: number;
     missingAssets: number;
     status: 'ok' | 'partial' | 'empty';
@@ -85,7 +87,8 @@ export async function importOpenAI(file: Blob | Uint8Array, accountId: string,
         }
     }
     onProgress?.(35);
-    const result: OpenAIImportResult = { imported: 0, skipped: 0, missingAssets: 0, status: 'ok' };
+    const result: OpenAIImportResult = { read: new Set(conversations.map(row => row.id)).size,
+        imported: 0, added: 0, skipped: 0, missingAssets: 0, status: 'ok' };
     const imported = new Set<string>();
     for (const [position, conversation] of conversations.entries()) {
         const parsed = parseOpenAIConversation(conversation);
@@ -100,6 +103,7 @@ export async function importOpenAI(file: Blob | Uint8Array, accountId: string,
             asset.byteLength = resource.entry.size;
         }
         const admission = await ingestDetail(accountId, conversation.id, parsed.conversation.detail, parsed.conversation.index);
+        if (admission.indexAdded) result.added++;
         if (admission.accepted) {
             imported.add(conversation.id);
             if (resources) {

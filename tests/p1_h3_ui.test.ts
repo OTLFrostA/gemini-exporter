@@ -12,7 +12,7 @@ test('P1-118: dynamic IDs and title updates stay literal and cannot escape into 
 test('P1-120: File input resets after success and failure so the same archive can be selected again',async()=>{
     for(const failImport of [false,true]){
         await open('options',{failImport});for(let i=0;i<2;i++) {await page.locator('#takeoutFileInput').setInputFiles({name:'original.zip',mimeType:'application/zip',buffer:Buffer.from('fixture')});await page.waitForFunction(()=>document.body.dataset.busy!=='true');assert.equal(await page.locator('#takeoutFileInput').inputValue(),'');assert.equal((await read(page,'imports')).length,i+1);}
-        assert.match(await page.locator('#status').textContent()??'',failImport?/Operation failed/:/Imported 2/);await page.close();
+        assert.match(await page.locator(failImport?'#status':'#scanStatus').textContent()??'',failImport?/Operation failed/:/Takeout import partially completed · Read: 2/);await page.close();
     }
 });
 test('P1-121: failed focus refresh reports readable feedback in the workbench status',async()=>{

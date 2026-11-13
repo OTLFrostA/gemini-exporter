@@ -329,7 +329,7 @@ test('UI v2: account switch clears selection and only selected current keys expo
 });
 test('UI v2: Takeout prompts at 151 committed records regardless of Scan reason', async ({ page }) => {
     await mount(page,'options',{indexes:[],holdScan:true}); await expect(page.locator('#btnSyncAll')).toBeEnabled();
-    await page.locator('#btnSyncAll').click(); await expect(page.locator('#scanStatus')).toHaveText('Committed 2 pages, 150 source entries');
+    await page.locator('#btnSyncAll').click(); await expect(page.locator('#scanStatus')).toContainText('Sync in progress · Scanned: 150');
     expect(await read(page,'scans')).toEqual([{accountId:A}]);
     await page.evaluate(()=>{(window as any).harness.finishScan();});
     await expect(page.locator('body')).toHaveAttribute('data-scanning','false');
@@ -363,7 +363,7 @@ test('UI v2: Takeout file input directly imports into current account and report
     await page.locator('#btnImportTakeout').click();
     const chooser = await chooserPromise;
     await chooser.setFiles({name:'Takeout.zip',mimeType:'application/zip',buffer:Buffer.from('fixture')});
-    await expect(page.locator('#status')).toHaveText('Imported 2 conversations (partial)');
+    await expect(page.locator('#scanStatus')).toHaveText('Takeout import partially completed · Read: 2 · Added: 0 · Total conversations: 1');
     expect(await read(page,'imports')).toEqual([B]); expect(await read(page,'patches')).toContainEqual({takeoutPromptCompleted:true});
 });
 test('UI v2: real Tour hit testing, stale delays, feedback close, and no persistent Tour fields', async ({ page }) => {
@@ -578,7 +578,7 @@ for (const finishFirst of ['scan', 'export'] as const) test(`UI v2: concurrent s
     await expect(page.locator('#btnSyncAll')).toHaveText('Stop sync');
     const exportStatus = await page.locator('#status').textContent();
     await page.evaluate(() => Reflect.get(window,'harness').scanProgress({pagesFetched:3,conversationsFetched:200}));
-    await expect(page.locator('#scanStatus')).toContainText('200 source entries');
+    await expect(page.locator('#scanStatus')).toContainText('Scanned: 200');
     expect(await page.locator('#status').textContent()).toBe(exportStatus);
     if (finishFirst === 'scan') {
         await page.locator('#btnSyncAll').click();

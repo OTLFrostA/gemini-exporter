@@ -6,7 +6,7 @@ import { ingestDetail } from '../../../l2/ingestion.js';
 import { parseGeminiTakeoutZipArchive, readTakeoutBytes } from './readArchive.js';
 import { TakeoutParseError } from '../../../shared/types/errors.js';
 
-export interface TakeoutParseResult { imported: number; status: 'ok' | 'partial' }
+export interface TakeoutParseResult { imported: number; added: number; status: 'ok' | 'partial' }
 
 /** UI/acquisition adapter: native parsing precedes the one-way storage projection. */
 export async function importTakeout(file: File, accountId: Account['id'], onProgress?: (percent: number) => void, resources?: SourceResourceContext): Promise<TakeoutParseResult> {
@@ -24,10 +24,12 @@ export async function importTakeout(file: File, accountId: Account['id'], onProg
         throw new TakeoutParseError(message, false);
     });
     const importedIds = new Set(results.map(result => result.conversationId));
+    let added = 0;
     let resourceFailure = false;
     for (const [resultIndex, result] of results.entries()) {
         const id = result.conversationId;
         const admission = await ingestDetail(accountId, id, result.conversation.detail, result.conversation.index);
+        if (admission.indexAdded) added++;
         if (admission.accepted && resources) {
             resources.retainParsed({ accountId, conversationId: id }, result);
             for (const [assetId, bound] of Object.entries(result.archiveResources)) {
@@ -49,6 +51,6 @@ export async function importTakeout(file: File, accountId: Account['id'], onProg
     }
     notifyDomainChanged(accountId);
     onProgress?.(100);
-    return { imported: importedIds.size, status: resourceFailure
+    return { imported: importedIds.size, added, status: resourceFailure
         || results.some(result => result.conversation.detail.quality.status !== 'complete') ? 'partial' : 'ok' };
 }

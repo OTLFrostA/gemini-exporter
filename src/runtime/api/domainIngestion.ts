@@ -31,8 +31,11 @@ export const ingestDetail: typeof domain.ingestDetail = async (accountId, conver
         const result = await ingest({ operation: 'detail', accountId, conversationId, detail, ...(indexFields === undefined ? {} : { indexFields }) });
         if (!result || typeof result !== 'object' || !('accepted' in result) || !('changed' in result)
             || typeof result.accepted !== 'boolean' || typeof result.changed !== 'boolean'
-            || (!result.accepted && result.changed)) throw new TypeError('Invalid committed Detail ingestion result');
-        return { accepted: result.accepted, changed: result.changed };
+            || (!result.accepted && result.changed)
+            || ('indexAdded' in result && result.indexAdded !== true)) throw new TypeError('Invalid committed Detail ingestion result');
+        const committed: domain.DetailIngestResult = { accepted: result.accepted, changed: result.changed };
+        if ('indexAdded' in result) committed.indexAdded = true;
+        return committed;
     }
     await ensureV2Ready();
     return domain.ingestDetail(accountId, conversationId, detail, indexFields);

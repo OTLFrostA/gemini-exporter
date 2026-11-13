@@ -35,8 +35,9 @@ async function fixture(rows: unknown = [conversation()], additional: Record<stri
 test('OpenAI ZIP preserves current branch, source metadata and lazy original attachment bytes', async () => {
     const resources = createSourceResourceContext();
     const progress: number[] = [];
+    ports.detailDecision = { accepted: true, changed: true, indexAdded: true };
     const result = await importOpenAI(await fixture(), CHATGPT_ACCOUNT.id, p => progress.push(p), resources);
-    assert.deepEqual(result, { imported: 1, skipped: 0, missingAssets: 0, status: 'ok' });
+    assert.deepEqual(result, { read: 1, imported: 1, added: 1, skipped: 0, missingAssets: 0, status: 'ok' });
     const admitted = ports.details[0];
     assert.equal(admitted.conversationId, 'conversation-1');
     assert.equal(admitted.indexFields?.title, '离线导入 / Offline');
