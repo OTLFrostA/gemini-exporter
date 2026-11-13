@@ -1,4 +1,4 @@
-import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { importTakeout } from '../src/application/imports/importTakeout.js';
 import { takeoutArchive } from './helpers/l1SourceFixture.js';
 import { getDetail } from '../src/l3a/storageService.js';
 import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';

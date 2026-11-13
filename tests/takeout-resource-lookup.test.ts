@@ -11,7 +11,7 @@ import { fixtureAccount } from './helpers/domainFixture.js';
 import { activityHtml, takeoutArchive } from './helpers/l1SourceFixture.js';
 import { createTakeoutResourceResolver } from '../src/l1/parsers/gemini/takeout/archiveResources.js';
 import { parseGeminiTakeoutConversation } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
-import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { importTakeout } from '../src/application/imports/importTakeout.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';

@@ -13,7 +13,7 @@ let bundle: string;
 test.beforeAll(async () => {
     const modules = [
         "import { mediaSources, mediaBytes } from './tests/helpers/mediaSourceFixture.ts';",
-        "import { importTakeout } from './src/l1/imports/takeout/importTakeout.ts';",
+        "import { importTakeout } from './src/application/imports/importTakeout.ts';",
         "import { createSourceResourceContext } from './src/l1/resources/sourceResources.ts';",
         "import { ingestDetail } from './src/l2/ingestion.ts';",
         "import { readConversation } from './src/l2/readConversation.ts';",

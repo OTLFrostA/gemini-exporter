@@ -98,22 +98,18 @@ export async function runExport(request: ExportRequest, options: {
     let compiler: import('../../l4/format/pdf/typst/typstSandboxCompiler.js').TypstSandboxCompiler | undefined;
     let locale: 'zh' | 'en' = 'en';
     let fontDiagnostics: readonly import('../../shared/diagnostics/diagnostic.js').Diagnostic[] = [];
-    const cancelled = (error: unknown): boolean => signal.aborted || (error instanceof Error && error.name === 'AbortError');
+    const stopOnRateLimit = (error: unknown): boolean => {
+        if (!(error instanceof OperationError) || error.retryAt === undefined) return false;
+        result.rateLimitedUntil = Math.max(result.rateLimitedUntil ?? 0, error.retryAt);
+        controller.abort(error);
+        return true;
+    };
+    const cancelled = (error: unknown): boolean => stopOnRateLimit(error) || signal.aborted || (error instanceof Error && error.name === 'AbortError');
     const report = (update: ExportItemUpdate): void => {
         try { options.onItemUpdate?.(update); }
         catch (error) { console.warn('[Gemini Exporter] Export progress listener failed', error); }
     };
     const diagnose = (diagnostic: ExportDiagnostic): void => {
-        if (diagnostic.code === 'CHATGPT_RATE_LIMITED' || diagnostic.code === 'CHATGPT_COOLDOWN_ACTIVE') {
-            const details = diagnostic.details;
-            if (details && typeof details === 'object' && !Array.isArray(details)) {
-                const data = details.observation ?? details;
-                if (data && typeof data === 'object' && !Array.isArray(data) && typeof data.retryAt === 'number') {
-                    result.rateLimitedUntil = Math.max(result.rateLimitedUntil ?? 0, data.retryAt);
-                    controller.abort();
-                }
-            }
-        }
         try { options.onDiagnostic?.(diagnostic); }
         catch (error) { console.warn('[Gemini Exporter] Export diagnostic listener failed', error); }
     };

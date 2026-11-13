@@ -121,7 +121,7 @@ export class ChatGPTProvider implements AIProvider {
         emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_COOLDOWN_ACTIVE',
             message: 'ChatGPT account is cooling down; no request sent',
             details: { retryAt, delayMs: retryAt - Date.now(), willRetry: false } });
-        throw new OperationError('SOURCE_HTTP_ERROR', 'ChatGPT account is cooling down after HTTP 429', 429);
+        throw new OperationError('SOURCE_HTTP_ERROR', 'ChatGPT account is cooling down after HTTP 429', 429, { retryAt });
     }
     private async rejectRateLimited(accountId: string, header: string | null,
         onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<never> {
@@ -133,7 +133,7 @@ export class ChatGPTProvider implements AIProvider {
         emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_RATE_LIMITED',
             message: 'ChatGPT returned HTTP 429; stop this export and cool down for one hour',
             details: { httpStatus: 429, retryAfterMs: retryAfterMs ?? null, delayMs, retryAt, willRetry: false } });
-        throw new OperationError('SOURCE_HTTP_ERROR', 'ChatGPT returned HTTP 429; export stopped for cooldown', 429);
+        throw new OperationError('SOURCE_HTTP_ERROR', 'ChatGPT returned HTTP 429; export stopped for cooldown', 429, { retryAt });
     }
     private async authedGet(path: string, account: Account, signal?: AbortSignal,
         notFoundCode: 'SOURCE_HTTP_ERROR' | 'RESOURCE_LOCATOR_UNAVAILABLE' = 'SOURCE_HTTP_ERROR',

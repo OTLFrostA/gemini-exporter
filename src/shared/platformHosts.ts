@@ -1,6 +1,14 @@
 export const SOURCE_PLATFORMS = ['gemini', 'chatgpt', 'grok', 'claude'] as const;
 export type SourcePlatform = typeof SOURCE_PLATFORMS[number];
 
+/** A selected account has no verified signed-in source; website permission alone is insufficient. */
+export class ScanConnectionError extends Error {
+    constructor(readonly platform: SourcePlatform, message: string) {
+        super(message);
+        this.name = 'ScanConnectionError';
+    }
+}
+
 /** Site access is requested as one independent group per source platform. */
 export const PLATFORM_HOSTS = {
     gemini: {

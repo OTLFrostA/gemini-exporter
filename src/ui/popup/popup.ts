@@ -1,3 +1,4 @@
+import { OperationError } from '../../shared/errors/operationError.js';
 import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { createBackoffNotice } from '../shared/backoffNotice.js';
 import { elementById as el, requiredElement as control } from '../shared/elements.js';
@@ -13,7 +14,7 @@ import { getIndex } from '../../l3a/storageService.js';
 import { updateSettings, type GlobalSettings } from '../../application/settings/index.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { warmLocalFontCache } from '../../l4/format/pdf/typst/fonts/localFontProvider.js';
-import { runExport } from '../options/controllers/exportController.js';
+import { runExport } from '../../application/export/runExport.js';
 import { EXPORT_FORMATS, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
 import { readSettings } from '../shared/readSettings.js';
 
@@ -143,7 +144,7 @@ export async function initPopup(): Promise<void> {
         const backoffTimer = setInterval(() => { if (active && backoff.message()) showStatus(exportMessage); }, 1000);
         void (async () => {
             const [current, latest] = await Promise.all([readActiveKey(), readSettings(), fonts]);
-            if (!current) { key = null; throw new Error('No trusted current conversation'); }
+            if (!current) { key = null; throw new OperationError('CURRENT_CONVERSATION_UNAVAILABLE', 'No trusted current conversation'); }
             const result = await runExport({ keys: [current], format, delivery: 'browserDownload',
                 includeAssets: latest.includeAssets, skipUnchanged: false }, {
                 onDiagnostic: diagnostic => {

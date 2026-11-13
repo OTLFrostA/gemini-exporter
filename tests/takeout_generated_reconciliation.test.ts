@@ -4,7 +4,7 @@ useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGeminiTakeoutConversation } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
-import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { importTakeout } from '../src/application/imports/importTakeout.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { getDetail } from '../src/l3a/storageService.js';
 import { assertDomainClosure } from '../src/l2/closure.js';

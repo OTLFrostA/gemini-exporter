@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
-import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { importTakeout } from '../src/application/imports/importTakeout.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { getDetail, listIndexes } from '../src/l3a/storageService.js';
 import { sourceList, sourceDetail, takeoutArchive, activityHtml } from './helpers/l1SourceFixture.js';

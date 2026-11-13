@@ -1,7 +1,7 @@
 import { runExport, type UIExportRequest } from './exportController.js';
 import type { ExportDiagnostic, ExportItemUpdate, ExportResult } from '../../../application/export/types.js';
 import type { ConversationKey } from '../../../l2/conversationKey.js';
-import type { SourceResourceContext } from '../../../l1/resources/sourceResources.js';
+import type { SourceResourceContext } from '../../../application/resources.js';
 import type { UiMessage } from '../state/foregroundTask.js';
 import type { ExportIssueCollector } from '../state/exportIssues.js';
 import { createBackoffNotice } from '../../shared/backoffNotice.js';

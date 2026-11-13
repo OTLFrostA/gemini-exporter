@@ -55,7 +55,7 @@ export function assertUiNodeIsolation(): void {
         const normalized = filename.replace(/\\/g, '/');
         if (!normalized.startsWith(root)) continue;
         const owner = normalized.slice(root.length);
-        if (!owner.startsWith('ui/') && !mockedFiles.has(filename)) {
+        if (!owner.startsWith('ui/') && !owner.startsWith('shared/') && !mockedFiles.has(filename)) {
             throw new Error(`Unmocked non-UI production import: ${owner}`);
         }
     }
@@ -91,8 +91,14 @@ export function installUiV2Mocks(): void {
         listIndexes: () => unconfigured('Storage.listIndexes'),
         listExportRecords: () => unconfigured('Storage.listExportRecords'),
     });
-    stub('../../src/l1/imports/takeout/importTakeout.js', {
-        importTakeout: () => unconfigured('L1.importTakeout'),
+    stub('../../src/application/imports/importTakeout.js', {
+        importTakeout: () => unconfigured('Application.importTakeout'),
+    });
+    stub('../../src/application/imports/importOpenAI.js', {
+        importOpenAI: () => unconfigured('Application.importOpenAI'),
+    });
+    stub('../../src/application/resources.js', {
+        createSourceResourceContext: () => unconfigured('Application.createSourceResourceContext'),
     });
     stub('../../src/shared/utils/pathUtils.js', {
         isVersionGreater: (one: string, two: string) => {

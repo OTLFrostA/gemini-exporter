@@ -492,9 +492,9 @@ def test_stage1_architecture_ssot_and_state_isolation():
     assert "__bgAborts" not in background and "__bgAborted" not in background, "Background must not restore parallel v1 abort flags"
 
     # Takeout is an explicit input + target Account, not an ambient per-slot cache.
-    takeout = read("src/l1/imports/takeout/importTakeout.ts")
+    takeout = read("src/application/imports/importTakeout.ts")
     assert "importTakeout(file: File, accountId:" in takeout and "getAccount(accountId)" in takeout, "Takeout must resolve its explicit trusted Account"
-    assert "ingestDetail(accountId, id," in takeout, "L1 Takeout must admit parsed facts through L2"
+    assert "ingestDetail(accountId, id," in takeout, "Application Takeout must admit parsed facts through L2"
     assert "resources.retainParsed" in takeout and "__accountTakeouts" not in takeout, "Takeout must not retain a global resource/Domain cache"
 
     # L2 exclusively owns both Index and Detail selection; Options only reads

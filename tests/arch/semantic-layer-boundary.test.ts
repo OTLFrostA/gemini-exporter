@@ -128,8 +128,15 @@ function forbidden(owner: string, target: string): boolean {
             && owner !== 'l1/parsers/parseConversation.ts' && owner !== 'l1/parsers/index.ts') return true;
         return /^(l1\/(?:imports|client)\/|l3b\/|l4\/|runtime\/|application\/|ui\/|migration\/|l3a\/)/.test(target);
     }
+    if (owner.startsWith('l1/imports/')) {
+        return /^(l1\/(?:client|sniffer)\/|l2\/(?:ingestion|accountAdmission|coverageAdmission|readConversation|sourceCooldown)\.ts$|l3a\/|l3b\/|l4\/|runtime\/|application\/|ui\/|migration\/)/.test(target);
+    }
     if (owner.startsWith('l1/')) {
         return /^(l3a\/|l3b\/|l4\/|application\/|ui\/|migration\/)/.test(target);
+    }
+    if (owner.startsWith('ui/')) {
+        if (owner.startsWith('ui/popup/') && target.startsWith('ui/options/')) return true;
+        return /^(l1\/|l3b\/|migration\/)/.test(target);
     }
     if (owner.startsWith('migration/')) {
         return !/^(migration\/|l2\/|l3a\/|shared\/)/.test(target);
