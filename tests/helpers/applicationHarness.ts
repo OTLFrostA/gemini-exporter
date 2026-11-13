@@ -57,7 +57,7 @@ export const state = {
     openaiError: null as Error | null,
     directory: {} as FileSystemDirectoryHandle | null,
     existingFiles: new Set<string>(),
-    onDelivery: undefined as (() => void) | undefined,
+    onDelivery: undefined as ((files: readonly ExportArtifact[]) => void | Promise<void>) | undefined,
     onPackage: undefined as ((archiveName?: string) => Promise<void>) | undefined,
     sourceContext: undefined as SourceResourceContext | undefined,
     releasedKeys: [] as string[], releasedContexts: 0,
@@ -398,7 +398,7 @@ async function deliver(files: readonly ExportArtifact[]) {
     events.push('delivery');
     deliveries.push([...files]);
     if (state.failDelivery === deliveries.length) throw new Error('delivery failed');
-    state.onDelivery?.();
+    await state.onDelivery?.(files);
 }
 stubModule('../../src/l4/delivery/index.js', {
     folderFileExists: async (_directory: FileSystemDirectoryHandle, path: string) => state.existingFiles.has(path),
