@@ -37,12 +37,15 @@ test('current progress status displays committed counts, final result and clears
         await page.locator('#btnSyncAll').click(); await page.waitForFunction(() => document.body.dataset.busy === 'true');
         assert.equal(await page.locator('#scanStatus').textContent(), 'Committed 2 pages, 150 source entries');
         assert.equal(await page.locator('#scanStatus').getAttribute('aria-live'), 'polite');
-        assert.equal(await page.locator('#progWrap').isVisible(), false);
+        assert.equal(await page.locator('#progWrap').isVisible(), true);
+        assert.match(await page.locator('#progWrap').getAttribute('class') ?? '', /indeterminate/);
+        assert.equal(await page.locator('#progWrap').getAttribute('aria-valuenow'), null);
         assert.equal(await page.locator('#btnSyncAll').textContent(), 'Stop sync');
         assert.doesNotMatch(await page.locator('#scanStatus').textContent() ?? '', /%/);
         await page.evaluate(() => Reflect.get(window, 'harness').finishScan()); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
         assert.match(await page.locator('#scanStatus').textContent() ?? '', /Local page budget reached/); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
         assert.equal(await page.locator('#progWrap').isVisible(), false);
+        assert.doesNotMatch(await page.locator('#progWrap').getAttribute('class') ?? '', /indeterminate/);
     } finally { await browser.close(); }
 });
 test('a subsequent operation keeps its current progress after the previous task completes; no stale delayed hide erases it', async () => {
