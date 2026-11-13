@@ -6,11 +6,13 @@ import { citationFile } from './sources.js';
 import { nativeCitationCases } from './nativeCitationCases.js';
 import { nativeDocumentCases } from './nativeDocumentCases.js';
 import { nativeIntegrityCases } from './nativeIntegrityCases.js';
+import { remainingFallbackCases } from './remainingFallbackCases.js';
 
 export const contentCases = {
     ...nativeCitationCases,
     ...nativeDocumentCases,
     ...nativeIntegrityCases,
+    ...remainingFallbackCases,
     'G_BOUNDARY_THOUGHT_CITATION_01': () => boundaryCitationThoughtWire(),
     'G_STRUCTURED_CITATION_COMPOSITE_PARAGRAPH_01': () => citationCompositeWire('paragraph'),
     'G_STRUCTURED_CITATION_COMPOSITE_LIST_01': () => citationCompositeWire('list'),
@@ -185,6 +187,8 @@ export const contentCases = {
 const liveCombinedFileCitationsOrigin = derived(["tests/fixtures/provider/structured_rpc/live-combined-file-citations.json"], "Saved Detail/structured content or measured timestamps with authored identity, RPC framing or boundary mutations.");
 
 export const fixtureOrigins = describeFixtures(contentCases, synthetic("Authored Gemini protocol, content or state counterexample; no saved capture is used."), {
+    G_REMAINING_RANGES_INVALID: derived(["tests/fixtures/providers/gemini/detail/remainingSourceRanges.ts"], "Diagnostic adapter text-node shapes with unchanged ranges and UTF-16 widths; synthetic text and source IDs; authored RPC framing, no original JSPB available."),
+    G_REMAINING_RANGES_LEGAL: derived(["tests/fixtures/providers/gemini/detail/remainingSourceRanges.ts"], "Five legal source/code controls from diagnostic adapter inputs; unchanged ranges and UTF-16 widths, synthetic text/IDs and authored RPC framing."),
     G_STRUCTURED_CITATION_INLINE_COMBINED_01: liveCombinedFileCitationsOrigin,
     G_STRUCTURED_CITATIONS_15: liveCombinedFileCitationsOrigin,
     G_STRUCTURED_CITATIONS_16: liveCombinedFileCitationsOrigin,
