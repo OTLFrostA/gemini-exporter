@@ -3,7 +3,7 @@ import type { Account } from '../../../l2/accountRegistry.js';
 import { parseGeminiResponse } from '../../parsers/gemini/rpc/parseResponse.js';
 import { isConfirmedGeminiDetailNotFound } from '../../parsers/gemini/rpc/parseDeletion.js';
 import GeminiProtocol from "../../protocol/gemini/protocol.js";
-import { isDevMode } from "../../../runtime/devMode.js";
+import { isDevMode } from "../../../shared/utils/devMode.js";
 import { getErrorMessage } from "../../../shared/utils/errorText.js";
 import GeminiClientCredentialManager, {
     getBlFromPage,

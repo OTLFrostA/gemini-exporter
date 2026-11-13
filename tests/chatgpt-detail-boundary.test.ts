@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { decodeChatGPTDetail } from '../src/l1/parsers/chatgpt/decodeDetail.js';
 import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
+import { restoreDomainDetail } from '../src/l2/runtimeValidation.js';
 import { detailGen } from './fixtures/providers/chatgptDetail.js';
 
 const id = 'source-chatgpt-1';
@@ -146,7 +147,7 @@ test('ChatGPT Detail missing optional status does not invent incomplete branch c
 
 test('ChatGPT manual and live Detail entrypoints both invoke the shared boundary', () => {
     const provider = readFileSync(join(__dirname, '../src/l1/client/chatgpt/chatgptProvider.ts'), 'utf8');
-    const capture = readFileSync(join(__dirname, '../src/runtime/content/chatgptContent.ts'), 'utf8');
+    const capture = readFileSync(join(__dirname, '../src/l1/sniffer/chatgpt/messageBridge.ts'), 'utf8');
     assert.match(provider, /decodeChatGPTDetail\(raw, conversationId\)/);
     assert.match(capture, /decodeChatGPTDetail\(raw\.responseBody, key\.conversationId\)/);
     assert.doesNotMatch(provider, /as ChatGPTApiConversationWithId/);
@@ -278,5 +279,28 @@ test('ChatGPT decoder preserves own special node IDs without mutating the receiv
         assert.equal(parsed.conversation.detail.quality.status, 'complete', nodeId);
         assert.deepEqual(parsed.conversation.detail.messages.map(message => message.id), [nodeId]);
         assert.deepEqual(raw, before);
+    }
+});
+
+test('ChatGPT parsed attachment byteLength and sourceTurn survive L2 restoreDomainDetail boundary', () => {
+    for (const variant of ['unfinished', 'interrupted', 'finished', 'tool', 'handoff', 'unrecognized'] as const) {
+        const raw = detailGen('C_DETAIL_L1_SOURCE_01');
+        const question = raw.mapping.question?.message;
+        assert.ok(question);
+        question.metadata = { attachments: [{ id: 'file-1', name: 'note.txt', mime_type: 'text/plain', size: 128 }] };
+        const answer = raw.mapping.answer?.message;
+        assert.ok(answer);
+        answer.end_turn = variant === 'finished';
+        answer.status = variant === 'unfinished' ? 'in_progress' : variant === 'unrecognized' ? 'unrecognized-status' : 'finished_successfully';
+        if (variant === 'interrupted') answer.metadata = { finish_details: { type: 'interrupted', reason: 'client_stopped' } };
+        if (variant === 'tool') answer.recipient = 'api_tool.call_tool';
+        if (variant === 'handoff') answer.recipient = 'local.handoff';
+        const parsed = parseChatGPTConversation({ conversation: decodeChatGPTDetail(raw, id), assetsByNode: new Map() });
+        const restored = restoreDomainDetail({
+            ...parsed.conversation.detail,
+            key: { accountId: '00000000-0000-4000-8000-000000000001', conversationId: id },
+        });
+        assert.equal(restored.assets[0]?.byteLength, 128);
+        assert.equal(restored.quality.sourceTurn, parsed.conversation.detail.quality.sourceTurn);
     }
 });

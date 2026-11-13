@@ -25,6 +25,9 @@ test('alternative matching preserves fenced and inline code whitespace', () => {
     const inline: GeminiStructuredDocument = { children: [{ nodeType: 18, text: 'a  b', annotations: [{ start: 0, end: 4, type: 7 }] }] };
     assert.equal(matchesCandidateBody(inline, '`a  b`'), true);
     assert.equal(matchesCandidateBody(inline, '`a b`'), false);
+    const escaped = 'print("\\u0000")';
+    assert.equal(matchesCandidateBody({ children: [{ nodeType: 1, info: 'python', code: escaped + '\n' }] },
+        '```python\n' + escaped + '\n```'), true);
 });
 
 test('literal CJK emphasis markers need independent native formatting evidence', () => {
@@ -32,6 +35,10 @@ test('literal CJK emphasis markers need independent native formatting evidence',
     assert.equal(matchesCandidateBody(paragraph('推荐“示例”方案'), markdown), false);
     assert.equal(matchesCandidateBody({ children: [{ nodeType: 18, text: '推荐“示例”方案',
         annotations: [{ start: 2, end: 6, type: 0 }] }] }, markdown), true);
+    assert.equal(matchesCandidateBody({ children: [{ nodeType: 18, text: '推荐“示例”方案',
+        annotations: [{ start: 2, end: 6, type: 0 }] }] }, '推荐\\*\\*“示例”\\*\\*方案'), false);
+    assert.equal(matchesCandidateBody({ children: [{ nodeType: 18, text: '推荐“示例”方案',
+        annotations: [{ start: 2, end: 6, type: 0 }] }] }, '推荐&#42;&#42;“示例”&#42;&#42;方案'), false);
 });
 
 test('unique matching can select either branch and duplicate matches remain incomplete', () => {

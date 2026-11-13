@@ -54,15 +54,15 @@ test('an early source completion survives readiness wait and keeps its captured 
     const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
     let current = context;
     const bridge = load('src/l1/sniffer/gemini/messageBridge.ts', {
-        'src/runtime/api/accountRegistry.js': { getAccount: async () => account },
+        'src/runtime/api/contentAccountRegistry.js': { getContentAccount: async () => account },
         'src/runtime/content/accountContext.js': { resolveRequestAccount: async () => { await pending; return context; }, resolveCurrentAccount: async () => current },
-        'src/runtime/api/domainIngestion.js': { ingestIndexes: async () => { commits++; current = { ...context, accountId: '87654321-4321-4321-8321-cba987654321' }; } },
+        'src/runtime/api/contentDomainIngestion.js': { ingestContentIndexes: async () => { commits++; current = { ...context, accountId: '87654321-4321-4321-8321-cba987654321' }; } },
         'src/l1/client/gemini/listObservation.js': {},
         'src/l1/parsers/gemini/rpc/parseConversation.js': {},
         'src/l1/parsers/gemini/rpc/mergePages.js': {},
         'src/l1/parsers/gemini/parseIndexObservation.js': { parseGeminiIndexObservation: () => ({ conversationId: 'abcdef123456', fields: {} }) },
         'src/l1/parsers/gemini/dom/parseIndex.js': { parseGeminiDomIndex: () => ({}) },
-        'src/runtime/devMode.js': { isDevMode: () => false },
+        'src/shared/utils/devMode.js': { isDevMode: () => false },
         'src/l1/parsers/gemini/rpc/parseList.js': {},
     });
     bridge.init({ onStreamComplete: (key: unknown) => keys.push(key) });

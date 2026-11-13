@@ -243,10 +243,20 @@ export function installL1V2Mocks(): void {
             throw new Error('L1 unit test directly loaded external implementation: ' + request);
         if (parentPath.includes('/src/l1/') || parentPath.includes('/src/shared/')) {
             if (request.endsWith('/l2/ingestion.js')) return ingestion;
+            if (request.endsWith('/l2/sourceCooldown.js')) return cooldownStorage;
             if (request.endsWith('/l3a/storageService.js')) return cooldownStorage;
             if (request.endsWith('/runtime/api/domainIngestion.js')) return ingestion;
+            if (request.endsWith('/runtime/api/contentDomainIngestion.js')) return {
+                ingestContentIndexes: ingestion.ingestIndexes,
+                ingestContentDetail: ingestion.ingestDetail,
+                ingestContentDeletedConversation: ingestion.ingestDeletedConversation,
+            };
             if (request.endsWith('/runtime/api/domainChanges.js')) return { notifyDomainChanged: (id: string) => { ports.notifications.push(id); } };
             if (request.endsWith('/runtime/api/accountRegistry.js')) return accountRegistry;
+            if (request.endsWith('/runtime/api/contentAccountRegistry.js')) return {
+                getContentAccount: accountRegistry.getAccount,
+                getOrCreateContentAccount: accountRegistry.getOrCreateAccount,
+            };
             if (request.endsWith('/runtime/content/accountContext.js')) return accountContext;
             if (request.endsWith('/runtime/content/cleanupRegistry.js')) return { registerCleanup: () => () => {} };
             if (request.endsWith('/l2/conversationKey.js')) return {

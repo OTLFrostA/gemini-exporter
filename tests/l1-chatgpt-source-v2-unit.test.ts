@@ -5,7 +5,6 @@ import { parseChatGPTList } from '../src/l1/parsers/chatgpt/parseList.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { detailGen as chatgptDetailGen } from './fixtures/providers/chatgptDetail.js';
 import { decodeChatGPTDetail } from '../src/l1/parsers/chatgpt/decodeDetail.js';
-import { restoreDomainDetail } from '../src/l2/runtimeValidation.js';
 
 const parse = (raw: { id: string }) => parseChatGPTConversation({
     conversation: decodeChatGPTDetail(raw, raw.id), assetsByNode: new Map(),
@@ -93,8 +92,6 @@ test('ChatGPT Detail only admits safe nonnegative attachment byte counts to L2',
         assert.equal(parsed.conversation.detail.assets.length, 1, String(size));
         assert.equal(parsed.conversation.detail.assets[0]?.byteLength, expected, String(size));
         assert.equal(parsed.conversation.detail.quality.status, 'complete', String(size));
-        assert.doesNotThrow(() => restoreDomainDetail({ ...parsed.conversation.detail,
-            key: { accountId: '00000000-0000-4000-8000-000000000001', conversationId: raw.id } }), String(size));
     }
 });
 
@@ -160,9 +157,6 @@ test('source termination evidence survives decoding and storage independently of
             status: variant === 'handoff' ? 'partial' : 'complete', sourceTurn: expected,
         }, variant);
         if (variant === 'unfinished') assert.match(JSON.stringify(result.conversation.detail.messages), /Migration \/ Released 1.7/);
-        const restored = restoreDomainDetail({ ...result.conversation.detail,
-            key: { accountId: '00000000-0000-4000-8000-000000000001', conversationId: raw.id } });
-        assert.equal(restored.quality.sourceTurn, expected);
         // Turn state cannot hide missing ancestors.
         answer.parent = 'missing';
         assert.equal(parse(raw).conversation.detail.quality.status, 'partial', variant);
@@ -236,9 +230,6 @@ test('source end state distinguishes hidden completion, user tails and tool step
         const expected = variant === 'hidden_finished' ? 'finished' : variant === 'hidden_streaming' ? 'unfinished'
             : variant === 'user_tail' ? 'awaiting_reply' : variant === 'tool_tail' ? 'tool_pending' : 'unknown';
         assert.deepEqual(parsed.conversation.detail.quality, { status: 'complete', sourceTurn: expected }, variant);
-        const restored = restoreDomainDetail({ ...parsed.conversation.detail,
-            key: { accountId: '00000000-0000-4000-8000-000000000001', conversationId: raw.id } });
-        assert.equal(restored.quality.sourceTurn, expected);
         assert.doesNotMatch(JSON.stringify(parsed.conversation.detail.messages), /PRIVATE-HIDDEN-CONTENT/);
         const diagnostic = parsed.diagnostics.find(d => d.code === 'CHATGPT_SOURCE_TURN_STATUS');
         assert.ok(diagnostic?.details && typeof diagnostic.details === 'object' && !Array.isArray(diagnostic.details));

@@ -34,7 +34,7 @@ export const deliveries: ExportArtifact[][] = [];
 export const contexts: SourceResourceContext[] = [];
 let settings: Partial<GlobalSettings> = {};
 
-type RenderFormat = 'markdown' | 'html' | 'json';
+type RenderFormat = 'markdown' | 'html' | 'json' | 'docx';
 type RendererCall = { format: RenderFormat; key: string; locale?: 'zh' | 'en'; bindings: ResourceBindings };
 type PlanCall = { format: ExportFormat; key: string; fileIds: string[]; preparedIds: string[] };
 type PackageCall = { delivery: ExportDelivery; groups: number; files: number };
@@ -210,6 +210,12 @@ stubModule('../../src/l4/format/markdown/renderMarkdown.js', {
 stubModule('../../src/l4/format/html/renderHtml.js', {
     renderDocumentHtml(document: DocumentAst, bindings: ResourceBindings, options: { locale: 'zh' | 'en' }) {
         return { html: recordRender('html', document, bindings, options.locale), diagnostics: state.htmlDiagnostics };
+    },
+});
+stubModule('../../src/l4/format/docx/renderDocx.js', {
+    async renderDocumentDocx(document: DocumentAst, bindings: ResourceBindings, _prepared: PreparedResources, options: { locale: 'zh' | 'en' }) {
+        recordRender('docx', document, bindings, options.locale);
+        return { docxBytes: new Uint8Array([80, 75, 3, 4]), diagnostics: [] };
     },
 });
 stubModule('../../src/l4/format/json/serializeDomainJson.js', {

@@ -1,5 +1,5 @@
 import { OperationError, operationError } from '../../../shared/errors/operationError.js';
-import type { DirectoryHandle } from '../../../runtime/capabilities/directoryHandle.js';
+import type { DirectoryHandle } from '../../../shared/types/directoryHandle.js';
 
 import type { IExportWriter, WriteFileContent, WriteFileOptions } from './writerInterface.js';
 import { assertExportPath } from '../../packaging/exportPath.js';

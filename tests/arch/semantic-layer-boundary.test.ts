@@ -106,11 +106,13 @@ function renderer(owner: string): boolean {
 }
 function forbidden(owner: string, target: string): boolean {
     if (owner === 'shared/diagnostics/diagnostic.ts') return target !== 'shared/utils/jsonTypes.ts';
+    if (owner.startsWith('shared/')) return !target.startsWith('shared/');
     if (owner.startsWith('l2/')) {
-        const admission = new Set(['l2/accountAdmission.ts', 'l2/ingestion.ts', 'l2/coverageAdmission.ts', 'l2/readConversation.ts']);
+        const admission = new Set(['l2/accountAdmission.ts', 'l2/ingestion.ts', 'l2/coverageAdmission.ts', 'l2/readConversation.ts', 'l2/sourceCooldown.ts']);
         if (admission.has(owner)) return !/^(l2\/|l3a\/)/.test(target);
-        return !target.startsWith('l2/') && target !== 'shared/utils/jsonTypes.ts';
+        return !target.startsWith('l2/') && target !== 'shared/utils/jsonTypes.ts' && target !== 'shared/types/export.ts';
     }
+    if (owner.startsWith('l3a/')) return !/^(l3a\/|l2\/|shared\/)/.test(target);
     if (owner.startsWith('l3b/ast/')) return !target.startsWith('l3b/ast/') && target !== 'l2/conversationDetail.ts';
     if (owner.startsWith('l3b/compose/')) return !/^(l2\/|l3b\/|shared\/(?:diagnostics|utils)\/)/.test(target);
     if (renderer(owner)) {
@@ -124,7 +126,13 @@ function forbidden(owner: string, target: string): boolean {
     if (owner.startsWith('l1/parsers/')) {
         if (target.startsWith('l1/parsers/legacyStorage/') && !owner.startsWith('l1/parsers/legacyStorage/')
             && owner !== 'l1/parsers/parseConversation.ts' && owner !== 'l1/parsers/index.ts') return true;
-        return /^(l1\/(?:imports|client)\/|l3b\/|l4\/|runtime\/api\/|application\/exportEngine\.ts$|l3a\/)/.test(target);
+        return /^(l1\/(?:imports|client)\/|l3b\/|l4\/|runtime\/|application\/|ui\/|migration\/|l3a\/)/.test(target);
+    }
+    if (owner.startsWith('l1/')) {
+        return /^(l3a\/|l3b\/|l4\/|application\/|ui\/|migration\/)/.test(target);
+    }
+    if (owner.startsWith('migration/')) {
+        return !/^(migration\/|l2\/|l3a\/|shared\/)/.test(target);
     }
     return false;
 }
@@ -264,5 +272,42 @@ test('UI export session owns observations while state models and React views sta
     for (const owner of ['ui/options/state/exportIssues.ts', 'ui/options/state/foregroundTask.ts']) {
         assert.ok(sources.has(owner));
         assert.ok((graph.get(owner) ?? []).every(edge => !edge.runtime), `${owner} must remain a data model`);
+    }
+});
+
+test('Content scripts and MAIN hooks never bundle IndexedDB, Migration, Background or L4 implementations', () => {
+    const contentEntries = [
+        'runtime/content/content.ts',
+        'runtime/content/chatgptContent.ts',
+        'runtime/content/claudeContent.ts',
+        'runtime/content/grokContent.ts',
+        'l1/sniffer/gemini/hookCredentials.ts',
+        'l1/sniffer/chatgpt/hook.ts',
+        'l1/sniffer/claude/hook.ts',
+        'l1/sniffer/grok/hook.ts',
+    ];
+    for (const entry of contentEntries) {
+        assert.ok(sources.has(entry), `missing content/hook entry: ${entry}`);
+        const seen = new Set<string>();
+        function walkRuntime(current: string, chain: string[]): void {
+            if (seen.has(current)) return;
+            seen.add(current);
+            for (const edge of graph.get(current) ?? []) {
+                if (!edge.runtime) continue;
+                const nextChain = [...chain, edge.target].join(' -> ');
+                assert.ok(!/^(?:l3a|migration|l3b|l4|application|runtime\/background)\//.test(edge.target),
+                    `${entry} bundles forbidden runtime module: ${nextChain}`);
+                assert.ok(!/^l2\/(?:ingestion|accountAdmission|coverageAdmission|readConversation|sourceCooldown)\.ts$/.test(edge.target),
+                    `${entry} bundles extension-origin L2 persistence module: ${nextChain}`);
+                walkRuntime(edge.target, [...chain, edge.target]);
+            }
+        }
+        walkRuntime(entry, [entry]);
+        if (entry.startsWith('runtime/content/')) {
+            for (const direct of graph.get(entry) ?? []) {
+                assert.ok(!direct.target.startsWith('l1/parsers/') || direct.target === 'l1/parsers/grok/source.ts',
+                    `${entry} must delegate source payload parsing to L1 sniffer bridges, not ${direct.target}`);
+            }
+        }
     }
 });

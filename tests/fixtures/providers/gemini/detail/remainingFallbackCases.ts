@@ -79,6 +79,20 @@ function attachmentCard(): unknown[] {
     ]]]);
 }
 
+function routeCard(unknownInstruction = false): unknown[] {
+    const step = (instruction: string, duration: string, distance: string) => [0, [1, 2], [3, 4], ['opaque-geometry'],
+        [60, duration], instruction, [100, distance], null, null, 'merge'];
+    const steps = [
+        step(unknownInstruction ? '<step><unmodeled>Unknown instructions</unmodeled></step>'
+            : '<step>Head <direction>north</direction> on <roadlist><road>Fixture Road</road></roadlist>.</step>', '1 minute', '100 m'),
+        step('<step>Turn <turn>right</turn>, then arrive at <road>Fixture Park</road>.</step>', '2 minutes', '500 m'),
+    ];
+    const route = ['Fixture route', [[steps, [180, '3 minutes'], [600, '600 m'], null, null, [1, 2], [3, 4]]],
+        null, ['opaque-polyline'], null, null, [[1, 2], [3, 4]], { 100: [] }];
+    return citationField(6, [[], [null, [[null, [route]], 'https://example.com/route',
+        [null, null, null, null, [[], []], 2]], ['https://example.com/maps', null, 'Fixture directions']]]);
+}
+
 // Two annotation encodings and a rich-place annotation need separate evidence.
 // An unbound cit_/sp_ identifier is deliberately not converted into an spp_ ID.
 function referenceAnnotation(nested: boolean, zeroWidth = false): string {
@@ -127,6 +141,8 @@ export const remainingFallbackCases = {
     'G_REMAINING_NESTED_EMPTY': () => body([[[]], citationText('Body after empty node.')]),
     'G_REMAINING_EMPTY': () => body([[], citationText('Body after empty node.')]),
     'G_REMAINING_MAP': () => surrounding(citationField(6, [[], [[[place('Fixture Museum', 'https://example.com/museum')]]]])),
+    'G_REMAINING_MAP_ROUTE': () => surrounding(routeCard()),
+    'G_REMAINING_MAP_ROUTE_UNKNOWN': () => surrounding(routeCard(true)),
     'G_REMAINING_MAP_MULTIPLE': () => surrounding(citationField(6, [[], [[[
         place('Fixture Museum', 'https://example.com/museum'), place('Fixture Park', 'https://example.com/park'),
     ]]]])),

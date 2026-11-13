@@ -9,6 +9,7 @@ export interface TaskPanelProps {
     task: ForegroundTaskStatus;
     feedback: TaskFeedback;
     percent: number;
+    scanning: boolean;
     scanMessage: string | null;
     scanEvidence?: ScanEvidence;
     sourceSummary?: ConversationSourceSummary & { accountId: string | null; total: number };
@@ -63,15 +64,15 @@ function FailureCard({ groups, failedCount, dismissed, developerMode, task, read
 }
 
 export function TaskPanel({ failureHost, ...props }: TaskPanelProps & { failureHost: HTMLElement }) {
-    const { task, feedback, percent, scanMessage, scanSlow, onCancel } = props;
+    const { task, feedback, percent, scanning, scanMessage, scanSlow, onCancel } = props;
     const exporting = task.kind === 'export';
     const message = feedback.kind === 'empty' ? '' : typeof feedback.message === 'function' ? feedback.message() : feedback.message;
     return <>
         <p id="exportOptionsLock" role="status" hidden={!exporting} style={{ margin: 0, textAlign: 'center', fontSize: 12, lineHeight: 1.5 }}>
             {text('Exporting — options are locked', '导出中，选项已锁定')}
         </p>
-        <div id="progWrap" className="progress" style={{ display: exporting || task.kind === 'takeout' ? 'block' : 'none' }}
-            role="progressbar" aria-label={text('Task progress', '任务进度')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
+        <div id="progWrap" className={`progress${scanning ? ' indeterminate' : ''}`} style={{ display: scanning || exporting || task.kind === 'takeout' ? 'block' : 'none' }}
+            role="progressbar" aria-label={text('Task progress', '任务进度')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={scanning ? undefined : percent}>
             <div id="bar" className="bar" style={{ width: `${percent}%` }} />
         </div>
         <div id="progText" className="stat" role="status" aria-live="polite"

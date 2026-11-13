@@ -1,8 +1,8 @@
 import type { ConversationKey } from '../../../l2/conversationKey.js';
 import type { SourceResourceContext } from '../../resources/sourceResources.js';
-import { getAccount } from '../../../runtime/api/accountRegistry.js';
+import { getContentAccount } from '../../../runtime/api/contentAccountRegistry.js';
 import { resolveRequestAccount, resolveCurrentAccount } from '../../../runtime/content/accountContext.js';
-import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../../runtime/api/domainIngestion.js';
+import { ingestContentIndexes, ingestContentDetail, ingestContentDeletedConversation } from '../../../runtime/api/contentDomainIngestion.js';
 import { geminiListObservation } from '../../client/gemini/listObservation.js';
 import type { GeminiCapturedSource } from '../../parsers/gemini/capturedSource.js';
 import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
@@ -29,7 +29,7 @@ export class GeminiCaptureReceiver {
         const { identity: capturedIdentity, slot } = source;
         const accountContext = await resolveRequestAccount(capturedIdentity, slot);
         if (!accountContext) return;
-        const account = await getAccount(accountContext.accountId);
+        const account = await getContentAccount(accountContext.accountId);
         if (!account) return;
         if (source.kind === 'network') {
             const { truncated, requestedAt } = source;
@@ -38,7 +38,7 @@ export class GeminiCaptureReceiver {
                 const page = geminiListObservation(parsed, context, account.id, truncated, requestedAt);
                 const trustedIdentity = capturedIdentity !== null && capturedIdentity.providerAccountId !== 'default'
                     && capturedIdentity.providerAccountId === account.providerAccountId;
-                await ingestIndexes(account.id, parsed.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')),
+                await ingestContentIndexes(account.id, parsed.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')),
                     trustedIdentity && context ? page : undefined);
                 if (isCurrent()) capturedDeps.onIndexesCommitted?.(account.id);
             }
@@ -68,7 +68,7 @@ export class GeminiCaptureReceiver {
                 } else this.chains.delete(key);
                 const merged = mergeConversationPages(pages, truncated ? 'capture_truncated' : undefined, complete);
                 const index = merged.conversation.index;
-                const admission = await ingestDetail(account.id, cid, merged.conversation.detail, index);
+                const admission = await ingestContentDetail(account.id, cid, merged.conversation.detail, index);
                 if (isCurrent()) capturedDeps.onIndexesCommitted?.(account.id);
                 if (admission.accepted) capturedDeps.resources?.retainParsed({ accountId: account.id, conversationId: cid }, merged);
                 if (admission.changed && isCurrent()) capturedDeps.onDetailChanged?.({ accountId: account.id, conversationId: cid });
@@ -79,7 +79,7 @@ export class GeminiCaptureReceiver {
         if (source.kind === 'deleted') {
             if (account.providerAccountId === 'default' || capturedIdentity?.providerAccountId !== account.providerAccountId) return;
             await Promise.allSettled(earlier);
-            await ingestDeletedConversation(account.id, source.id);
+            await ingestContentDeletedConversation(account.id, source.id);
             if (isCurrent()) {
                 capturedDeps.onConversationDeleted?.(source.id, account.id);
                 capturedDeps.onIndexesCommitted?.(account.id);
@@ -92,7 +92,7 @@ export class GeminiCaptureReceiver {
         if (cid) {
             const item = parseGeminiDomIndex(typeof document !== 'undefined' ? document : null, cid);
             const { conversationId, fields } = parseGeminiIndexObservation(item, 'dom');
-            await ingestIndexes(account.id, [{ conversationId, fields }]);
+            await ingestContentIndexes(account.id, [{ conversationId, fields }]);
             if (isCurrent()) capturedDeps.onIndexesCommitted?.(account.id);
         }
         if (source.kind === 'stream-start') {

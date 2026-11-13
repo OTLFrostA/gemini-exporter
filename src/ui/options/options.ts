@@ -25,7 +25,8 @@ import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
 import { renderList, unmountList } from './views/listView.js';
 import { ExportIssueCollector } from './state/exportIssues.js';
 import { copyExportFailures } from './views/exportFailures.js';
-import { EXPORT_FORMATS, readSettings, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
+import { EXPORT_FORMATS, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
+import { readSettings } from '../shared/readSettings.js';
 import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
 import { getLatestEligibleFeature } from '../guidance/featureReleases.js';
 import { DIRECT_WRITE_THRESHOLD, FEEDBACK_URL } from '../../shared/utils/constants.js';
@@ -111,7 +112,7 @@ export async function initWorkbench(): Promise<void> {
     };
     const failureGroups = () => currentIssues.groups();
     const paintTaskPanel = () => taskPanel.render({
-        task: foreground, feedback, percent,
+        task: foreground, feedback, percent, scanning: scanController !== null,
         scanMessage: currentScanStatus === null ? null : resolveSourceMessage(currentScanStatus), scanEvidence, scanSlow,
         sourceSummary: currentScanStatus !== null && typeof currentScanStatus === 'object'
             ? { ...currentScanStatus, accountId: state.accountId, total: state.indexes.length } : undefined,

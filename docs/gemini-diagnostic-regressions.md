@@ -196,7 +196,7 @@ state are introduced. Unknown nonempty sibling branches still reject the body.
 
 | Original first rejection / warning occurrences | Recovery |
 | --- | --- |
-| Maps / 39 | Both observed Places schemas: names, addresses, own links, available phone/category/description/rating and search footer |
+| Maps / 39 | Both observed Places schemas: names, addresses, own links, available phone/category/description/rating, search footer and route title/duration/distance/ordered navigation instructions |
 | Document chips / 34 (kinds 1/2/3) | Ordinary links, retaining multiple chip titles and their individual targets; generated files retain the existing kind-26 path |
 | Multiple body sequences / 23 | Select exactly one body independently matching the chosen candidate's Markdown; duplicate or unmatched bodies remain partial |
 | Nested empty node / 1, empty nodes / 7 | Empty placeholders cannot erase adjacent content; all-empty native placeholders allow authoritative Markdown |
@@ -211,7 +211,8 @@ state are introduced. Unknown nonempty sibling branches still reject the body.
 
 Maps photo previews, viewport coordinates, cached reviews and service identifiers
 are linked-source metadata, not authored chat image attachments. These linked
-summaries do not reproduce the visual widget or its entire source preview.
+summaries do not reproduce the visual widget or its entire source preview. Route instructions are parsed as strict XML,
+with unknown instruction elements rejected instead of silently stripped.
 Mail HTML links/images survive conversion and enter the normal resource closure;
 code literals remain protected from HTML rewriting.
 
@@ -254,7 +255,8 @@ malformed payloads, unsafe targets, unknown mail extensions, ambiguous/no-match
 branches, selection of either branch, exclusion of foreign-branch resources,
 code whitespace and literal punctuation. Unparsed CJK emphasis delimiters are
 removed for matching only when that exact style span is independently present
-in native annotations. Otherwise matching stays conservative.
+in native annotations. Escaped/entity-encoded delimiters remain literal; actual NUL is rejected without
+rejecting code that spells a Unicode escape. Otherwise matching stays conservative.
 
 `gemini_structured_integrity_export.test.ts` additionally verifies physical
 Markdown delivery and receipts: rejected bodies and source-only degradation

@@ -1,7 +1,7 @@
 import { readChatGPTSandboxLocator } from '../../resources/chatgptSandbox.js';
 import { diagnosticOrigin, diagnosticUrlShape, emitDiagnostic, type Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { OperationError, operationError } from '../../../shared/errors/operationError.js';
-import { getSourceCooldown, extendSourceCooldown } from '../../../l3a/storageService.js';
+import { getSourceCooldown, extendSourceCooldown } from '../../../l2/sourceCooldown.js';
 import { ResourceHttpError, ResourceProcessingError } from '../../../shared/resources/resourceResult.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
 import { readChatGPTSession } from './accountObservation.js';

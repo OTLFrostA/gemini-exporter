@@ -1,4 +1,5 @@
-import { isLiveSaveEffective, type GlobalSettings } from '../../application/settings/index.js';
+import { isContentLiveSaveEffective } from '../api/contentSettings.js';
+import type { GlobalSettings } from '../../l2/settings.js';
 import { claudeUuid } from '../../l1/sniffer/claude/observation.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
 
@@ -23,12 +24,12 @@ export function createClaudeVisitSave(deps: {
             if (!claudeUuid(id) || current.native || current.attempted) return;
             const settings = await deps.settings();
             if (visit !== current || deps.path() !== current.path || current.native || current.attempted
-                || !isLiveSaveEffective(settings, true)) return;
+                || !isContentLiveSaveEffective(settings, true)) return;
             // Mark before identity lookup; failures wait for a new visit, never retry.
             current.attempted = true;
             const account = await deps.account();
             if (!account || visit !== current || deps.path() !== current.path || current.native) return;
-            if (!isLiveSaveEffective(await deps.settings(), true)
+            if (!isContentLiveSaveEffective(await deps.settings(), true)
                 || visit !== current || deps.path() !== current.path || current.native) return;
             await deps.save({ accountId: account.id, conversationId: id }, true);
         },

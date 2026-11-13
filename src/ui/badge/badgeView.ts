@@ -1,6 +1,6 @@
 import { exportSummary } from '../shared/exportSummary.js';
 import { resourceIssueKind } from '../../shared/resources/resourceResult.js';
-import { getSettings } from '../../application/settings/index.js';
+import { readContentSettings } from '../../runtime/api/contentSettings.js';
 import type { ExportResult } from '../../application/export/types.js';
 import { getAccountContext, resolveCurrentAccount } from '../../runtime/content/accountContext.js';
 import { registerCleanup } from '../../runtime/content/cleanupRegistry.js';
@@ -144,7 +144,7 @@ function ensureBadgeImpl(): HTMLElement | null {
     (document.body || document.documentElement).append(badge); render();
     let previousPosition: string | undefined;
     const refreshSettings = async () => {
-        const settings = await getSettings();
+        const settings = await readContentSettings();
         if (!alive) return;
         useSettings(settings, false);
         if (badge) badge.dataset.theme = settings.theme === 'light' ? 'light' : 'dark';

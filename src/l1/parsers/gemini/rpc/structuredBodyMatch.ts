@@ -20,7 +20,13 @@ function markdownText(nodes: readonly (RootContent | PhrasingContent)[], source:
             // CommonMark can leave emphasis delimiters literal around CJK
             // punctuation. Remove only an exact span independently declared
             // as that style by this native body; literal asterisks stay literal.
-            for (const decoration of decorations) value = value.split(decoration.marker + decoration.text + decoration.marker).join(decoration.text);
+            const start = node.position?.start.offset, end = node.position?.end.offset;
+            // Escapes/entities make delimiters authored literal characters.
+            // Require an unchanged raw text segment before treating a literal
+            // delimiter pair as the native style's Markdown representation.
+            if (start !== undefined && end !== undefined && source.slice(start, end) === value) {
+                for (const decoration of decorations) value = value.split(decoration.marker + decoration.text + decoration.marker).join(decoration.text);
+            }
             parts.push(value);
         } else if (node.type === 'inlineMath' || node.type === 'math') {
             if (hasMath) parts.push(node.value);
@@ -44,6 +50,7 @@ function nativeText(nodes: readonly GeminiStructuredNode[]): string | null {
     const parts: string[] = [];
     for (const node of nodes) {
         if (node.nodeType === 18) {
+            if (node.text.includes('\u0000')) return null;
             let cursor = 0;
             const code = (node.annotations ?? []).filter(a => a.type === 7).sort((a, b) => a.start - b.start);
             for (const span of code) {
@@ -52,8 +59,13 @@ function nativeText(nodes: readonly GeminiStructuredNode[]): string | null {
                 cursor = span.end;
             }
             parts.push(node.text.slice(cursor), ' ');
-        } else if (node.nodeType === 1) parts.push(`\u0000code:${node.info ?? ''}\u0000${node.code.replace(/\n$/, '')}\u0000`);
-        else if (node.nodeType === 12) parts.push(node.FTa);
+        } else if (node.nodeType === 1) {
+            if (node.code.includes('\u0000') || node.info?.includes('\u0000')) return null;
+            parts.push(`\u0000code:${node.info ?? ''}\u0000${node.code.replace(/\n$/, '')}\u0000`);
+        } else if (node.nodeType === 12) {
+            if (node.FTa.includes('\u0000')) return null;
+            parts.push(node.FTa);
+        }
         else if (node.nodeType === 13) parts.push(' ');
         else if (node.nodeType === 'citation' || node.nodeType === 'sourceReference' || node.nodeType === 'citationGroup'
             || node.nodeType === 19 || node.nodeType === 0) continue;
@@ -85,7 +97,7 @@ function signature(value: string): string {
 }
 export function matchesCandidateBody(document: GeminiStructuredDocument, markdown: string): boolean {
     // Sentinels below are internal signature delimiters, never source text.
-    if (markdown.includes('\u0000') || JSON.stringify(document).includes('\\u0000')) return false;
+    if (markdown.includes('\u0000')) return false;
     const decorations: Array<{ marker: string; text: string }> = [];
     let hasMath = false;
     const visit = (nodes: readonly GeminiStructuredNode[]): void => {

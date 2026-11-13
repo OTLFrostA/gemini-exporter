@@ -33,9 +33,10 @@ class TestImpactAnalyzer(unittest.TestCase):
         target = "src/l3a/storageService.ts"
         affected = self.graph.get_transitive_dependents({target})
 
-        # 直接引用
-        self.assertIn("src/l1/sniffer/gemini/messageBridge.ts", affected)
+        # 直接与传递引用 (extension-origin 持久化链路，且不应泄漏到 Content 嗅探桥接层)
+        self.assertIn("src/runtime/background/domainStorageHandler.ts", affected)
         self.assertIn("src/ui/options/options.ts", affected)
+        self.assertNotIn("src/l1/sniffer/gemini/messageBridge.ts", affected)
         self.assertIn("tests/application_export.test.ts", affected)
 
         # 传递间接引用 (via syncEngine or options)

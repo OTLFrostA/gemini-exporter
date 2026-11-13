@@ -1,9 +1,10 @@
-import type { SourceTurnStatus } from '../../l2/quality.js';
 import type { OperationIssue } from '../../shared/errors/operationError.js';
 import type { DiagnosticSeverity } from '../../shared/diagnostics/diagnostic.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
-export type { ExportFormat, ExportDelivery } from '../../l4/packaging/index.js';
-import type { ExportFormat, ExportDelivery } from '../../l4/packaging/index.js';
+export type { ExportFormat, ExportDelivery } from '../../shared/types/export.js';
+import type { ExportFormat, ExportDelivery } from '../../shared/types/export.js';
+export type { ExportAttachmentIssue, ExportRecord } from '../../l2/exportRecord.js';
+import type { ExportAttachmentIssue, ExportRecord } from '../../l2/exportRecord.js';
 import type { JsonValue } from '../../shared/utils/jsonTypes.js';
 
 /** Per-run observations only; never persisted as conversation facts or export receipts. */
@@ -23,20 +24,6 @@ export interface ExportRequest {
     delivery: ExportDelivery;
     includeAssets: boolean;
     skipUnchanged: boolean;
-}
-export interface ExportAttachmentIssue {
-    resourceId: string; name: string; sourceUrl?: string; code: string; httpStatus?: number;
-}
-export interface ExportRecord {
-    /** First successful folder document name, without extension; stable across title changes. */
-    folderBaseName?: string;
-    exportedAt: number;
-    format: ExportFormat;
-    status: 'ok' | 'partial';
-    chatTime?: number;
-    otherContentMissing?: boolean;
-    sourceTurn?: SourceTurnStatus;
-    attachmentIssues?: readonly ExportAttachmentIssue[];
 }
 export interface ExportProgress { current: number; total: number; key: ConversationKey }
 export interface ExportResult {

@@ -1,4 +1,5 @@
 import type { GeminiStructuredNode, GeminiStructuredFragment, GeminiTextNode } from './structuredContent.js';
+import { DOMParser, onErrorStopParsing } from '@xmldom/xmldom';
 
 function slots(value: unknown): value is unknown[] { return Array.isArray(value); }
 export function isHttpUrl(value: unknown): value is string {
@@ -23,6 +24,49 @@ function appendText(children: GeminiStructuredNode[], value: unknown): boolean {
     if (typeof value !== 'string') return false;
     children.push(text(value));
     return true;
+}
+
+function routeInstruction(source: unknown): string | null {
+    if (typeof source !== 'string') return null;
+    try {
+        const document = new DOMParser({ onError: onErrorStopParsing }).parseFromString(source, 'application/xml');
+        const root = document.documentElement;
+        if (document.doctype || !root || root.nodeName !== 'step') return null;
+        const allowed = new Set(['step', 'direction', 'roadlist', 'road', 'turn', 'exit', 'exitlist', 'signlist', 'sign', 'note']);
+        for (const element of Array.from(document.getElementsByTagName('*'))) if (!allowed.has(element.nodeName)) return null;
+        return root.textContent?.replace(/\s+/g, ' ').trim() || null;
+    } catch { return null; }
+}
+
+/** Route geometry, coordinates and renderer controls stay metadata. Titles,
+ * duration/distance labels and every authored navigation instruction survive. */
+function decodeMapRoutes(value: unknown): GeminiStructuredNode[] | null {
+    if (!slots(value) || !bounded(value, 3) || !slots(value[0]) || !bounded(value[0], 2)
+        || value[0][0] != null || !slots(value[0][1]) || !value[0][1].length || !isHttpUrl(value[1])) return null;
+    const children: GeminiStructuredNode[] = [];
+    const measurement = (value: unknown): string | null => slots(value) && bounded(value, 2)
+        && typeof value[0] === 'number' && typeof value[1] === 'string' ? value[1] : null;
+    for (const route of value[0][1]) {
+        if (!slots(route) || !bounded(route, 8) || typeof route[0] !== 'string' || !slots(route[1]) || !route[1].length) return null;
+        children.push(text(route[0], value[1]));
+        for (const leg of route[1]) {
+            if (!slots(leg) || !bounded(leg, 7) || !slots(leg[0]) || !leg[0].length) return null;
+            const duration = measurement(leg[1]), distance = measurement(leg[2]);
+            if (duration === null || distance === null) return null;
+            children.push(text(`${duration} · ${distance}`));
+            const items: Array<{ children: GeminiStructuredNode[] }> = [];
+            for (const step of leg[0]) {
+                if (!slots(step) || !bounded(step, 10) || step[7] != null || step[8] != null
+                    || step[9] != null && (typeof step[9] !== 'string' || !/^[a-z]+(?:-[a-z]+)*$/.test(step[9]))) return null;
+                const instruction = routeInstruction(step[5]);
+                const duration = measurement(step[4]), distance = measurement(step[6]);
+                if (instruction === null || duration === null || distance === null) return null;
+                items.push({ children: [text(instruction), text(`${duration} · ${distance}`)] });
+            }
+            children.push({ nodeType: 14, items });
+        }
+    }
+    return children;
 }
 
 /** Generated file resources (kind 26) are handled by the existing file pipeline.
@@ -91,6 +135,11 @@ export function decodeMapCard(value: unknown): GeminiStructuredFragment | null {
                 }
             }
         }
+    }
+    if (value[1][1] != null) {
+        const routes = decodeMapRoutes(value[1][1]);
+        if (routes === null) return null;
+        children.push(...routes);
     }
     // A maps search can contain no place results but still has a linked query.
     const footer = value[1][2];

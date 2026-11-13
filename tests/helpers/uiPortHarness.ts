@@ -54,8 +54,10 @@ export const compareConversationIndexes = (a,b) => (indexActivityTime(b) ?? -Inf
 export const resourceIssueKind = f => f.code === 'RESOURCE_SOURCE_EXPIRED' ? 'expired' : f.code === 'RESOURCE_ACCESS_RESTRICTED' ? 'restricted' : f.code === 'RESOURCE_PROCESSING_FAILED' ? 'processing' : 'download';
 export const resourceFailureText = (f, locale) => locale === 'zh' ? '附件不可用' : 'Attachment unavailable';
 export const getSettings = async () => ({...h.settings});
+export const readContentSettings = getSettings;
 export const updateSettings = async patch => { h.patches.push(patch); if(h.holdSettingWrite)await new Promise(resolve=>h.finishSettingWrite=resolve); if(h.rejectSettingWrite)throw new Error('Settings write rejected'); Object.assign(h.settings,patch); };
 export const isLiveSaveEffective = (s,d) => s.enabledDisk && s.exportDelivery==='folderWriter' && s.defaultFormat==='markdown' && d;
+export const isContentLiveSaveEffective = isLiveSaveEffective;
 export const ensureV2Ready = async () => {if(h.failReady)throw new Error('Injected readiness failure');};
 export const warmLocalFontCache = () => {h.events.push('fonts');return Promise.resolve();};
 export const listAccounts = async () => h.accounts;
@@ -147,7 +149,7 @@ export const B = '22222222-2222-4222-8222-222222222222';
 export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', patch: Record<string, unknown> = {}, query = '') {
     page.setDefaultTimeout(5000);
     const root = process.cwd();
-    const bundle = await build({ ...(kind === 'badge' ? { stdin: { contents: `import { BadgeView } from './src/ui/badge/badgeView.ts'; globalThis.badge = BadgeView; BadgeView.ensureBadge();`, resolveDir: root } } : { stdin: { contents: `import './src/ui/${kind}/${kind}.ts'; import * as tour from './src/ui/guidance/tourGuide.ts'; import * as settings from './src/ui/shared/settings.ts'; globalThis.testUi = {tour:{...tour.TourGuide,consumeTourIntent:tour.consumeTourIntent},settings};`, resolveDir: root, loader: 'ts' } }), bundle: true, write: false, metafile: true, format: 'iife', plugins: [{ name: 'ui-port-mocks', setup(build) {
+    const bundle = await build({ ...(kind === 'badge' ? { stdin: { contents: `import { BadgeView } from './src/ui/badge/badgeView.ts'; globalThis.badge = BadgeView; BadgeView.ensureBadge();`, resolveDir: root } } : { stdin: { contents: `import './src/ui/${kind}/${kind}.ts'; import * as tour from './src/ui/guidance/tourGuide.ts'; import * as settings from './src/ui/shared/settings.ts'; import { readSettings } from './src/ui/shared/readSettings.ts'; globalThis.testUi = {tour:{...tour.TourGuide,consumeTourIntent:tour.consumeTourIntent},settings:{...settings,readSettings}};`, resolveDir: root, loader: 'ts' } }), bundle: true, write: false, metafile: true, format: 'iife', plugins: [{ name: 'ui-port-mocks', setup(build) {
         build.onResolve({ filter: /accountContext\.js$/ }, args => ({path:args.path,namespace:'account-mock'}));
         build.onLoad({filter:/.*/,namespace:'account-mock'},()=>({contents:`export const getAccountContext=()=>({accountId:globalThis.harness.source,providerId:'gemini'});export const resolveCurrentAccount=async()=>getAccountContext();`,loader:'js'}));
         build.onResolve({ filter: /^\./ }, args => {
