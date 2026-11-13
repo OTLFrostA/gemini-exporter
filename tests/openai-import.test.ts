@@ -30,7 +30,7 @@ test('OpenAI ZIP commits validated Domain into real Storage and reimport preserv
     try {
         for (let i = 0; i < 2; i++) {
             const result = await importOpenAI(bytes, account.id, undefined, resources);
-            assert.deepEqual(result, { imported: 1, skipped: 0, missingAssets: 0, status: 'ok' });
+            assert.deepEqual(result, { read: 1, imported: 1, added: i === 0 ? 1 : 0, skipped: 0, missingAssets: 0, status: 'ok' });
         }
         const detail = await getDetail(key);
         assert.ok(detail);

@@ -77,6 +77,7 @@ test('v2 Content ingestion rejects failed or malformed IPC replies without accep
             { reply: null, error: /Domain ingestion unavailable/ },
             { reply: { ok: false, error: 'worker offline' }, error: /worker offline/ },
             { reply: { ok: true }, error: /Invalid committed Detail ingestion result/ },
+            { reply: { ok: true, result: { accepted: true, changed: true, indexAdded: false } }, error: /Invalid committed Detail ingestion result/ },
             { reply: { ok: true, result: { accepted: false, changed: true } }, error: /Invalid committed Detail ingestion result/ },
             { reply: { success: true, domainEnvelopeVersion: 3, data: candidate }, error: /Domain ingestion unavailable/ },
         ]) {
@@ -103,7 +104,7 @@ test('v2 Content ingestion IPC binds native facts to the Account and preserves t
     const candidate = parseNativeReply();
     const result = await ingestThroughContentRuntime(ACCOUNT_UUID, candidate.conversationId,
         candidate.conversation.detail, candidate.conversation.index);
-    assert.deepEqual(result, { accepted: true, changed: true });
+    assert.deepEqual(result, { accepted: true, changed: true, indexAdded: true });
     const identical = await ingestThroughContentRuntime(ACCOUNT_UUID, candidate.conversationId,
         candidate.conversation.detail, candidate.conversation.index);
     assert.deepEqual(identical, { accepted: true, changed: false },

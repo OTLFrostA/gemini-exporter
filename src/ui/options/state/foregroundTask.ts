@@ -1,3 +1,12 @@
+import type { ScanProgress, ScanResult } from '../../../application/sync/scanController.js';
+
+/** Raw synchronization facts for diagnostics and UI automation, independent of translated copy. */
+export interface ScanEvidence {
+    accountId: string | null;
+    progress: ScanProgress;
+    result?: ScanProgress & Pick<ScanResult, 'status' | 'reason'>;
+}
+
 /** UI operation ownership. Source scanning has an independent lifetime. */
 export type ForegroundTaskStatus =
     | { kind: 'idle' }
