@@ -69,6 +69,9 @@ export function installUiV2Mocks(): void {
     };
     stub('../../src/l2/conversationIndex.js', dates);
     stub('../../src/application/export/runExport.js', { runExport: mockRunExport });
+    stub('../../src/application/export/fonts.js', {
+        warmLocalFontCache: () => unconfigured('Application.warmLocalFontCache'),
+    });
     stub('../../src/application/sync/scanController.js', {
         scanAll: () => unconfigured('Application.scanAll'),
     });

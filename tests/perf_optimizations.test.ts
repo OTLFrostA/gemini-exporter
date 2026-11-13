@@ -111,7 +111,7 @@ test('perf - Takeout import yields to the event loop and reports monotonic progr
 });
 
 test('perf - assetFetcher returns ArrayBuffer directly when preferBuffer is true', async () => {
-    const { AssetFetcher } = require('../src/runtime/capabilities/assetFetcher.js');
+    const { AssetFetcher } = require('../src/l1/resources/gemini/assetFetcher.js');
 
     const originalFetch = (global as any).fetch;
     const testData = Buffer.from('fake image binary content 1234567890');
@@ -145,7 +145,7 @@ test('perf - assetFetcher returns ArrayBuffer directly when preferBuffer is true
 });
 
 test('perf - assetFetcher returns base64 when preferBuffer is false', async () => {
-    const { AssetFetcher } = require('../src/runtime/capabilities/assetFetcher.js');
+    const { AssetFetcher } = require('../src/l1/resources/gemini/assetFetcher.js');
 
     const originalFetch = (global as any).fetch;
     const originalReader = Object.getOwnPropertyDescriptor(globalThis, 'FileReader');

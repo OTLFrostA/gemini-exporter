@@ -1,5 +1,5 @@
 import GeminiProtocol from "../../../protocol/gemini/protocol.js";
-import { detectSlotFromUrl } from "../../../../shared/utils/pathUtils.js";
+import { detectSlotFromUrl } from "../../../protocol/gemini/url.js";
 import { STORAGE_KEYS } from "../../../../shared/utils/constants.js";
 import { getCredStorage, withCredMapLock } from "./credStorage.js";
 

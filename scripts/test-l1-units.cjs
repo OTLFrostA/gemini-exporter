@@ -46,6 +46,7 @@ const suites = {
     ],
     resources: [
         'tests/l1-resource-admission.test.ts',
+        'tests/asset_fetcher_cors_fallback.test.ts',
     ],
     // Historical cross-module tests remain available, but never run under the
     // L1 unit label. Execute explicitly: node scripts/test-l1-units.cjs integration.

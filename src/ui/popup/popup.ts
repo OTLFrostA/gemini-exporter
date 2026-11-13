@@ -5,7 +5,7 @@ import { elementById as el, requiredElement as control } from '../shared/element
 import { exportSummary } from '../shared/exportSummary.js';
 import { sendTabMessage } from '../../runtime/capabilities/tabService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
-import { PLATFORM_HOSTS, SOURCE_PLATFORMS, type SourcePlatform } from '../../shared/platformHosts.js';
+import { platformForPageUrl, type SourcePlatform } from '../../shared/platformHosts.js';
 import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
 import { AUTHORIZATION_STEP } from '../guidance/tourSteps.js';
@@ -13,19 +13,14 @@ import { conversationKey, type ConversationKey } from '../../l2/conversationKey.
 import { getIndex } from '../../l3a/storageService.js';
 import { updateSettings, type GlobalSettings } from '../../application/settings/index.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
-import { warmLocalFontCache } from '../../l4/format/pdf/typst/fonts/localFontProvider.js';
+import { warmLocalFontCache } from '../../application/export/fonts.js';
 import { runExport } from '../../application/export/runExport.js';
 import { EXPORT_FORMATS, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
 import { readSettings } from '../shared/readSettings.js';
 
 /** Only the explicitly opened Popup inspects its active tab; URLs never establish Account identity. */
 export function platformForTabUrl(url: string | undefined): SourcePlatform | null {
-    if (!url) return null;
-    try {
-        const origin = new URL(url).origin;
-        return SOURCE_PLATFORMS.find(platform =>
-            PLATFORM_HOSTS[platform].pages.some(page => new URL(page).origin === origin)) ?? null;
-    } catch { return null; }
+    return platformForPageUrl(url);
 }
 
 /** Current source identity comes only from trusted Content; never infer Account from a tab URL. */

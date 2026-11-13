@@ -1,5 +1,5 @@
 import { hasPlatformAccess } from '../../l1/client/platformAccess.js';
-import { PLATFORM_HOSTS, SOURCE_PLATFORMS, type SourcePlatform } from '../../shared/platformHosts.js';
+import { PLATFORM_HOSTS, SOURCE_PLATFORMS, matchesPlatformPageUrl, type SourcePlatform } from '../../shared/platformHosts.js';
 
 const files = {
     gemini: ['dist/content/hook.js', 'dist/content/content.js'],
@@ -58,8 +58,7 @@ export function syncAllPlatformContentScripts(): Promise<void[]> {
 export async function preparePlatformTab(platform: SourcePlatform, tabId: number): Promise<void> {
     if (!await hasPlatformAccess(platform)) throw new Error(`${platform} host permission unavailable`);
     const tab = await chrome.tabs.get(tabId);
-    const url = tab.url;
-    if (!url || !PLATFORM_HOSTS[platform].pages.some(pattern => new URL(url).origin === pattern.slice(0, -2)))
+    if (!matchesPlatformPageUrl(platform, tab.url))
         throw new Error('Provider tab does not match the selected platform');
     await syncPlatformContentScripts(platform);
     try {

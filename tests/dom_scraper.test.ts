@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGeminiDomIndex } from '../src/l1/parsers/gemini/dom/parseIndex.js';
-import { isReservedRoute } from '../src/shared/utils/pathUtils.js';
+import { isReservedRoute } from '../src/l1/protocol/gemini/url.js';
 
 test('only current-page Gemini metadata is read; history is not expanded or scrolled', () => {
     const doc = {

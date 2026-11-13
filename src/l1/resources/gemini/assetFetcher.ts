@@ -17,8 +17,8 @@ export interface AssetFetchResponse {
     url?: string;
     error?: string;
 }
-import { contentContext } from '../content/contentContext.js';
-import { getErrorMessage } from '../../shared/utils/errorText.js';
+import { isDevMode } from '../../../shared/utils/devMode.js';
+import { getErrorMessage } from '../../../shared/utils/errorText.js';
 
 const MAX_BASE64_BLOB_SIZE = 50 * 1024 * 1024;
 // Chrome JSON IPC has its own limit: base64 expands by 4/3,
@@ -108,7 +108,7 @@ async function fetchGgChain(url: string, init?: RequestInit): Promise<Response> 
             return res;
         } catch (err) {
             if (baseInit.signal?.aborted) throw err;
-            if (contentContext.isDevMode()) {
+            if (isDevMode()) {
                 console.debug('[GemExporter:assetFetcher] fetchGgChain hop error', i, current.slice(0, 80), err);
             }
             // If hop threw without alr, retry once with ensureAlr
@@ -257,9 +257,9 @@ export async function handleGetImageBlob(msg: AssetFetchRequest, sendResponse: (
         for (const u of urlsToTry) {
             try {
                 const init: RequestInit = { credentials: 'include', signal: AbortSignal.timeout(15000) };
-                if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher] try image', u.slice(0, 120));
+                if (isDevMode()) console.debug('[GemExporter:assetFetcher] try image', u.slice(0, 120));
                 const res = isGgChainUrl(u) ? await fetchGgChain(u, init) : await fetchWithCredentialFallback(u, init);
-                if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher] res image', u.slice(0, 60), res?.status, res?.headers?.get('content-type'));
+                if (isDevMode()) console.debug('[GemExporter:assetFetcher] res image', u.slice(0, 60), res?.status, res?.headers?.get('content-type'));
                 if (!res || !res.ok) {
                     lastErr = `HTTP ${res?.status || 'unknown'}`;
                     continue;
@@ -293,7 +293,7 @@ export async function handleGetImageBlob(msg: AssetFetchRequest, sendResponse: (
                         });
                         return;
                     } catch (e) {
-                        if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
+                        if (isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
                     }
                 }
                 // Reject before encoding repeated base64 fields into the Chrome JSON IPC response.
@@ -363,7 +363,7 @@ async function downloadAssetDirect(msg: AssetFetchRequest, sendResponse: (resp: 
                                 });
                                 return;
                             } catch (e) {
-                                if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
+                                if (isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
                             }
                         }
                         if (blob.size > MAX_BASE64_BLOB_SIZE) {
@@ -385,7 +385,7 @@ async function downloadAssetDirect(msg: AssetFetchRequest, sendResponse: (resp: 
                 }
             }
         } catch (e) {
-            if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
+            if (isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
         }
 
         void handleGetImageBlob(msg, (res) => {

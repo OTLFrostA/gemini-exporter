@@ -10,9 +10,9 @@ const ACTION_GRAY_ICONS: Record<number, string> = {
     128: 'icons/icon128_gray.png'
 };
 
-import { isGeminiUrl } from '../../shared/utils/pathUtils.js';
+import { matchesPlatformPageUrl } from '../../shared/platformHosts.js';
 
-const isGeminiTabUrl = isGeminiUrl;
+const isGeminiTabUrl = (url?: string | null) => matchesPlatformPageUrl('gemini', url);
 
 function updateTabActionState(tabId?: number | null, url?: string | null): void {
     if (typeof chrome === 'undefined' || !chrome.action || tabId == null) return;

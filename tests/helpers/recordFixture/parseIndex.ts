@@ -4,7 +4,8 @@ import { restoreConversationIndex, type DomainConversationIndex } from '../../..
 import { normalizeTimestamp } from '../../../src/l1/parsers/shared/time.js';
 import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../../src/shared/utils/titleText.js';
 import { isTitleSource, resolveTitle, type TitleCandidate } from '../../../src/l2/titleAuthority.js';
-import { normId, isReservedRoute } from '../../../src/shared/utils/pathUtils.js';
+import { normId } from '../../../src/shared/utils/pathUtils.js';
+import { isReservedRoute } from '../../../src/l1/protocol/gemini/url.js';
 
 function object(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid index source record');

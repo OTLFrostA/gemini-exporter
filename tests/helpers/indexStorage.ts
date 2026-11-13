@@ -54,7 +54,7 @@ export function indexStorage(seed: Record<string, unknown> = {}, options: { seed
         tx.onabort = () => { db.close(); reject(tx.error ?? new Error('Account fixture seed failed')); };
         for (const account of accounts.values()) tx.objectStore('accounts').add(account);
     }));
-    globalThis.chrome = { runtime: { async sendMessage(message: Record<string, unknown>) {
+    globalThis.chrome = { permissions: { contains: async () => true }, runtime: { async sendMessage(message: Record<string, unknown>) {
         if (message.action === 'ensureV2Ready') return { ok: true };
         if (message.action === 'domainIngest') {
             const domain: typeof import('../../src/l2/ingestion.js') = require('../../src/l2/ingestion.js');
@@ -81,7 +81,7 @@ export function indexStorage(seed: Record<string, unknown> = {}, options: { seed
             writes++; Object.assign(local, structuredClone(values));
         },
         async remove(keys: string | string[]) { for (const key of typeof keys === 'string' ? [keys] : keys) delete local[key]; }
-    } } } as typeof chrome;
+    } } } as unknown as typeof chrome;
     resetIndexCoverageSessions();
 
     return { local, ready, writes: () => writes, fail: (key?: string) => { failKey = key; },

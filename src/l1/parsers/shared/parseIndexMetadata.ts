@@ -2,7 +2,8 @@ import type { Account } from '../../../l2/accountRegistry.js';
 import type { DomainConversationIndex } from '../../../l2/conversationIndex.js';
 import type { TitleSource } from '../../../l2/titleAuthority.js';
 import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../../shared/utils/titleText.js';
-import { normId, isReservedRoute } from '../../../shared/utils/pathUtils.js';
+import { normId } from '../../../shared/utils/pathUtils.js';
+import { isReservedRoute } from '../../protocol/gemini/url.js';
 
 type ConversationIngestionSource = 'detail' | 'takeout' | 'snapshot';
 export function semanticTitleSource(source?: string): TitleSource {

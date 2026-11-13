@@ -14,10 +14,8 @@ const key = { accountId: A, conversationId: 'abcdef123456' };
 function load(file: string, stubs: Record<string, unknown> = {}) {
     const original = Module._load;
     const ports = { 'src/l2/accountRegistry.js': mockAccountRegistry([A, B]),
-        'src/l1/client/grok/grokSource.js': { hasGrokAccess: async () => true },
-        'src/l1/client/claude/claudeSource.js': { hasClaudeAccess: async () => true },
+        'src/l1/client/platformAccess.js': { hasPlatformAccess: async () => true },
         'src/runtime/capabilities/platformInjection.js': { syncAllPlatformContentScripts: async () => [] },
-        'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => true },
         'src/l2/conversationKey.js': mockConversationKey([A, B]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;

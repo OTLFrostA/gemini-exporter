@@ -6,7 +6,7 @@ import { accountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/acc
 import { resolveCurrentAccount } from '../src/runtime/content/accountContext.js';
 import { init } from '../src/runtime/content/messageRouter.js';
 import { runCleanups } from '../src/runtime/content/cleanupRegistry.js';
-import { AssetFetcher } from '../src/runtime/capabilities/assetFetcher.js';
+import { AssetFetcher } from '../src/l1/resources/gemini/assetFetcher.js';
 import { liveCoordinatorHost } from './helpers/liveCoordinatorHost.js';
 import { executeLiveSave } from '../src/runtime/content/liveSaveCoordinator.js';
 import { mount, read } from './helpers/uiPortHarness.js';

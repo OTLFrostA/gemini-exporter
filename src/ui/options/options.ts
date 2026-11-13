@@ -11,7 +11,7 @@ import { exportSummary } from '../shared/exportSummary.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { updateSettings, isLiveSaveEffective, type GlobalSettings } from '../../application/settings/index.js';
 import * as Cleanup from '../../application/localCleanup.js';
-import { warmLocalFontCache } from '../../l4/format/pdf/typst/fonts/localFontProvider.js';
+import { warmLocalFontCache } from '../../application/export/fonts.js';
 import { ConversationViewState } from './state/conversationsStore.js';
 import type { UIExportRequest } from './controllers/exportController.js';
 import { runExportSession, type ExportRunDiagnostic } from './controllers/exportSession.js';
