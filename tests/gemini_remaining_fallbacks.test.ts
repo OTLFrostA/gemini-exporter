@@ -1,27 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { remainingRecoveryExpectations, assertRemainingRecovery, parseRemainingFixture } from './helpers/geminiRemainingRecovery.js';
+import { parseRemainingFixture } from './helpers/geminiRemainingRecovery.js';
 import { invalidSourceRangeNodes, legalSourceRangeControls } from './fixtures/providers/gemini/detail/remainingSourceRanges.js';
 import { convertGeminiInlines } from '../src/l1/parsers/gemini/shared/structuredContentAdapter.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
 import type { InlineNode } from '../src/l2/content/inline.js';
-
-for (const expected of remainingRecoveryExpectations) {
-    test(`${expected.key}: recover required content or retain an explicitly incomplete fallback`, () => {
-        const result = parseRemainingFixture(expected.key);
-        assertDomainClosure(result.domain.detail);
-        if (result.merged.evidence?.unrepresentedContent) {
-            assert.equal(result.domain.detail.quality.status, 'partial');
-            assert.ok(result.markdown.includes('Fallback body remains available.'));
-            if (expected.key !== 'G_REMAINING_EMPTY' && expected.key !== 'G_REMAINING_NESTED_EMPTY') {
-                assert.ok(result.markdown.includes('Before card.') && result.markdown.includes('After card.'));
-            }
-        } else {
-            // A future decoder cannot turn the test green by dropping the card.
-            assertRemainingRecovery(expected, result);
-        }
-    });
-}
 
 test('recognizing a card must not discard an unknown nonempty sibling branch', () => {
     for (const key of ['G_REMAINING_PLAN_UNKNOWN_SIBLING', 'G_REMAINING_DOCUMENT_UNKNOWN_SIBLING',
@@ -33,17 +16,28 @@ test('recognizing a card must not discard an unknown nonempty sibling branch', (
     }
 });
 
-test('unresolved annotation identities and ambiguous body sequences retain incomplete evidence', () => {
+test('unbound source identities preserve native text without inventing citations', () => {
     for (const key of ['G_REMAINING_ANNOTATION_NESTED', 'G_REMAINING_ANNOTATION_DIRECT',
-        'G_REMAINING_ANNOTATION_ZERO', 'G_REMAINING_ANNOTATION_PLACE',
-        'G_REMAINING_BODY_SEQUENCES', 'G_REMAINING_BODY_SEQUENCES_LIST'] as const) {
+        'G_REMAINING_ANNOTATION_ZERO'] as const) {
         const result = parseRemainingFixture(key);
         assertDomainClosure(result.domain.detail);
-        // There is no captured source binding / branch-role oracle for these
-        // minimal inputs. Do not guess cit_/sp_ identities or concatenate branches.
+        assert.equal(result.domain.detail.quality.status, 'partial', key);
+        assert.ok(result.merged.evidence?.unrepresentedContent, key);
+        assert.ok(result.markdown.includes('Fixture reference'), key);
+        assert.ok(!result.markdown.includes('Fallback body remains available.'), key);
+        assert.equal(result.domain.detail.messages.flatMap(message => message.citations ?? []).length, 0, key);
+        assert.ok(result.merged.diagnostics.some(d => d.code === 'GEMINI_SOURCE_ANNOTATION_FALLBACK'), key);
+    }
+});
+
+test('unmatched alternative bodies retain fallback without concatenating branches', () => {
+    for (const key of ['G_REMAINING_BODY_SEQUENCES', 'G_REMAINING_BODY_SEQUENCES_LIST'] as const) {
+        const result = parseRemainingFixture(key);
+        assertDomainClosure(result.domain.detail);
         assert.equal(result.domain.detail.quality.status, 'partial', key);
         assert.ok(result.merged.evidence?.unrepresentedContent, key);
         assert.ok(result.markdown.includes('Fallback body remains available.'), key);
+        assert.ok(!result.markdown.includes('First body.') && !result.markdown.includes('Second body.'), key);
     }
 });
 
@@ -137,11 +131,20 @@ test('invalid diagnostic source ranges remain partial through RPC and complete p
     const result = parseRemainingFixture('G_REMAINING_RANGES_INVALID');
     assert.equal(result.domain.detail.quality.status, 'partial');
     assert.ok(result.merged.evidence?.unrepresentedContent);
-    const fallback = result.merged.diagnostics.find(d => d.code === 'GEMINI_STRUCTURED_FALLBACK');
+    const fallback = result.merged.diagnostics.find(d => d.code === 'GEMINI_SOURCE_ANNOTATION_FALLBACK');
     assert.ok(fallback?.details && typeof fallback.details === 'object' && !Array.isArray(fallback.details));
-    assert.equal(fallback.details.reason, 'adapter_rejected');
+    assert.equal(fallback.details.reason, 'source_annotations_unrepresented');
     assert.ok(fallback.details.sourceCitationsJson, 'available source identities must remain in diagnostic evidence');
-    assert.ok(result.markdown.includes('Fallback body remains available.'));
+    assert.ok(!result.markdown.includes('Fallback body remains available.'));
+    const assistant = result.domain.detail.messages.find(message => message.role === 'assistant');
+    assert.ok(assistant);
+    for (const node of invalidSourceRangeNodes) {
+        assert.ok(assistant.content.some(block => block.type === 'paragraph' && textOf(block.children) === node.text));
+        for (const a of node.annotations.filter(a => a.type === 7)) {
+            assert.ok(result.markdown.includes('`' + node.text.slice(a.start, a.end) + '`'));
+        }
+    }
+    assert.ok((result.domain.detail.messages.flatMap(message => message.citations ?? []).length) > 0);
     assertDomainClosure(result.domain.detail);
 });
 

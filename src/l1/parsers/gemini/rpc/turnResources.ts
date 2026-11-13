@@ -66,7 +66,7 @@ export function decodeGeminiCandidateResources(
     const candidateBlock = answerBody || cand;
     // Preserve the established ownership, fallback and ordering rules.
     const structuredExtraction = inspectStructuredContent({
-        turnDocument, candidateIndex
+        turnDocument, candidateIndex, candidateBody: candidate.text
     });
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
     const groundingReferences: GeminiCitationReference[] = [];
@@ -77,7 +77,9 @@ export function decodeGeminiCandidateResources(
             if (reference) groundingReferences.push(reference);
         }
     });
-    const rawAnswerDocument = candidateIndex === 0 ? turnDocument : undefined;
+    const rawAnswerDocument = candidateIndex === 0
+        ? structuredExtraction.status === 'decoded' ? structuredExtraction.rawDocument ?? turnDocument : turnDocument
+        : undefined;
     const { images: candImages, structuredImages } = extractResponseImageEvidence(
         cand, [answerBody, rawAnswerDocument], candidate.text, structuredContent
     );

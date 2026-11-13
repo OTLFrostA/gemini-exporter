@@ -64,7 +64,7 @@ test('upgrade revokes old Gemini completeness receipts without deleting body, me
         assert.deepEqual(await getExportRecord(otherKey), record);
         assert.equal((await readOne('indexes', [account.id, key.conversationId]))?.updatedAt, 1700000000000);
         assert.deepEqual((await readOne('coverage', [account.id, 'list']))?.value, { range: null });
-        const parsed = mergeConversationPages([parseGeminiRpcConversation(detailGen('G_NATIVE_INTEGRITY_PLAN'), { account, providerId: 'gemini' })], undefined, true);
+        const parsed = mergeConversationPages([parseGeminiRpcConversation(detailGen('G_NATIVE_INTEGRITY_UNKNOWN_NEIGHBOR'), { account, providerId: 'gemini' })], undefined, true);
         assert.equal(parsed.conversation.detail.quality.status, 'partial');
         // The former complete snapshot must no longer hide the new partial fact.
         assert.equal((await ingestDetail(account.id, key.conversationId, parsed.conversation.detail)).accepted, true);

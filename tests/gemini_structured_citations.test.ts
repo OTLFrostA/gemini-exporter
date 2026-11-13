@@ -17,9 +17,21 @@ const parseKey = (key: Parameters<typeof geminiDetailGen>[0]) =>
     parseGeminiRpcConversation(geminiDetailGen(key), { account: fixtureAccount('gemini'), providerId: 'gemini' });
 function successful(result: ReturnType<typeof parseKey>) {
     assert.ok(!result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'), JSON.stringify(result.diagnostics));
+    assert.ok(!result.diagnostics.some(d => d.code === 'GEMINI_SOURCE_ANNOTATION_FALLBACK'));
     assert.ok(!JSON.stringify(result.conversation.detail.messages[1].content).includes(fallback));
     assertDomainClosure(result.conversation.detail);
     return result.conversation.detail.messages[1];
+}
+function sourceDegraded(result: ReturnType<typeof parseKey>, citationCount = 0) {
+    assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_SOURCE_ANNOTATION_FALLBACK'));
+    assert.equal(result.conversation.detail.quality.status, 'partial');
+    assert.equal(result.evidence?.unrepresentedContent, true);
+    const message = result.conversation.detail.messages[1];
+    assert.ok(!JSON.stringify(message.content).includes(fallback));
+    assert.ok(JSON.stringify(message.content).includes('"text":"body"'));
+    assert.equal(message.citations?.length ?? 0, citationCount);
+    assertDomainClosure(result.conversation.detail);
+    return message;
 }
 function rejected(result: ReturnType<typeof parseKey>, reason: string) {
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK' && d.details && typeof d.details === 'object' && !Array.isArray(d.details) && d.details.reason === reason));
@@ -145,7 +157,8 @@ test('one attributed span may resolve multiple sources, including duplicate URL 
 });
 
 test('source resolution never borrows another candidate source table', () => {
-    rejected(parseKey('G_STRUCTURED_CITATIONS_13'), 'adapter_rejected');
+    const unbound = sourceDegraded(parseKey('G_STRUCTURED_CITATIONS_13'));
+    assert.ok(!JSON.stringify(unbound).includes('citationRef'), 'alternative source table must not bind the primary body');
     const own = parseKey('G_STRUCTURED_CITATIONS_14');
     const primary = own.conversation.detail.messages[1];
     assert.ok(JSON.stringify(primary.content).includes('citationRef'));
@@ -169,8 +182,10 @@ test('unknown composite children, malformed citations and ambiguous wire fields 
     rejected(parseKey('G_STRUCTURED_CITATIONS_38'), 'decode_rejected');
 });
 
-test('malformed and unresolved attributions still fail closed', () => {
-    for (const key of ['G_STRUCTURED_CITATIONS_29', 'G_STRUCTURED_CITATIONS_30',
+test('malformed attributions reject and unresolved bindings remain partial without fabricated sources', () => {
+    const degraded = sourceDegraded(parseKey('G_STRUCTURED_CITATIONS_29'), 1);
+    assert.equal(degraded.citations?.[0].url, 'https://example.com/source');
+    for (const key of ['G_STRUCTURED_CITATIONS_30',
         'G_STRUCTURED_CITATIONS_31', 'G_STRUCTURED_CITATIONS_32',
         'G_STRUCTURED_CITATIONS_33'] as const) {
         const result = parseKey(key);
@@ -180,8 +195,11 @@ test('malformed and unresolved attributions still fail closed', () => {
     const entries = table[1] as unknown[][];
     entries.push([['same ID different URL'], [1], [['https://example.com/conflict', 'Conflict']], 'spp_fixture']);
     assert.deepEqual(extractSourceAttributions(['rc', [], table]), []);
-    rejected(parseKey('G_STRUCTURED_CITATIONS_36'), 'adapter_rejected');
-    rejected(parseKey('G_STRUCTURED_CITATIONS_37'), 'adapter_rejected');
+    for (const key of ['G_STRUCTURED_CITATIONS_36', 'G_STRUCTURED_CITATIONS_37'] as const) {
+        const message = sourceDegraded(parseKey(key));
+        assert.ok(!JSON.stringify(message).includes('citationRef'));
+        assert.ok(!JSON.stringify(message).includes('javascript:') && !JSON.stringify(message).includes('/conflict'));
+    }
     assert.equal(decodeGeminiAnnotation([0, 4, [null, null, null, ['wrong', ['spp_fixture']]]]), null);
 });
 

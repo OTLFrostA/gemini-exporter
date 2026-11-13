@@ -25,6 +25,8 @@ export const ambiguousNativeNodes = [
 
 export const nativeIntegrityCases = {
     'G_NATIVE_INTEGRITY_PLAN': () => versioned([[[citationText('Introduction.'), plan(), citationText('Conclusion.')]]]),
+    'G_NATIVE_INTEGRITY_UNKNOWN_NEIGHBOR': () => versioned([[[citationText('Introduction.'),
+        Object.assign(plan(), { 38: ['Unrepresented native extension.'] }), citationText('Conclusion.')]]]),
     'G_NATIVE_INTEGRITY_MARKDOWN_ONLY': () => versioned(undefined),
     'G_NATIVE_INTEGRITY_KNOWN': () => versioned([[[citationText('Introduction.'), citationText('Conclusion.')]]]),
     'G_NATIVE_INTEGRITY_BAD_FORMAT_RANGE': () => versioned([[[citationText('😀x', [[1, 2, [[null, null, null, null, 2]]]])]]], '😀x'),
