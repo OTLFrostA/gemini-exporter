@@ -96,6 +96,11 @@ export function convertGeminiInlines(
         if (!Number.isInteger(a.start) || !Number.isInteger(a.end) || a.start < 0 || a.end > text.length || a.start > a.end) {
             return null;
         }
+        // Every annotation slices this UTF-16 text, including formatting/link spans.
+        for (const boundary of [a.start, a.end]) {
+            const before = text.charCodeAt(boundary - 1), after = text.charCodeAt(boundary);
+            if (before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff) return null;
+        }
         // Supported inline annotation types:
         // 0: strong (bold)
         // 2: emphasis (italic)
@@ -105,13 +110,7 @@ export function convertGeminiInlines(
         // 7: inline code
         // 12: strikethrough
         if (a.type === 'source') {
-            if (!a.sourceIds?.length || a.sourceIds.some(id => !sources.get(id)?.length)) return null;
-            // UTF-16 offsets must not split a Unicode surrogate pair when a
-            // source endpoint becomes a text/citation boundary.
-            for (const boundary of [a.start, a.end]) {
-                const before = text.charCodeAt(boundary - 1), after = text.charCodeAt(boundary);
-                if (before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff) return null;
-            }
+            if (!a.sourceIds.length || a.sourceIds.some(id => !sources.get(id)?.length)) return null;
         } else if (![0, 2, 4, 5, 6, 7, 12].includes(a.type)) {
             return null; // Unknown annotation type -> fallback
         }
@@ -198,7 +197,7 @@ export function convertGeminiInlines(
                 } else if (a.type === 12) {
                     nodes.push({ type: 'strikethrough', children });
                 } else if (a.type === 6) {
-                    nodes.push({ type: 'link', href: a.url || '', children });
+                    nodes.push({ type: 'link', href: a.url, children });
                 }
             } else {
                 return null;

@@ -140,3 +140,52 @@ Further source-binding investigation needs a new diagnostic from the affected
 account using a build containing #1592, which records the actual source registry.
 The private report, source identities, original URLs and account details remain
 local and are not part of these reusable fixtures.
+
+## Follow-up: representation integrity and retry
+
+`nativeIntegrityCases.ts` adds seven synthetic `detailGen` inputs for a research
+plan omitted from the independent Markdown, an authoritative Markdown-only
+reply, a supported native reply, invalid formatting/source ranges, malformed
+payloads and competing body branches. The expected text and source tuples are
+authored independently of the production parser. Scalar payloads are tested
+against each affected node family; explicit empty containers remain valid.
+
+A rejected native body now supplies `unrepresentedContent` as L1 quality evidence.
+Adapter rejection supplies the same fact directly, independently of diagnostic
+listeners. Pagination completion establishes acquisition coverage; it cannot erase
+this evidence and certify the fallback as lossless. Domain receives the existing
+`partial` quality, so physical exports retain the usable Markdown with
+`otherContentMissing: true` and remain eligible for retry at the same source
+version. Missing native content and an unrelated candidate's document are not
+rejected native bodies. Valid Markdown-only replies can still become complete.
+
+Recognized wire branches reject unexplained nonempty sibling fields and validate
+the payloads they consume. Invalid payloads no longer become empty text, code,
+list, quote, table or math nodes. Existing citation/layout metadata remains
+accounted for by its established decoder. All formatting, link and source ranges
+share UTF-16 bounds and surrogate-pair boundary validation. The internal annotation
+union requires source IDs for citations and a target for links.
+
+The IDB schema upgrade from version 1 to 2 withdraws old Gemini completeness
+claims once. It retains body bytes, assets, timestamps, destination names and
+attachment results; it marks previously complete Gemini details unknown and their
+export receipts partial with `otherContentMissing: true`. The previous schema did
+not persist enough evidence to identify which Gemini snapshots used a rejected
+representation, so the next export must recheck them. Other providers and scan
+coverage are untouched. Current confirmed complete snapshots retain the existing
+admission protection. No parser version or raw wire array enters Domain.
+
+`gemini_structured_integrity.test.ts` covers the native RPC, complete-pagination
+and physical-render boundaries. `gemini_integrity_upgrade.test.ts` exercises the
+real schema upgrade, subsequent admission and one-time behavior.
+`gemini_structured_integrity_export.test.ts` verifies production parsing, storage,
+Markdown delivery and receipts: partial results retry at an unchanged version;
+confirmed complete results can subsequently skip.
+
+The newer, completed pre-scheduling-fix diagnostic contains 205 fallback warnings:
+174 decoder rejections and 31 adapter rejections. Replaying all 205 with their
+captured source registries preserves those rejection boundaries. All 31 adapter
+cases have invalid source ranges; no offset correction is inferred. This change
+repairs completeness and retry contracts, not support for the remaining card
+families. Across 106 existing fixture/native-response inputs, body messages,
+assets and native acceptance are unchanged from the preceding commit.

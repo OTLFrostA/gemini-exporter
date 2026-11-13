@@ -78,7 +78,7 @@ test('storage v2 initializes exactly six stores and only the specified indexes',
         const version = db.version; db.close();
         return { version, layout, chromeKeys: Object.keys(window.settingsData) };
     });
-    assert.deepEqual(result, { version: 1, chromeKeys: [], layout: [
+    assert.deepEqual(result, { version: 2, chromeKeys: [], layout: [
         { name: 'accounts', keyPath: 'id', indexes: ['providerIdentity'] },
         { name: 'coverage', keyPath: ['accountId', 'streamId'], indexes: [] },
         { name: 'details', keyPath: ['key.accountId', 'key.conversationId'], indexes: [] },

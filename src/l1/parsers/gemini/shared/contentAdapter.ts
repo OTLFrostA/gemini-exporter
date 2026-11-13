@@ -55,7 +55,7 @@ function cleanGeminiBody(text: string): string {
 export function parseGeminiBody(
     content: string,
     structuredContent?: GeminiStructuredDocument,
-    context: MarkdownParseContext & { sourceCitations?: GeminiSourceCitations; recoverLiteralMath?: boolean } = { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'content' } },
+    context: MarkdownParseContext & { sourceCitations?: GeminiSourceCitations; recoverLiteralMath?: boolean; onStructuredFallback?: () => void } = { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'content' } },
 ): BlockNode[] {
     const cleaned = cleanGeminiBody(content);
     if (structuredContent) {
@@ -72,6 +72,7 @@ export function parseGeminiBody(
             }
             return normalizeGeminiMath(structured);
         }
+        context.onStructuredFallback?.();
         context.diagnostics.push({
             severity: 'warning', code: 'GEMINI_STRUCTURED_FALLBACK',
             message: 'Structured body could not be adapted; using Markdown fallback',
