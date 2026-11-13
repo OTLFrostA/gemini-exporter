@@ -71,7 +71,7 @@ function migratedRuntime(initial: Record<string, unknown>, beforeWrite: (patch: 
     const writes: Record<string, unknown>[] = [];
     let listener!: Function, installed!: Function;
     let opened = 0;
-    global.chrome = { ...chromeBase(), tabs: { ...chromeBase().tabs, create: async () => { opened++; } }, storage: { local: {
+    global.chrome = { ...chromeBase(), permissions: { contains: async () => true }, tabs: { ...chromeBase().tabs, create: async () => { opened++; } }, storage: { local: {
         get: async (keys: string | string[]) => Object.fromEntries((Array.isArray(keys) ? keys : [keys]).map(key => [key, structuredClone(data[key])])),
         set: async (patch: Record<string, unknown>) => { await beforeWrite(patch); writes.push(structuredClone(patch)); Object.assign(data, structuredClone(patch)); },
     } }, runtime: { id: 'ext', getURL: (path: string) => 'chrome-extension://ext/' + path, getManifest: () => ({ version: '2.0.0' }), openOptionsPage: async () => { opened++; },

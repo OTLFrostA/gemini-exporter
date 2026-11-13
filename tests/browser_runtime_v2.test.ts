@@ -13,12 +13,17 @@ const sender = { id: 'ext', tab: { id: 7 }, frameId: 0, url: 'https://gemini.goo
 function load(file: string, stubs: Record<string, unknown>) {
     const original = Module._load;
     const ports = { 'src/application/conversations/refreshConversation.js': { refreshConversation: () => assert.fail('Unexpected source refresh') }, 'src/l2/accountRegistry.js': mockAccountRegistry([uuid, otherUuid]),
-        'src/l1/client/grok/grokSource.js': { hasGrokAccess: async () => true },
-        'src/l1/client/claude/claudeSource.js': { hasClaudeAccess: async () => true },
+        'src/l1/client/platformAccess.js': { hasPlatformAccess: async () => true },
+        'src/l1/protocol/gemini/url.js': {
+            detectSlotFromUrl: (url?: string | null) => {
+                const m = String(url ?? '').match(/\/u\/(\d+)(?:\/|$)/);
+                return m ? `u${m[1]}` : 'u0';
+            },
+            extractConversationIdFromUrl: (pathname?: string | null) => pathname?.split('/app/')[1]?.split('/')[0] ?? null,
+        },
         'src/l1/client/grok/accountObservation.js': { observeGrokAccount: async () => null },
         'src/l1/client/claude/accountObservation.js': { observeClaudeAccount: async () => null },
         'src/runtime/capabilities/platformInjection.js': { syncAllPlatformContentScripts: async () => [] },
-        'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => true },
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
         'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
@@ -217,16 +222,39 @@ test('ChatGPT Content is isolated from Gemini, requires a current site grant and
     const gpt = { ...account, providerId: 'chatgpt', providerAccountId: '["subject","workspace"]' };
     const guard = load('src/runtime/background/contentSender.ts', {
         'src/l3a/storageService.js': { getAccount: async () => gpt },
-        'src/l1/client/chatgpt/chatgptAccess.js': { hasChatGPTAccess: async () => granted },
+        'src/l1/client/platformAccess.js': { hasPlatformAccess: async (p: string) => p === 'chatgpt' ? granted : true },
     });
     const from = { ...sender, url: 'https://chatgpt.com/c/6acffdc5-c4d0-83e8-8e1b-ba60979a618a' };
     assert.deepEqual(await guard.requireContentContext(from, uuid), { account: gpt, tabId: 7 });
     await assert.rejects(guard.requireContentContext(sender, uuid), /mismatch/);
     granted = false;
-    await assert.rejects(guard.requireContentContext(from, uuid), /revoked/);
+    await assert.rejects(guard.requireContentContext(from, uuid), /ChatGPT site access revoked/);
     granted = true;
     Reflect.set(chrome.tabs, 'sendMessage', (_id: number, _request: unknown, _options: unknown, reply: Function) => reply({ ok: true, accountContext: { accountId: otherUuid, providerId: 'chatgpt' } }));
     await assert.rejects(guard.requireCurrentContentAccount(from, uuid), /sending Tab/);
+    // Revocation during the async tab round-trip must also reject ChatGPT and Gemini!
+    Reflect.set(chrome.tabs, 'sendMessage', (_id: number, _request: unknown, _options: unknown, reply: Function) => {
+        granted = false;
+        reply({ ok: true, accountContext: { accountId: uuid, providerId: 'chatgpt' } });
+    });
+    await assert.rejects(guard.requireCurrentContentAccount(from, uuid), /ChatGPT site access revoked/);
+});
+
+test('Gemini Content also enforces optional site access on passive and active sender validation', async () => {
+    global.chrome = chromeBase() as any;
+    let granted = false;
+    const guard = load('src/runtime/background/contentSender.ts', {
+        'src/l3a/storageService.js': { getAccount: async () => account },
+        'src/l1/client/platformAccess.js': { hasPlatformAccess: async (p: string) => p === 'gemini' ? granted : false },
+    });
+    await assert.rejects(guard.requireContentContext(sender, uuid), /Gemini site access revoked/);
+    granted = true;
+    assert.deepEqual(await guard.requireContentContext(sender, uuid), { account, tabId: 7 });
+    Reflect.set(chrome.tabs, 'sendMessage', (_id: number, _request: unknown, _options: unknown, reply: Function) => {
+        granted = false;
+        reply({ ok: true, accountContext: { accountId: uuid, providerId: 'gemini' } });
+    });
+    await assert.rejects(guard.requireCurrentContentAccount(sender, uuid), /Gemini site access revoked/);
 });
 
 test('Claude Content is isolated from Gemini, requires a current site grant and matches its document Account', async () => {
@@ -235,8 +263,7 @@ test('Claude Content is isolated from Gemini, requires a current site grant and 
     const gpt = { ...account, providerId: 'claude', providerAccountId: otherUuid };
     const guard = load('src/runtime/background/contentSender.ts', {
         'src/l3a/storageService.js': { getAccount: async () => gpt },
-        'src/l1/client/grok/grokSource.js': { hasGrokAccess: async () => true },
-        'src/l1/client/claude/claudeSource.js': { hasClaudeAccess: async () => granted },
+        'src/l1/client/platformAccess.js': { hasPlatformAccess: async (p: string) => p === 'claude' ? granted : true },
     });
     const from = { ...sender, url: 'https://claude.ai/chat/6acffdc5-c4d0-83e8-8e1b-ba60979a618a' };
     assert.deepEqual(await guard.requireContentContext(from, uuid), { account: gpt, tabId: 7 });
@@ -297,7 +324,7 @@ function live(settings: object, permission = 'granted', handleExists = true, exp
     return load('src/runtime/background/liveSaveHandler.ts', {
         'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }), isLiveSaveEffective: mockLiveSaveEffective },
         'src/l3a/storageService.js': { getDirectoryHandle: async () => handleExists ? { queryPermission: async (options: unknown) => { assert.deepEqual(options, { mode: 'readwrite' }); return permission; }, requestPermission: () => assert.fail('Worker must not request permission') } : null },
-        'src/application/export/runExport.js': { runExport: exporter || (() => assert.fail('Unexpected Export')) },
+        'src/application/export/runMarkdownExport.js': { runMarkdownExport: exporter || (() => assert.fail('Unexpected Export')) },
     }).runLiveSave;
 }
 test('disabled and non-Markdown Live Save return null without exporting', async () => {
@@ -328,7 +355,7 @@ test('Worker Live Save scopes KeepAlive to the active export and releases it on 
     const save = load('src/runtime/background/liveSaveHandler.ts', {
         'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, enabledDisk: true }), isLiveSaveEffective: mockLiveSaveEffective },
         'src/l3a/storageService.js': { getDirectoryHandle: async () => ({ queryPermission: async () => 'granted', requestPermission: () => assert.fail('Worker must not request permission') }) },
-        'src/application/export/runExport.js': { runExport: async () => { trace.push('export'); throw new Error('Delivery failed'); } },
+        'src/application/export/runMarkdownExport.js': { runMarkdownExport: async () => { trace.push('export'); throw new Error('Delivery failed'); } },
         'src/runtime/background/keepAlive.js': { startKeepAlive: () => { trace.push('start'); return () => trace.push('stop'); } },
     }).runLiveSave;
     await assert.rejects(save({ accountId: uuid, conversationId: 'abc' }), /Delivery failed/);
@@ -391,7 +418,7 @@ test('Content router pairs Account and conversation in one read and rejects acco
     const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
     const router = load('src/runtime/content/messageRouter.ts', {
         'src/runtime/content/accountContext.js': { resolveCurrentAccount: async () => context, isCurrentAccount: () => true },
-        'src/runtime/capabilities/assetFetcher.js': { AssetFetcher: {} },
+        'src/l1/resources/gemini/assetFetcher.js': { AssetFetcher: {} },
     });
     router.init();
     assert.deepEqual(await invoke(listener, { action: 'getAccountContext' }), { ok: true, accountContext: context, conversationId: 'abcdef123456' });
@@ -401,7 +428,7 @@ test('Content router pairs Account and conversation in one read and rejects acco
     assert.equal((await invoke(listener, { action: 'getAccountContext' }, { id: 'foreign' })).ok, false);
     const changed = load('src/runtime/content/messageRouter.ts', {
         'src/runtime/content/accountContext.js': { resolveCurrentAccount: async () => { global.location.href = 'https://gemini.google.com/app/other'; return context; }, isCurrentAccount: () => true },
-        'src/runtime/capabilities/assetFetcher.js': { AssetFetcher: {} },
+        'src/l1/resources/gemini/assetFetcher.js': { AssetFetcher: {} },
     });
     changed.init();
     assert.equal((await invoke(listener, { action: 'getAccountContext' })).ok, false);
@@ -416,7 +443,7 @@ test('resource router checks Account after completion and answers exactly once',
     let changed = false;
     load('src/runtime/content/messageRouter.ts', {
         'src/runtime/content/accountContext.js': { resolveCurrentAccount: async () => changed ? null : context, isCurrentAccount: () => !changed },
-        'src/runtime/capabilities/assetFetcher.js': { AssetFetcher: { handleGetFileBlob: async (_: unknown, cb: Function) => { changed = true; cb({ success: true, base64: 'AA==' }); } } },
+        'src/l1/resources/gemini/assetFetcher.js': { AssetFetcher: { handleGetFileBlob: async (_: unknown, cb: Function) => { changed = true; cb({ success: true, base64: 'AA==' }); } } },
     }).init();
     assert.equal((await invoke(listener, { action: 'getFileBlob', accountId: uuid, url: 'https://lh3.googleusercontent.com/a' })).ok, false);
 });
@@ -751,7 +778,7 @@ test('resource IPC rejects aggregate duplicate Base64 fields before sending, whi
     let result: unknown = { success: true, dataUrl: 'data:image/png;base64,AA==', size: 1 };
     load('src/runtime/content/messageRouter.ts', {
         'src/runtime/content/accountContext.js': { resolveCurrentAccount: async () => context, isCurrentAccount: () => true },
-        'src/runtime/capabilities/assetFetcher.js': { AssetFetcher: { handleGetImageBlob: async (_: unknown, cb: Function) => cb(result) } },
+        'src/l1/resources/gemini/assetFetcher.js': { AssetFetcher: { handleGetImageBlob: async (_: unknown, cb: Function) => cb(result) } },
     }).init();
     const request = { action: 'getImageBlob', accountId: uuid, url: 'https://lh3.googleusercontent.com/a' };
     assert.deepEqual(await invoke(listener, request), result);
@@ -819,40 +846,6 @@ test('Runtime navigation observer refreshes on SPA changes, then removes all lis
     global.window.dispatchEvent(new Event('popstate'));
     assert.equal(navigations, 1);
 });
-
-test('Resource IPC fetches only L1-specified locators and enforces blob caps before base64 encoding', async () => {
-    const originalFetch = global.fetch;
-    const originalDocument = global.document;
-    let requests = 0, domReads = 0;
-    global.document = { querySelectorAll: () => { domReads++; return []; },
-        documentElement: { innerHTML: 'https://lh3.googleusercontent.com/unrelated' } } as any;
-    const fetcher = load('src/runtime/capabilities/assetFetcher.ts', {
-        'src/runtime/content/contentContext.js': { contentContext: { isDevMode: () => false } },
-    }).AssetFetcher;
-    let reply: any;
-    try {
-        global.fetch = (async () => { requests++; return { ok: false, status: 404 }; }) as any;
-        await fetcher.handleGetFileBlob({ url: 'https://lh3.googleusercontent.com/requested' }, (value: unknown) => { reply = value; });
-        assert.equal(reply.success, false);
-        assert.equal(requests, 1);
-        assert.equal(domReads, 0);
-        global.fetch = (async () => { requests++; return { ok: true, status: 200,
-            headers: { get: () => 'image/png' },
-            blob: async () => ({ size: 45 * 1024 * 1024, type: 'image/png' }) }; }) as any;
-        await fetcher.handleGetFileBlob({ url: 'https://lh3.googleusercontent.com/oversize' }, (value: unknown) => { reply = value; });
-        assert.equal(reply.success, false);
-        assert.match(reply.error, /Chrome IPC/);
-        await fetcher.handleGetImageBlob({ url: 'https://lh3.googleusercontent.com/oversize' }, (value: unknown) => { reply = value; });
-        assert.equal(reply.success, false);
-        assert.match(reply.error, /Chrome IPC cap/);
-    } finally {
-        global.fetch = originalFetch;
-        global.document = originalDocument;
-    }
-});
-
-
-
 
 test('completed replies request source refresh only through unified Export', async () => {
     const key = { accountId: uuid, conversationId: 'newreply' };

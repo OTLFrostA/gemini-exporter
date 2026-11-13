@@ -61,6 +61,14 @@ export const PLATFORM_HOSTS = {
  grok:{pages:['https://grok.com/*'],attachments:['https://assets.grok.com/*']},
  claude:{pages:['https://claude.ai/*'],attachments:[]}
 };
+export const platformForPageUrl = url => {
+ if(!url) return null;
+ try {
+  const u = new URL(url);
+  if (u.protocol !== 'https:' || u.username || u.password) return null;
+  return SOURCE_PLATFORMS.find(p => PLATFORM_HOSTS[p].pages.some(page => new URL(page).origin === u.origin)) ?? null;
+ } catch { return null; }
+};
 export const DIRECT_WRITE_THRESHOLD = 20;
 export const DISCORD_URL = 'https://discord.gg/e3FgrXUZ8f';
 export const REVIEW_URL = 'https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf/reviews';

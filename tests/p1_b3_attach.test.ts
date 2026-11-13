@@ -4,7 +4,7 @@ import { runExport } from '../src/application/export/runExport.js';
 import { getExportRecord } from '../src/l3a/storageService.js';
 import { v2ExportHost, exportKey, exportRequest, seedExportConversation } from './helpers/v2ExportHost.js';
 import { __setZipConstructor, __getZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
-import { handleGetImageBlob } from '../src/runtime/capabilities/assetFetcher.js';
+import { handleGetImageBlob } from '../src/l1/resources/gemini/assetFetcher.js';
 const JSZip = require('../lib/jszip.min.js');
 
 // P1-023: progress is now an Application callback with current/total, not

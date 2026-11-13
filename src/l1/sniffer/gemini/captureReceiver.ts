@@ -9,7 +9,8 @@ import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
 import type { GeminiRpcParseResult } from '../../parsers/gemini/rpc/parseConversation.js';
 import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
 import { parseGeminiDomIndex } from '../../parsers/gemini/dom/parseIndex.js';
-import { extractConversationIdFromUrl, normId } from '../../../shared/utils/pathUtils.js';
+import { extractConversationIdFromUrl } from '../../protocol/gemini/url.js';
+import { normId } from '../../../shared/utils/pathUtils.js';
 
 export interface GeminiCaptureCallbacks {
     resources?: SourceResourceContext;

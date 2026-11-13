@@ -14,7 +14,7 @@ import { init as initLive, cleanup as cleanupLive, executeLiveSave } from '../sr
 import { init as initRouter } from '../src/runtime/content/messageRouter.js';
 import { resolveCurrentAccount } from '../src/runtime/content/accountContext.js';
 import { runCleanups } from '../src/runtime/content/cleanupRegistry.js';
-import { AssetFetcher } from '../src/runtime/capabilities/assetFetcher.js';
+import { AssetFetcher } from '../src/l1/resources/gemini/assetFetcher.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 
 // The v1 getConversationDetail router, DOM fallback and Live Save detail resolver

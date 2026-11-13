@@ -512,7 +512,7 @@ def test_stage1_architecture_ssot_and_state_isolation():
     # Packaging owns *all* physical paths; Application never invents a second
     # source-title/file-name or export-engine path policy.
     packaging = read("src/l4/packaging/index.ts")
-    export = read("src/application/export/runExport.ts")
+    export = read("src/application/export/runExport.ts") + "\n" + read("src/application/export/exportPipeline.ts")
     assert "buildExportFileName" in packaging and "sanitizeFileName" in packaging and "assertExportPath" in packaging, "L4 must own safe and unique export paths"
     assert "createExportPathPlanner" in export and "packageExportFiles" in export, "Application must use L4 Packaging"
     assert "sanitizeFileName" not in export, "Application must not independently name exported files"
@@ -528,7 +528,7 @@ def test_storage_keys_and_constants_ssot():
 
     storage = source("src/l3a/storageService.ts")
     settings = source("src/application/settings/index.ts") + "\n" + source("src/l2/settings.ts")
-    exporter = source("src/application/export/runExport.ts")
+    exporter = source("src/application/export/runExport.ts") + "\n" + source("src/application/export/exportPipeline.ts")
     constants = source("src/shared/utils/constants.ts")
 
     for name in ("getIndex", "getDetail", "updateConversationAtomically",
@@ -564,7 +564,7 @@ def test_stage2_architecture_improvements():
     planner = source("src/l4/packaging/index.ts")
     zip_writer = source("src/l4/packaging/writers/zipWriter.ts")
     folder_writer = source("src/l4/delivery/writers/fsWriter.ts")
-    export = source("src/application/export/runExport.ts")
+    export = source("src/application/export/runExport.ts") + "\n" + source("src/application/export/exportPipeline.ts")
     hook = source("src/l1/sniffer/gemini/hookCredentials.ts")
     client = source("src/l1/client/gemini/geminiClient.ts")
     background = source("src/runtime/background/background.ts")

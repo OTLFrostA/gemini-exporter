@@ -136,7 +136,7 @@ function forbidden(owner: string, target: string): boolean {
     }
     if (owner.startsWith('ui/')) {
         if (owner.startsWith('ui/popup/') && target.startsWith('ui/options/')) return true;
-        return /^(l1\/|l3b\/|migration\/)/.test(target);
+        return /^(l1\/|l3b\/|l4\/|migration\/)/.test(target);
     }
     if (owner.startsWith('migration/')) {
         return !/^(migration\/|l2\/|l3a\/|shared\/)/.test(target);
@@ -317,4 +317,22 @@ test('Content scripts and MAIN hooks never bundle IndexedDB, Migration, Backgrou
             }
         }
     }
+});
+
+test('Background Service Worker excludes heavyweight DOCX, HTML, Typst/PDF and UI modules from its runtime bundle', () => {
+    const entry = 'runtime/background/background.ts';
+    assert.ok(sources.has(entry));
+    const seen = new Set<string>();
+    function walkWorker(current: string, chain: string[]): void {
+        if (seen.has(current)) return;
+        seen.add(current);
+        for (const edge of graph.get(current) ?? []) {
+            if (!edge.runtime) continue;
+            const nextChain = [...chain, edge.target].join(' -> ');
+            assert.ok(!/^(?:ui\/|l4\/format\/(?:docx|html|pdf|typst|json)\/)/.test(edge.target),
+                `Service Worker bundles forbidden renderer or UI module: ${nextChain}`);
+            walkWorker(edge.target, [...chain, edge.target]);
+        }
+    }
+    walkWorker(entry, [entry]);
 });

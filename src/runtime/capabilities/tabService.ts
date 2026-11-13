@@ -1,3 +1,4 @@
+import { PLATFORM_HOSTS, isSourcePlatform } from '../../shared/platformHosts.js';
 import { preparePlatformTab } from './platformInjection.js';
 import { ScanConnectionError } from './scanConnection.js';
 import { OperationError } from '../../shared/errors/operationError.js';
@@ -51,9 +52,9 @@ export async function resolveAccountTab(accountId: string): Promise<AccountTab> 
     if (!isAccountId(accountId)) throw new TypeError('Tab routing requires an Account UUID');
     await ensureV2Ready();
     const account = await getAccount(accountId);
-    if (!account || !['gemini', 'chatgpt', 'claude', 'grok'].includes(account.providerId)) throw new Error('Account has no supported Content Script');
-    const tabs = await chrome.tabs.query({ url: account.providerId === 'grok' ? 'https://grok.com/*' : account.providerId === 'chatgpt'
-        ? ['https://chatgpt.com/*', 'https://chat.openai.com/*'] : account.providerId === 'claude' ? 'https://claude.ai/*' : 'https://gemini.google.com/*' });
+    if (!account || !isSourcePlatform(account.providerId)) throw new Error('Account has no supported Content Script');
+    const pages = PLATFORM_HOSTS[account.providerId].pages;
+    const tabs = await chrome.tabs.query({ url: pages.length === 1 ? pages[0] : [...pages] });
     tabs.sort((a, b) => Number(!!b.active) - Number(!!a.active));
     for (const tab of tabs) {
         const id = tab.id;

@@ -5,7 +5,8 @@ import { getOrCreateContentAccount } from '../api/contentAccountRegistry.js';
 import { readAccountParameters, DEFAULT_ACCOUNT_KEY, type Account } from '../../l2/accountRegistry.js';
 import { CrossWorldEvents } from '../../l1/protocol/gemini/protocol.js';
 import { chatgptAccountObservation } from '../../l1/client/chatgpt/accountObservation.js';
-import { detectSlotFromUrl } from '../../shared/utils/pathUtils.js';
+import { detectSlotFromUrl } from '../../l1/protocol/gemini/url.js';
+import { platformForPageUrl } from '../../shared/platformHosts.js';
 
 export interface AccountContext { readonly providerId: string; readonly accountId: string; readonly slot: string }
 let binding: { context: AccountContext; providerAccountId: string } | null = null;
@@ -19,7 +20,9 @@ export function setAccountChangedHandler(handler: () => void): void {
 let latestSignature: string | null = null;
 let pending: { signature: string; result: Promise<AccountContext | null> } | null = null;
 const providerNow = () => {
-    const host = typeof location === 'undefined' ? '' : location.hostname;
+    if (typeof location === 'undefined') return 'gemini';
+    if (location.href) return platformForPageUrl(location.href) ?? 'gemini';
+    const host = location.hostname;
     return host === 'grok.com' ? 'grok'
         : host === 'chatgpt.com' || host === 'chat.openai.com' ? 'chatgpt'
         : host === 'claude.ai' ? 'claude' : 'gemini';

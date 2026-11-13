@@ -2,7 +2,7 @@ export {};
 
 const test = require('node:test');
 const assert = require('node:assert');
-const AssetFetcherModule = require('../src/runtime/capabilities/assetFetcher.js');
+const AssetFetcherModule = require('../src/l1/resources/gemini/assetFetcher.js');
 
 const { fetchWithCredentialFallback, downloadAssetDirect, toHighRes } = AssetFetcherModule.AssetFetcher;
 
@@ -203,11 +203,46 @@ test('downloadAssetDirect - transparently downloads CORS-restricted asset via om
         assert.ok(result.dataBuffer, 'Must return dataBuffer');
         assert.strictEqual(result.size, sampleBytes.length);
         assert.deepStrictEqual(new Uint8Array(result.dataBuffer), sampleBytes, 'CORS fallback must preserve downloaded bytes');
-        assert.strictEqual(fetchAttempts[0], 'include', 'First try must include credentials');
-        assert.strictEqual(fetchAttempts[1], 'omit', 'Second try must omit credentials');
+    assert.strictEqual(fetchAttempts[0], 'include', 'First try must include credentials');
+    assert.strictEqual(fetchAttempts[1], 'omit', 'Second try must omit credentials');
     } finally {
         if (originalFetchDescriptor) Object.defineProperty(globalThis, 'fetch', originalFetchDescriptor);
         else Reflect.deleteProperty(globalThis, 'fetch');
+    }
+});
+
+test('assetFetcher - fetches only L1-specified locators and enforces Chrome IPC blob caps before base64 encoding', async () => {
+    const { handleGetFileBlob, handleGetImageBlob } = AssetFetcherModule.AssetFetcher;
+    const originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+    const originalDocDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    let requests = 0, domReads = 0;
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: {
+        querySelectorAll: () => { domReads++; return []; },
+        documentElement: { innerHTML: 'https://lh3.googleusercontent.com/unrelated' },
+    } });
+    let reply: any;
+    try {
+        (globalThis as any).fetch = async () => { requests++; return { ok: false, status: 404 }; };
+        await handleGetFileBlob({ url: 'https://lh3.googleusercontent.com/requested' }, (value: unknown) => { reply = value; });
+        assert.strictEqual(reply.success, false);
+        assert.strictEqual(requests, 1);
+        assert.strictEqual(domReads, 0);
+        (globalThis as any).fetch = async () => {
+            requests++;
+            return { ok: true, status: 200, headers: { get: () => 'image/png' },
+                blob: async () => ({ size: 45 * 1024 * 1024, type: 'image/png' }) };
+        };
+        await handleGetFileBlob({ url: 'https://lh3.googleusercontent.com/oversize' }, (value: unknown) => { reply = value; });
+        assert.strictEqual(reply.success, false);
+        assert.match(reply.error, /Chrome IPC/);
+        await handleGetImageBlob({ url: 'https://lh3.googleusercontent.com/oversize' }, (value: unknown) => { reply = value; });
+        assert.strictEqual(reply.success, false);
+        assert.match(reply.error, /Chrome IPC cap/);
+    } finally {
+        if (originalFetchDescriptor) Object.defineProperty(globalThis, 'fetch', originalFetchDescriptor);
+        else Reflect.deleteProperty(globalThis, 'fetch');
+        if (originalDocDescriptor) Object.defineProperty(globalThis, 'document', originalDocDescriptor);
+        else Reflect.deleteProperty(globalThis, 'document');
     }
 });
 

@@ -52,7 +52,8 @@ function setup(t: { after: (cleanup: () => void) => void }, overrides: {
             resolveCurrentAccount: overrides.account || (async () => account),
             isCurrentAccount: overrides.current || (() => true),
         },
-        'src/runtime/capabilities/assetFetcher.js': assets,
+        'src/l1/protocol/gemini/url.js': { extractConversationIdFromUrl: (pathname: string) => pathname.split('/app/')[1]?.split('/')[0] ?? null },
+        'src/l1/resources/gemini/assetFetcher.js': assets,
         'src/runtime/content/cleanupRegistry.js': { registerCleanup: (fn: () => void) => { cleanups.push(fn); return () => {}; } },
         'src/shared/utils/constants.js': { getExtensionVersion: () => 'v2' },
     }).init();

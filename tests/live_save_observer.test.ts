@@ -5,7 +5,7 @@ import { accountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/acc
 import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
 import { runCleanups } from '../src/runtime/content/cleanupRegistry.js';
 import { getDetail } from '../src/l3a/storageService.js';
-import { extractConversationIdFromUrl } from '../src/shared/utils/pathUtils.js';
+import { extractConversationIdFromUrl } from '../src/l1/protocol/gemini/url.js';
 import { resolveCurrentAccount } from '../src/runtime/content/accountContext.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 

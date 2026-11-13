@@ -27,6 +27,27 @@ export function platformOrigins(platform: SourcePlatform): string[] {
     return [...PLATFORM_HOSTS[platform].pages, ...PLATFORM_HOSTS[platform].attachments];
 }
 
+export function isSourcePlatform(value: unknown): value is SourcePlatform {
+    return typeof value === 'string' && SOURCE_PLATFORMS.some(platform => platform === value);
+}
+
+/** Resolve a trusted source platform strictly from a page URL's origin. */
+export function platformForPageUrl(url: string | undefined | null): SourcePlatform | null {
+    if (!url) return null;
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null;
+        return SOURCE_PLATFORMS.find(platform =>
+            PLATFORM_HOSTS[platform].pages.some(pattern => new URL(pattern).origin === parsed.origin)) ?? null;
+    } catch {
+        return null;
+    }
+}
+
+export function matchesPlatformPageUrl(platform: SourcePlatform, url: string | undefined | null): boolean {
+    return platformForPageUrl(url) === platform;
+}
+
 /** External image access is separate from platform connection and granted per origin. */
 export const RESOURCE_DOWNLOAD_ORIGINS = ['https://cdn.sanity.io/*'] as const;
 export function resourceDownloadOrigin(uri: string): string | undefined {

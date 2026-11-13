@@ -1,6 +1,6 @@
 import { resolveCurrentAccount, isCurrentAccount } from './accountContext.js';
-import { extractConversationIdFromUrl } from '../../shared/utils/pathUtils.js';
-import { AssetFetcher, type AssetFetchResponse } from '../capabilities/assetFetcher.js';
+import { extractConversationIdFromUrl } from '../../l1/protocol/gemini/url.js';
+import { AssetFetcher, type AssetFetchResponse } from '../../l1/resources/gemini/assetFetcher.js';
 import { registerCleanup } from './cleanupRegistry.js';
 import { getExtensionVersion } from '../../shared/utils/constants.js';
 

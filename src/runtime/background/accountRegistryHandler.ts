@@ -1,9 +1,6 @@
-import { hasGrokAccess } from '../../l1/client/grok/grokSource.js';
-import { hasClaudeAccess } from '../../l1/client/claude/claudeSource.js';
 import { getOrCreateAccount } from '../../l2/accountAdmission.js';
 import { ensureV2Ready } from './readiness.js';
-import { requireContentContext, contentProviderId } from './contentSender.js';
-import { hasChatGPTAccess } from '../../l1/client/chatgpt/chatgptAccess.js';
+import { assertPlatformSiteAccess, requireContentContext, contentProviderId } from './contentSender.js';
 
 export function handleAccountRegistryMessage(message: unknown, sender: chrome.runtime.MessageSender, respond: (value: unknown) => void): boolean {
     if (!message || typeof message !== 'object' || !('action' in message) || message.action !== 'accountRegistry') return false;
@@ -23,9 +20,7 @@ export function handleAccountRegistryMessage(message: unknown, sender: chrome.ru
             if (message.command !== 'getOrCreate' || !('providerId' in message) || typeof message.providerId !== 'string'
                 || !('providerAccountId' in message) || typeof message.providerAccountId !== 'string') throw new TypeError('Invalid account registry command');
             if (message.providerId !== senderProvider) throw new TypeError('Provider mismatch');
-            if (message.providerId === 'chatgpt' && !await hasChatGPTAccess()) throw new Error('ChatGPT site access revoked');
-            if (message.providerId === 'grok' && !await hasGrokAccess()) throw new Error('Grok site access revoked');
-            if (message.providerId === 'claude' && !await hasClaudeAccess()) throw new Error('Claude site access revoked');
+            await assertPlatformSiteAccess(senderProvider);
             const email = 'email' in message ? message.email : undefined;
             const displayName = 'displayName' in message ? message.displayName : undefined;
             if (email !== undefined && typeof email !== 'string' || displayName !== undefined && typeof displayName !== 'string') throw new TypeError('Invalid account profile');
