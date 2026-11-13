@@ -1,6 +1,6 @@
 import type { Account } from '../l2/accountRegistry.js';
 import type { ConversationKey } from '../l2/conversationKey.js';
-import type { ExportRecord } from '../application/export/types.js';
+import type { ExportRecord } from '../l2/exportRecord.js';
 import { inStore, readOne, putOne } from './idb.js';
 import { conversationAddress } from './conversationStore.js';
 

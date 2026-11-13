@@ -2,7 +2,7 @@ import { getOrCreateAccount } from '../l2/accountAdmission.js';
 import { conversationKey } from '../l2/conversationKey.js';
 import { restoreConversationIndex } from '../l2/conversationIndex.js';
 import type { DomainConversationIndex } from '../l2/conversationIndex.js';
-import type { ExportRecord } from '../application/export/types.js';
+import type { ExportRecord } from '../l2/exportRecord.js';
 import { listAccounts, getIndex, putIndexes, getExportRecord, putExportRecord } from '../l3a/storageService.js';
 
 const object = (value: unknown): value is Record<string, unknown> =>

@@ -1,7 +1,7 @@
 import { observeGrokAccount } from '../../l1/client/grok/accountObservation.js';
 import { observeClaudeAccount } from '../../l1/client/claude/accountObservation.js';
 import { registerCleanup } from './cleanupRegistry.js';
-import { getOrCreateAccount } from '../api/accountRegistry.js';
+import { getOrCreateContentAccount } from '../api/contentAccountRegistry.js';
 import { readAccountParameters, DEFAULT_ACCOUNT_KEY, type Account } from '../../l2/accountRegistry.js';
 import { CrossWorldEvents } from '../../l1/protocol/gemini/protocol.js';
 import { chatgptAccountObservation } from '../../l1/client/chatgpt/accountObservation.js';
@@ -101,7 +101,7 @@ export async function resolveCurrentAccount(observed?: Omit<Account, 'id'> | nul
     if (!binding || binding.providerAccountId !== observation.providerAccountId) binding = null;
     const ticket = ++generation;
     const result = (async () => {
-        const account = await getOrCreateAccount(observation.providerId, observation.providerAccountId,
+        const account = await getOrCreateContentAccount(observation.providerId, observation.providerAccountId,
             observation.email, observation.displayName);
         if (ticket !== generation || capturedSlot !== slotNow()) return null;
         const context = { providerId: account.providerId, accountId: account.id, slot: capturedSlot };
@@ -125,7 +125,7 @@ export async function resolveRequestAccount(value: unknown, slot: string): Promi
     if (parameters.providerId !== 'gemini') throw new TypeError('Wrong request account provider');
     // Captured profile hints may predate a newer live observation of this same subject.
     // Resolve request ownership only; current-page discovery owns profile updates.
-    const account = await getOrCreateAccount(parameters.providerId, parameters.providerAccountId);
+    const account = await getOrCreateContentAccount(parameters.providerId, parameters.providerAccountId);
     return { providerId: account.providerId, accountId: account.id, slot };
 }
 

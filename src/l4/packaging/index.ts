@@ -8,8 +8,8 @@ import { ZipWriter } from './writers/zipWriter.js';
 import { docxImageInfo } from '../shared/docxImageType.js';
 import { assertExportPath } from './exportPath.js';
 
-export type ExportFormat = 'markdown' | 'html' | 'json' | 'pdf' | 'docx';
-export type ExportDelivery = 'browserDownload' | 'folderWriter';
+import type { ExportFormat, ExportDelivery } from '../../shared/types/export.js';
+export type { ExportFormat, ExportDelivery } from '../../shared/types/export.js';
 export type ExportPathPlan = Readonly<{
     fileName: string;
     resources: ResourceBindings;

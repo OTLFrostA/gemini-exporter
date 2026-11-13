@@ -1,6 +1,7 @@
-import type { GlobalSettings } from '../application/settings/index.js';
+import type { GlobalSettings } from '../l2/settings.js';
 
 export const SETTINGS_KEY = 'gemini_exporter_v2_settings';
+
 export async function getStoredSettings(): Promise<Partial<GlobalSettings>> {
     // Keep the canonical single-key Settings read: the first-paint theme bootstrap
     // and UI must observe the same awaited read before applying the stored theme.

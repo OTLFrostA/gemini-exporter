@@ -577,7 +577,7 @@ test('Content registers capture, account and message listeners while readiness i
     const pending = new Promise<void>(resolve => { finish = resolve; });
     const initialized: string[] = [];
     load('src/runtime/content/content.ts', {
-        'src/runtime/api/runtimeReady.js': { ensureV2Ready: () => pending },
+        'src/runtime/api/contentReady.js': { ensureContentReady: () => pending },
         'src/l1/client/gemini/bootstrap.js': { initBootstrap: () => initialized.push('credentials') },
         'src/runtime/content/messageRouter.js': { MessageRouter: { init: () => initialized.push('router') } },
         'src/l1/sniffer/gemini/messageBridge.js': { MessageBridge: { init: (deps: { onIndexesCommitted?: unknown; onDetailChanged?: unknown }) => {
@@ -718,7 +718,7 @@ test('Content wires passive Detail and completed replies to unified Live Save', 
     let capture: { onDetailChanged?: (key: unknown) => void; onIndexesCommitted?: unknown;
         onStreamStart?: unknown; onStreamComplete?: (key: unknown) => void } | undefined;
     load('src/runtime/content/content.ts', {
-        'src/runtime/api/runtimeReady.js': { ensureV2Ready: async () => {} },
+        'src/runtime/api/contentReady.js': { ensureContentReady: async () => {} },
         'src/l1/client/gemini/bootstrap.js': { initBootstrap() {} },
         'src/runtime/content/messageRouter.js': { MessageRouter: { init() {} } },
         'src/l1/sniffer/gemini/messageBridge.js': { MessageBridge: { init: (deps: typeof capture) => { capture = deps; } } },

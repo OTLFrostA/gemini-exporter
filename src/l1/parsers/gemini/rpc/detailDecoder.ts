@@ -18,7 +18,7 @@ import {
 } from "./extractors.js";
 import { createDocumentReader } from "./sourceAttachments.js";
 import GeminiProtocol from "../../../protocol/gemini/protocol.js";
-import { isDevMode as devModeEnabled } from "../../../../runtime/devMode.js";
+import { isDevMode as devModeEnabled } from "../../../../shared/utils/devMode.js";
 import { extractNextPageToken } from "./payload.js";
 import { classifyDetailBody } from './emptyDetail.js';
 import { resolveDetailTitle } from "../../../../shared/utils/titleText.js";
