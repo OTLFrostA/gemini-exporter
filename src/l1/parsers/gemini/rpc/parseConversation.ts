@@ -108,10 +108,12 @@ export function parseGeminiRpcConversation(text: string | GeminiResponseEnvelope
 export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, context: GeminiRpcParseContext): GeminiRpcParseResult {
     if (context.providerId !== 'gemini') throw new TypeError('Gemini evidence adapter requires providerId gemini');
     const contentDiagnostics: Diagnostic[] = [];
+    let unrepresentedContent = false;
     const messages: DomainMessage[] = evidence.messages.map((message, index) => {
         const sourceRef = { providerId: 'gemini', providerMessageId: message.id, locator: `messages[${index}]` };
         const { citations, legacyCitations, sourceCitations } = citationsOf(message);
         const extraction = message.structuredExtraction;
+        if (extraction?.status === 'decode_rejected') unrepresentedContent = true;
         if (extraction && extraction.status !== 'decoded') contentDiagnostics.push({
             severity: extraction.status === 'decode_rejected' ? 'warning' : 'info',
             code: 'GEMINI_STRUCTURED_FALLBACK',
@@ -129,7 +131,8 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             role: message.role === 'model' ? 'assistant' : 'user',
             content: message.role === 'user' ? parseGeminiPrompt(message.content)
                 : parseGeminiBody(message.content, context.bodyRepresentation === 'markdown' ? undefined : message.structuredContent,
-                    { diagnostics: contentDiagnostics, sourceRef, sourceCitations, recoverLiteralMath: context.bodyRepresentation !== 'structured' }),
+                    { diagnostics: contentDiagnostics, sourceRef, sourceCitations, recoverLiteralMath: context.bodyRepresentation !== 'structured',
+                        onStructuredFallback: () => { unrepresentedContent = true; } }),
             ...(message.timestamp !== null && Number.isFinite(message.timestamp) ? { timestamp: message.timestamp } : {}),
             ...(message.model ? { model: message.model } : {}),
             ...(reasoning !== undefined ? { reasoning } : {}),
@@ -171,7 +174,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
             ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length }),
         detail: { ...(updatedAt !== null ? { savedAt: updatedAt } : {}), quality: contentQuality({ status: evidence.turnsRecovered ? 'partial' : 'unknown', rejectedTurns: evidence.turnsRejected,
-            ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds }),
+            ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds, unrepresentedContent }),
             assets: resources.assets, messages: resources.messages },
     };
     const diagnostics: Diagnostic[] = (evidence.schemaDrift ?? []).map(message => ({ severity: 'warning', code: 'GEMINI_SCHEMA_DRIFT', message }));
@@ -181,7 +184,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
         details: { sourceVersion: updatedAt, newerMessages } });
     diagnostics.push(...contentDiagnostics);
     return {
-        evidence: { rejectedTurns: evidence.turnsRejected, ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds },
+        evidence: { rejectedTurns: evidence.turnsRejected, ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds, unrepresentedContent },
         ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}),
         conversationId: normId(evidence.id), conversation, acquisitionHints: resources.acquisitionHints,
         diagnostics,

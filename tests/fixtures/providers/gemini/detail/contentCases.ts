@@ -5,10 +5,12 @@ import { citationFile } from './sources.js';
 
 import { nativeCitationCases } from './nativeCitationCases.js';
 import { nativeDocumentCases } from './nativeDocumentCases.js';
+import { nativeIntegrityCases } from './nativeIntegrityCases.js';
 
 export const contentCases = {
     ...nativeCitationCases,
     ...nativeDocumentCases,
+    ...nativeIntegrityCases,
     'G_BOUNDARY_THOUGHT_CITATION_01': () => boundaryCitationThoughtWire(),
     'G_STRUCTURED_CITATION_COMPOSITE_PARAGRAPH_01': () => citationCompositeWire('paragraph'),
     'G_STRUCTURED_CITATION_COMPOSITE_LIST_01': () => citationCompositeWire('list'),
