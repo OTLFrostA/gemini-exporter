@@ -189,3 +189,74 @@ cases have invalid source ranges; no offset correction is inferred. This change
 repairs completeness and retry contracts, not support for the remaining card
 families. Across 106 existing fixture/native-response inputs, body messages,
 assets and native acceptance are unchanged from the preceding commit.
+
+## Test-first inventory of the remaining completed-run fallbacks
+
+This test-only addition does **not** implement native recovery. The completed
+pre-scheduling-fix report has 205 warning records: 174 decoder rejections and
+31 adapter rejections. The categories below describe the **first** decoder
+rejection, not every unsupported node in those replies.
+
+`remainingFallbackCases.ts` adds 25 keys to the existing `detailGen` / fixture
+catalog. Widget content, URLs, account-independent RPC framing and expected
+output are authored. They are minimal shape reproductions, not captured replies.
+`remainingSourceRanges.ts` retains diagnostic adapter-node topology and endpoints
+with synthetic text and IDs. Every replacement keeps its original UTF-16 width,
+including whitespace, BMP/non-BMP character classes and surrogate boundaries.
+
+| First rejection / diagnostic records | Representative fixture suffix after `G_REMAINING_` | Current test contract |
+| --- | --- | --- |
+| Maps / 39 | `MAP`, `MAP_MULTIPLE` | Recover place names, addresses, their own URLs and order |
+| Document chips / 34 (kind 1: 5, kind 2: 3, kind 3: 26) | `DOCUMENT_1`, `_2`, `_3`, `DOCUMENT_MULTIPLE` | Recover titles and links; keep each title bound to its own URL |
+| Multiple body sequences / 23 | `BODY_SEQUENCES`, `BODY_SEQUENCES_LIST` | Incomplete fallback until branch roles are established; do not assume concatenation |
+| Nested empty node / 1 | `NESTED_EMPTY` | An empty node must not erase its following paragraph |
+| Research plans / 21 | `PLAN` | Recover title, ordered steps, descriptions and result link; omit control IDs |
+| Gmail cards / 18 | `GMAIL` | Recover subject, summary, preview, body, sender and mail link; omit internal IDs |
+| Annotations / 16 (nested nonzero: 3, nested zero: 6, direct `sp_`: 3, rich place: 4) | `ANNOTATION_NESTED`, `_ZERO`, `_DIRECT`, `_PLACE` | Preserve incomplete evidence; identity and widget semantics remain unresolved |
+| Flight cards / 12 | `FLIGHTS` | Recover both flights, airports, times, prices/availability and separate links |
+| Empty nodes / 7 | `EMPTY` | Preserve the adjacent paragraph |
+| Business cards / 1 | `BUSINESSES` | Recover both businesses, ratings, opening labels, links and order |
+| Finance card / 1 | `FINANCE` | Recover visible price summary, stock URL and disclaimer |
+| Unregistered image reference / 1 | `ATTACHMENT` | Recover an image resource owned by the message; never export an internal registration error as body text |
+| Adapter range failures / 31 | `RANGES_INVALID`, `RANGES_LEGAL` | Reproduce 43 overflow text nodes and five legal controls through the adapter and authored RPC framing |
+
+The remaining three keys add unknown nonempty sibling branches to plan, document
+and map nodes. A future card decoder must continue to report incomplete content
+for these inputs rather than silently discard that extra branch.
+
+The local, ignored record map assigns all 205 diagnostic warning positions to
+these representative families; the 31 adapter records map to all 43 overflow
+snippets. This is **not 205 fully replayed replies** or a 100% recovery-coverage
+claim. Widget cardinalities, photo galleries and other later nodes in the original
+replies are not exhaustively represented. Private source text and identifiers
+are not committed. The original report remains necessary for full-reply replay.
+
+### Two executable checks, with different meanings
+
+* `npm test` includes `gemini_remaining_fallbacks.test.ts`: 21 passing regression
+  tests check Domain closure, retained fallback text, incomplete quality despite
+  complete pagination, source-registry evidence, unsupported siblings, bounds,
+  and existing valid source/code behavior. Once a minimal recovery case stops
+  falling back, the same test enforces its required content/links/resources.
+* `npm run test:gemini-remaining` executes 14 **currently failing** recovery
+  acceptance tests in `tests/acceptance/gemini_remaining.acceptance.ts`.
+  They run the real RPC parser, page merge, Domain admission, composition and
+  Markdown renderer against independently authored requirements. There are no
+  skips, TODO flags, parser mocks or generated expected outputs. This explicit
+  command is separate from the default regression gate while recovery remains
+  unimplemented; a green default gate does not mean these recovery tests pass.
+
+For ranges, all 43 invalid snippets preserve the observed source overflow of one
+or two UTF-16 units and their inline-code annotations. Five copied legal controls
+also have `source.end = code.end + 2`; their exact rendered citation positions
+are checked independently. One control's endpoint falls inside a *second* code
+span, so its reference belongs after that atomic span. ASCII, CJK and emoji
+counterexamples are also checked. These prevent a global subtraction or clamping
+from passing as a coordinate repair. The diagnostic has decoded adapter inputs,
+not original JSPB for these 31 records, so no corrected-coordinate oracle is
+invented and these bounds tests do not demonstrate successful citation recovery.
+
+The annotation and multiple-body fixtures intentionally have no recovery oracle
+yet. Resolving source identities, branch roles and provider coordinate semantics
+needs evidence before those inputs can join the recovery acceptance command.
+Image-resource assertions check semantic ownership, not downloaded file bytes.

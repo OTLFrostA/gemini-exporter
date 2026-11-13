@@ -12,6 +12,7 @@
     "test:unit": "python3 tests/run_tests.py",
     "test:changed": "python3 scripts/run_changed_tests.py",
     "test:gemini-dual": "node -r ./tests/ts_register.js scripts/check_gemini_dual_parse.ts",
+    "test:gemini-remaining": "node -r ./tests/ts_register.js --test tests/acceptance/gemini_remaining.acceptance.ts",
     "test:tier2": "python3 scripts/test_live_chat_and_export.py",
     "test:upgrade": "node scripts/test_upgrade_profile.mjs",
     "release": "gh workflow run release.yml --ref main",
