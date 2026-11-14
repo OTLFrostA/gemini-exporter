@@ -295,11 +295,15 @@
     },
     {
       "date": "2026-11-11",
-      "installs": 6
+      "installs": 0
     },
     {
       "date": "2026-11-12",
       "installs": 10
+    },
+    {
+      "date": "2026-11-13",
+      "installs": 4
     }
   ]
 }
