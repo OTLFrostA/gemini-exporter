@@ -1,9 +1,16 @@
 import { OperationError } from '../../../shared/errors/operationError.js';
+import { readAccountContextReply } from '../../../shared/types/accountContextReply.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
+import {
+    assertValidResourceKey,
+    createDescendingPageChain,
+    forwardSourceDiagnostics,
+    isIdentifiedProviderAccount,
+    requireProviderAccount,
+} from '../providerShared.js';
 import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../../l2/ingestion.js';
-import { getAccount } from '../../../runtime/api/accountRegistry.js';
 import type { GeminiProviderClient, GeminiProviderContract } from './geminiContracts.js';
 import type { ProviderListOptions, ListEnd, ProviderReadiness } from '../aiProvider.js';
 import { ProviderListError } from '../aiProvider.js';
@@ -14,7 +21,7 @@ import { geminiListObservation } from './listObservation.js';
 import { resolveCurrentAccount } from '../../../runtime/content/accountContext.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
 import type { DomainAsset } from '../../../l2/conversationDetail.js';
-import { readConversationKey, type ConversationKey } from '../../../l2/conversationKey.js';
+import type { ConversationKey } from '../../../l2/conversationKey.js';
 import type { ResourceBytes } from '../../../shared/resources/resourceResult.js';
 
 /** Runtime routing is frozen before acquisition, never inferred from SID or Slot. */
@@ -28,15 +35,15 @@ async function resolveRoute(accountId: string): Promise<string> {
         for (const tab of tabs) {
             if (tab.id === undefined) continue;
             try {
-                const response: unknown = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
-                if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true
-                    || !('accountContext' in response)) {
-                    failures.push(`tab ${tab.id}: ${response && typeof response === 'object' && 'error' in response ? String(response.error) : 'invalid reply'}`);
+                const parsed = readAccountContextReply(await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' }));
+                if (!parsed.ok) {
+                    failures.push(`tab ${tab.id}: ${parsed.error ?? 'invalid reply'}`);
                     continue;
                 }
-                const context = response.accountContext;
-                if (context && typeof context === 'object' && 'accountId' in context && context.accountId === accountId
-                    && 'slot' in context && typeof context.slot === 'string' && /^u\d+$/.test(context.slot)) return context.slot;
+                const context = parsed.accountContext;
+                if (context && context.accountId === accountId && context.slot && /^u\d+$/.test(context.slot)) {
+                    return context.slot;
+                }
                 failures.push(`tab ${tab.id}: ${context === null ? 'unknown account' : 'account or slot mismatch'}`);
             } catch (error) { failures.push(`tab ${tab.id}: ${error instanceof Error ? error.message : String(error)}`); }
         }
@@ -53,8 +60,7 @@ export class GeminiProvider implements GeminiProviderContract {
     constructor(client?: GeminiProviderClient, private route = resolveRoute, private readonly resources?: SourceResourceContext) { this.client = client ?? null; }
     private getClient(): GeminiProviderClient { return this.client ??= new GeminiAPIClient(); }
     private async context(accountId: string) {
-        const account = await getAccount(accountId);
-        if (!account || account.providerId !== this.id) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Provider account mismatch');
+        const account = await requireProviderAccount('gemini', accountId);
         const slot = await this.route(accountId);
         return { account, slot };
     }
@@ -75,8 +81,7 @@ export class GeminiProvider implements GeminiProviderContract {
         const { account, slot } = await this.context(options.accountId);
         const client = this.getClient();
         const seen = new Set<string>();
-        const seenConversations = new Set<string>();
-        let lastTime = Infinity;
+        const chain = createDescendingPageChain();
         let cursor: string | null = null, totalObserved = 0, sentHead = false;
         for (let page = 1; page <= 2000; page++) {
             options.signal?.throwIfAborted();
@@ -92,19 +97,14 @@ export class GeminiProvider implements GeminiProviderContract {
                 ...(result._debug ? { details: { ...result._debug } } : {})
             });
             if (options.streamId === 'recent' && observation.valid && observation.ordered) {
-                const keys = observation.keys;
-                if (keys.some((key, i) => seenConversations.has(key.id)
-                        || (i === 0 ? key.time > lastTime : key.time > keys[i - 1].time))) {
+                if (!chain.verifyAndAdvance(observation.keys)) {
                     // Keep reliably decoded Index rows, but never certify a broken
                     // cross-page ordering or duplicated source chain to Coverage.
                     observation.valid = false;
                     observation.ordered = false;
-                } else {
-                    keys.forEach(key => seenConversations.add(key.id));
-                    if (keys.length) lastTime = keys[keys.length - 1].time;
                 }
             }
-            const pageEvidence = account.providerAccountId === 'default' ? undefined : observation;
+            const pageEvidence = isIdentifiedProviderAccount(account) ? observation : undefined;
             const indexChanges = await ingestIndexes(account.id, result.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')), pageEvidence);
             options.signal?.throwIfAborted();
             totalObserved += result.conversations.length;
@@ -150,11 +150,8 @@ export class GeminiProvider implements GeminiProviderContract {
         if (await this.route(accountId) !== slot) throw new OperationError('ACCOUNT_CHANGED', 'Gemini account route changed');
         if (parsed.conversationId !== conversationId.replace(/^c_/, '')) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Detail identity mismatch');
         // Diagnostics are task observations, never persisted quality facts or ingestion inputs.
-        const report = (diagnostic: Diagnostic) => {
-            try { onDiagnostic?.(diagnostic); }
-            catch (error) { console.warn('[Gemini Exporter] Source diagnostic listener failed', error); }
-        };
-        for (const diagnostic of parsed.diagnostics) report(diagnostic);
+        const report = (diagnostic: Diagnostic) => forwardSourceDiagnostics([diagnostic], onDiagnostic);
+        forwardSourceDiagnostics(parsed.diagnostics, onDiagnostic);
         const index = parsed.conversation.index;
         const detail = parsed.conversation.detail;
         report({ severity: 'info', code: 'GEMINI_DETAIL_PARSE_RESULT', message: 'Source Detail parsing completed',
@@ -169,18 +166,17 @@ export class GeminiProvider implements GeminiProviderContract {
             details: { accepted: admission.accepted, changed: admission.changed } });
         if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId: parsed.conversationId }, parsed);
     }
-    async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
+    async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<ResourceBytes> {
         signal?.throwIfAborted();
-        readConversationKey(key);
-        const account = await getAccount(key.accountId);
-        if (!account || account.providerId !== this.id) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Provider account mismatch');
+        assertValidResourceKey(key);
+        await requireProviderAccount('gemini', key.accountId);
         const remote = async () => {
             if (!/^https:\/\//i.test(asset.sourceUri ?? '') && asset.document?.contentMarkdown) return { bytes: new TextEncoder().encode(asset.document.contentMarkdown),
                 mediaType: asset.mediaType ?? 'text/markdown', ...(asset.name ? { name: asset.name } : {}) };
             if (!asset.sourceUri?.startsWith('data:')) await this.context(key.accountId);
-            return acquireSourceResource(asset, signal);
+            return acquireSourceResource(asset, signal, onDiagnostic);
         };
-        return this.resources ? this.resources.acquire(key, asset, signal, remote) : remote();
+        return this.resources ? this.resources.acquire(key, asset, signal, remote, onDiagnostic) : remote();
     }
 }
 export const defaultGeminiProvider = new GeminiProvider();

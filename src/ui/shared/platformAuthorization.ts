@@ -1,9 +1,7 @@
-import { PLATFORM_HOSTS, SOURCE_PLATFORMS as platforms, type SourcePlatform } from '../../shared/platformHosts.js';
+import { PLATFORM_HOSTS, SOURCE_PLATFORMS as platforms, platformDisplayName, type SourcePlatform } from '../../shared/platformHosts.js';
 import { activatePlatformAccess, findAuthorizedAccount, hasPlatformAccess,
     observePlatformAccess, requestPlatformAuthorization } from '../../runtime/capabilities/platformAuthorization.js';
 import { text } from './settings.js';
-
-const names: Record<SourcePlatform, string> = { gemini: 'Gemini', chatgpt: 'ChatGPT', claude: 'Claude', grok: 'Grok' };
 
 /** Shared by onboarding and the standalone site-access dialog. Selection never revokes access. */
 export function mountPlatformAuthorization(host: HTMLElement, options: {
@@ -46,7 +44,7 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
         input.checked = options.selectedPlatforms ? options.selectedPlatforms.includes(platform) : true;
         input.addEventListener('change', updateButton);
         const name = document.createElement('span');
-        name.textContent = names[platform];
+        name.textContent = platformDisplayName(platform);
         const state = document.createElement('span');
         state.className = 'platform-permission-state';
         label.append(input, name);

@@ -7,9 +7,13 @@ import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.
 import { extractSourceAttributions } from '../src/l1/parsers/gemini/rpc/sourceAttributions.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
 import { createDocumentReader } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
+import { recoverGeminiSourceRanges } from '../src/l1/parsers/gemini/shared/sourceRanges.js';
+import type { GeminiStructuredDocument } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 
 const target = 'https://example.com/owned-source';
 const table = (id: string, url = target) => [null, [[['`code`'], [1], [[url, 'Owned source']], id]]];
+const directCitation = (id: string, url = target) => [0, 4, [url, ...Array(19).fill(null), 'https://example.com/cache'],
+    1, null, 1, null, 0, null, id];
 const parse = (raw: unknown, metadata?: unknown, alternatives: unknown[] = [], artifactPackets?: unknown, candidateText = 'Selected Markdown.') => {
     const primary: unknown[] = ['rc_primary', [[candidateText]], metadata];
     if (artifactPackets !== undefined) primary[30] = artifactPackets;
@@ -42,8 +46,37 @@ test('all supported source identities bind only to their explicit selected-candi
     assert.equal(parse(nested, table('cit_owned')).conversation.detail.quality.status, 'complete');
 });
 
-function quotedEntry(id: string, quote: string, candidateText: string) {
-    const start = candidateText.indexOf(quote);
+test('candidate direct-citation records bind their exact IDs without a span-attribution table', () => {
+    const metadata = [[directCitation('cit_owned')]];
+    const result = parse(rawBody('cit_owned'), metadata);
+    assert.equal(result.conversation.detail.quality.status, 'complete');
+    const message = result.conversation.detail.messages.find(m => m.role === 'assistant');
+    assert.ok(message);
+    assert.deepEqual(message.citations, [{ id: 'citation-0', url: target, title: target }]);
+    assert.ok(JSON.stringify(message.content).includes('"citationId":"citation-0"'));
+    assert.equal(JSON.stringify(message).includes('https://example.com/cache'), false);
+    assertDomainClosure(result.conversation.detail);
+    const both = [[directCitation('cit_owned')], table('cit_owned')[1]];
+    assert.equal(parse(rawBody('cit_owned'), both).conversation.detail.quality.status, 'complete');
+});
+
+test('direct-citation binding rejects foreign candidates, conflicting targets and malformed entries', () => {
+    sourceDiagnostic(parse(rawBody('cit_owned'), undefined, [['rc_other', [['Other body.']], [[directCitation('cit_owned')]]]]));
+    sourceDiagnostic(parse(rawBody('cit_owned'), [[directCitation('cit_other')]]));
+    sourceDiagnostic(parse(rawBody('cit_owned'), [[directCitation('cit_owned'), directCitation('cit_owned', 'https://example.com/other')]]));
+    sourceDiagnostic(parse(rawBody('cit_owned'), [[directCitation('cit_owned', 'https://example.com/other')], table('cit_owned')[1]]));
+    for (const malformed of [
+        directCitation('cit_owned', 'javascript:alert(1)'),
+        Object.assign(directCitation('cit_owned'), { 0: -1 }),
+        Object.assign(directCitation('cit_owned'), { 1: 0.5 }),
+        Object.assign(directCitation('cit_owned'), { 2: [] }),
+    ]) sourceDiagnostic(parse(rawBody('cit_owned'), [[malformed]]));
+    // Binding is proven here, but these byte-only records are not dual-coordinate
+    // source quotes and cannot repair invalid local native coordinates.
+    sourceDiagnostic(parse(rawBody('cit_owned', 999), [[directCitation('cit_owned')]]));
+});
+
+function quotedEntry(id: string, quote: string, candidateText: string, start = candidateText.indexOf(quote)) {
     assert.ok(start >= 0);
     const bytes = new TextEncoder();
     return [[quote, null, null, [
@@ -51,6 +84,67 @@ function quotedEntry(id: string, quote: string, candidateText: string) {
         [start, start + quote.length],
     ]], [1], [[target, 'Owned source']], id];
 }
+
+test('verified Markdown positions recover partial code quotes and disambiguate repeated snippets by a whole paragraph', () => {
+    const cases = [
+        { markdown: 'Prefix `alpha beta` suffix.', native: 'Prefix alpha beta suffix.', quote: 'beta`', start: 13, end: 17 },
+        { markdown: 'Prefix `alpha beta` suffix.', native: 'Prefix alpha beta suffix.', quote: 'beta` suffix.', start: 13, end: 25 },
+        { markdown: '**Prefix** `alpha beta` suffix.', native: 'Prefix alpha beta suffix.', quote: '**Prefix** `alpha beta`', start: 0, end: 17 },
+        { markdown: 'First `code` mention.\n\nSecond `code` mention.', native: 'Second code mention.', quote: '`code`', start: 7, end: 11 },
+        { markdown: 'code then code', native: 'code then code', quote: 'code', start: 10, end: 14 },
+    ];
+    for (const example of cases) {
+        const at = example.markdown.lastIndexOf(example.quote);
+        const metadata = [null, [quotedEntry('spp_owned', example.quote, example.markdown, at)]];
+        const source = extractSourceAttributions(['rc_primary', [[example.markdown]], metadata], example.markdown);
+        const doc: GeminiStructuredDocument = { children: [
+            { nodeType: 18, text: 'First code mention.' },
+            { nodeType: 18, text: example.native, annotations: [{ type: 'source', start: 0, end: 999, sourceIds: ['spp_owned'] }] },
+        ] };
+        const recovery = recoverGeminiSourceRanges(doc, source, example.markdown);
+        assert.equal(recovery.recovered, 1, example.quote);
+        const node = recovery.document.children[1];
+        assert.ok(node.nodeType === 18);
+        assert.deepEqual(node.annotations, [{ type: 'source', start: example.start, end: example.end, sourceIds: ['spp_owned'] }]);
+        const raw = [[[citationText('First code mention.'), citationText(example.native, [
+            [0, 999, [null, null, null, [null, ['spp_owned']]]],
+        ])]]];
+        const result = parse(raw, metadata, [], undefined, example.markdown);
+        assert.equal(result.conversation.detail.quality.status, 'complete');
+        assertDomainClosure(result.conversation.detail);
+    }
+});
+
+test('contextual source recovery rejects duplicate paragraphs, changed code, and conflicting quote positions', () => {
+    for (const markdown of ['Repeated `code`.\n\nRepeated `code`.', 'Repeated `Code`.', 'Repeated `co  de`.']) {
+        const quote = markdown.includes('co  de') ? 'co  de`' : markdown.includes('Code') ? 'Code`' : 'code`';
+        const metadata = [null, [quotedEntry('spp_owned', quote, markdown)]];
+        const raw = [[[citationText('Repeated code.', [[0, 999, [null, null, null, [null, ['spp_owned']]]]]),
+            citationText('Repeated code.')]]];
+        sourceDiagnostic(parse(raw, metadata, [], undefined, markdown));
+    }
+    const markdown = 'code then code';
+    const metadata = [null, [quotedEntry('spp_owned', 'code', markdown, 0), quotedEntry('spp_owned', 'code', markdown, 10)]];
+    const raw = [[[citationText(markdown, [[0, 999, [null, null, null, [null, ['spp_owned']]]]])]]];
+    sourceDiagnostic(parse(raw, metadata, [], undefined, markdown));
+});
+
+test('contextual projection cannot truncate multi-block quotes or approximate entity and code normalization', () => {
+    for (const [markdown, quote, native] of [
+        ['`first`\n\n`second`', 'first`\n\n`second', 'first'],
+        ['A &amp; B', 'amp;', 'A & B'],
+        ['A ` padded ` B', 'padded `', 'A padded B'],
+        ['A `line\nbreak` B', 'break`', 'A line break B'],
+        ['A ![image](https://example.com/a) B', '![image]', 'A image B'],
+    ]) {
+        const metadata = [null, [quotedEntry('spp_owned', quote, markdown)]];
+        const raw = [[[citationText(native, [[0, 999, [null, null, null, [null, ['spp_owned']]]]])]]];
+        const result = parse(raw, metadata, [], undefined, markdown);
+        assert.equal(result.conversation.detail.quality.status, 'partial', markdown);
+        sourceDiagnostic(result);
+        assert.ok(!result.diagnostics.some(d => d.code === 'GEMINI_SOURCE_RANGE_RECOVERED'));
+    }
+});
 
 test('invalid source ranges recover only from a verified selected-candidate quote at one exact native location', () => {
     const candidateText = '引言😀\n\n😀 Prefix `code` suffix.';

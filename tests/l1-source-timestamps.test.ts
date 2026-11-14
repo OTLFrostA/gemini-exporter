@@ -1,10 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chatGPTTimestamp } from '../src/l1/parsers/chatgpt/timestamp.js';
+import { claudeTimestamp } from '../src/l1/parsers/claude/parseList.js';
+import { grokTimestamp } from '../src/l1/parsers/grok/source.js';
 import { payloadToMs } from '../src/l1/parsers/gemini/rpc/payload.js';
 
 test('ChatGPT source timestamps normalize seconds and reject unsafe or fabricated time', () => {
     assert.equal(chatGPTTimestamp(1700000000.125), 1700000000125);
+    assert.equal(claudeTimestamp(1700000000.1259), 1700000000125);
+    assert.equal(grokTimestamp('2023-11-14T22:13:20Z'), 1700000000000);
+    assert.equal(grokTimestamp(1700000000), undefined);
     assert.equal(chatGPTTimestamp(1700000000123), 1700000000123);
     assert.equal(chatGPTTimestamp(1700000000.1259), 1700000000125);
     assert.equal(chatGPTTimestamp(1700000000123.9), 1700000000123);

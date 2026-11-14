@@ -45,7 +45,23 @@ test('Claude attachments accept ID zero and reject a tab list without IDs before
     const id = '11111111-1111-4111-8111-111111111111';
     const result = await readClaudeFile(id, id);
     assert.deepEqual(result.bytes, new Uint8Array([1, 2]));
+    tabs = [{ active: true }, { id: 9, active: true }, { id: 0 }];
+    let attempt = 0;
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: {
+        permissions: { contains: async () => true }, tabs: { query: async () => tabs },
+        scripting: { executeScript: async ({ target }: { target: { tabId: number } }) => {
+            calls++;
+            if (++attempt === 1) {
+                assert.equal(target.tabId, 9);
+                throw new Error('Active tab navigated');
+            }
+            assert.equal(target.tabId, 0);
+            return [{ result: { status: 200, base64: 'AQI=', mediaType: 'application/octet-stream' } }];
+        } },
+    } });
+    const fallbackResult = await readClaudeFile(id, id);
+    assert.deepEqual(fallbackResult.bytes, new Uint8Array([1, 2]));
     tabs = [{ active: true }];
     await assert.rejects(readClaudeFile(id, id), /Open Claude/);
-    assert.equal(calls, 1);
+    assert.equal(calls, 3);
 });

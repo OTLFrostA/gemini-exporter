@@ -81,6 +81,46 @@ test('source-coordinate degradation writes native code and known sources to disk
     assert.equal(refreshes, before + 1);
 });
 
+test('interaction cleanup and a partial-code quote produce complete physical Markdown and a truthful receipt', async t => {
+    const host = v2ExportHost(t);
+    const markdown = 'Prefix `alpha beta` suffix.\n\n<FollowUp query="Next"/>';
+    const quote = 'beta`';
+    const start = markdown.indexOf(quote), end = start + quote.length;
+    const target = 'https://example.com/verified-source';
+    const metadata = [null, [[[quote, null, null, [[start, end], [start, end]]],
+        [1], [[target, 'Verified source']], 'spp_owned']]];
+    const raw = [
+        [[citationText('Other body.')]],
+        [[citationText('Prefix alpha beta suffix.', [
+            [7, 17, [[null, null, null, null, 3]]],
+            [0, 999, [null, null, null, [null, ['spp_owned']]]],
+        ])]],
+    ];
+    const frames: unknown[] = JSON.parse(coverageWire(raw, [['rc_primary', [[markdown]], metadata]]));
+    frames.unshift(['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+        ['c_coverage', 'Verified source fixture', null, null, null, [1700000000, 0]],
+    ]])]);
+    const source = mergeConversationPages([parseGeminiRpcConversation(JSON.stringify(frames), {
+        account, providerId: 'gemini',
+    })], undefined, true);
+    assert.equal(source.conversation.detail.quality.status, 'complete');
+    assert.ok(source.diagnostics.some(d => d.code === 'GEMINI_SOURCE_RANGE_RECOVERED'));
+    t.mock.method(GeminiProvider.prototype, 'fetchConversationDetail', async (accountId: string, id: string) => {
+        await ingestDetail(accountId, id, source.conversation.detail, source.conversation.index);
+    });
+    await ingestDetail(account.id, source.conversationId, source.conversation.detail, source.conversation.index);
+    const request = exportRequest([source.conversationId], { skipUnchanged: true });
+    const exported = await runExport(request);
+    assert.equal(exported.exported, 1);
+    assert.equal(exported.partial, 0);
+    const physical = await host.blobs[0].text();
+    assert.match(physical, /Prefix `alpha beta`/);
+    assert.ok(physical.includes(target) && physical.includes(' suffix.'));
+    assert.doesNotMatch(physical, /Other body|FollowUp/);
+    assert.equal((await getExportRecord(exportKey(source.conversationId)))?.status, 'ok');
+    assert.equal((await runExport(request)).skipped, 1);
+});
+
 test('a missing document body remains retryable and an owned packet supplies the physical file on repair', async t => {
     const host = v2ExportHost(t);
     const oldZip = __getZipConstructor();

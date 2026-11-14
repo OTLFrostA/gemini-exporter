@@ -12,6 +12,8 @@ const { startSync } = require('../src/ui/options/controllers/syncController.js')
     typeof import('../src/ui/options/controllers/syncController.js');
 const { handleTakeoutImport } = require('../src/ui/options/controllers/takeoutController.js') as
     typeof import('../src/ui/options/controllers/takeoutController.js');
+const { createBackoffNotice } = require('../src/ui/shared/backoffNotice.js') as
+    typeof import('../src/ui/shared/backoffNotice.js');
 const { errorText } = require('../src/ui/shared/settings.js') as
     typeof import('../src/ui/shared/settings.js');
 assertUiNodeIsolation();
@@ -113,4 +115,18 @@ test('takeoutController uses v2 Account/Settings/Import mocks with selected Acco
     });
     assert.deepEqual(seen, [['target', A], ['settings', { takeoutPromptCompleted: true }], ['progress', 100]]);
     assert.deepEqual(result, { imported: 1, added: 0, status: 'ok' });
+});
+
+test('createBackoffNotice handles provider-agnostic rate-limit and backoff codes with boolean observation feedback', () => {
+    const notice = createBackoffNotice();
+    assert.equal(notice.observe({ code: 'UNRELATED_EVENT', details: { requestId: 'r1', retryAt: Date.now() + 5000 } }), false);
+    assert.equal(notice.message(), null);
+
+    assert.equal(notice.observe({ code: 'CLAUDE_BACKOFF_WAIT', details: { requestId: 'r1', retryAt: Date.now() + 15000 } }), true);
+    assert.match(notice.message() ?? '', /^Claude rate limited \(429\): backing off;/);
+    assert.equal(notice.observe({ code: 'CLAUDE_BACKOFF_END', details: { requestId: 'r1' } }), true);
+    assert.equal(notice.message(), null);
+
+    assert.equal(notice.observe({ code: 'GROK_COOLDOWN_ACTIVE', details: { retryAt: Date.now() + 120000 } }), true);
+    assert.match(notice.message() ?? '', /^Grok rate limited \(429\): export stopped;/);
 });

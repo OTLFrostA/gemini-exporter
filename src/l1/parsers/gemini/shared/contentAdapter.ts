@@ -77,12 +77,12 @@ export function parseGeminiBody(
             ...(context.candidateEvidence ? { candidateEvidence: { ...context.candidateEvidence } } : {}),
         };
         let sourceFallback = false;
-        const recovery = recoverGeminiSourceRanges(structuredContent, context.sourceAttributions ?? []);
+        const recovery = recoverGeminiSourceRanges(structuredContent, context.sourceAttributions ?? [], context.candidateEvidence?.candidateText);
         const structured = geminiStructuredToContent(recovery.document, context.sourceCitations,
             { ...context, onSourceFallback: () => { sourceFallback = true; } });
         if (structured !== null && (structured.length > 0 || !cleaned.trim())) {
             if (recovery.recovered) context.diagnostics.push({ severity: 'info', code: 'GEMINI_SOURCE_RANGE_RECOVERED',
-                message: 'Recovered invalid source coordinates from unique verified selected-candidate quotes', sourceRef: context.sourceRef,
+                message: 'Recovered invalid source coordinates from verified selected-candidate quotes and unique native anchors', sourceRef: context.sourceRef,
                 details: { recovered: recovery.recovered, method: 'exact_selected_source_quote' } });
             if (sourceFallback) {
                 context.onStructuredFallback?.();

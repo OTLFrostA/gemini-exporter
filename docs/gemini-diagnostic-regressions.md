@@ -348,3 +348,83 @@ The final source integrated with current main passes `npm test`: 402 unit-test
 files plus Python/static checks, TypeScript, the zero-any gate, production build,
 bundled-font checks and all 220 Playwright tests. The prior live Tier 2 setup
 failures remain unresolved; this does not establish a passing live account run.
+
+## Fresh diagnostic: interaction markup and contextual source positions
+
+The fresh 2.1.1 report records a completed Markdown/folder export: 1,344 exported
+conversations (including 37 partial), one skipped and ten not-found failures.
+It contains 26 successful source-range recovery events, no document-binding
+fallback warnings, and 28 remaining body/source warnings across 26 conversations.
+These event counts cannot be compared directly with the older report as an
+export-wide repair rate.
+
+The new replay preserves the captured native document, original selected-candidate
+Markdown, source table, artifact packets and grounding references. It reconstructs
+RPC framing and runs production parse, merge, Domain validation/closure and Markdown
+rendering. It does not substitute cleaned fallback text for the original candidate.
+
+| Warning occurrences | Before this repair | After |
+| --- | ---: | ---: |
+| Whole-body fallback | 13 | 8 |
+| Native body with source-only partial quality | 15 | 7 |
+| Replayed turn becomes complete | 0 | 13 |
+| Domain/render exceptions | 0 | 0 |
+
+The 13 repaired occurrences belong to 13 different conversations; the remaining
+15 warnings belong to 13 conversations. Other turns and attachment availability
+still affect a conversation's overall export status. This is a semantic replay,
+not a fresh account-wide export or attachment-byte verification.
+
+Five body fallbacks came from provider interaction tags such as `FollowUp` and
+`ElicitationsGroup`. Export already removed them, but alternative selection compared
+them as body text. Both paths now use the same cleanup. Parsed fenced/indented/inline
+code, math and escaped markup remain literal. Unknown tag names, including names
+that merely extend a known name, remain significant. A different candidate's body
+or duplicate matches cannot become the selected body by this cleanup.
+
+Five source-only warnings recover through complete Markdown paragraphs. Source
+headers now retain their verified UTF-16 positions as well as quote text, after
+both UTF-8 and UTF-16 validation. The parser maps those positions through exact
+text/code spans in the complete paragraph. This handles a quote starting inside
+inline code and a short snippet repeated in different paragraphs. The complete
+visible paragraph must occur exactly once in both the candidate and native text
+nodes. Mapping never normalizes code spaces, case or punctuation, crosses blocks,
+or approximates escapes/entities or padded/multiline code. All IDs on an annotation
+must still agree, valid native ranges stay unchanged, and malformed formatting
+remains rejected. The earlier unique isolated-quote recovery remains available
+when this stronger contextual mapping cannot be established. Conflicting quote
+positions for the same ID are ambiguous even if the quote strings are identical.
+
+Three further source warnings now bind their exact `cit_` IDs from the selected
+candidate's direct-citation table (`metadata[0]`), independently of the span-source
+table (`metadata[1]`). The direct record's explicit ID binds its actual source
+URL; cache/attribution URLs do not become extra sources. Conflicting targets,
+malformed records and foreign candidates remain rejected. These byte-only records
+do not supply the dual-coordinate quote needed to repair invalid local ranges.
+
+The remaining warnings are nine emphasis-representation disagreements (eight
+whole-body and one source-only) without matching independent native style spans,
+plus six unbound zero-width `0` occurrences. Neither
+dropping literal `**` nor aliasing source IDs provides the missing evidence. They
+retain usable text, partial quality and retry eligibility. Separately, the export
+records 14 expired resource sources and two unavailable locators; these are
+resource-acquisition issues, not decoder failures. Not-found conversations remain
+outside this repair's priority.
+
+The shared fixture core drives the new interaction/position counterexamples.
+`gemini_source_evidence.test.ts` asserts independently authored exact recovered
+coordinates, including repeated snippets, partial code, conflicting positions,
+multi-block rejection and unchanged whitespace/punctuation controls.
+`gemini_structured_integrity_export.test.ts` additionally exports a selected
+alternative with a partial-code quote, checks delivered Markdown bytes and its
+source link, verifies an `ok` receipt, and permits skipping only after completion.
+Private response bodies, URLs, account IDs and source identities are not committed.
+
+The final source integrated with main `a33ce68d` passes `npm test`: 402 unit-test
+files plus Python/static checks, TypeScript, zero-any, the production build
+(12 bundles, zero warnings), bundled-font checks and all 220 Playwright tests.
+The 52 focused parser/export/import/UI checks also pass. Type-aware lint has no
+warnings in changed production files. The 106 frozen inputs retain every prior
+success and every asset registry; the 28 fresh replay inputs also retain their
+asset registries. Live Tier 2 remains unverified, and no personal browser or
+port 9222 was used. Scenario pool remains 20/20 with no consumption.

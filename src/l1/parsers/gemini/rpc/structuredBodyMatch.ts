@@ -1,6 +1,7 @@
 import type { RootContent, PhrasingContent } from 'mdast';
 import type { GeminiStructuredDocument, GeminiStructuredNode } from './structuredContent.js';
 import { parseMarkdownAst } from '../../shared/markdown/index.js';
+import { stripInternalChipMarkdown } from '../../shared/chipUtils.js';
 
 /** Used only to disambiguate alternative document bodies against the selected
  * candidate's independent Markdown. Preserve punctuation and code whitespace;
@@ -98,6 +99,7 @@ function signature(value: string): string {
 export function matchesCandidateBody(document: GeminiStructuredDocument, markdown: string): boolean {
     // Sentinels below are internal signature delimiters, never source text.
     if (markdown.includes('\u0000')) return false;
+    markdown = stripInternalChipMarkdown(markdown);
     const decorations: Array<{ marker: string; text: string }> = [];
     let hasMath = false;
     const visit = (nodes: readonly GeminiStructuredNode[]): void => {

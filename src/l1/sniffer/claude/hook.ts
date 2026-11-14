@@ -1,4 +1,5 @@
 import { CLAUDE_SOURCE_EVENT, claudeRequest, activeClaudeOrganization } from './observation.js';
+import { readCappedStreamLines } from '../shared/streamAndBridge.js';
 
 const HOOK_FLAG = '__gemExporterClaudeHookInstalled';
 
@@ -18,30 +19,13 @@ export function installClaudeHook(): void {
         void (async () => {
             let responseBody: unknown = null;
             if (request.kind === 'stream') {
-                const reader = copy.body?.getReader();
-                if (!reader) return;
-                const decoder = new TextDecoder();
-                let pending = '', bytes = 0, complete = false;
-                try {
-                    for (;;) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        bytes += value.byteLength;
-                        if (bytes > 16 * 1024 * 1024) break;
-                        pending += decoder.decode(value, { stream: true });
-                        const lines = pending.split('\n'); pending = lines.pop() ?? '';
-                        for (const line of lines) {
-                            if (!line.startsWith('data:')) continue;
-                            try {
-                                const event: unknown = JSON.parse(line.slice(5));
-                                if (event && typeof event === 'object' && !Array.isArray(event) && Reflect.get(event, 'type') === 'message_stop') {
-                                    complete = true;
-                                }
-                            } catch { /* SSE framing */ }
-                        }
-                        if (complete) break;
-                    }
-                } finally { void reader.cancel().catch(() => {}); reader.releaseLock(); }
+                const complete = await readCappedStreamLines(copy.body, 16 * 1024 * 1024, line => {
+                    if (!line.startsWith('data:')) return false;
+                    try {
+                        const event: unknown = JSON.parse(line.slice(5));
+                        return !!event && typeof event === 'object' && !Array.isArray(event) && Reflect.get(event, 'type') === 'message_stop';
+                    } catch { return false; }
+                });
                 if (!complete) return;
             } else if (request.kind !== 'delete') {
                 const text = await copy.text();

@@ -4,8 +4,44 @@ import { matchesCandidateBody } from '../src/l1/parsers/gemini/rpc/structuredBod
 import { decodeGeminiStructuredPayload } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { parseRemainingFixture } from './helpers/geminiRemainingRecovery.js';
 import type { GeminiStructuredDocument } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
+import { citationText, coverageWire } from './fixtures/providers/gemini/detail/content.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
+import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 
 const paragraph = (text: string): GeminiStructuredDocument => ({ children: [{ nodeType: 18, text }] });
+
+test('provider interaction markup uses the same body cleanup for alternative selection and export', () => {
+    for (const markup of [
+        '<FollowUp label="Next" query="Explain more"/>',
+        '<ElicitationsGroup message="Explore"><Elicitation label="Next" query="More"/></ElicitationsGroup>',
+        '<FollowUp>Next question</FollowUp>',
+        '<GenerateWidget id="fixture"/>',
+    ]) for (const selected of [0, 1]) {
+        const branches = ['Other body.', 'Other body.'];
+        branches[selected] = 'Selected body.';
+        const raw = branches.map(body => [[citationText(body)]]);
+        const wire = coverageWire(raw, [['rc_primary', [['Selected body.\n\n' + markup]]]]);
+        const result = mergeConversationPages([parseGeminiRpcConversation(wire, {
+            account: fixtureAccount('gemini'), providerId: 'gemini',
+        })], undefined, true);
+        assert.equal(result.conversation.detail.quality.status, 'complete', markup);
+        assert.ok(!result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK' && d.severity === 'warning'));
+        assert.equal(JSON.stringify(result.conversation.detail.messages).includes('Other body.'), false);
+        assert.equal(JSON.stringify(result.conversation.detail.messages).includes('Selected body.'), true);
+    }
+});
+
+test('interaction cleanup cannot erase code literals, unknown HTML or a different body', () => {
+    assert.equal(matchesCandidateBody(paragraph('Selected body.'), 'Different body.\n\n<FollowUp query="Selected body."/>'), false);
+    for (const markup of ['<UnknownWidget/>', '<FollowUp-extension/>', '<aside>Visible content</aside>', '\\<FollowUp query="literal"/>']) {
+        assert.equal(matchesCandidateBody(paragraph('Selected body.'), 'Selected body.\n\n' + markup), false);
+    }
+    const inline: GeminiStructuredDocument = { children: [{ nodeType: 18, text: '<FollowUp/>',
+        annotations: [{ start: 0, end: 11, type: 7 }] }] };
+    assert.equal(matchesCandidateBody(inline, '`<FollowUp/>`\n\n<FollowUp query="Next"/>'), true);
+    assert.equal(matchesCandidateBody(paragraph('Selected body.'), 'Selected body.\n\n```xml\n<FollowUp/>\n```'), false);
+});
 
 test('alternative matching preserves punctuation and literal formatting characters', () => {
     assert.equal(matchesCandidateBody(paragraph('Selected body.'), '**Selected** body.'), true);

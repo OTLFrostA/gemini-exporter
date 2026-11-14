@@ -1,15 +1,22 @@
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { OperationError, operationError } from '../../../shared/errors/operationError.js';
+import { PLATFORM_HOSTS, matchesPlatformPageUrl } from '../../../shared/platformHosts.js';
 import { claudeFileId, readClaudeFile } from './fileAssets.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { DomainAsset } from '../../../l2/conversationDetail.js';
 import type { ConversationKey } from '../../../l2/conversationKey.js';
-import { readConversationKey } from '../../../l2/conversationKey.js';
 import type { ResourceBytes } from '../../../shared/resources/resourceResult.js';
-import { getAccount } from '../../../runtime/api/accountRegistry.js';
-import { ingestIndexes, ingestDetail } from '../../../l2/ingestion.js';
+import { ingestIndexes } from '../../../l2/ingestion.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
 import type { AIProvider, ListEnd, ProviderListOptions, ProviderReadiness } from '../aiProvider.js';
+import {
+    assertValidResourceKey,
+    commitProviderDetail,
+    createDescendingPageChain,
+    isIdentifiedProviderAccount,
+    requireProviderAccount,
+    toIndexIngestItems,
+} from '../providerShared.js';
 import { parseClaudeList } from '../../parsers/claude/parseList.js';
 import { parseClaudeConversation } from '../../parsers/claude/parseConversation.js';
 import { readClaudeSource } from './claudeSource.js';
@@ -23,7 +30,7 @@ interface ClaudeProviderDeps {
 export class ClaudeProvider implements AIProvider {
     readonly id = 'claude';
     readonly name = 'Claude';
-    readonly hostPatterns = ['https://claude.ai/*'];
+    readonly hostPatterns = [...PLATFORM_HOSTS.claude.pages];
     private readonly apiGet: NonNullable<ClaudeProviderDeps['apiGet']>;
     private readonly resources?: SourceResourceContext;
     constructor(deps: ClaudeProviderDeps = {}) {
@@ -31,14 +38,10 @@ export class ClaudeProvider implements AIProvider {
         this.resources = deps.resources;
     }
     matchesUrl(url: string): boolean {
-        try { return new URL(url).origin === 'https://claude.ai'; }
-        catch { return false; }
+        return matchesPlatformPageUrl('claude', url);
     }
     private async account(accountId: string): Promise<Account> {
-        const account = await getAccount(accountId);
-        if (!account || account.providerId !== this.id || !claudeUuid(account.providerAccountId))
-            throw new OperationError('ACCOUNT_UNAVAILABLE', 'Claude account mismatch');
-        return account;
+        return requireProviderAccount('claude', accountId, claudeUuid);
     }
     private async get(path: string, account: Account, signal?: AbortSignal): Promise<unknown> {
         signal?.throwIfAborted();
@@ -61,8 +64,8 @@ export class ClaudeProvider implements AIProvider {
     async listConversations(options: ProviderListOptions): Promise<ListEnd> {
         if (options.streamId !== 'recent') throw new TypeError('Unknown Claude stream');
         const account = await this.account(options.accountId);
-        const seen = new Set<string>();
-        let lastTime = Infinity, totalObserved = 0;
+        const chain = createDescendingPageChain();
+        let totalObserved = 0;
         for (let page = 1; page <= 100; page++) {
             const offset = (page - 1) * 100, requestedAt = Date.now();
             const raw = await this.get('/api/organizations/' + account.providerAccountId
@@ -76,21 +79,16 @@ export class ClaudeProvider implements AIProvider {
             const sourceEnd = raw.has_more === false;
             const valid = count <= 100 && (sourceEnd || count === 100)
                 && !('search_incomplete' in raw && raw.search_incomplete === true);
-            // Parser keys retain wire order for Coverage evidence.
             const times = parsed.keys;
-            const ordered = valid && times.every((key, i) => !seen.has(key.id)
-                && key.time <= (i ? times[i - 1].time : lastTime));
+            const ordered = valid && chain.verifyAndAdvance(times);
+            const identified = isIdentifiedProviderAccount(account);
             const evidence = { streamId: options.streamId, requestCursor: page === 1 ? null : String(offset),
                 nextCursor: sourceEnd ? null : String(offset + 100), requestedAt,
                 requestKnown: true, valid, ordered, keys: times };
-            const indexChanges = await ingestIndexes(account.id, parsed.conversations.map(item => ({ conversationId: item.id, fields: {
-                ...(item.title ? { title: item.title, titleSource: 'provider' as const } : {}),
-                ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}), updatedAt: item.updatedAt,
-            } })), evidence);
+            const indexChanges = await ingestIndexes(account.id, toIndexIngestItems(parsed.conversations),
+                identified ? evidence : undefined);
             options.signal?.throwIfAborted();
-            if (!valid || !ordered) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Unverified Claude list page');
-            times.forEach(key => seen.add(key.id));
-            if (times.length) lastTime = times[times.length - 1].time;
+            if (!valid || !ordered || !identified) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Unverified Claude list page');
             totalObserved += count;
             const stop = await options.onPageCommitted?.({ page, totalObserved, indexChanges, ...(page === 1 ? { scanHead: evidence } : {}) });
             if (sourceEnd) return 'source_end';
@@ -109,23 +107,18 @@ export class ClaudeProvider implements AIProvider {
         try { parsed = parseClaudeConversation(raw, conversationId); }
         catch (error) { throw operationError(error, 'SOURCE_RESPONSE_INVALID'); }
         signal?.throwIfAborted();
-        for (const diagnostic of parsed.diagnostics) {
-            try { onDiagnostic?.(diagnostic); }
-            catch (error) { console.warn('[Gemini Exporter] Source diagnostic listener failed', error); }
-        }
-        const admission = await ingestDetail(account.id, conversationId, parsed.conversation.detail, parsed.conversation.index);
-        if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId }, parsed);
+        await commitProviderDetail({ accountId: account.id, conversationId, parsed, resources: this.resources, onDiagnostic });
     }
     canAcquireResourceDirectly(asset: DomainAsset): boolean { return claudeFileId(asset.sourceUri) !== null; }
-    async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
-        readConversationKey(key);
+    async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<ResourceBytes> {
+        assertValidResourceKey(key);
         const account = await this.account(key.accountId);
         const id = claudeFileId(asset.sourceUri);
         const remote = async () => {
-            const result = id ? await readClaudeFile(account.providerAccountId, id, signal) : await acquireSourceResource(asset, signal);
+            const result = id ? await readClaudeFile(account.providerAccountId, id, signal) : await acquireSourceResource(asset, signal, onDiagnostic);
             if (asset.byteLength !== undefined && result.bytes.byteLength !== asset.byteLength) throw new OperationError('RESOURCE_SIZE_MISMATCH', 'Claude attachment byte count mismatch');
             return result;
         };
-        return this.resources ? this.resources.acquire(key, asset, signal, remote) : remote();
+        return this.resources ? this.resources.acquire(key, asset, signal, remote, onDiagnostic) : remote();
     }
 }

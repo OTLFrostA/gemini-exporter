@@ -1,5 +1,6 @@
 import { GROK_SOURCE_EVENT, grokRequest } from './observation.js';
 import { grokAccount } from '../../parsers/grok/source.js';
+import { readCappedStreamText } from '../shared/streamAndBridge.js';
 
 const HOOK_FLAG = '__gemExporterGrokHookInstalled';
 
@@ -25,19 +26,8 @@ export function installGrokHook(): void {
         void (async () => {
             const captured = await owner;
             if (!captured) return;
-            const reader = copy.body?.getReader();
-            if (!reader) return;
-            const decoder = new TextDecoder(); let text = '', bytes = 0;
-            try {
-                for (;;) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    bytes += value.byteLength;
-                    if (bytes > 16 * 1024 * 1024) return;
-                    if (request.kind === 'list') text += decoder.decode(value, { stream: true });
-                }
-                text += decoder.decode();
-            } finally { void reader.cancel().catch(() => {}); reader.releaseLock(); }
+            const text = await readCappedStreamText(copy.body, 16 * 1024 * 1024);
+            if (text === null) return;
             if (await identity() !== captured) return;
             const responseBody: unknown = request.kind === 'list' ? JSON.parse(text) : null;
             window.postMessage({ type: GROK_SOURCE_EVENT, payload: { url, method, owner: captured,
