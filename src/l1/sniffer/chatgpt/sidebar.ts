@@ -1,8 +1,7 @@
+import { isRecord } from '../../../shared/utils/typeGuards.js';
 import { chatGPTConversationId, chatGPTWorkspaceMatches } from './observation.js';
 
-function record(value: unknown): value is Record<string, unknown> {
-    return !!value && typeof value === 'object' && !Array.isArray(value);
-}
+const record = isRecord;
 
 /** Request-independent SSR evidence, bound to the workspace which rendered it.
  * Only list fields cross worlds; bootstrap auth/session data never does. */

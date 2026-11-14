@@ -157,11 +157,12 @@ test('Grok account comes from userId and TeX normalization preserves code litera
     const f = fixture();
     assert.equal(grokAccount({ userId: f.id, email: 'test@example.com', givenName: 'Test' }).providerAccountId, f.id);
     assert.throws(() => grokAccount({ email: 'test@example.com' }), /identity/);
-    const source = '```python\nx = "\\(literal\\)"\n```\n`\\(code\\)`\n\\(a+b\\)';
+    const source = '```python\nx = "\\(literal\\)"\n```\n~~~sh\ny = "\\(tilde\\)"\n~~~\n`\\(code\\)`\nUnclosed \\(x and valid \\(a+b\\)';
     const output = preprocessGrokMarkdown(source);
     assert.ok(output.includes('x = "\\(literal\\)"'));
+    assert.ok(output.includes('y = "\\(tilde\\)"'));
     assert.ok(output.includes('`\\(code\\)`'));
-    assert.ok(output.endsWith('$a+b$'));
+    assert.ok(output.includes('Unclosed \\(x and valid $a+b$'));
 });
 
 test('Grok source allowlist rejects writes and extension injection serializes discovery safely', async () => {

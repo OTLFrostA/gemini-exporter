@@ -1,7 +1,7 @@
 import { STEPS, PLATFORM_STEPS, AUTHORIZATION_STEP } from './tourSteps.js';
 import { text } from '../shared/settings.js';
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
-import { SOURCE_PLATFORMS, type SourcePlatform } from '../../shared/platformHosts.js';
+import { SOURCE_PLATFORMS, platformDisplayName, type SourcePlatform } from '../../shared/platformHosts.js';
 import { hasPlatformAccess, requestPlatformAuthorization, activatePlatformAccess, openPlatformSignIn, findAuthorizedAccount, observePlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
 import { listAccounts } from '../../runtime/api/accountRegistry.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
@@ -400,7 +400,6 @@ function mountAccountDiscovery(popover: HTMLElement, before: HTMLElement, next: 
     const choices = document.createElement('div');
     choices.className = 'tour-platform-choices';
     host.prepend(choices);
-    const names: Record<SourcePlatform, string> = { gemini: 'Gemini', chatgpt: 'ChatGPT', grok: 'Grok', claude: 'Claude' };
     let active = true;
     let checking = false;
     let userInteracted = false;
@@ -418,7 +417,7 @@ function mountAccountDiscovery(popover: HTMLElement, before: HTMLElement, next: 
             const authorized = SOURCE_PLATFORMS.filter((_, i) => access[i]);
             if (!authorized.length) { void goToStep(0); return; }
             choices.replaceChildren();
-            for (const platform of authorized) button(choices, text(`Connect ${names[platform]}`, `连接 ${names[platform]}`), () => {
+            for (const platform of authorized) button(choices, text(`Connect ${platformDisplayName(platform)}`, `连接 ${platformDisplayName(platform)}`), () => {
                 userInteracted = true;
                 void (async () => {
                     if (!await hasPlatformAccess(platform) || !active) { await refresh(); return; }
@@ -519,8 +518,7 @@ function showAccountConnection(platform: SourcePlatform, accountId: string, acco
         void goToStep(resume.index).then(retry);
     };
     destroy(); mode = 'authorization';
-    const names: Record<SourcePlatform, string> = { gemini: 'Gemini', chatgpt: 'ChatGPT', claude: 'Claude', grok: 'Grok' };
-    const name = names[platform];
+    const name = platformDisplayName(platform);
     const connectionTitle = text(`Connect ${name} account`, `连接 ${name} 账号`);
     const popover = overlay(null, connectionTitle,
         text(`Open ${name} and sign in to ${accountLabel}, then return here. If another account is signed in, switch accounts there first.`,

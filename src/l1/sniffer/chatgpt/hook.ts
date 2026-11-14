@@ -1,5 +1,6 @@
 import { chatGPTRequest, CHATGPT_SOURCE_EVENT, chatGPTObservedIdentity, chatGPTConversationId, chatGPTStreamEvent, chatGPTWorkspaceMatches } from './observation.js';
 import { installChatGPTSidebarCapture } from './sidebar.js';
+import { readCappedStreamLines } from '../shared/streamAndBridge.js';
 
 const HOOK_FLAG = '__gemExporterChatGPTHookInstalled';
 
@@ -39,38 +40,16 @@ export function installChatGPTHook(): void {
             void (async () => {
                 let responseBody: unknown, conversationId = request.conversationId;
                 if (request.kind === 'stream') {
-                    const reader = copy.body?.getReader();
-                    if (!reader) return;
-                    let pending = '', bytes = 0, completed = false;
-                    const decoder = new TextDecoder();
-                    try {
-                        for (;;) {
-                            const { done, value } = await reader.read();
-                            if (done) {
-                                const event = chatGPTStreamEvent(pending);
-                                if (event.conversationId) conversationId = event.conversationId;
-                                completed = event.done;
-                                break;
-                            }
-                            bytes += value.byteLength;
-                            if (bytes > 16 * 1024 * 1024) { void reader.cancel().catch(() => {}); return; }
-                            pending += decoder.decode(value, { stream: true });
-                            const lines = pending.split('\n'); pending = lines.pop() ?? '';
-                            for (const line of lines) {
-                                const event = chatGPTStreamEvent(line);
-                                if (event.conversationId) conversationId = event.conversationId;
-                                if (event.done) { completed = true; break; }
-                            }
-                            if (completed) {
-                                // Never await tee cancellation: its other branch is owned by ChatGPT.
-                                void reader.cancel().catch(() => {});
-                                break;
-                            }
-                        }
-                    } finally { reader.releaseLock(); }
+                    const completed = await readCappedStreamLines(copy.body, 16 * 1024 * 1024, line => {
+                        const event = chatGPTStreamEvent(line);
+                        if (event.conversationId) conversationId = event.conversationId;
+                        return event.done;
+                    });
                     if (!completed) return;
                     responseBody = null;
-                    if (!conversationId && body && typeof body === 'object' && 'conversation_id' in body && chatGPTConversationId(body.conversation_id)) conversationId = body.conversation_id;
+                    if (!conversationId && body && typeof body === 'object' && 'conversation_id' in body && chatGPTConversationId(body.conversation_id)) {
+                        conversationId = body.conversation_id;
+                    }
                 } else {
                     const text = await copy.text();
                     if (text.length > 8 * 1024 * 1024) return;

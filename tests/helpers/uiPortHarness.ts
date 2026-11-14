@@ -55,12 +55,16 @@ export const findAuthorizedAccount = async platforms => {
 };
 export const observePlatformAccess = listener => {h.accessListener=listener;return ()=>{h.accessListener=null;};};
 export const SOURCE_PLATFORMS = ['gemini', 'chatgpt', 'grok', 'claude'];
+export const isSourcePlatform = v => SOURCE_PLATFORMS.includes(v);
 export const PLATFORM_HOSTS = {
- gemini:{pages:['https://gemini.google.com/*'],attachments:['https://*.googleusercontent.com/*']},
- chatgpt:{pages:['https://chatgpt.com/*','https://chat.openai.com/*'],attachments:['https://images.openai.com/*']},
- grok:{pages:['https://grok.com/*'],attachments:['https://assets.grok.com/*']},
- claude:{pages:['https://claude.ai/*'],attachments:[]}
+ gemini:{name:'Gemini',signInUrl:'https://gemini.google.com/',conversationUrlPrefix:'https://gemini.google.com/app/',pages:['https://gemini.google.com/*'],attachments:['https://*.googleusercontent.com/*']},
+ chatgpt:{name:'ChatGPT',signInUrl:'https://chatgpt.com/',conversationUrlPrefix:'https://chatgpt.com/c/',pages:['https://chatgpt.com/*','https://chat.openai.com/*'],attachments:['https://images.openai.com/*']},
+ grok:{name:'Grok',signInUrl:'https://grok.com/',conversationUrlPrefix:'https://grok.com/c/',pages:['https://grok.com/*'],attachments:['https://assets.grok.com/*']},
+ claude:{name:'Claude',signInUrl:'https://claude.ai/',conversationUrlPrefix:'https://claude.ai/chat/',pages:['https://claude.ai/*'],attachments:[]}
 };
+export const platformDisplayName = p => PLATFORM_HOSTS[p].name;
+export const platformSignInUrl = p => PLATFORM_HOSTS[p].signInUrl;
+export const platformConversationUrl = (p, id) => PLATFORM_HOSTS[p].conversationUrlPrefix + encodeURIComponent(id);
 export const platformForPageUrl = url => {
  if(!url) return null;
  try {

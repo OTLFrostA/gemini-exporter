@@ -1,21 +1,12 @@
 import { grokConversationIdFromPath } from '../../l1/sniffer/grok/observation.js';
 import { initGrokMessageBridge } from '../../l1/sniffer/grok/messageBridge.js';
 import { observeGrokAccount } from '../../l1/client/grok/accountObservation.js';
-import { ensureContentReady } from '../api/contentReady.js';
-import { invalidateAccountContext, resolveCurrentAccount, setAccountChangedHandler } from './accountContext.js';
+import { resolveCurrentAccount } from './accountContext.js';
 import { registerContentControlRouter } from './controlRouter.js';
-import { BadgeView } from '../../ui/badge/badgeView.js';
+import { startContentBootstrap } from './contentBootstrap.js';
 import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
-import { registerCleanup, runCleanups } from './cleanupRegistry.js';
-import { hookHistoryEvents } from './pageObserver.js';
+import { registerCleanup } from './cleanupRegistry.js';
 import { readContentSettings, isContentLiveSaveEffective } from '../api/contentSettings.js';
-
-runCleanups();
-invalidateAccountContext();
-let active = true;
-registerCleanup(() => { active = false; invalidateAccountContext(); });
-LiveSaveCoordinator.init({ badge: BadgeView });
-registerCleanup(LiveSaveCoordinator.cleanup);
 
 async function currentAccount() {
     const observation = await observeGrokAccount();
@@ -24,33 +15,26 @@ async function currentAccount() {
 }
 const conversationId = () => grokConversationIdFromPath(location.pathname);
 
+let notifyRouteChanged: (() => void) | undefined;
+const { isActive } = startContentBootstrap({
+    label: 'Grok',
+    onRouteOrAccountChanged: () => notifyRouteChanged?.(),
+    onMounted: () => notifyRouteChanged?.(),
+});
+
 const bridge = initGrokMessageBridge({
-    isActive: () => active,
+    isActive,
     currentAccount,
     currentConversationId: conversationId,
     isSaveEnabled: async () => isContentLiveSaveEffective(await readContentSettings(), true),
     onSaveRequested: LiveSaveCoordinator.executeLiveSave,
     registerCleanup,
 });
-
-function routeChanged() {
-    void BadgeView.refreshAccount().catch(console.warn);
-    bridge.onRouteChanged();
-}
-setAccountChangedHandler(routeChanged);
-hookHistoryEvents(routeChanged);
-void ensureContentReady().then(() => {
-    const mount = () => { if (active) { BadgeView.ensureBadge(); routeChanged(); } };
-    if (document.readyState !== 'loading') mount();
-    else {
-        document.addEventListener('DOMContentLoaded', mount, { once: true });
-        registerCleanup(() => document.removeEventListener('DOMContentLoaded', mount));
-    }
-}).catch(console.warn);
+notifyRouteChanged = bridge.onRouteChanged;
 
 registerContentControlRouter({
     providerId: 'grok',
-    isActive: () => active,
+    isActive,
     resolveAccountId: async () => (await currentAccount())?.id ?? null,
     conversationIdFromPath: grokConversationIdFromPath,
 });

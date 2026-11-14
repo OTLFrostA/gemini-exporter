@@ -1,10 +1,18 @@
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { OperationError, operationError } from '../../../shared/errors/operationError.js';
+import { PLATFORM_HOSTS, matchesPlatformPageUrl } from '../../../shared/platformHosts.js';
 import type { AIProvider, ProviderListOptions, ProviderReadiness, ListEnd } from '../aiProvider.js';
+import {
+    assertValidResourceKey,
+    commitProviderDetail,
+    createDescendingPageChain,
+    isIdentifiedProviderAccount,
+    requireProviderAccount,
+    toIndexIngestItems,
+} from '../providerShared.js';
 import type { DomainAsset } from '../../../l2/conversationDetail.js';
 import type { ConversationKey } from '../../../l2/conversationKey.js';
-import { getAccount } from '../../../runtime/api/accountRegistry.js';
-import { ingestIndexes, ingestDetail } from '../../../l2/ingestion.js';
+import { ingestIndexes } from '../../../l2/ingestion.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
 import { parseGrokList } from '../../parsers/grok/parseList.js';
 import { parseGrokConversation } from '../../parsers/grok/parseConversation.js';
@@ -13,18 +21,18 @@ import { readGrokImages } from './grokImages.js';
 import { readGrokSource } from './grokSource.js';
 
 export class GrokProvider implements AIProvider {
-    readonly id = 'grok'; readonly name = 'Grok'; readonly hostPatterns = ['https://grok.com/*'];
+    readonly id = 'grok';
+    readonly name = 'Grok';
+    readonly hostPatterns = [...PLATFORM_HOSTS.grok.pages];
     private readonly apiRead: typeof readGrokSource;
     private readonly images: typeof readGrokImages;
     private readonly resources?: SourceResourceContext;
     constructor(deps: { apiRead?: typeof readGrokSource; resources?: SourceResourceContext; images?: typeof readGrokImages } = {}) {
         this.apiRead = deps.apiRead ?? readGrokSource; this.resources = deps.resources; this.images = deps.images ?? readGrokImages;
     }
-    matchesUrl(url: string): boolean { try { return new URL(url).origin === 'https://grok.com'; } catch { return false; } }
+    matchesUrl(url: string): boolean { return matchesPlatformPageUrl('grok', url); }
     private async account(id: string) {
-        const account = await getAccount(id);
-        if (!account || account.providerId !== 'grok' || !grokUuid(account.providerAccountId)) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Grok account mismatch');
-        return account;
+        return requireProviderAccount('grok', id, grokUuid);
     }
     async checkReadiness(accountId: string): Promise<ProviderReadiness> {
         try {
@@ -35,24 +43,24 @@ export class GrokProvider implements AIProvider {
     }
     async listConversations(options: ProviderListOptions): Promise<ListEnd> {
         if (options.streamId !== 'recent') throw new TypeError('Unknown Grok stream');
-        const account = await this.account(options.accountId), seen = new Set<string>(), cursors = new Set<string>();
-        let cursor: string | null = null, lastTime = Infinity, totalObserved = 0;
+        const account = await this.account(options.accountId), cursors = new Set<string>();
+        const chain = createDescendingPageChain();
+        let cursor: string | null = null, totalObserved = 0;
         for (let page = 1; page <= 100; page++) {
             options.signal?.throwIfAborted();
             const requestedAt = Date.now();
             const parsed = parseGrokList(await this.apiRead('/rest/app-chat/conversations?pageSize=60'
                 + (cursor ? '&pageToken=' + cursor : ''), account.providerAccountId));
             options.signal?.throwIfAborted();
-            if (parsed.conversations.length > 60 || parsed.nextCursor && (cursors.has(parsed.nextCursor) || !parsed.keys.length)
-                || !parsed.keys.every((key, i) => !seen.has(key.id) && key.time <= (i ? parsed.keys[i - 1].time : lastTime)))
+            const valid = parsed.conversations.length <= 60
+                && !(parsed.nextCursor && (cursors.has(parsed.nextCursor) || !parsed.keys.length));
+            const ordered = valid && chain.verifyAndAdvance(parsed.keys);
+            if (!valid || !ordered || !isIdentifiedProviderAccount(account)) {
                 throw new OperationError('SOURCE_RESPONSE_INVALID', 'Unverified Grok list ordering or pagination');
+            }
             const evidence = { streamId: options.streamId, requestCursor: cursor, nextCursor: parsed.nextCursor,
                 requestedAt, requestKnown: true, valid: true, ordered: true, keys: parsed.keys };
-            const indexChanges = await ingestIndexes(account.id, parsed.conversations.map(row => ({ conversationId: row.id, fields: {
-                updatedAt: row.updatedAt, ...(row.createdAt !== undefined ? { createdAt: row.createdAt } : {}),
-                ...(row.title ? { title: row.title, titleSource: 'provider' as const } : {}) } })), evidence);
-            parsed.keys.forEach(key => seen.add(key.id));
-            if (parsed.keys.length) lastTime = parsed.keys[parsed.keys.length - 1].time;
+            const indexChanges = await ingestIndexes(account.id, toIndexIngestItems(parsed.conversations), evidence);
             totalObserved += parsed.keys.length;
             const stop = await options.onPageCommitted?.({ page, totalObserved, indexChanges, ...(page === 1 ? { scanHead: evidence } : {}) });
             if (!parsed.nextCursor) return 'source_end';
@@ -76,8 +84,8 @@ export class GrokProvider implements AIProvider {
         ]);
         const nodes = grokObject(tree).responseNodes;
         if (!Array.isArray(nodes)) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Invalid Grok response nodes');
-        const ids = nodes.map(value => { const id = grokObject(value).responseId;
-            if (!grokUuid(id)) throw new TypeError('Invalid Grok response UUID'); return id; });
+        const ids = nodes.map(value => { const rid = grokObject(value).responseId;
+            if (!grokUuid(rid)) throw new TypeError('Invalid Grok response UUID'); return rid; });
         const responses: unknown[] = [];
         for (let offset = 0; offset < ids.length; offset += 100) {
             const batch = grokObject(await read(base + '/load-responses', { responseIds: ids.slice(offset, offset + 100) }));
@@ -101,15 +109,11 @@ export class GrokProvider implements AIProvider {
         try { parsed = parseGrokConversation(metadata, tree, { responses }, id); }
         catch (error) { throw operationError(error, 'SOURCE_RESPONSE_INVALID'); }
         signal?.throwIfAborted();
-        for (const diagnostic of parsed.diagnostics) {
-            try { onDiagnostic?.(diagnostic); }
-            catch (error) { console.warn('[Gemini Exporter] Source diagnostic listener failed', error); }
-        }
-        const admission = await ingestDetail(account.id, id, parsed.conversation.detail, parsed.conversation.index);
-        if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId: id }, parsed);
+        await commitProviderDetail({ accountId: account.id, conversationId: id, parsed, resources: this.resources, onDiagnostic });
     }
-    async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal) {
+    async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void) {
+        assertValidResourceKey(key);
         await this.account(key.accountId);
-        return this.resources ? this.resources.acquire(key, asset, signal) : acquireSourceResource(asset, signal);
+        return this.resources ? this.resources.acquire(key, asset, signal, undefined, onDiagnostic) : acquireSourceResource(asset, signal, onDiagnostic);
     }
 }

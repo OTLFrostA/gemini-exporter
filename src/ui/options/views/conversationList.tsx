@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { resourceDownloadOrigin } from '../../../shared/platformHosts.js';
+import { isSourcePlatform, platformConversationUrl, platformDisplayName, resourceDownloadOrigin } from '../../../shared/platformHosts.js';
 import { hasResourceAccess, requestResourceAuthorization } from '../../../runtime/capabilities/platformAuthorization.js';
 import { attachmentFailure, attachmentIssueText } from '../../shared/exportSummary.js';
 import { resourceIssueKind } from '../../../shared/resources/resourceResult.js';
@@ -104,10 +104,10 @@ function ConversationRow({ row, disabled, provider, developerMode, onSelect }: O
     const id = index.key.conversationId;
     const status = viewStatus(index, record, prepared, failed, developerMode);
     const note = sourceTurnNote(record?.sourceTurn);
-    const origin = provider === 'grok' ? 'https://grok.com/c/' : provider === 'claude' ? 'https://claude.ai/chat/'
-        : provider === 'chatgpt' ? 'https://chatgpt.com/c/' : 'https://gemini.google.com/app/';
-    const openLabel = provider === 'grok' ? text('Open in Grok', '在 Grok 中打开') : provider === 'claude' ? text('Open in Claude', '在 Claude 中打开')
-        : provider === 'chatgpt' ? text('Open in ChatGPT', '在 ChatGPT 中打开') : text('Open in Gemini', '在 Gemini 中打开');
+    const targetPlatform = isSourcePlatform(provider) ? provider : 'gemini';
+    const platformName = platformDisplayName(targetPlatform);
+    const openLabel = text(`Open in ${platformName}`, `在 ${platformName} 中打开`);
+    const conversationHref = platformConversationUrl(targetPlatform, id);
     return <div className="item" data-chat-id={id} data-account-id={index.key.accountId}
         data-selected={selected} onClick={event => {
             if (disabled || event.target instanceof Element && event.target.closest('input, a, details, button')) return;
@@ -131,7 +131,7 @@ function ConversationRow({ row, disabled, provider, developerMode, onSelect }: O
             </details>}
         </div>
         {/* Provider-supplied URLs never become navigation destinations. */}
-        <a className="open-link" href={origin + encodeURIComponent(id)} target="_blank" rel="noopener noreferrer"
+        <a className="open-link" href={conversationHref} target="_blank" rel="noopener noreferrer"
             title={openLabel} aria-label={openLabel}>↗</a>
     </div>;
 }

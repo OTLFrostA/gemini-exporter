@@ -1,10 +1,9 @@
 import type { GlobalSettings } from '../../l2/settings.js';
+import { isRecord } from '../../shared/utils/typeGuards.js';
 
 const SETTINGS_KEY = 'gemini_exporter_v2_settings';
 
-function object(value: unknown): value is Record<string, unknown> {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
+const object = isRecord;
 
 /** Read-only Content-world settings projection over chrome.storage.local, without L3a IndexedDB or Web Locks. */
 export async function readContentSettings(): Promise<GlobalSettings> {
