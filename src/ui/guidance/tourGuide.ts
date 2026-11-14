@@ -3,7 +3,7 @@ import { text } from '../shared/settings.js';
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
 import { SOURCE_PLATFORMS, platformDisplayName, type SourcePlatform } from '../../shared/platformHosts.js';
 import { hasPlatformAccess, requestPlatformAuthorization, activatePlatformAccess, openPlatformSignIn, findAuthorizedAccount, observePlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
-import { listAccounts } from '../../runtime/api/accountRegistry.js';
+import { getAccount, listAccounts } from '../../runtime/api/accountRegistry.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
 let root: HTMLElement | null = null;
 let stepIndex = 0;
@@ -415,12 +415,20 @@ function mountAccountDiscovery(popover: HTMLElement, before: HTMLElement, next: 
     let userInteracted = false;
     let refreshPending = false;
     let backgroundDetection: ReturnType<typeof setInterval> | undefined;
+    let advanceTimer: ReturnType<typeof setTimeout> | undefined;
+    const showStatus = (message: string, state: 'loading' | 'ok' | 'idle' = 'idle') => {
+        status.textContent = message;
+        status.classList.toggle('tour-status-loading', state === 'loading');
+        status.classList.toggle('tour-status-ok', state === 'ok');
+        host.setAttribute('aria-busy', String(state === 'loading'));
+    };
     const refresh = async () => {
-        if (!active) return;
+        if (!active || advanceTimer !== undefined) return;
         if (checking) { refreshPending = true; return; }
         checking = true;
+        next.disabled = true;
         retry.disabled = true;
-        status.textContent = text('Checking for accounts…', '正在识别账号…');
+        showStatus(text('Loading account…', '正在加载账号…'), 'loading');
         try {
             const access = await Promise.all(SOURCE_PLATFORMS.map(hasPlatformAccess));
             if (!active) return;
@@ -428,15 +436,18 @@ function mountAccountDiscovery(popover: HTMLElement, before: HTMLElement, next: 
             if (!authorized.length) { void goToStep(0); return; }
             choices.replaceChildren();
             for (const platform of authorized) button(choices, text(`Connect ${platformDisplayName(platform)}`, `连接 ${platformDisplayName(platform)}`), () => {
+                if (advanceTimer !== undefined) return;
                 userInteracted = true;
+                next.disabled = true;
+                showStatus(text('Loading account…', '正在加载账号…'), 'loading');
                 void (async () => {
                     if (!await hasPlatformAccess(platform) || !active) { await refresh(); return; }
                     await openPlatformSignIn(platform, false);
                     if (!active) return;
-                    status.textContent = text('Connecting your account. If needed, sign in on the platform tab and check again.', '正在连接账号；如尚未登录，请前往平台页面登录后重新检测。');
+                    showStatus(text('Connecting your account. If needed, sign in on the platform tab and check again.', '正在连接账号；如尚未登录，请前往平台页面登录后重新检测。'), 'loading');
                     if (backgroundDetection === undefined) backgroundDetection = setInterval(() => { void refresh(); }, 1500);
                     void refresh();
-                })().catch(() => { if (active) status.textContent = text('Could not open the platform. Please try again.', '未能打开平台，请重试。'); });
+                })().catch(() => { if (active) showStatus(text('Could not open the platform. Please try again.', '未能打开平台，请重试。')); });
             }, `btnConnectPlatform-${platform}`, 'tour-action-btn secondary');
             const accounts = (await listAccounts()).filter(account => account.providerAccountId !== 'default'
                 && authorized.some(platform => platform === account.providerId));
@@ -451,23 +462,29 @@ function mountAccountDiscovery(popover: HTMLElement, before: HTMLElement, next: 
             if (!active || refreshPending) return;
             if (accountId) {
                 await onConnected?.(accountId);
+                const account = await getAccount(accountId);
                 if (active && !refreshPending) {
-                    next.disabled = false;
-                    if (advanceOnDetection && userInteracted) void goToStep(STEPS.findIndex(step => step.id === 'accounts'));
-                    else status.textContent = text('An account is connected. Connect another platform or choose Next.', '已连接账号。你可以继续连接其他平台，或点击「下一步」。');
+                    const label = account?.displayName || account?.email || account?.providerAccountId || accountId;
+                    showStatus(text(`Successfully loaded: ${label}`, `成功加载：${label}`), 'ok');
+                    if (advanceOnDetection && userInteracted) {
+                        clearInterval(backgroundDetection);
+                        advanceTimer = setTimeout(() => {
+                            if (active) void goToStep(STEPS.findIndex(step => step.id === 'accounts'));
+                        }, 500);
+                    } else next.disabled = false;
                 }
             } else {
                 next.disabled = true;
-                status.textContent = text('No account identified yet. Connect an authorized platform and sign in, then check again.',
-                    '尚未识别到账号。请连接已授权的平台并登录，然后点击重新检测。');
+                showStatus(text('No account identified yet. Connect an authorized platform and sign in, then check again.',
+                    '尚未识别到账号。请连接已授权的平台并登录，然后点击重新检测。'));
             }
         } catch {
             if (active) next.disabled = true;
-            if (active) status.textContent = text('Account detection failed. You can retry after signing in.', '账号识别失败，请登录平台后重试。');
+            if (active) showStatus(text('Account detection failed. You can retry after signing in.', '账号识别失败，请登录平台后重试。'));
         } finally {
             checking = false;
             if (active) {
-                retry.disabled = false;
+                retry.disabled = advanceTimer !== undefined;
                 if (refreshPending) { refreshPending = false; void refresh(); }
             }
         }
@@ -477,7 +494,7 @@ function mountAccountDiscovery(popover: HTMLElement, before: HTMLElement, next: 
     const stopReturn = observeVisibleWindowReturn(triggerRefresh);
     const stopPermissions = observePlatformAccess(() => { if (!document.hidden) triggerRefresh(); });
     void refresh();
-    return () => { active = false; clearInterval(backgroundDetection); stopPermissions(); stopReturn(); host.remove(); };
+    return () => { active = false; clearInterval(backgroundDetection); clearTimeout(advanceTimer); stopPermissions(); stopReturn(); host.remove(); };
 }
 
 function mountAuthorization(

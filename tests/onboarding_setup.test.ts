@@ -73,6 +73,8 @@ test('closing during detection discards late results; revoking all access return
     await page.locator('#tourNextBtn:enabled').waitFor();
     await page.locator('#tourNextBtn').click();
     await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishDiscovery === 'function');
+    assert.equal(await page.locator('.tour-status-loading').isVisible(), true);
+    assert.equal(await page.locator('.tour-action-box').getAttribute('aria-busy'), 'true');
     await page.locator('#tourCloseBtn').click();
     await page.evaluate(({ B }) => Reflect.get(window, 'harness').finishDiscovery(B), { B });
     assert.equal(await page.locator('.tour-popover').count(), 0);
@@ -98,7 +100,16 @@ test('existing recognized accounts wait for a user action before advancing conne
     assert.equal(await page.locator('.tour-title').innerText(), 'Connect an account');
     assert.equal(await page.locator('#tourNextBtn').isEnabled(), true);
     await page.locator('#btnDetectAccount').click();
+    await page.locator('.tour-status-ok').filter({ hasText: 'Successfully loaded:' }).waitFor();
+    const loadedAt = Date.now();
+    assert.equal(await page.locator('.tour-title').innerText(), 'Connect an account');
+    const expectedLabel = await page.evaluate(({ B }) => {
+        const account = Reflect.get(window, 'harness').accounts.find((account: { id: string }) => account.id === B);
+        return account.displayName || account.email || account.providerAccountId;
+    }, { B });
+    assert.equal(await page.locator('.tour-status-ok').innerText(), `Successfully loaded: ${expectedLabel}`);
     await page.getByRole('heading', { name: 'Switch platforms and accounts', exact: true }).waitFor();
+    assert.ok(Date.now() - loadedAt >= 400, 'success feedback remains visible before advancing');
     assert.equal(await page.locator('#accountIdSelect').inputValue(), B);
     assert.equal(await page.locator('#btnDetectAccount').count(), 0);
     assert.deepEqual(await read(page, 'openedUrls'), undefined);
