@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { v2LiveSaveHost, seedLiveDetail, liveKey } from './helpers/v2LiveSaveHost.js';
 import { runExport } from '../src/application/export/runExport.js';
-import { getExportRecord } from '../src/l3a/storageService.js';
+import { getExportRecord, putExportRecord } from '../src/l3a/storageService.js';
 import type { DomainAsset } from '../src/l2/conversationDetail.js';
 
 for (const format of ['markdown', 'html', 'json'] as const) {
@@ -46,5 +46,34 @@ for (const format of ['markdown', 'html', 'json'] as const) {
         assert.equal(restored.exported, 1); assert.equal(restored.partial, 0);
         assert.deepEqual(host.requests, ['https://example.test/notes.txt']);
         assert.deepEqual(host.files.get(file), Uint8Array.of(4, 5));
+
+        // A 0-byte crash stub left by an interrupted write must NOT be treated as reusable.
+        host.requests.length = 0;
+        host.files.set(file, new Uint8Array(0));
+        const recovered = await runExport(request);
+        assert.equal(recovered.exported, 1); assert.equal(recovered.partial, 0);
+        assert.deepEqual(host.requests, ['https://example.test/notes.txt']);
+        assert.deepEqual(host.files.get(file), Uint8Array.of(4, 5));
     });
 }
+
+test('putExportRecord atomically preserves an existing folderBaseName when a concurrent browserDownload export omits it', async t => {
+    v2LiveSaveHost(t);
+    const key = liveKey('concurrent-record');
+    await putExportRecord(key, {
+        format: 'markdown',
+        status: 'ok',
+        exportedAt: 100,
+        chatTime: 100,
+        folderBaseName: 'Original Title_abc123',
+    });
+    await putExportRecord(key, {
+        format: 'pdf',
+        status: 'ok',
+        exportedAt: 200,
+        chatTime: 100,
+    });
+    const merged = await getExportRecord(key);
+    assert.equal(merged?.format, 'pdf');
+    assert.equal(merged?.folderBaseName, 'Original Title_abc123');
+});

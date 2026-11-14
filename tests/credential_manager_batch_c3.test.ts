@@ -525,3 +525,99 @@ test('email cannot route credentials even when a stored key matches it', async (
         assert.deepEqual(mock.data.gemini_credentials_map, raw);
     } finally { glob.chrome = previous; }
 });
+
+test('accountId-scoped resolveCred never borrows another Google account credential in the same URL slot', async () => {
+    const glob = globalThis as Record<string, unknown>;
+    const previous = glob.chrome;
+    const accA = '11111111-1111-4111-8111-111111111111';
+    const accB = '22222222-2222-4222-8222-222222222222';
+    const mock = makeMockStorage({
+        gemini_credentials_map: {
+            sid_a: { sid: 'sid_a', at: 'at_from_account_a', bl: 'bl_a', accountSlot: 'u0', accountId: accA, lastUsed: 2000 },
+            sid_b: { sid: 'sid_b', at: 'at_from_account_b', bl: 'bl_b', accountSlot: 'u0', accountId: accB, lastUsed: 1000 },
+        },
+    });
+    glob.chrome = { storage: { session: mock, local: mock } };
+    try {
+        const cm = getFreshCredManager();
+        const forB = await cm.resolveCred('u0', { accountId: accB });
+        assert.strictEqual(forB.sid, 'sid_b');
+        assert.strictEqual(forB.at, 'at_from_account_b');
+        const missingC = await cm.resolveCred('u0', { accountId: '33333333-3333-4333-8333-333333333333' });
+        assert.strictEqual(missingC.at, '', 'must not borrow sid_a or sid_b when neither matches accountId');
+    } finally { glob.chrome = previous; }
+});
+
+test('bootstrap ensureCreds scopes page tokens strictly by (slot, accountId) without mutating u1 credentials', async () => {
+    const glob = globalThis as Record<string, unknown>;
+    const saved = ['chrome', 'window', 'location', 'document'].map(k => [k, Object.getOwnPropertyDescriptor(globalThis, k)] as const);
+    const accU0 = '11111111-1111-4111-8111-111111111111';
+    const accU1 = '22222222-2222-4222-8222-222222222222';
+    const mock = makeMockStorage({
+        gemini_credentials_map: {
+            sid_u1: { sid: 'sid_u1', at: 'secret_u1_token_123456', bl: 'boq_u1', accountSlot: 'u1', accountId: accU1, lastUsed: 999999 },
+        },
+    });
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: {
+        runtime: { id: 'ext', sendMessage: async (msg: Record<string, unknown>) => {
+            if (msg.action === 'ensureV2Ready') return { ok: true };
+            return { ok: true, value: { id: accU0, providerId: 'gemini', providerAccountId: 'gaia-u0' } };
+        } },
+        storage: { session: mock, local: mock },
+    } });
+    Object.defineProperty(globalThis, 'location', { configurable: true, value: {
+        href: 'https://gemini.google.com/u/0/app', origin: 'https://gemini.google.com', hostname: 'gemini.google.com', pathname: '/u/0/app',
+    } });
+    const msgListeners: Array<(e: unknown) => void> = [];
+    const winMock: Record<string, unknown> = {
+        __gemExporterExtractedAt: 'fresh_u0_xsrf_token_abcdef',
+        addEventListener(type: string, fn: (e: unknown) => void) { if (type === 'message') msgListeners.push(fn); },
+        removeEventListener(type: string, fn: (e: unknown) => void) {
+            const idx = msgListeners.indexOf(fn);
+            if (idx >= 0) msgListeners.splice(idx, 1);
+        },
+        postMessage(msg: { type?: string; payload?: { requestId?: string } }) {
+            if (msg?.type === 'GEMINI_ACCOUNT_REQUESTED' && msg.payload?.requestId) {
+                const reply = {
+                    source: winMock,
+                    origin: 'https://gemini.google.com',
+                    data: {
+                        type: 'GEMINI_ACCOUNT_OBSERVED',
+                        payload: {
+                            requestId: msg.payload.requestId,
+                            slot: 'u0',
+                            observation: { providerId: 'gemini', providerAccountId: 'gaia-u0' },
+                        },
+                    },
+                };
+                for (const fn of [...msgListeners]) fn(reply);
+            }
+        },
+    };
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: winMock });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: {
+        readyState: 'complete', querySelectorAll: () => [], documentElement: { innerHTML: '' },
+        addEventListener() {}, removeEventListener() {},
+    } });
+    try {
+        bustRequireCache('../src/l1/client/gemini/api/credStorage.js');
+        bustRequireCache('../src/runtime/content/accountContext.js');
+        bustRequireCache('../src/l1/client/gemini/bootstrap.js');
+        const acctCtx = require('../src/runtime/content/accountContext.js');
+        await acctCtx.resolveCurrentAccount({ providerId: 'gemini', providerAccountId: 'gaia-u0' }, 'u0');
+        const { ensureCreds } = require('../src/l1/client/gemini/bootstrap.js');
+        await ensureCreds();
+        const savedMap = mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>;
+        assert.strictEqual(savedMap.sid_u1.at, 'secret_u1_token_123456', 'u1 credential must remain untouched');
+        assert.strictEqual(savedMap.sid_u1.accountSlot, 'u1');
+        const u0Entries = Object.values(savedMap).filter(e => e.accountSlot === 'u0');
+        assert.strictEqual(u0Entries.length, 1, 'u0 must receive its own isolated credential entry');
+        assert.strictEqual(u0Entries[0].at, 'fresh_u0_xsrf_token_abcdef');
+        assert.strictEqual(u0Entries[0].accountId, accU0);
+    } finally {
+        for (const [k, desc] of saved) {
+            if (desc) Object.defineProperty(globalThis, k, desc);
+            else delete glob[k];
+        }
+    }
+});

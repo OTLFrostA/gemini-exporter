@@ -13,6 +13,7 @@ stubModule('../../src/l2/coverageAdmission.js', { __esModule: true, default: {
         assert.equal(accountId, key().accountId); assert.equal(streamId, 'recent'); reads++; return baseline;
     },
     async hasTrustedBoundary(_account: string, baseline: StreamCoverage, head: ScanHead) { checks.push({ baseline, head }); return boundary; },
+    resetAccountCoverage() {},
 } });
 const { scanAll } = require('../src/application/sync/scanController.js') as typeof import('../src/application/sync/scanController.js');
 const head: ScanHead = { streamId: 'recent', requestKnown: true, requestCursor: null, nextCursor: 'next',

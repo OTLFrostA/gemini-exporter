@@ -1,7 +1,7 @@
 import { isAccountId } from './accountRegistry.js';
 import type { PageObservation, PageObservationEvidence, PageObservationHead } from './pageObservation.js';
 import { CoverageSession, emptyStream, type StreamCoverage } from './streamCoverage.js';
-import { indexCoverageSession, commitIndexCoverageSession } from './indexCoverage.js';
+import { indexCoverageSession, commitIndexCoverageSession, resetAccountCoverageSessions } from './indexCoverage.js';
 import { getCoverage, updateCoverageAtomically } from '../l3a/storageService.js';
 export { getCoverage } from '../l3a/storageService.js';
 export type ScanHead = PageObservationHead;
@@ -34,5 +34,8 @@ export async function hasTrustedBoundary(accountId: string, frozenBaseline: Stre
         return { ...(JSON.stringify(next) !== JSON.stringify(current) ? { next } : {}), result: true };
     });
 }
-const CoverageAdmission = { getCoverage, recordPageCoverage, hasTrustedBoundary };
+export function resetAccountCoverage(accountId: string): void {
+    resetAccountCoverageSessions(accountId);
+}
+const CoverageAdmission = { getCoverage, recordPageCoverage, hasTrustedBoundary, resetAccountCoverage };
 export default CoverageAdmission;

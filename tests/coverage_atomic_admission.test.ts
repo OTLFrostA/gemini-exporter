@@ -4,6 +4,7 @@ import { fixtureAccount } from './helpers/domainFixture.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import type { PageObservation } from '../src/l2/pageObservation.js';
 import CoverageAdmission from '../src/l2/coverageAdmission.js';
+import { clearLocalScanRecords } from '../src/application/localCleanup.js';
 import { ingestIndexes } from '../src/l2/ingestion.js';
 import { clearStoredAccountScanRecords, getCoverage, updateCoverageAtomically, getIndex,
     putIndexes, getExportRecord, putExportRecord } from '../src/l3a/storageService.js';
@@ -66,9 +67,22 @@ test('Clearing Coverage invalidates previous in-memory page chain; a late termin
         assert.equal((await getCoverage(accountId, 'recent'))?.range, null);
         await clearStoredAccountScanRecords(accountId);
         assert.equal(await getCoverage(accountId, 'recent'), null);
-        await CoverageAdmission.recordPageCoverage(accountId, page([90], 'tail', null));
+        assert.equal(await CoverageAdmission.recordPageCoverage(accountId, page([90], 'tail', null)), undefined);
         assert.equal((await getCoverage(accountId, 'recent'))?.range, null,
             'the stale head was invalidated; a fresh head is required');
+    } finally { env.restore(); }
+});
+
+test('clearLocalScanRecords purges in-memory CoverageSession even if another realm re-seeds Coverage before next page', async () => {
+    const env = indexStorage();
+    try {
+        await CoverageAdmission.recordPageCoverage(accountId, page([120, 110], null, 'tail'));
+        await clearLocalScanRecords(accountId);
+        // Simulate Background Worker writing a non-null Coverage row before this realm runs again
+        await seedCoverage(accountId, 'recent', baseline);
+        await CoverageAdmission.recordPageCoverage(accountId, page([90], 'tail', null));
+        assert.deepEqual(await getCoverage(accountId, 'recent'), baseline,
+            'pre-clear tail cursor cannot join pre-clear head across a concurrent realm re-seed');
     } finally { env.restore(); }
 });
 
