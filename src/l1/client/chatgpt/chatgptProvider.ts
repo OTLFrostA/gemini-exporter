@@ -5,13 +5,21 @@ import { getSourceCooldown, extendSourceCooldown } from '../../../l2/sourceCoold
 import { ResourceHttpError, ResourceProcessingError } from '../../../shared/resources/resourceResult.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
 import { readChatGPTSession } from './accountObservation.js';
-import { readConversationKey, type ConversationKey } from '../../../l2/conversationKey.js';
+import type { ConversationKey } from '../../../l2/conversationKey.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { DomainAsset } from '../../../l2/conversationDetail.js';
 import type { ResourceBytes } from '../../../shared/resources/resourceResult.js';
 import type { ListEnd, PageEvidence } from '../aiProvider.js';
-import { ingestIndexes, ingestDetail } from '../../../l2/ingestion.js';
-import { getAccount } from '../../../runtime/api/accountRegistry.js';
+import {
+    assertValidResourceKey,
+    commitProviderDetail,
+    createDescendingPageChain,
+    isIdentifiedProviderAccount,
+    requireProviderAccount,
+    toIndexIngestItems,
+} from '../providerShared.js';
+import { PLATFORM_HOSTS, matchesPlatformPageUrl } from '../../../shared/platformHosts.js';
+import { ingestIndexes } from '../../../l2/ingestion.js';
 /**
  * ChatGPT provider: acquisition only (session/list/detail/downloads).
  * Mapping parsing and Domain branding live in parsers/chatgpt, mirroring the
@@ -23,7 +31,7 @@ import type {
     ProviderListOptions,
     ProviderReadiness,
 } from '../aiProvider.js';
-import { CHATGPT_HOSTS, chatGPTApiBase } from '../../parsers/chatgpt/chatgptTypes.js';
+import { chatGPTApiBase } from '../../parsers/chatgpt/chatgptTypes.js';
 import { parseChatGPTConversation } from '../../parsers/chatgpt/parseConversation.js';
 import { decodeChatGPTDetail } from '../../parsers/chatgpt/decodeDetail.js';
 import {
@@ -49,7 +57,7 @@ interface ChatGPTProviderDeps {
 export class ChatGPTProvider implements AIProvider {
     readonly id = 'chatgpt';
     readonly name = 'ChatGPT';
-    readonly hostPatterns = ['https://chatgpt.com/*', 'https://chat.openai.com/*'];
+    readonly hostPatterns = [...PLATFORM_HOSTS.chatgpt.pages];
 
     private fetchFn: ChatGPTFetch;
     private origin: string;
@@ -64,18 +72,11 @@ export class ChatGPTProvider implements AIProvider {
     }
 
     matchesUrl(url: string): boolean {
-        try {
-            const host = new URL(url).hostname;
-            return CHATGPT_HOSTS.includes(host);
-        } catch {
-            return false;
-        }
+        return matchesPlatformPageUrl('chatgpt', url);
     }
 
     private async context(accountId: string): Promise<Account> {
-        const account = await getAccount(accountId);
-        if (!account || account.providerId !== this.id) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Provider account mismatch');
-        return account;
+        return requireProviderAccount('chatgpt', accountId);
     }
     private accessToken(account: Account, signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<string> {
         const cached = this.tokens.get(account.id);
@@ -173,8 +174,7 @@ export class ChatGPTProvider implements AIProvider {
         const account = await this.context(options.accountId);
         let totalObserved = 0;
         let sentHead = false;
-        const seen = new Set<string>();
-        let lastTime = Infinity;
+        const chain = createDescendingPageChain();
         for (let page = 1; page <= 20; page++) {
             options.signal?.throwIfAborted();
             const offset = (page - 1) * 100;
@@ -183,50 +183,29 @@ export class ChatGPTProvider implements AIProvider {
             options.signal?.throwIfAborted();
             const count = result.conversations.length;
             const sourceEnd = result.total !== undefined && offset + count === result.total;
-            // These are request/response facts, not a second Domain or Coverage model.
-            // An absent cursor by itself cannot prove source exhaustion.
             const valid = result.total !== undefined && result.total >= offset + count
                 && result.offset === offset && result.limit === 100
-                // Current backend responses omit this legacy flag. The total,
-                // offset and page size still prove exhaustion; an explicit
-                // missing-conversations warning must continue to reject it.
                 && result.hasMissingConversations !== true
                 && count <= 100 && (sourceEnd || count === 100);
-            // ChatGPT can report offset + count + 1 as a lower bound while
-            // more rows exist (101, 201, ...), rather than a stable total.
-            // Validate each page's metadata; only equality proves source end.
             const keys = result.conversations.flatMap(item => item.updatedAt === undefined
                 ? [] : [{ id: item.id, time: item.updatedAt }]);
-            // A trustworthy source chain cannot repeat an ID or move forward
-            // in source activity time across two consecutive pages.
-            const ordered = valid && keys.length === count
-                && keys.every((key, i) => Number.isSafeInteger(key.time) && key.time > 0
-                    && !seen.has(key.id) && (i === 0 ? key.time <= lastTime : keys[i - 1].time >= key.time))
-                && new Set(keys.map(key => key.id)).size === keys.length;
-            if (ordered) {
-                keys.forEach(key => seen.add(key.id));
-                if (keys.length) lastTime = keys[keys.length - 1].time;
-            }
+            const ordered = valid && keys.length === count && chain.verifyAndAdvance(keys);
             const evidence: PageEvidence = {
                 streamId: options.streamId,
                 requestCursor: page === 1 ? null : String(offset),
                 nextCursor: sourceEnd ? null : String(offset + 100),
                 requestedAt, requestKnown: true, valid, ordered, keys,
             };
-            // Keep individually parsed Index rows even when source-page evidence is
-            // insufficient for trusted Coverage. Never report such a run complete.
-            const indexChanges = await ingestIndexes(account.id, result.conversations.map(item => ({ conversationId: item.id, fields: {
-                ...(item.title ? { title: item.title, titleSource: 'provider' as const } : {}),
-                ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}),
-                ...(item.updatedAt !== undefined ? { updatedAt: item.updatedAt } : {}) } })),
-                account.providerAccountId === 'default' ? undefined : evidence);
+            const identified = isIdentifiedProviderAccount(account);
+            const indexChanges = await ingestIndexes(account.id, toIndexIngestItems(result.conversations),
+                identified ? evidence : undefined);
             options.signal?.throwIfAborted();
             totalObserved += count;
-            const trustedHead = !sentHead && page === 1 && valid && ordered && account.providerAccountId !== 'default';
+            const trustedHead = !sentHead && page === 1 && valid && ordered && identified;
             if (trustedHead) sentHead = true;
             const stop = await options.onPageCommitted?.({ page, totalObserved, indexChanges,
                 ...(trustedHead ? { scanHead: evidence } : {}) });
-            if (!valid || !ordered || account.providerAccountId === 'default')
+            if (!valid || !ordered || !identified)
                 throw new OperationError('SOURCE_RESPONSE_INVALID', 'Unverified ChatGPT list page');
             if (sourceEnd) return 'source_end';
             if (stop) return 'stopped';
@@ -245,17 +224,12 @@ export class ChatGPTProvider implements AIProvider {
         } catch (error) { throw operationError(error, 'SOURCE_RESPONSE_INVALID'); }
         signal?.throwIfAborted();
         const index = parsed.conversation.index;
-        for (const diagnostic of parsed.diagnostics) {
-            try { onDiagnostic?.(diagnostic); }
-            catch (error) { console.warn('[Gemini Exporter] Source diagnostic listener failed', error); }
-        }
-        const admission = await ingestDetail(account.id, conversationId, parsed.conversation.detail, index);
+        const admission = await commitProviderDetail({ accountId: account.id, conversationId, parsed, resources: this.resources, onDiagnostic });
         emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_DETAIL_ADMISSION', message: 'Source detail admission completed',
             details: { accepted: admission.accepted, changed: admission.changed,
                 requestStartedAt, responseReceivedAt, sourceVersion: parsed.sourceVersion ?? null,
                 sourceCreatedAt: index.createdAt ?? null, quality: parsed.conversation.detail.quality.status,
                 messageCount: parsed.conversation.detail.messages.length, assetCount: parsed.conversation.detail.assets.length } });
-        if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId }, parsed);
     }
     canAcquireResourceDirectly(asset: DomainAsset): boolean {
         return !!readChatGPTSandboxLocator(asset.sourceUri ?? '') || !!fileIdFromPointer(asset.sourceUri ?? '') || /^file-download:[a-zA-Z0-9_-]+$/.test(asset.sourceUri ?? '');
@@ -263,7 +237,7 @@ export class ChatGPTProvider implements AIProvider {
     async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal,
         onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<ResourceBytes> {
         signal?.throwIfAborted();
-        readConversationKey(key);
+        assertValidResourceKey(key);
         const account = await this.context(key.accountId);
         await this.checkCooldown(account.id, onDiagnostic);
         signal?.throwIfAborted();

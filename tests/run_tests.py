@@ -221,7 +221,7 @@ def test_content_badge_flicker_prevention():
             return f.read()
 
     badge = read("src/ui/badge/badgeView.ts")
-    content = read("src/runtime/content/content.ts")
+    content = read("src/runtime/content/content.ts") + "\n" + read("src/runtime/content/contentBootstrap.ts")
     ingestion = read("src/l2/ingestion.ts")
 
     assert "label.textContent" in badge and "count === null" in badge, "Badge must render local Index count safely"

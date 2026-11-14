@@ -9,20 +9,59 @@ export class ScanConnectionError extends Error {
     }
 }
 
-/** Site access is requested as one independent group per source platform. */
+export interface PlatformHostConfig {
+    readonly name: string;
+    readonly signInUrl: string;
+    readonly conversationUrlPrefix: string;
+    readonly pages: readonly string[];
+    readonly attachments: readonly string[];
+}
+
+/** Site access and canonical platform metadata live in one table per source platform. */
 export const PLATFORM_HOSTS = {
     gemini: {
+        name: 'Gemini',
+        signInUrl: 'https://gemini.google.com/',
+        conversationUrlPrefix: 'https://gemini.google.com/app/',
         pages: ['https://gemini.google.com/*'],
         attachments: ['https://*.googleusercontent.com/*', 'https://*.usercontent.google.com/*',
             'https://drive.google.com/*', 'https://lh3.google.com/*', 'https://*.gstatic.com/*'],
     },
     chatgpt: {
+        name: 'ChatGPT',
+        signInUrl: 'https://chatgpt.com/',
+        conversationUrlPrefix: 'https://chatgpt.com/c/',
         pages: ['https://chatgpt.com/*', 'https://chat.openai.com/*'],
         attachments: ['https://images.openai.com/*'],
     },
-    grok: { pages: ['https://grok.com/*'], attachments: ['https://assets.grok.com/*'] },
-    claude: { pages: ['https://claude.ai/*'], attachments: [] },
-} as const satisfies Record<SourcePlatform, { pages: readonly string[]; attachments: readonly string[] }>;
+    grok: {
+        name: 'Grok',
+        signInUrl: 'https://grok.com/',
+        conversationUrlPrefix: 'https://grok.com/c/',
+        pages: ['https://grok.com/*'],
+        attachments: ['https://assets.grok.com/*'],
+    },
+    claude: {
+        name: 'Claude',
+        signInUrl: 'https://claude.ai/',
+        conversationUrlPrefix: 'https://claude.ai/chat/',
+        pages: ['https://claude.ai/*'],
+        attachments: [],
+    },
+} as const satisfies Record<SourcePlatform, PlatformHostConfig>;
+
+export function platformDisplayName(platform: SourcePlatform): string {
+    return PLATFORM_HOSTS[platform].name;
+}
+
+export function platformSignInUrl(platform: SourcePlatform): string {
+    return PLATFORM_HOSTS[platform].signInUrl;
+}
+
+export function platformConversationUrl(platform: SourcePlatform, conversationId: string): string {
+    return PLATFORM_HOSTS[platform].conversationUrlPrefix + encodeURIComponent(conversationId);
+}
+
 export function platformOrigins(platform: SourcePlatform): string[] {
     return [...PLATFORM_HOSTS[platform].pages, ...PLATFORM_HOSTS[platform].attachments];
 }

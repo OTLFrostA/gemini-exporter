@@ -1,5 +1,5 @@
 import { hasResourceAccess, requestResourceAccess, hasPlatformAccess, requestPlatformsAccess } from '../../l1/client/platformAccess.js';
-import { PLATFORM_HOSTS, type SourcePlatform } from '../../shared/platformHosts.js';
+import { PLATFORM_HOSTS, platformSignInUrl, type SourcePlatform } from '../../shared/platformHosts.js';
 import { preparePlatformTab, syncPlatformContentScripts } from './platformInjection.js';
 import { discoverChatGPTAccounts } from './chatgptDiscovery.js';
 import { discoverGrokAccounts } from './grokDiscovery.js';
@@ -55,7 +55,5 @@ export function observePlatformAccess(listener: () => void): () => void {
 
 /** Extension navigation remains available after an asynchronous native permission prompt. */
 export async function openPlatformSignIn(platform: SourcePlatform, active = true): Promise<void> {
-    const urls: Record<SourcePlatform, string> = { gemini: 'https://gemini.google.com/', chatgpt: 'https://chatgpt.com/',
-        claude: 'https://claude.ai/', grok: 'https://grok.com/' };
-    await chrome.tabs.create({ url: urls[platform], active });
+    await chrome.tabs.create({ url: platformSignInUrl(platform), active });
 }

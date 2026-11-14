@@ -1,5 +1,4 @@
-import { OperationError } from '../../../shared/errors/operationError.js';
-import { hasGrokAccess } from './grokSource.js';
+import { queryAuthorizedPlatformTabIds } from '../tabSourceRunner.js';
 import { grokUuid } from '../../parsers/grok/source.js';
 
 /** Trusted shape assembled by our isolated-world DOM collector. */
@@ -13,12 +12,10 @@ export interface GrokCapturedImage {
 /** Loominary's image selectors, with exact response ownership and account checks. */
 export async function readGrokImages(conversationId: string, owner: string): Promise<GrokCapturedImage[]> {
     if (!grokUuid(conversationId) || !grokUuid(owner)) throw new TypeError('Invalid Grok image context');
-    if (!await hasGrokAccess()) throw new OperationError('PLATFORM_PERMISSION_REQUIRED', 'Grok host permission unavailable');
-    const tabs = await chrome.tabs.query({ url: ['https://grok.com/*'] });
+    const tabIds = await queryAuthorizedPlatformTabIds('grok');
     const results: GrokCapturedImage[] = [];
-    for (const tab of tabs) {
-        if (tab.id === undefined) continue;
-        const response = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'ISOLATED',
+    for (const tabId of tabIds) {
+        const response = await chrome.scripting.executeScript({ target: { tabId }, world: 'ISOLATED',
             func: async (conversation: string, account: string) => {
                 if (location.pathname !== '/c/' + conversation) return [];
                 const verify = async () => {

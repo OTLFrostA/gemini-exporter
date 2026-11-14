@@ -15,7 +15,10 @@ function ownedTypeScriptFiles(relativeDir) {
 const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
     .concat(['src/l1/parsers/gemini', 'src/l1/client/gemini', 'src/l1/sniffer/gemini', 'src/l1/imports/takeout', 'src/l1/imports/openai', 'src/l1/parsers/shared/resources'])
     .flatMap(ownedTypeScriptFiles)
-    .concat(['src/shared/platformHosts.ts', 'src/shared/types/export.ts', 'src/shared/types/directoryHandle.ts', 'src/shared/utils/devMode.ts',
+    .concat(['src/shared/platformHosts.ts', 'src/shared/utils/typeGuards.ts', 'src/shared/types/export.ts', 'src/shared/types/directoryHandle.ts', 'src/shared/utils/devMode.ts',
+        'src/l1/parsers/shared/time.ts', 'src/l1/parsers/shared/markdown/texBrackets.ts',
+        'src/l1/client/tabSourceRunner.ts', 'src/l1/client/providerShared.ts', 'src/l1/client/optionalProviderRegistration.ts',
+        'src/l1/sniffer/shared/streamAndBridge.ts',
         'src/runtime/api/accountRegistry.ts', 'src/runtime/api/domainIngestion.ts',
         'src/runtime/api/contentReady.ts', 'src/runtime/api/contentAccountRegistry.ts',
         'src/runtime/api/contentDomainIngestion.ts', 'src/runtime/api/contentSettings.ts',
@@ -28,7 +31,7 @@ const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
         'src/ui/options/controllers/exportSession.ts', 'src/ui/options/views/taskPanelView.ts', 'src/ui/options/state/foregroundTask.ts',
         'src/ui/options/state/exportIssues.ts', 'src/ui/options/views/exportFailures.ts',
         'src/runtime/background/contentSender.ts', 'src/runtime/background/accountRegistryHandler.ts',
-        'src/runtime/content/controlRouter.ts', 'src/runtime/content/accountContext.ts',
+        'src/runtime/content/controlRouter.ts', 'src/runtime/content/contentBootstrap.ts', 'src/runtime/content/accountContext.ts',
         'src/l1/protocol/gemini/url.ts', 'src/l1/resources/gemini/assetFetcher.ts',
         'src/l1/client/claude/fileAssets.ts',
         'src/l1/client/claude/claudeProvider.ts', 'src/l1/client/claude/claudeSource.ts',

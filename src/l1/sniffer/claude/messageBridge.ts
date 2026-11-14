@@ -1,9 +1,11 @@
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { ConversationKey } from '../../../l2/conversationKey.js';
+import { isRecord } from '../../../shared/utils/typeGuards.js';
 import { CLAUDE_SOURCE_EVENT, claudeRequest, claudeUuid } from './observation.js';
 import { parseClaudeConversation } from '../../parsers/claude/parseConversation.js';
 import { parseClaudeList } from '../../parsers/claude/parseList.js';
 import { ingestContentIndexes, ingestContentDetail, ingestContentDeletedConversation } from '../../../runtime/api/contentDomainIngestion.js';
+import { registerSerializedWindowBridge } from '../shared/streamAndBridge.js';
 
 export interface ClaudeMessageBridgeCallbacks {
     isActive: () => boolean;
@@ -14,22 +16,20 @@ export interface ClaudeMessageBridgeCallbacks {
 }
 
 export function initClaudeMessageBridge(deps: ClaudeMessageBridgeCallbacks): void {
-    let queue = Promise.resolve();
-    const receive = (event: MessageEvent<unknown>) => {
-        if (event.source !== window || event.origin !== location.origin) return;
-        const data = event.data;
-        if (!data || typeof data !== 'object' || !('type' in data)
-            || data.type !== CLAUDE_SOURCE_EVENT || !('payload' in data)) return;
-        const raw = data.payload;
-        queue = queue.catch(() => {}).then(async () => {
-            if (!deps.isActive() || !raw || typeof raw !== 'object' || !('url' in raw) || typeof raw.url !== 'string'
-                || !('method' in raw) || typeof raw.method !== 'string' || !('responseBody' in raw)
-                || !('status' in raw) || typeof raw.status !== 'number' || raw.status < 200 || raw.status >= 300) return;
+    registerSerializedWindowBridge({
+        eventType: CLAUDE_SOURCE_EVENT,
+        label: 'Claude capture',
+        registerCleanup: deps.registerCleanup,
+        handlePayload: async raw => {
+            if (!deps.isActive() || typeof raw.url !== 'string'
+                || typeof raw.method !== 'string' || !('responseBody' in raw)
+                || typeof raw.status !== 'number' || raw.status < 200 || raw.status >= 300) return;
             const request = claudeRequest(raw.url, raw.method);
             const account = await deps.currentAccount();
-            if (!request || !account || account.providerAccountId !== request.organization) return;
+            if (!deps.isActive() || !request || !account || account.providerAccountId !== request.organization) return;
             if (request.kind === 'list') {
-                const parsed = parseClaudeList(raw.responseBody && typeof raw.responseBody === 'object' && 'data' in raw.responseBody ? raw.responseBody.data : raw.responseBody);
+                const body = isRecord(raw.responseBody) && 'data' in raw.responseBody ? raw.responseBody.data : raw.responseBody;
+                const parsed = parseClaudeList(body);
                 await ingestContentIndexes(account.id, parsed.conversations.map(item => ({ conversationId: item.id,
                     fields: { ...(item.title ? { title: item.title, titleSource: 'provider' as const } : {}),
                         ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}), updatedAt: item.updatedAt } })));
@@ -48,10 +48,8 @@ export function initClaudeMessageBridge(deps: ClaudeMessageBridgeCallbacks): voi
                 deps.onNativeDetailAccepted(cid);
             }
             await deps.onSaveRequested({ accountId: account.id, conversationId: cid }, request.kind === 'stream');
-        }).catch(error => console.warn('[Claude capture]', error));
-    };
-    window.addEventListener('message', receive);
-    deps.registerCleanup(() => window.removeEventListener('message', receive));
+        },
+    });
 
     // Initial history can be server-rendered, without a list request. Visible links
     // prove only these index rows; they do not establish time ordering or Coverage.

@@ -2,7 +2,7 @@ import { OperationError } from '../../shared/errors/operationError.js';
 import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { createBackoffNotice } from '../shared/backoffNotice.js';
 import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
-import { SOURCE_PLATFORMS } from '../../shared/platformHosts.js';
+import { SOURCE_PLATFORMS, isSourcePlatform, platformDisplayName } from '../../shared/platformHosts.js';
 import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
 import { ScanConnectionError } from '../../runtime/capabilities/scanConnection.js';
 import { elementById as el, requiredElement as control } from '../shared/elements.js';
@@ -162,8 +162,7 @@ export async function initWorkbench(): Promise<void> {
         for (const account of state.accounts) {
             const option = document.createElement('option');
             option.value = account.id;
-            const provider = account.providerId === 'chatgpt' ? 'ChatGPT' : account.providerId === 'grok' ? 'Grok'
-                : account.providerId === 'claude' ? 'Claude' : 'Gemini';
+            const provider = platformDisplayName(isSourcePlatform(account.providerId) ? account.providerId : 'gemini');
             option.textContent = `${provider} · ${account.displayName || account.email || account.providerAccountId}`;
             selector.append(option);
         }
