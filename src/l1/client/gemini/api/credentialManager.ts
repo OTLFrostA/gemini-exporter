@@ -8,6 +8,7 @@ export interface GeminiCredentials {
     at: string;
     bl: string;
     accountSlot?: string | null;
+    accountId?: string | null;
     lastUsed?: number | string | null;
 }
 
@@ -18,6 +19,7 @@ interface StoredCredential {
     at?: string | null;
     bl?: string | null;
     accountSlot?: string | null;
+    accountId?: string | null;
     lastUsed?: number | string | null;
 }
 function normalizedCredentialSlot(slot?: string | null): string | null {
@@ -37,6 +39,7 @@ function isStoredCredential(value: unknown): value is StoredCredential {
         && (value.bl === undefined || value.bl === null || typeof value.bl === 'string')
         && (value.accountSlot === undefined || value.accountSlot === null
             || typeof value.accountSlot === 'string' && normalizedCredentialSlot(value.accountSlot) !== null)
+        && (value.accountId === undefined || value.accountId === null || typeof value.accountId === 'string')
         && (lastUsed === undefined || lastUsed === null
             || typeof sortableLastUsed === 'number'
                 && Number.isSafeInteger(sortableLastUsed) && sortableLastUsed >= 0);
@@ -47,7 +50,7 @@ export interface GeminiClientCredentialManagerModule {
     getAtFromPage: () => string;
     detectSlot: (urlOrPath?: string | null) => string | null;
     updateCredential: (sid: string | number, decide: () => { patch: { at?: string; bl?: string } | null; clearLocal?: boolean }) => Promise<void>;
-    resolveCred: (targetSidOrSlot?: string | null, overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null) => Promise<GeminiCredentials>;
+    resolveCred: (targetSidOrSlot?: string | null, overrides?: { at?: string; bl?: string | null; accountSlot?: string; accountId?: string | null } | null) => Promise<GeminiCredentials>;
     generateFallbackSid: () => string;
 }
 
@@ -194,34 +197,38 @@ async function updateCredential(
 
 async function resolveCred(
     targetSidOrSlot?: string | null,
-    overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null
+    overrides?: { at?: string; bl?: string | null; accountSlot?: string; accountId?: string | null } | null
 ): Promise<GeminiCredentials> {
     return withCredMapLock(() => resolveCredInner(targetSidOrSlot, overrides));
 }
 
 async function resolveCredInner(
     targetSidOrSlot?: string | null,
-    overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null
+    overrides?: { at?: string; bl?: string | null; accountSlot?: string; accountId?: string | null } | null
 ): Promise<GeminiCredentials> {
     if (targetSidOrSlot?.includes('@')) throw new TypeError('Email is not a credential routing identity');
     const { raw: map, entries } = await loadCredMap();
     let vals = [...entries.values()];
     const pageBl = getBlFromPage();
     const normSlot = (slot?: string | null) => normalizedCredentialSlot(slot) ?? slot ?? 'default';
+    const expectedAccountId = overrides?.accountId || null;
+    const matchesAccount = (v: StoredCredential): boolean =>
+        !expectedAccountId || !v.accountId || v.accountId === expectedAccountId;
     const isSlotParam = targetSidOrSlot && (
         /^u\d+$/i.test(targetSidOrSlot) ||
         targetSidOrSlot === 'default'
     );
     const targetSid = !isSlotParam && targetSidOrSlot ? targetSidOrSlot : null;
     const requestedSlot = overrides?.accountSlot || (isSlotParam ? targetSidOrSlot : null);
-    const stored = targetSid ? entries.get(targetSid) : undefined;
+    const rawStored = targetSid ? entries.get(targetSid) : undefined;
+    const stored = rawStored && matchesAccount(rawStored) ? rawStored : undefined;
     const pageSlot = normSlot(detectSlot());
     const selectionSlot = normSlot(requestedSlot || stored?.accountSlot || pageSlot);
     const pageAt = selectionSlot === pageSlot
         && (!stored || !!stored.accountSlot && normSlot(stored.accountSlot) === pageSlot)
         ? getAtFromPage() : '';
 
-    const slotEntries = [...entries].filter(([, value]) => normSlot(value.accountSlot) === selectionSlot);
+    const slotEntries = [...entries].filter(([, value]) => normSlot(value.accountSlot) === selectionSlot && matchesAccount(value));
     const partial = slotEntries.find(([, value]) => !!value.accountSlot && !value.at && !!value.sid);
     if (pageAt && !slotEntries.some(([, value]) => value.at)) {
         const key = partial?.[0] ?? ('page_' + Date.now());
@@ -232,6 +239,7 @@ async function resolveCredInner(
             at: pageAt,
             bl: partial?.[1].bl || pageBl || GeminiProtocol.BL_FALLBACK,
             accountSlot: selectionSlot,
+            ...(expectedAccountId ? { accountId: expectedAccountId } : {}),
             lastUsed: Date.now()
         };
         vals = [entry];
@@ -277,10 +285,16 @@ async function resolveCredInner(
         };
     } else {
         const cur = selectionSlot;
-        const f = vals.filter(v => normSlot(v.accountSlot) === cur);
+        const f = vals.filter(v => normSlot(v.accountSlot) === cur && matchesAccount(v));
         // CRITICAL SECURITY FIX: Do NOT fall back to `vals` when `f` is empty!
         // Borrowing other accounts' credentials causes silent cross-account token pollution.
-        f.sort((a, b) => (Number(b.lastUsed) || 0) - (Number(a.lastUsed) || 0));
+        f.sort((a, b) => {
+            if (expectedAccountId) {
+                const exactDiff = Number(b.accountId === expectedAccountId) - Number(a.accountId === expectedAccountId);
+                if (exactDiff !== 0) return exactDiff;
+            }
+            return (Number(b.lastUsed) || 0) - (Number(a.lastUsed) || 0);
+        });
         if (f[0]) {
             const best = f[0];
             result = {

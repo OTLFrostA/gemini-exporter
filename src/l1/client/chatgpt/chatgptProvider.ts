@@ -4,7 +4,7 @@ import { OperationError, operationError } from '../../../shared/errors/operation
 import { getSourceCooldown, extendSourceCooldown } from '../../../l2/sourceCooldown.js';
 import { ResourceHttpError, ResourceProcessingError } from '../../../shared/resources/resourceResult.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
-import { readChatGPTSession } from './accountObservation.js';
+import { parseChatGPTWorkspaceId, readChatGPTSession } from './accountObservation.js';
 import type { ConversationKey } from '../../../l2/conversationKey.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { DomainAsset } from '../../../l2/conversationDetail.js';
@@ -105,9 +105,14 @@ export class ChatGPTProvider implements AIProvider {
             const pending = this.accessToken(account, signal, onDiagnostic);
             const token = await pending;
             signal?.throwIfAborted();
+            const workspaceId = parseChatGPTWorkspaceId(account.providerAccountId);
             const response = await this.fetchFn(`${chatGPTApiBase(this.origin)}${path}`, {
                 credentials: 'include', signal,
-                headers: { Authorization: `Bearer ${token}`, 'X-Authorization': `Bearer ${token}` },
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'X-Authorization': `Bearer ${token}`,
+                    ...(workspaceId ? { 'ChatGPT-Account-ID': workspaceId } : {}),
+                },
             });
             if (response.status !== 401) return response;
             // An older in-flight 401 must not discard another request's refreshed token.
@@ -152,15 +157,18 @@ export class ChatGPTProvider implements AIProvider {
 
     async checkReadiness(accountId: Account['id']): Promise<ProviderReadiness> {
         try {
-            await this.context(accountId);
+            const account = await this.context(accountId);
             const res = await this.fetchFn(`${this.origin}/api/auth/session`, {
                 credentials: 'include',
             });
             if (!res.ok) return { ready: false, error: `ChatGPT session HTTP ${res.status}` };
             const rawSession: unknown = await res.json();
-            const { accessToken, accountName } = readChatGPTSession(rawSession);
+            const { accessToken, accountName, observation } = readChatGPTSession(rawSession);
             if (!accessToken) {
                 return { ready: false, error: 'ChatGPT 未登录：/api/auth/session 无 accessToken' };
+            }
+            if (observation ? observation.providerAccountId !== account.providerAccountId : account.providerAccountId !== 'default') {
+                return { ready: false, error: 'ChatGPT request account mismatch' };
             }
             return { ready: true, ...(accountName ? { accountName } : {}) };
         } catch (e: unknown) {

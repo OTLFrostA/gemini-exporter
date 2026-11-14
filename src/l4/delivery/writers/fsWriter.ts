@@ -45,7 +45,7 @@ class FsWriter implements IExportWriter {
         return this.batchDirHandle;
     }
 
-    /** Only NotFound means absent; permission and filesystem errors must propagate. */
+    /** Only NotFound (or a 0-byte crash stub) means absent; permission and filesystem errors must propagate. */
     async exists(relativePath: string): Promise<boolean> {
         assertExportPath(relativePath);
         let directory = this.batchDirHandle ?? await this.init();
@@ -54,7 +54,11 @@ class FsWriter implements IExportWriter {
         if (!name) throw new Error('Missing file name');
         try {
             for (const part of parts) directory = await directory.getDirectoryHandle(part, { create: false });
-            await directory.getFileHandle(name, { create: false });
+            const handle = await directory.getFileHandle(name, { create: false });
+            if (typeof handle.getFile === 'function') {
+                const file = await handle.getFile();
+                if (file.size === 0) return false;
+            }
             return true;
         } catch (error) {
             if (error instanceof DOMException && error.name === 'NotFoundError') return false;

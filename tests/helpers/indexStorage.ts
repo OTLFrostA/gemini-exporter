@@ -14,13 +14,22 @@ export function indexStorage(seed: Record<string, unknown> = {}, options: { seed
     // Node's fake browser environment needs the extension-origin Web Locks contract.
     const pendingLocks = new Map<string, Promise<void>>();
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { language: 'en-US', locks: {
-        async request<T>(name: string, callback: () => Promise<T>): Promise<T> {
+        async request<T>(
+            name: string,
+            optionsOrCallback: LockOptions | ((lock: Lock | null) => Promise<T>),
+            maybeCallback?: (lock: Lock | null) => Promise<T>,
+        ): Promise<T> {
+            const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : maybeCallback!;
+            const lockOptions = typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback;
+            if (lockOptions?.ifAvailable && pendingLocks.has(name)) {
+                return callback(null);
+            }
             const previous = pendingLocks.get(name) ?? Promise.resolve();
             let unlock!: () => void;
             const next = new Promise<void>(resolve => { unlock = resolve; });
             pendingLocks.set(name, next);
             await previous;
-            try { return await callback(); }
+            try { return await callback({ name, mode: 'exclusive' }); }
             finally {
                 unlock();
                 if (pendingLocks.get(name) === next) pendingLocks.delete(name);

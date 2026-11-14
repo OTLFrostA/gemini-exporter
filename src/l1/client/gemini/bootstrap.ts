@@ -179,9 +179,15 @@ export async function saveCredentials(map: ReadonlyMap<string, BootstrapCredenti
     }
 }
 
+function sameBootstrapSlot(a?: string, b?: string): boolean {
+    const norm = (slot?: string) => (!slot || slot === 'default' || /^\/?u\/?0+$/i.test(slot)) ? 'u0' : slot.toLowerCase();
+    return norm(a) === norm(b);
+}
+
 async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
     try {
         if (!isExtAlive()) return null;
+        const slot = detectSlotFromUrl();
         const atFromPage = extractAtFromPage();
         const account = await resolveCurrentAccount();
         const blFromPage = extractBlFromPage();
@@ -192,9 +198,12 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
             updateContextCreds({ at: atFromPage });
         }
         const map = await loadCredentialsMap();
-        const vals = [...map.values()];
-        if (atFromPage && vals.length === 0) {
-            const slot = detectSlotFromUrl();
+        // Strictly scope page-scraped tokens to entries matching BOTH this URL slot
+        // and (when known) this verified accountId; never mutate another slot/account's sid.
+        const scopedEntries = [...map.entries()].filter(([, v]) =>
+            sameBootstrapSlot(v.accountSlot, slot)
+            && (!account?.accountId || !v.accountId || v.accountId === account.accountId));
+        if (atFromPage && scopedEntries.length === 0) {
             const fakeSid = 'page_sid_' + Date.now();
             const credential: BootstrapCredential = {
                 at: atFromPage,
@@ -213,14 +222,15 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
             if (isDev()) console.log('[Gemini Exporter] at fallback created fake sid', 'atLen', atFromPage.length, 'blLen', (blFromPage || '').length);
             return credential;
         }
-        if (atFromPage && vals.length > 0) {
-            vals.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-            const best = vals[0];
-            if (!best.at || best.at !== atFromPage) {
+        if (scopedEntries.length > 0) {
+            scopedEntries.sort(([, a], [, b]) => (b.lastUsed || 0) - (a.lastUsed || 0));
+            const [bestKey, best] = scopedEntries[0];
+            if (account?.accountId && !best.accountId) best.accountId = account.accountId;
+            if (atFromPage && (!best.at || best.at !== atFromPage)) {
                 best.at = atFromPage;
                 best.lastUsed = Date.now();
                 if (blFromPage) best.bl = blFromPage;
-                map.set(best.sid || [...map.keys()][0], best);
+                map.set(best.sid || bestKey, best);
                 await saveCredentials(map, {
                     at: best.at,
                     sid: best.sid
@@ -229,19 +239,10 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
                 if (isDev()) console.log('[Gemini Exporter] at refreshed from page', 'atLen', atFromPage.length);
             } else if (blFromPage && best.bl !== blFromPage) {
                 best.bl = blFromPage;
-                map.set(String(best.sid), best);
+                map.set(String(best.sid || bestKey), best);
                 await saveCredentials(map);
                 updateContextCreds({ bl: blFromPage });
-            }
-        } else if (blFromPage && vals.length > 0) {
-            vals.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-            const best = vals[0];
-            if (best.bl !== blFromPage) {
-                best.bl = blFromPage;
-                map.set(String(best.sid), best);
-                await saveCredentials(map);
-                updateContextCreds({ bl: blFromPage });
-                if (isDev()) console.log('[Gemini Exporter] bl refreshed', 'blLen', blFromPage.length);
+                if (!atFromPage && isDev()) console.log('[Gemini Exporter] bl refreshed', 'blLen', blFromPage.length);
             }
         }
     } catch (e) {

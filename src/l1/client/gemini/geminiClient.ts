@@ -78,7 +78,9 @@ const pagination = GeminiClientPagination;
         }
 
         async getConversationList(pageToken?: string | null, targetSid?: string | null, customFilter?: GeminiListFilter, opts?: GeminiListRequestOptions): Promise<ListParseResult> {
-            let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
+            const listOverrides = opts && (opts._overrideAt || opts._overrideBl || opts.account?.id)
+                ? { at: opts._overrideAt, bl: opts._overrideBl, accountId: opts.account?.id } : null;
+            let cred = await resolveCred(targetSid, listOverrides);
             let api = getApiUrl(cred.accountSlot || "default");
             const filter: GeminiListFilter = customFilter ?? [0, null, 1];
             const P = GeminiProtocol;
@@ -158,7 +160,9 @@ const pagination = GeminiClientPagination;
 
         async fetchConversationPage(conversationId: string, pageToken?: string | null, targetSid?: string | null, opts?: GeminiDetailRequestOptions): Promise<DetailParseResult> {
             let id = conversationId.startsWith("c_") ? conversationId : `c_${conversationId}`;
-            let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
+            const detailOverrides = opts && (opts._overrideAt || opts._overrideBl || opts.account?.id)
+                ? { at: opts._overrideAt, bl: opts._overrideBl, accountId: opts.account?.id } : null;
+            let cred = await resolveCred(targetSid, detailOverrides);
             let api = getApiUrl(cred.accountSlot || "default");
             const isDev = isDevMode();
             if (isDev) {

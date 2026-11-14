@@ -9,6 +9,19 @@ export function chatgptAccountObservation(session: unknown): Omit<Account, 'id'>
     return readChatGPTSession(session).observation;
 }
 
+/** Extract the bound workspace ID from a canonical ChatGPT `[userId, workspaceId]` tuple. */
+export function parseChatGPTWorkspaceId(providerAccountId: string): string | null {
+    try {
+        const parsed: unknown = JSON.parse(providerAccountId);
+        if (!Array.isArray(parsed) || parsed.length !== 2) return null;
+        const userId = text(parsed[0]);
+        const workspaceId = text(parsed[1]);
+        return userId && workspaceId && workspaceId !== 'default' ? workspaceId : null;
+    } catch {
+        return null;
+    }
+}
+
 /** Trust only the Session fields needed by the provider. */
 export function readChatGPTSession(session: unknown) {
     const raw = session !== null && typeof session === 'object' && !Array.isArray(session) ? session : null;

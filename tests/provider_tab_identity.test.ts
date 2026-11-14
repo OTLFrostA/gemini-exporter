@@ -65,3 +65,33 @@ test('Claude attachments accept ID zero and reject a tab list without IDs before
     await assert.rejects(readClaudeFile(id, id), /Open Claude/);
     assert.equal(calls, 3);
 });
+
+test('Claude file download verifies /api/organizations membership when lastActiveOrg cookie is absent', async t => {
+    const saved = ['chrome', 'document', 'fetch'].map(k => [k, Object.getOwnPropertyDescriptor(globalThis, k)] as const);
+    t.after(() => {
+        for (const [k, desc] of saved) {
+            if (desc) Object.defineProperty(globalThis, k, desc);
+            else Reflect.deleteProperty(globalThis, k);
+        }
+    });
+    const orgId = '11111111-1111-4111-8111-111111111111';
+    const fileId = '22222222-2222-4222-8222-222222222222';
+    let memberOrgs: Array<{ uuid: string }> = [{ uuid: orgId }];
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: { cookie: '' } });
+    Object.defineProperty(globalThis, 'fetch', { configurable: true, value: async (url: string) => {
+        if (url === '/api/organizations') return new Response(JSON.stringify(memberOrgs), { status: 200 });
+        return new Response(new Uint8Array([7, 8, 9]), { status: 200, headers: { 'content-type': 'application/pdf' } });
+    } });
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: {
+        permissions: { contains: async () => true },
+        tabs: { query: async () => [{ id: 1, active: true }] },
+        scripting: { executeScript: async (inj: { func: (...a: string[]) => Promise<unknown>; args: string[] }) =>
+            [{ result: await inj.func(...inj.args) }] },
+    } });
+    const ok = await readClaudeFile(orgId, fileId);
+    assert.deepEqual(ok.bytes, new Uint8Array([7, 8, 9]));
+    assert.equal(ok.mediaType, 'application/pdf');
+
+    memberOrgs = [{ uuid: '33333333-3333-4333-8333-333333333333' }];
+    await assert.rejects(readClaudeFile(orgId, fileId), /organization\/account changed/);
+});

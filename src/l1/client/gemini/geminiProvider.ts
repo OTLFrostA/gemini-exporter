@@ -31,7 +31,8 @@ async function resolveRoute(accountId: string): Promise<string> {
         if (context?.accountId === accountId) return context.slot;
     } else if (typeof chrome !== 'undefined' && chrome.tabs) {
         const failures: string[] = [];
-        const tabs = await chrome.tabs.query({ url: ['https://gemini.google.com/*'] });
+        const tabs = [...await chrome.tabs.query({ url: ['https://gemini.google.com/*'] })]
+            .sort((a, b) => Number(!!b.active) - Number(!!a.active));
         for (const tab of tabs) {
             if (tab.id === undefined) continue;
             try {
@@ -70,8 +71,8 @@ export class GeminiProvider implements GeminiProviderContract {
     }
     async checkReadiness(accountId: Account['id']): Promise<ProviderReadiness> {
         try {
-            const { slot } = await this.context(accountId);
-            const cred = await credentials.resolveCred(slot);
+            const { account, slot } = await this.context(accountId);
+            const cred = await credentials.resolveCred(slot, { accountId: account.id });
             return cred.at ? { ready: true } : { ready: false, error: 'Gemini credentials unavailable' };
         } catch (error) { return { ready: false, error: error instanceof Error ? error.message : 'Gemini unavailable' }; }
     }
@@ -88,7 +89,7 @@ export class GeminiProvider implements GeminiProviderContract {
             if (await this.route(account.id) !== slot) throw new OperationError('ACCOUNT_CHANGED', 'Gemini account route changed');
             const requestedAt = Date.now();
             const result = await client.getConversationList(cursor, slot,
-                options.streamId === 'pinned' ? [1, null, 1] : undefined, { signal: options.signal });
+                options.streamId === 'pinned' ? [1, null, 1] : undefined, { signal: options.signal, account });
             options.signal?.throwIfAborted();
             if (await this.route(account.id) !== slot) throw new OperationError('ACCOUNT_CHANGED', 'Gemini account route changed');
             const observation = geminiListObservation(result, { streamId: options.streamId, requestCursor: cursor }, account.id, false, requestedAt);

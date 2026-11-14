@@ -4,6 +4,8 @@ import { getAccount } from '../../runtime/api/accountRegistry.js';
 import { DEFAULT_ACCOUNT_KEY, isAccountId } from '../../l2/accountRegistry.js';
 import { defaultGeminiProvider } from '../../l1/client/gemini/geminiProvider.js';
 import { ProviderRegistry } from '../../l1/client/providerRegistry.js';
+import { createTaskProvider } from '../../l1/client/taskProvider.js';
+import { createSourceResourceContext } from '../../l1/resources/sourceResources.js';
 import { ProviderListError, type ListFailureDiagnostics } from '../../l1/client/aiProvider.js';
 import CoverageAdmission, { type ScanHead } from '../../l2/coverageAdmission.js';
 
@@ -33,49 +35,70 @@ export async function scanAll(request: ScanRequest, options: {
     if (!isAccountId(accountId)) return result('error', 'Invalid account UUID');
     if (active.has(accountId)) return result('error', 'Scan already running');
     active.add(accountId);
+    const executeScan = async (): Promise<ScanResult> => {
+        const taskResources = createSourceResourceContext();
+        try {
+            options.signal?.throwIfAborted();
+            const account = await getAccount(accountId);
+            // Runtime resolves a verified online source; a local/offline default account
+            // is not an online identity and must never launch a successful Scan All.
+            if (!account || !['gemini', 'chatgpt', 'claude', 'grok'].includes(account.providerId) || account.providerAccountId === DEFAULT_ACCOUNT_KEY) {
+                return result('error', 'Verified provider account unavailable');
+            }
+            const provider = ProviderRegistry.get(account.providerId)
+                ?? (account.providerId === 'gemini' ? defaultGeminiProvider : createTaskProvider(account.providerId, taskResources));
+            const previous = await CoverageAdmission.getCoverage(accountId, 'recent');
+            const baseline = previous ? structuredClone(previous) : null;
+            let scanHead: ScanHead | undefined;
+            let verifiedStop = false;
+            const end = await provider.listConversations({ accountId, streamId: 'recent', signal: options.signal, onDiagnostic: options.onDiagnostic,
+                onPageCommitted: async info => {
+                    notifyDomainChanged(accountId);
+                    counts.pagesFetched = info.page;
+                    counts.conversationsFetched = info.totalObserved;
+                    if (info.indexChanges) indexChanges = {
+                        added: (indexChanges?.added ?? 0) + info.indexChanges.added,
+                        updated: (indexChanges?.updated ?? 0) + info.indexChanges.updated,
+                    };
+                    scanHead ??= info.scanHead;
+                    options.onProgress?.({ ...counts });
+                    options.signal?.throwIfAborted();
+                    if (!request.forceFull && baseline?.range && scanHead) {
+                        verifiedStop = await CoverageAdmission.hasTrustedBoundary(accountId, baseline, scanHead);
+                    }
+                    return verifiedStop;
+                } });
+            options.signal?.throwIfAborted();
+            switch (end) {
+                case 'source_end': return result('complete');
+                case 'provider_limit': return result('partial_limit', 'provider_limit');
+                case 'max_pages': return result('partial_limit', 'max_pages');
+                case 'stopped': return verifiedStop ? result('up_to_date') : result('error', 'Unverified scan stop');
+            }
+            return result('error', 'Unknown provider list termination');
+        } catch (error) {
+            if (options.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) return result('aborted');
+            return { ...result('error', error instanceof Error ? error.message : String(error)),
+                ...(error instanceof ProviderListError ? { diagnostics: error.diagnostics } : {}) };
+        } finally {
+            taskResources.release();
+        }
+    };
     try {
-        options.signal?.throwIfAborted();
-        const account = await getAccount(accountId);
-        // Runtime resolves a verified online source; a local/offline default account
-        // is not an online identity and must never launch a successful Scan All.
-        if (!account || !['gemini', 'chatgpt', 'claude', 'grok'].includes(account.providerId) || account.providerAccountId === DEFAULT_ACCOUNT_KEY) {
-            return result('error', 'Verified provider account unavailable');
+        if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+            const lockName = `gemini_exporter_scan_${accountId}`;
+            // Native Web Locks uses 0 formal parameters (overloaded); 2-arg test stubs take (name, fn).
+            if (navigator.locks.request.length === 2) {
+                return await navigator.locks.request(lockName, executeScan);
+            }
+            return await navigator.locks.request(
+                lockName,
+                { ifAvailable: true },
+                async lock => lock ? executeScan() : result('error', 'Scan already running'),
+            );
         }
-        const provider = ProviderRegistry.get(account.providerId)
-            ?? (account.providerId === 'gemini' ? defaultGeminiProvider : undefined);
-        if (!provider) throw new Error('Account provider unavailable');
-        const previous = await CoverageAdmission.getCoverage(accountId, 'recent');
-        const baseline = previous ? structuredClone(previous) : null;
-        let scanHead: ScanHead | undefined;
-        let verifiedStop = false;
-        const end = await provider.listConversations({ accountId, streamId: 'recent', signal: options.signal, onDiagnostic: options.onDiagnostic,
-            onPageCommitted: async info => {
-                notifyDomainChanged(accountId);
-                counts.pagesFetched = info.page;
-                counts.conversationsFetched = info.totalObserved;
-                if (info.indexChanges) indexChanges = {
-                    added: (indexChanges?.added ?? 0) + info.indexChanges.added,
-                    updated: (indexChanges?.updated ?? 0) + info.indexChanges.updated,
-                };
-                scanHead ??= info.scanHead;
-                options.onProgress?.({ ...counts });
-                options.signal?.throwIfAborted();
-                if (!request.forceFull && baseline?.range && scanHead) {
-                    verifiedStop = await CoverageAdmission.hasTrustedBoundary(accountId, baseline, scanHead);
-                }
-                return verifiedStop;
-            } });
-        options.signal?.throwIfAborted();
-        switch (end) {
-            case 'source_end': return result('complete');
-            case 'provider_limit': return result('partial_limit', 'provider_limit');
-            case 'max_pages': return result('partial_limit', 'max_pages');
-            case 'stopped': return verifiedStop ? result('up_to_date') : result('error', 'Unverified scan stop');
-        }
-        return result('error', 'Unknown provider list termination');
-    } catch (error) {
-        if (options.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) return result('aborted');
-        return { ...result('error', error instanceof Error ? error.message : String(error)),
-            ...(error instanceof ProviderListError ? { diagnostics: error.diagnostics } : {}) };
-    } finally { active.delete(accountId); }
+        return await executeScan();
+    } finally {
+        active.delete(accountId);
+    }
 }

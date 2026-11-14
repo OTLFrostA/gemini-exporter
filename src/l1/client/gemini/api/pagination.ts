@@ -10,6 +10,7 @@ import type { ListParseResult } from '../../../parsers/gemini/rpc/parseList.js';
 import type { DetailParseResult } from './detailTypes.js';
 
 export interface GeminiListRequestOptions {
+    account?: Account;
     signal?: AbortSignal | null;
     maxRetries?: number;
     _retried?: boolean;

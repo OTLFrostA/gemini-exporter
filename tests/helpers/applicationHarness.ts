@@ -173,6 +173,15 @@ stubModule('../../src/l2/ingestion.js', {
         return { ...state.detailDecision };
     },
 });
+stubModule('../../src/l2/coverageAdmission.js', {
+    __esModule: true,
+    default: {
+        async getCoverage() { return null; },
+        async hasTrustedBoundary() { return false; },
+        resetAccountCoverage() {},
+    },
+    resetAccountCoverage() {},
+});
 stubModule('../../src/l1/imports/takeout/readArchive.js', {
     async parseGeminiTakeoutZipArchive(_bytes: unknown, context: { onArchiveReady?: () => void; onProgress?: (completed: number, total: number) => void }) {
         if (state.takeoutError) throw state.takeoutError;

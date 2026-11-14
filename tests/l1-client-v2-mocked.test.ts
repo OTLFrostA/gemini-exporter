@@ -169,18 +169,30 @@ test('Client refuses changed account route and mismatched Provider before commit
 });
 
 test('ChatGPT uses the same v2 Index/page port and checks native completeness before source_end', async () => {
-    const fetchFn = async (url: string) => new Response(JSON.stringify(
-        url.endsWith('/api/auth/session')
-            ? chatgptSessionGen('C_L1_CLIENT_V2_MOCKED_03')
-            : chatgptListGen('C_L1_CLIENT_V2_MOCKED_04'),
-    ), { status: 200 });
+    const seenWorkspaceHeaders: Array<string | null> = [];
+    const fetchFn = async (url: string, init?: RequestInit) => {
+        if (!url.endsWith('/api/auth/session')) {
+            seenWorkspaceHeaders.push(new Headers(init?.headers).get('ChatGPT-Account-ID'));
+        }
+        return new Response(JSON.stringify(
+            url.endsWith('/api/auth/session')
+                ? chatgptSessionGen('C_L1_CLIENT_V2_MOCKED_03')
+                : chatgptListGen('C_L1_CLIENT_V2_MOCKED_04'),
+        ), { status: 200 });
+    };
     const provider = new ChatGPTProvider({ fetchFn });
+    assert.deepEqual(await provider.checkReadiness(CHATGPT_ACCOUNT.id), { ready: true });
+    const mismatched = new ChatGPTProvider({
+        fetchFn: async () => new Response(JSON.stringify(chatgptSessionGen('C_L1_CONTRACT_20')), { status: 200 }),
+    });
+    assert.equal((await mismatched.checkReadiness(CHATGPT_ACCOUNT.id)).ready, false);
     const committed: number[] = [];
     const end = await provider.listConversations({
         accountId: CHATGPT_ACCOUNT.id, streamId: 'recent',
         onPageCommitted: async progress => { committed.push(ports.indexes.length); assert.ok(progress.scanHead); return false; },
     });
     assert.equal(end, 'source_end');
+    assert.deepEqual(seenWorkspaceHeaders, ['workspace-1']);
     assert.deepEqual(committed, [1]);
     assert.deepEqual(ports.indexes[0].items, [{
         conversationId: 'chatgpt-source', fields: {

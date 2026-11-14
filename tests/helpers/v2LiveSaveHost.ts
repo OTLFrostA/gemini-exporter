@@ -38,6 +38,12 @@ export function v2LiveSaveHost(t: TestContext) {
             if (!options?.create && !files.has(fullPath)) throw new DOMException('Missing file', 'NotFoundError');
             return {
                 kind: 'file', name,
+                async getFile() {
+                    const existing = files.get(fullPath);
+                    const size = existing === undefined ? 0
+                        : typeof existing === 'string' ? Buffer.byteLength(existing) : existing.byteLength;
+                    return { size };
+                },
                 async createWritable() {
                     let data: string | Uint8Array | null = null;
                     return {
