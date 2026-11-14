@@ -337,3 +337,20 @@
 
 /* The onboarding export demonstrates one conversation. */
 body[data-guided-selection="true"] #btnSelectAll { display: none; }
+
+/* Account discovery keeps progress visible until the verified identity is ready. */
+.tour-status-loading::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: tour-account-spin .8s linear infinite;
+}
+.tour-action-box .tour-status-ok::before { content: '✓'; font-weight: 700; }
+@keyframes tour-account-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .tour-status-loading::before { animation: none; }
+}
