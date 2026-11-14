@@ -256,7 +256,7 @@ test('L1 import submits facts and returns count/status with numerical progress',
     const archive = { file() {}, files: { 'Takeout/Gemini/MyActivity.html': { _data: { uncompressedSize: html.length }, async: async () => html } } };
     const progress: number[] = [];
     const result = await importTakeout(archive as unknown as File, ACCOUNT_UUID, percent => progress.push(percent));
-    assert.deepEqual(result, { imported: 1, status: 'partial' });
+    assert.deepEqual(result, { imported: 1, added: 1, status: 'partial' });
     assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
     assert.ok(progress.every(value => typeof value === 'number' && value >= 0 && value <= 100)); assert.equal(progress.at(-1), 100);
 });

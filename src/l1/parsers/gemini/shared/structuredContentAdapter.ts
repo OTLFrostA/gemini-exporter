@@ -1,10 +1,14 @@
-import type { BlockNode, ListItem, TableCell, TableRow } from '../../../../l2/content/blocks.js';
+import type { BlockNode, HeadingBlock, ListItem, TableCell, TableRow } from '../../../../l2/content/blocks.js';
 import type { DomainCitation } from '../../../../l2/conversationDetail.js';
 import type { InlineNode } from '../../../../l2/content/inline.js';
+import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../shared/markdown/index.js';
+import { convertHtmlToMarkdown } from '../../shared/html/htmlToMarkdown.js';
+import { validGeminiTextRange } from './sourceRanges.js';
 import type {
     GeminiAnnotation,
     GeminiStructuredDocument,
     GeminiStructuredNode,
+    GeminiTextNode,
 } from '../rpc/structuredContent.js';
 
 function textWithSoftBreaks(text: string): InlineNode[] {
@@ -25,6 +29,31 @@ function textWithSoftBreaks(text: string): InlineNode[] {
 }
 
 export type GeminiSourceCitations = ReadonlyMap<string, readonly DomainCitation[]>;
+export interface GeminiStructuredContext extends MarkdownParseContext {
+    onSourceFallback?: () => void;
+}
+
+function textInlines(node: GeminiTextNode, sources: GeminiSourceCitations, context?: GeminiStructuredContext): InlineNode[] | null {
+    const strict = convertGeminiInlines(node.text, node.annotations, sources);
+    if (strict !== null || !context?.onSourceFallback) return strict;
+    const rejected = (node.annotations ?? []).filter(annotation => annotation.type === 'source'
+        && convertGeminiInlines(node.text, [annotation], sources) === null);
+    if (!rejected.length) return null;
+    const children = convertGeminiInlines(node.text, node.annotations?.filter(annotation => !rejected.includes(annotation)), sources);
+    if (children === null) return null;
+    // Preserve valid formatting and known source identities at paragraph/cell
+    // scope. Exact anchoring remains unrepresented and must stay partial.
+    // Never clamp an offset, subtract Markdown delimiters, or invent a URL.
+    const emitted = new Set<string>();
+    for (const annotation of rejected) if (annotation.type === 'source') {
+        for (const id of annotation.sourceIds) for (const citation of sources.get(id) ?? []) {
+            if (!emitted.has(citation.id)) children.push({ type: 'citationRef', citationId: citation.id });
+            emitted.add(citation.id);
+        }
+    }
+    context.onSourceFallback();
+    return children;
+}
 
 function isLeafAnnotation(type: GeminiAnnotation['type']): boolean {
     return type === 4 || type === 7;
@@ -93,9 +122,7 @@ export function convertGeminiInlines(
 
     // Validate annotations integrity and bounds
     for (const a of annotations) {
-        if (!Number.isInteger(a.start) || !Number.isInteger(a.end) || a.start < 0 || a.end > text.length || a.start > a.end) {
-            return null;
-        }
+        if (!validGeminiTextRange(text, a.start, a.end)) return null;
         // Supported inline annotation types:
         // 0: strong (bold)
         // 2: emphasis (italic)
@@ -105,13 +132,7 @@ export function convertGeminiInlines(
         // 7: inline code
         // 12: strikethrough
         if (a.type === 'source') {
-            if (!a.sourceIds?.length || a.sourceIds.some(id => !sources.get(id)?.length)) return null;
-            // UTF-16 offsets must not split a Unicode surrogate pair when a
-            // source endpoint becomes a text/citation boundary.
-            for (const boundary of [a.start, a.end]) {
-                const before = text.charCodeAt(boundary - 1), after = text.charCodeAt(boundary);
-                if (before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff) return null;
-            }
+            if (!a.sourceIds.length || a.sourceIds.some(id => !sources.get(id)?.length)) return null;
         } else if (![0, 2, 4, 5, 6, 7, 12].includes(a.type)) {
             return null; // Unknown annotation type -> fallback
         }
@@ -198,7 +219,7 @@ export function convertGeminiInlines(
                 } else if (a.type === 12) {
                     nodes.push({ type: 'strikethrough', children });
                 } else if (a.type === 6) {
-                    nodes.push({ type: 'link', href: a.url || '', children });
+                    nodes.push({ type: 'link', href: a.url, children });
                 }
             } else {
                 return null;
@@ -218,17 +239,42 @@ export function convertGeminiInlines(
     return converted === null ? null : insertSourceReferences(converted, annotations, sources);
 }
 
-function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSourceCitations): InlineNode[] | null {
+/** Field 13 groups one text block; its text fragments declare paragraph or heading.
+ * References and attachments do not declare a second block. Conflicting text
+ * levels remain ambiguous, including across nested groups. */
+function compositeHeadingLevel(children: GeminiStructuredNode[]): HeadingBlock['level'] | 0 | null | undefined {
+    let level: HeadingBlock['level'] | 0 | undefined;
+    for (const child of children) {
+        let declared: HeadingBlock['level'] | 0 | undefined;
+        if (child.nodeType === 18) {
+            const value = child.jJ ?? 0;
+            if (value !== 0 && value !== 1 && value !== 2 && value !== 3 && value !== 4 && value !== 5 && value !== 6) return null;
+            declared = value;
+        } else if (child.nodeType === 'paragraph') {
+            const nested = compositeHeadingLevel(child.children);
+            if (nested === null) return null;
+            declared = nested;
+        }
+        if (declared !== undefined) {
+            if (level !== undefined && level !== declared) return null;
+            level = declared;
+        }
+    }
+    return level;
+}
+
+function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSourceCitations,
+    level: HeadingBlock['level'] | 0 = 0, context?: GeminiStructuredContext): InlineNode[] | null {
     const inlines: InlineNode[] = [];
     for (let i = 0; i < children.length; i++) {
         const child = children[i];
         if (child.nodeType === 18) {
-            if (child.jJ && child.jJ > 0) return null;
-            const converted = convertGeminiInlines(child.text, child.annotations, sources);
+            if ((child.jJ ?? 0) !== level) return null;
+            const converted = textInlines(child, sources, context);
             if (converted === null) return null;
             inlines.push(...converted);
-        } else if (child.nodeType === 'paragraph' || child.nodeType === 'citationGroup') {
-            const converted = convertCellChildren(child.children, sources);
+        } else if (child.nodeType === 'paragraph' || child.nodeType === 'fragment' || child.nodeType === 'citationGroup') {
+            const converted = convertCellChildren(child.children, sources, level, context);
             if (converted === null) return null;
             inlines.push(...converted);
         } else if (child.nodeType === 'sourceReference') {
@@ -271,15 +317,27 @@ function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSo
 export function geminiStructuredToContent(
     doc: GeminiStructuredDocument,
     sources: GeminiSourceCitations = new Map(),
+    context: GeminiStructuredContext = { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'structured' } },
 ): BlockNode[] | null {
     const blocks: BlockNode[] = [];
 
     for (const node of doc.children) {
         switch (node.nodeType) {
+            case 'fragment': {
+                const children = geminiStructuredToContent({ children: node.children }, sources, context);
+                if (children === null) return null;
+                blocks.push(...children);
+                break;
+            }
+            case 'markup': {
+                const markdown = node.format === 'html' ? convertHtmlToMarkdown(node.source) : node.source;
+                blocks.push(...parseMarkdownToBlocks(markdown, '', context));
+                break;
+            }
             case 'citation':
             case 'sourceReference':
             case 'citationGroup': {
-                const children = convertCellChildren([node], sources);
+                const children = convertCellChildren([node], sources, 0, context);
                 if (children === null) return null;
                 const previous = blocks[blocks.length - 1];
                 if (previous?.type === 'paragraph' || previous?.type === 'heading') previous.children.push(...children);
@@ -287,14 +345,17 @@ export function geminiStructuredToContent(
                 break;
             }
             case 'paragraph': {
-                const children = convertCellChildren(node.children, sources);
+                const level = compositeHeadingLevel(node.children);
+                if (level === null) return null;
+                const children = convertCellChildren(node.children, sources, level ?? 0, context);
                 if (children === null) return null;
-                blocks.push({ type: 'paragraph', children });
+                blocks.push(level === undefined || level === 0
+                    ? { type: 'paragraph', children } : { type: 'heading', level, children });
                 break;
             }
             case 18: {
                 // Text / Heading / Paragraph
-                const inlines = convertGeminiInlines(node.text, node.annotations, sources);
+                const inlines = textInlines(node, sources, context);
                 if (inlines === null) return null;
 
                 const level = node.jJ;
@@ -346,7 +407,7 @@ export function geminiStructuredToContent(
                 const items: ListItem[] = [];
                 for (const item of node.items) {
                     const itemBlocks = geminiStructuredToContent(
-                        { children: item.children }, sources,
+                        { children: item.children }, sources, context,
                     );
                     if (itemBlocks === null) return null;
                     items.push({ blocks: itemBlocks });
@@ -363,10 +424,10 @@ export function geminiStructuredToContent(
             case 15: {
                 // Blockquote
                 const quoteBlocks = geminiStructuredToContent(
-                    { children: node.children }, sources,
+                    { children: node.children }, sources, context,
                 );
                 if (quoteBlocks === null) return null;
-                blocks.push({
+                if (quoteBlocks.length) blocks.push({
                     type: 'quote',
                     blocks: quoteBlocks,
                 });
@@ -379,7 +440,7 @@ export function geminiStructuredToContent(
                 for (const row of node.rows) {
                     const cells: TableCell[] = [];
                     for (const cell of row.cells) {
-                        const cellInlines = convertCellChildren(cell.children, sources);
+                        const cellInlines = convertCellChildren(cell.children, sources, 0, context);
                         if (cellInlines === null) return null;
                         cells.push({
                             children: cellInlines,

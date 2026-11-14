@@ -35,7 +35,7 @@ test('current progress status displays committed counts, final result and clears
     const browser = await chromium.launch({ chromiumSandbox: true, headless: true }); try {
         const page = await browser.newPage(); await mount(page, 'options', { holdScan: true });
         await page.locator('#btnSyncAll').click(); await page.waitForFunction(() => document.body.dataset.busy === 'true');
-        assert.equal(await page.locator('#scanStatus').textContent(), 'Committed 2 pages, 150 source entries');
+        assert.equal(await page.locator('#scanStatus').textContent(), 'Sync in progress · Scanned: 150 · Total conversations: 1');
         assert.equal(await page.locator('#scanStatus').getAttribute('aria-live'), 'polite');
         assert.equal(await page.locator('#progWrap').isVisible(), true);
         assert.match(await page.locator('#progWrap').getAttribute('class') ?? '', /indeterminate/);
@@ -43,7 +43,7 @@ test('current progress status displays committed counts, final result and clears
         assert.equal(await page.locator('#btnSyncAll').textContent(), 'Stop sync');
         assert.doesNotMatch(await page.locator('#scanStatus').textContent() ?? '', /%/);
         await page.evaluate(() => Reflect.get(window, 'harness').finishScan()); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
-        assert.match(await page.locator('#scanStatus').textContent() ?? '', /Local page budget reached/); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
+        assert.match(await page.locator('#scanStatus').textContent() ?? '', /Sync partially completed · Scanned: 150 · Total conversations: 1/); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
         assert.equal(await page.locator('#progWrap').isVisible(), false);
         assert.doesNotMatch(await page.locator('#progWrap').getAttribute('class') ?? '', /indeterminate/);
     } finally { await browser.close(); }
@@ -52,7 +52,7 @@ test('a subsequent operation keeps its current progress after the previous task 
     const browser = await chromium.launch({chromiumSandbox: true, headless:true});try{
         const page=await browser.newPage();await page.clock.install();await mount(page,'options',{holdScan:true});
         await page.locator('#btnSyncAll').click();await page.evaluate(()=>Reflect.get(window,'harness').finishScan());await page.waitForFunction(()=>document.body.dataset.busy!=='true');
-        await page.locator('#btnSyncAll').click();await page.clock.fastForward(1000);assert.equal(await page.locator('#scanStatus').textContent(),'Committed 2 pages, 150 source entries');assert.equal(await page.locator('#btnSyncAll').isVisible(),true);
+        await page.locator('#btnSyncAll').click();await page.clock.fastForward(1000);assert.equal(await page.locator('#scanStatus').textContent(),'Sync in progress · Scanned: 150 · Total conversations: 1');assert.equal(await page.locator('#btnSyncAll').isVisible(),true);
         await page.evaluate(()=>Reflect.get(window,'harness').finishScan());await page.waitForFunction(()=>document.body.dataset.busy!=='true');assert.equal(await page.locator('#btnSyncAll').textContent(),'Sync All');
     }finally{await browser.close();}
 });

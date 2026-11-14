@@ -1,6 +1,7 @@
 import { deepWalk, GEMINI_JSPB_SCHEMA, type DecodedGeminiTurn, type DecodedGeminiCandidate } from './extractors.js';
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
-import type { GeminiAttachmentEvidence, GeminiDocumentEvidence, GeminiMessageEvidence } from './detailEvidence.js';
+import type { GeminiAttachmentEvidence, GeminiDocumentEvidence, GeminiMessageEvidence, GeminiCandidateDiagnosticEvidence } from './detailEvidence.js';
+import { isJsonValue } from '../../../../shared/utils/jsonTypes.js';
 import {
     extractImageEvidence,
     extractResponseImageEvidence,
@@ -66,7 +67,7 @@ export function decodeGeminiCandidateResources(
     const candidateBlock = answerBody || cand;
     // Preserve the established ownership, fallback and ordering rules.
     const structuredExtraction = inspectStructuredContent({
-        turnDocument, candidateIndex
+        turnDocument, candidateIndex, candidateBody: candidate.text
     });
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
     const groundingReferences: GeminiCitationReference[] = [];
@@ -77,19 +78,23 @@ export function decodeGeminiCandidateResources(
             if (reference) groundingReferences.push(reference);
         }
     });
-    const rawAnswerDocument = candidateIndex === 0 ? turnDocument : undefined;
+    const rawAnswerDocument = candidateIndex === 0
+        ? structuredExtraction.status === 'decoded' ? structuredExtraction.rawDocument ?? turnDocument : turnDocument
+        : undefined;
     const { images: candImages, structuredImages } = extractResponseImageEvidence(
         cand, [answerBody, rawAnswerDocument], candidate.text, structuredContent
     );
     const filteredImages = filterNewImages(candImages, dedupSet);
 
     const { generatedFiles, nativeDocuments } = decodeCandidateArtifacts(cand, convId);
-    let docsMeta: DeepResearchDocMeta[] = nativeDocuments.length ? [] : extractDocumentsMeta(candidateBlock);
-    if (!nativeDocuments.length && !docsMeta.length) {
+    let docsMeta: DeepResearchDocMeta[] = extractDocumentsMeta(candidateBlock);
+    if (nativeDocuments.length || !docsMeta.length) {
         // The conversation envelope contains documents from other turns too.
         // Only the correlated answer document may supply missing chip metadata.
         docsMeta = extractDocumentsMeta([cand, rawAnswerDocument]);
     }
+    if (nativeDocuments.length) docsMeta = docsMeta.filter(meta => meta.source === 'strict'
+        && !nativeDocuments.some(document => document.id === meta.id));
     const docs = docsMeta.filter((docItem: DeepResearchDocMeta) => {
         if (generatedFiles.some(file => file.id === docItem.id)
             || generatedFiles.length > 0 && docItem.source === 'heuristic-flat') return false;
@@ -110,11 +115,19 @@ export function decodeGeminiCandidateResources(
     if (docs.length) {
         try {
             for (const metaItem of docs) {
-                const parsedPrimary = documents.byId(metaItem.id);
-                const parsedAlt = metaItem.contentId && metaItem.contentId !== metaItem.id ? documents.byId(metaItem.contentId) : null;
-                const md = parsedPrimary?.contentMarkdown || parsedAlt?.contentMarkdown || documents.byTitle(metaItem);
+                const primary = documents.byId(metaItem.id);
+                const alternate = metaItem.contentId && metaItem.contentId !== metaItem.id ? documents.byId(metaItem.contentId) : null;
+                const parsedPrimary = metaItem.source === 'strict' && primary?.contentMatch === 'substring' ? null : primary;
+                const parsedAlt = metaItem.source === 'strict' && alternate?.contentMatch === 'substring' ? null : alternate;
+                const md = parsedPrimary?.contentMarkdown || parsedAlt?.contentMarkdown
+                    || (metaItem.source === 'strict' ? '' : documents.byTitle(metaItem));
                 const cleanMd = md ? stripInternalChipMarkdown(md).trim() : "";
-                if (!cleanMd) continue;
+                if (!cleanMd) {
+                    if (metaItem.source !== 'strict') continue;
+                    docDetails.push({ id: metaItem.id, title: metaItem.title || 'Document', createdAt: metaItem.createdAt,
+                        chipUrl: metaItem.chipUrl ?? '', sections: [], links: [], url: '', type: 'file', contentMissing: true });
+                    continue;
+                }
 
                 let docTitle = metaItem.title || "";
                 if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle) || docTitle === "Document") {
@@ -329,6 +342,17 @@ function parseCandidateResponse(
     if (!responseText && !thoughts && !attachments.length && !docDetails.length && !structuredContent) return null;
 
     const fallbackTurnId = turn.fallbackTurnId;
+    const candidateEvidence: GeminiCandidateDiagnosticEvidence = {
+        candidateIndex: candidate.index, candidateId: candidate.id, candidateText: candidate.text,
+    };
+    // Preserve the selected candidate's original fields before source/packet
+    // decoders filter them. Validation proves JSON portability, not semantics.
+    for (const [key, raw] of [
+        ['sourceMetadata', candidate.source[2]], ['artifactPackets', candidate.source[30]],
+        ['groundingReferences', candidate.source[44]],
+    ] satisfies Array<['sourceMetadata' | 'artifactPackets' | 'groundingReferences', unknown]>) {
+        if (isJsonValue(raw)) candidateEvidence[key] = raw;
+    }
 
     return {
         id: candidateId,
@@ -347,6 +371,7 @@ function parseCandidateResponse(
         messageCount: 1,
         ...(structuredContent ? { structuredContent } : {}),
         structuredExtraction,
+        candidateEvidence,
         structuredImages,
         ...(sourceAttributions.length ? { sourceAttributions } : {}),
         ...(groundingCitationMarkers.length ? { groundingCitationMarkers } : {}),

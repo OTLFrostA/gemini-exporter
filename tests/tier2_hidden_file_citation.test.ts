@@ -16,7 +16,7 @@ for (const fallback of [false, true]) test(`Tier 2 uploaded-file chip ${fallback
             { nodeType: 18, text: '. Literal [1] and ' },
             { nodeType: 18, text: '[cite: 1]', annotations: [{ start: 0, end: 9, type: 7 }] },
             { nodeType: 18, text: ' remain.' },
-        ] }, ...(fallback ? [{ nodeType: 18 as const, text: 'unsupported', annotations: [{ start: 0, end: 11, type: 99 }] }] : [])] },
+        ] }, ...(fallback ? [{ nodeType: 18 as const, text: 'unsupported', annotations: [{ start: 0, end: 99, type: 7 as const }] }] : [])] },
     }] });
     assert.equal(parsed.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'), fallback);
     const { index, detail } = parsed.conversation;

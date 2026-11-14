@@ -43,6 +43,7 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
         messages = [...fresh, ...messages];
     }
     const rejectedTurns = pages.reduce((sum, page) => sum + (page.evidence?.rejectedTurns ?? 0), 0);
+    const unrepresentedContent = pages.some(page => page.evidence?.unrepresentedContent);
     const versionMismatch = pages.some(page => {
         const version = page.sourceVersion;
         return version !== undefined && page.conversation.detail.messages.some(message => message.timestamp !== undefined && message.timestamp > version);
@@ -52,11 +53,11 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
     const sourcePartial = pages.some(page => page.conversation.detail.quality.status === 'partial' && page.evidence?.truncation !== 'pagination_pending');
     const sourceVersion = versionChanged ? undefined : pages[0].sourceVersion;
     const conversation = { index: first.index, detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), messages, assets: [...assets.values()],
-        quality: contentQuality({ status: sourcePartial || versionChanged ? 'partial' : coverageComplete ? 'complete' : 'unknown', rejectedTurns, truncation, heuristicDocumentIds }) } };
+        quality: contentQuality({ status: sourcePartial || versionChanged ? 'partial' : coverageComplete ? 'complete' : 'unknown', rejectedTurns, truncation, heuristicDocumentIds, unrepresentedContent }) } };
     const warnings: Diagnostic[] = [];
     if (truncatedReason) warnings.push({ severity: 'warning', code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason });
     if (versionChanged) warnings.push({ severity: 'warning', code: 'CONVERSATION_VERSION_CHANGED', message: 'Conversation version changed or became unknown during pagination' });
-    return { conversationId: pages[0].conversationId, evidence: { rejectedTurns, truncation, heuristicDocumentIds: [...new Set(heuristicDocumentIds)] }, ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
+    return { conversationId: pages[0].conversationId, evidence: { rejectedTurns, truncation, heuristicDocumentIds: [...new Set(heuristicDocumentIds)], unrepresentedContent }, ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
         { severity: 'info', code: 'GEMINI_DETAIL_PAGES', message: 'Source Detail pagination evidence', details: {
             pageCount: pages.length, coverageComplete, truncation: truncation ?? null,
             sourcePartial, versionMismatch, versionChanged,

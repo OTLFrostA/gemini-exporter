@@ -179,7 +179,7 @@ test('Service Worker unified Live Save writes a real stored directory handle and
     // Simulate a missing native capability directly in the test fixture, not via a public Storage delete API.
     await page.evaluate(async () => {
         const db = await new Promise<IDBDatabase>((resolve, reject) => {
-            const request = indexedDB.open('gemini_exporter_v2', 1);
+            const request = indexedDB.open('gemini_exporter_v2');
             request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);
         });

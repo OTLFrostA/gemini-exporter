@@ -101,7 +101,7 @@ test('L2 commits empty trusted terminal lists through the Coverage port', async 
 
 test('L2 selection returns accepted/changed only after the v2 Storage decision', async () => {
     assert.deepEqual(await ingestDetail(ACCOUNT.id, 'c', body(100), { title: 'Chat', titleSource: 'provider' }),
-        { accepted: true, changed: true });
+        { accepted: true, changed: true, indexAdded: true });
     assert.equal(indexFor('c')?.title, 'Chat');
     assert.equal(detailFor('c')?.messages.length, 1);
     assert.deepEqual(calls.detailUpdates, [{ accountId: ACCOUNT.id, conversationId: 'c' }]);

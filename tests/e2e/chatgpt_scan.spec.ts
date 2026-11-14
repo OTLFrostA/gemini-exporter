@@ -54,7 +54,7 @@ test('Connect ChatGPT selects its verified account and Sync All commits only its
     await expect(page.locator('#accountIdSelect option:checked')).toContainText('ChatGPT');
     await page.locator('#platformAuthorizationDone').click();
     await page.locator('#btnSyncAll').click();
-    await expect(page.locator('#scanStatus')).toHaveText('Sync complete · 1 new conversation · 0 conversations updated');
+    await expect(page.locator('#scanStatus')).toHaveText('Sync complete · Scanned: 1 · Added: 1 · Updated: 0 · Total conversations: 1');
     await expect(page.locator('#list .item')).toHaveCount(1);
     await expect(page.locator('#list')).toContainText('ChatGPT history from source');
     await expect(page.locator('#list .open-link')).toHaveAttribute('href', 'https://chatgpt.com/c/gpt-chat');

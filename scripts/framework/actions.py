@@ -46,40 +46,30 @@ SCAN_OBSERVER = r"""(() => {
         const busy = document.body.dataset.scanning === 'true';
         if (busy) evidence.started = true;
         const account = document.getElementById('accountIdSelect')?.value;
-        const currentText = document.getElementById('scanStatus')?.textContent || '';
-        if (busy) {
-            const progress = currentText.match(/^Committed (\d+) pages, (\d+) source entries/)
-                || currentText.match(/^已接纳 (\d+) 页、(\d+) 条来源记录/);
-            if (progress) {
-                if (evidence.accountId && evidence.accountId !== account) evidence.error = 'Scan account changed';
-                evidence.accountId = account;
-                evidence.progress = {pagesFetched:Number(progress[1]), conversationsFetched:Number(progress[2])};
-            }
+        const node = document.getElementById('scanStatus');
+        let scan;
+        try { scan = JSON.parse(node?.dataset.syncEvidence || 'null'); } catch { scan = null; }
+        const countsValid = value => value && Number.isSafeInteger(value.pagesFetched) && value.pagesFetched >= 0
+            && Number.isSafeInteger(value.conversationsFetched) && value.conversationsFetched >= 0;
+        if (scan && countsValid(scan.progress)) {
+            if (scan.accountId !== account || evidence.accountId && evidence.accountId !== account) evidence.error = 'Scan account changed';
+            evidence.accountId = scan.accountId;
+            evidence.progress = scan.progress;
         }
         if (!evidence.started || busy || evidence.finished) return;
-        const text = document.getElementById('scanStatus')?.textContent || '';
-        evidence.uiStatus = text;
+        evidence.uiStatus = node?.textContent || '';
         if (evidence.accountId && account !== evidence.accountId) { evidence.error = 'Scan account changed'; evidence.finished = true; return; }
-        evidence.accountId = account;
-        const matched = text.match(/^(.*?) · (\d+) \/ (\d+)$/);
-        const statuses = {
-            'Connected to trusted history coverage':'up_to_date', '已衔接可信历史范围':'up_to_date',
-            'Reached the end of this Recent source':'complete', '已达到本次 Recent 来源尽头':'complete',
-            'Source online access limit':'provider_limit', '来源在线访问范围限制':'provider_limit',
-            'Local page budget reached':'max_pages', '已达到本地页数预算':'max_pages',
-            'Scan cancelled':'aborted', '扫描已取消':'aborted', 'Scan failed':'error', '扫描失败':'error'
+        const result = scan?.result;
+        const status = result?.status === 'partial_limit' ? result.reason : result?.status;
+        if (scan?.accountId === account && countsValid(result)
+            && ['complete','up_to_date','provider_limit','max_pages','aborted','error'].includes(status)) evidence.response = {
+            status, pagesFetched:result.pagesFetched, conversationsFetched:result.conversationsFetched
         };
-        if (/^(Sync complete|同步完成)(?: · |$)/.test(text) && evidence.progress) evidence.response = {
-            status:'complete', ...evidence.progress
-        };
-        else if (matched && statuses[matched[1]]) evidence.response = {
-            status:statuses[matched[1]], pagesFetched:Number(matched[2]), conversationsFetched:Number(matched[3])
-        };
-        else evidence.error = text || 'No v2 Scan result';
+        else evidence.error = evidence.uiStatus || 'No v2 Scan result';
         evidence.finished = true;
     };
     const observer = new MutationObserver(inspect);
-    observer.observe(document.body, {attributes:true,attributeOldValue:true,attributeFilter:['data-scanning'],subtree:true,childList:true,characterData:true});
+    observer.observe(document.body, {attributes:true,attributeOldValue:true,attributeFilter:['data-scanning','data-sync-evidence'],subtree:true,childList:true,characterData:true});
     window.__tier2ScanObserver = observer;
     btn.click(); inspect();
     return {clicked:true};
@@ -470,16 +460,26 @@ class ExtensionActions:
             return {'success': False, 'error': 'Takeout file input missing or workbench busy'}
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
-            result = cdp_opt.eval("""(() => ({ busy:document.body.dataset.busy !== 'false',
-                status:document.getElementById('status')?.textContent || '' }))()""") or {}
+            result = cdp_opt.eval("""(() => {
+                const node = document.getElementById('scanStatus');
+                let summary;
+                try { summary = JSON.parse(node?.dataset.sourceSummary || 'null'); } catch { summary = null; }
+                return { busy:document.body.dataset.busy !== 'false', summary,
+                    accountId:document.getElementById('accountIdSelect')?.value,
+                    status:node?.textContent || document.getElementById('status')?.textContent || '' };
+            })()""") or {}
             if result.get('busy') is False:
-                match = re.fullmatch(r'Imported (\d+) conversations \((ok|partial)\)', result.get('status', ''))
-                match = match or re.fullmatch(r'已提交 (\d+) 条对话（(完成|部分完成)）', result.get('status', ''))
-                if not match:
+                summary = result.get('summary')
+                if (not isinstance(summary, dict) or summary.get('method') != 'takeout'
+                        or summary.get('status') not in ('complete', 'partial')
+                        or not summary.get('accountId') or summary['accountId'] != result.get('accountId')
+                        or any(type(summary.get(key)) is not int or summary[key] < 0 or summary[key] > 2**53 - 1
+                               for key in ('read', 'added', 'total'))
+                        or summary['added'] > min(summary['read'], summary['total'])):
                     return {'success': False, 'error': result.get('status') or 'No import result'}
                 source = cdp_opt.eval(f'globalThis.__tier2V2.inspectTakeout({json.dumps(zip_b64)}, {json.dumps(media_paths or [])})', await_promise=True)
-                return {'success': True, 'status': 'partial' if match[2] in ('partial', '部分完成') else 'ok',
-                        'imported': int(match[1]),
+                return {'success': True, 'status': 'partial' if summary['status'] == 'partial' else 'ok',
+                        'imported': summary['read'], 'added': summary['added'], 'total': summary['total'],
                         'importedIds': source['ids'], 'mediaDigests': source['mediaDigests'], 'sourceResources': source['resources'],
                         'sourceFacts': source['sourceFacts'],
                         'uiStatus': result['status']}

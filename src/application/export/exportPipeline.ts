@@ -92,6 +92,8 @@ type ExportSource = ExportPendingContent & {
 };
 type PendingExport = ExportSource & { prepared: PreparedResources; reused: ReadonlySet<string> };
 interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'exportedAt'>; files: ExportArtifact[] }
+const MAX_FOLDER_WRITES = 3;
+const MAX_PENDING_FOLDER_CONVERSATIONS = 8;
 
 /** Core export workflow engine, decoupled from heavyweight format backends. */
 export async function executeExportWithSession(
@@ -106,10 +108,11 @@ export async function executeExportWithSession(
     const cancel = (): void => controller.abort(options.signal?.reason);
     if (options.signal?.aborted) cancel();
     else options.signal?.addEventListener('abort', cancel, { once: true });
-    // Attachment work has its own bounded pool; it never gates the next source read.
+    // Resource acquisition/rendering is ordered independently of source reads and folder commits.
     let downstream = Promise.resolve();
     let saveCancelledFiles: (() => Promise<void>) | undefined;
     const queued = new Map<string, Promise<void>>();
+    const folderWrites = new Set<Promise<void>>();
     const deliveredBodies = new Set<string>();
     const identity = (key: ConversationKey) => JSON.stringify([key.accountId, key.conversationId]);
     const resources = createSourceResourceContext();
@@ -158,6 +161,19 @@ export async function executeExportWithSession(
             providers.set(id, provider);
         }
         return provider;
+    };
+    const writeFolder = async (files: readonly ExportArtifact[], directory: FileSystemDirectoryHandle): Promise<void> => {
+        while (folderWrites.size >= MAX_FOLDER_WRITES) {
+            signal.throwIfAborted();
+            await Promise.race(folderWrites);
+        }
+        signal.throwIfAborted();
+        const writing = writeToFolder(files, directory);
+        // Capacity waiters must not inherit another conversation's write failure.
+        const settled = writing.catch(() => {});
+        folderWrites.add(settled);
+        try { await writing; }
+        finally { folderWrites.delete(settled); }
     };
     const readLocal = readConversation;
     const finalize = async (groups: readonly ExportGroup[]): Promise<void> => {
@@ -291,10 +307,16 @@ export async function executeExportWithSession(
             // Acquisition stops first; one ZIP preserves completed attachments and all
             // rendered bodies. Unfinished items never receive a successful record.
             await downstream;
+            await Promise.all(queued.values());
             await deliverBrowserBodies(true);
         };
         const pending: PendingExport[] = [];
         for (const [index, key] of request.keys.entries()) {
+            // Bound retained snapshots/bytes while letting unrelated commits finish out of order.
+            while (directory && queued.size >= MAX_PENDING_FOLDER_CONVERSATIONS) {
+                signal.throwIfAborted();
+                await Promise.race(queued.values());
+            }
             // Duplicate keys share task-owned readers; finish their earlier use first.
             const previous = queued.get(identity(key));
             if (previous) await previous;
@@ -424,18 +446,19 @@ export async function executeExportWithSession(
                 const plan = linkedPlanner?.(conversation, new Map(), source.fileIds, source.folderBaseName, source.requiredIds, directory ? account : undefined);
                 const body = plan ? await renderGroup({ ...source, prepared: new Map(), reused: new Set() },
                     { ...plan, externalResourceIds: new Set() }) : undefined;
+                let bodyWritten: Promise<void> | undefined;
                 if (body) {
                     if (directory) {
-                        await writeToFolder(body.files, directory);
-                        bodyDelivered(key);
-                        if (!source.requiredIds.size) await finalize([body]);
+                        bodyWritten = writeFolder(body.files, directory).then(() => bodyDelivered(key));
+                        // Resource preparation may take longer; completion below owns this failure.
+                        void bodyWritten.catch(() => {});
                     } else {
                         bodies.push({ group: body, hasAttachments: source.requiredIds.size > 0 });
                         report({ key, status: 'prepared' });
                     }
-                    if (!source.requiredIds.size) continue;
+                    if (!source.requiredIds.size && !directory) continue;
                 }
-                downstream = downstream.then(async () => {
+                const preparedGroup = body && !source.requiredIds.size ? Promise.resolve(body) : downstream.then(async (): Promise<ExportGroup | undefined> => {
                     signal.throwIfAborted();
                     let item = await prepare(source, plan);
                     let finalPlan = plan;
@@ -500,27 +523,40 @@ export async function executeExportWithSession(
                                 failures: record.attachmentIssues.map(issue => ({ ...issue, path: finalPlan.resources[issue.resourceId] })) }, null, 2),
                         });
                         const group: ExportGroup = { key, record, files };
-                        if (directory) {
-                            if (files.length) await writeToFolder(files, directory);
-                            await finalize([group]);
-                        } else settledBodies.set(body, group);
+                        if (directory) return group;
+                        settledBodies.set(body, group);
                     } else if (folderPlanner && directory) {
-                        const group = await renderGroup(item, folderPlanner(item.conversation, prepared, fileIds, item.folderBaseName));
-                        await writeToFolder(group.files, directory);
-                        await finalize([group]);
+                        return renderGroup(item, folderPlanner(item.conversation, prepared, fileIds, item.folderBaseName));
                     } else pending.push(item);
+                });
+                if (!body || source.requiredIds.size) downstream = preparedGroup.then(() => {}, error => {
+                    if (cancelled(error)) controller.abort(error);
+                });
+                const completion = preparedGroup.then(async group => {
+                    // A correction must follow its original body, but neither commit gates downloads.
+                    await bodyWritten;
+                    if (group && directory) {
+                        if (group !== body) {
+                            signal.throwIfAborted();
+                            if (group.files.length) await writeFolder(group.files, directory);
+                        }
+                        // Preserve a successful in-flight commit even if cancellation arrived meanwhile.
+                        await finalize([group]);
+                    }
                 }).catch(error => {
                     if (cancelled(error)) controller.abort(error);
                     else {
                         console.warn('[Gemini Exporter] Export item failed', key, error);
                         fail([key], error);
                     }
-                }).finally(() => {
+                }).finally(async () => {
+                    // A resource error/cancellation cannot leave an unobserved native body write.
+                    await bodyWritten?.catch(() => {});
                     resources.releaseConversation(key);
                     queued.delete(identity(key));
                 });
                 handedOff = true;
-                queued.set(identity(key), downstream);
+                queued.set(identity(key), completion);
             } catch (error) {
                 if (cancelled(error)) throw error;
                 console.warn('[Gemini Exporter] Export item failed', key, error);
@@ -530,6 +566,7 @@ export async function executeExportWithSession(
             }
         }
         await downstream;
+        await Promise.all(queued.values());
         signal.throwIfAborted();
         if (linked) {
             if (!directory) await deliverBrowserBodies();
@@ -584,6 +621,7 @@ export async function executeExportWithSession(
     } finally {
         controller.abort();
         await downstream;
+        await Promise.all(queued.values());
         options.signal?.removeEventListener('abort', cancel);
         resources.release();
         rendererSession.dispose?.();

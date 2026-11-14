@@ -1,8 +1,9 @@
 import { createPortal } from 'react-dom';
-import type { ForegroundTaskStatus, TaskFeedback } from '../state/foregroundTask.js';
+import type { ForegroundTaskStatus, ScanEvidence, TaskFeedback } from '../state/foregroundTask.js';
 import { text } from '../../shared/settings.js';
 import { failureGroupLabel } from './exportFailures.js';
 import type { ExportIssueGroup } from '../state/exportIssues.js';
+import type { ConversationSourceSummary } from '../../shared/conversationSourceSummary.js';
 
 export interface TaskPanelProps {
     task: ForegroundTaskStatus;
@@ -10,6 +11,8 @@ export interface TaskPanelProps {
     percent: number;
     scanning: boolean;
     scanMessage: string | null;
+    scanEvidence?: ScanEvidence;
+    sourceSummary?: ConversationSourceSummary & { accountId: string | null; total: number };
     scanSlow: boolean;
     groups: readonly ExportIssueGroup[];
     failedCount: number;
@@ -84,6 +87,8 @@ export function TaskPanel({ failureHost, ...props }: TaskPanelProps & { failureH
                         ? text('Refreshing history…', '正在刷新记录…') : text('Abort Export', '终止导出')}</button>
         </div>
         <p id="scanStatus" role="status" aria-live="polite" className="stat" hidden={scanMessage === null}
+            data-sync-evidence={props.scanEvidence ? JSON.stringify(props.scanEvidence) : undefined}
+            data-source-summary={props.sourceSummary ? JSON.stringify(props.sourceSummary) : undefined}
             style={{ margin: 0, textAlign: 'center', lineHeight: 1.5, overflowWrap: 'anywhere' }}>{scanMessage ?? ''}</p>
         <div id="scanSlowHint" className="stat" role="note" style={{ display: scanSlow ? 'block' : 'none', textAlign: 'center', lineHeight: 1.5, overflowWrap: 'anywhere', padding: '2px 0' }}>
             {text('As conversation history grows, Gemini scans may take significantly longer.', '随着对话历史增加，Gemini 的扫描时间可能会显著变长。')}

@@ -994,21 +994,32 @@ class ScanAndImportTests(unittest.TestCase):
         source[CID]['detail']['messages'] = []
         self.assertFalse(self.validate_takeout(record,source))
 
-    def test_takeout_action_reads_current_localized_completion_status_without_hiding_failure(self):
+    def test_takeout_action_uses_account_bound_result_facts_independent_of_copy(self):
+        summary = {'method': 'takeout', 'status': 'complete', 'accountId': self.account,
+                   'read': 6, 'added': 2, 'total': 10}
         with tempfile.NamedTemporaryFile(suffix='.zip') as archive:
-            for status, expected in [('Imported 6 conversations (ok)', 'ok'),
-                                     ('Imported 6 conversations (partial)', 'partial'),
-                                     ('已提交 6 条对话（完成）', 'ok'),
-                                     ('已提交 6 条对话（部分完成）', 'partial'),
-                                     ('已提交 6 条对话（未知）', None), ('Import failed', None)]:
+            cases = [('Takeout import complete · Read: 6', summary, 'ok'),
+                     ('Takeout 导入部分完成 · 读取 6 条对话', {**summary, 'status': 'partial'}, 'partial'),
+                     ('Arbitrary translated copy', summary, 'ok'),
+                     ('Import failed', None, None),
+                     ('Wrong account', {**summary, 'accountId': 'other'}, None),
+                     ('Wrong source', {**summary, 'method': 'sync'}, None),
+                     ('Unknown outcome', {**summary, 'status': 'unknown'}, None),
+                     ('Invalid count', {**summary, 'read': -1}, None),
+                     ('Invalid count type', {**summary, 'read': True}, None),
+                     ('Missing count', {key: value for key, value in summary.items() if key != 'added'}, None),
+                     ('Impossible additions', {**summary, 'added': 7}, None)]
+            for status, facts, expected in cases:
                 with self.subTest(status=status), patch('scripts.framework.actions.install_probe'):
                     cdp = MagicMock()
-                    cdp.eval.side_effect = [True, {'busy': False, 'status': status},
+                    cdp.eval.side_effect = [True, {'busy': False, 'status': status, 'summary': facts,
+                                                  'accountId': self.account},
                                             {'ids': [], 'mediaDigests': {}, 'resources': {}, 'sourceFacts': {}}]
                     result = CDPActions.import_takeout_zip(cdp, archive.name)
                     self.assertEqual(result['success'], expected is not None)
                     if expected:
-                        self.assertEqual((result['imported'], result['status']), (6, expected))
+                        self.assertEqual((result['imported'], result['added'], result['total'], result['status']),
+                                         (6, 2, 10, expected))
                     else:
                         self.assertEqual(result['error'], status)
 

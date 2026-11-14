@@ -34,7 +34,7 @@ test('i18n - visible current controls have accessible names, including search an
 test('i18n - parametric scan counts render through the selected UI language', async () => {
     await open(); await page.locator('#langToggle').setChecked(false); await page.waitForFunction(() => document.documentElement.lang === 'zh-CN');
     await page.evaluate(() => { Reflect.get(window, 'harness').holdScan = true; }); await page.locator('#btnSyncAll').click();
-    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '已接纳 2 页、150 条来源记录');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '在线同步进行中 · 累计扫描 150 条对话 · 当前共 1 条对话');
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
 });
 test('i18n - Settings observer handles local changes and removes its listener on cleanup', async () => {
@@ -96,7 +96,7 @@ test('i18n - undeclared prototype keys cannot become labels, translations or sca
         }; }, reason);
         await page.locator('#btnSyncAll').click();
         await page.waitForFunction(() => document.body.dataset.busy !== 'true');
-        assert.equal(await page.locator('#scanStatus').textContent(), '扫描失败 · 0 / 0');
+        assert.equal(await page.locator('#scanStatus').textContent(), '在线同步失败 · 累计扫描 0 条对话 · 当前共 1 条对话');
     }
 });
 test('i18n - language selector updates the single Settings owner and document language', async () => {
@@ -129,18 +129,18 @@ test('i18n - current scan progress and result switch languages, historical log m
     await open();
     await page.evaluate(() => { Reflect.get(window, 'harness').holdScan = true; });
     await page.locator('#btnSyncAll').click();
-    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Committed 2 pages, 150 source entries');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Sync in progress · Scanned: 150 · Total conversations: 1');
     const originalLog = await page.locator('#log').textContent();
     assert.match(originalLog ?? '', /Resolving conversation source/);
     await page.locator('#langToggle').setChecked(false);
-    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '已接纳 2 页、150 条来源记录');
-    assert.equal(await page.locator('#scanStatus').textContent(), '已接纳 2 页、150 条来源记录');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '在线同步进行中 · 累计扫描 150 条对话 · 当前共 1 条对话');
+    assert.equal(await page.locator('#scanStatus').textContent(), '在线同步进行中 · 累计扫描 150 条对话 · 当前共 1 条对话');
     assert.equal(await page.locator('#log').textContent(), originalLog);
     await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
-    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '已达到本地页数预算 · 2 / 150');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '在线同步部分完成 · 累计扫描 150 条对话 · 当前共 1 条对话');
     const completedLog = await page.locator('#log').textContent();
     await page.locator('#langToggle').setChecked(true);
-    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Local page budget reached · 2 / 150');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Sync partially completed · Scanned: 150 · Total conversations: 1');
     assert.equal(await page.locator('#log').textContent(), completedLog);
 });
 
@@ -164,10 +164,10 @@ test('i18n - Takeout status uses localized outcome and switches without rewritin
     await page.locator('#btnImportTakeout').click();
     const chooser = await chooserPromise;
     await chooser.setFiles({ name: 'Takeout.zip', mimeType: 'application/zip', buffer: Buffer.from('fixture') });
-    await page.waitForFunction(() => document.getElementById('status')?.textContent === '已提交 2 条对话（部分完成）');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Takeout 导入部分完成 · 读取 2 条对话 · 新增 0 条 · 当前共 1 条对话');
     const log = await page.locator('#log').textContent();
     await page.locator('#langToggle').setChecked(true);
-    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Imported 2 conversations (partial)');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Takeout import partially completed · Read: 2 · Added: 0 · Total conversations: 1');
     assert.equal(await page.locator('#log').textContent(), log);
 });
 
@@ -217,16 +217,16 @@ test('i18n - popup status re-renders when another view updates language', async 
     await page.waitForFunction(() => document.getElementById('status')?.textContent === '已发起下载');
 });
 
-test('i18n - known scan failures translate from structured diagnostics while preserving raw reasons', async () => {
+test('i18n - structured scan failures use localized count summaries while preserving raw reasons', async () => {
     page = await browser.newPage();
     await mount(page, 'options', { scanResult: { status: 'error', reason: 'Gemini list failed: invalid_response',
         diagnostics: { providerId: 'gemini', streamId: 'recent', page: 1, requestCursor: null,
             failure: 'invalid_response' }, pagesFetched: 0, conversationsFetched: 0 } });
     await page.locator('#btnSyncAll').click();
-    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Scan failed: invalid Gemini response · 0 / 0');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === 'Sync failed · Scanned: 0 · Total conversations: 1');
     const originalLog = await page.locator('#log').textContent();
     assert.match(originalLog ?? '', /invalid_response/);
     await page.locator('#langToggle').setChecked(false);
-    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '扫描失败：Gemini 返回无效响应 · 0 / 0');
+    await page.waitForFunction(() => document.getElementById('scanStatus')?.textContent === '在线同步失败 · 累计扫描 0 条对话 · 当前共 1 条对话');
     assert.equal(await page.locator('#log').textContent(), originalLog);
 });

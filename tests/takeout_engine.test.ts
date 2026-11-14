@@ -11,13 +11,38 @@ import { parseGeminiTakeoutArchive } from '../src/l1/parsers/gemini/takeout/pars
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { listIndexes as getConversations } from '../src/l3a/storageService.js';
 import { getDetail } from '../src/l3a/storageService.js';
+import { ingestIndexes } from '../src/l2/ingestion.js';
 useIndexStorage();
+
+test('Takeout counts overlapping conversations once and repeated imports add no conversations', async () => {
+    const existing = activityHtml('<p>Existing answer</p>', 'existing_chat_123');
+    assert.equal((await importTakeout(takeoutArchive(existing), ACCOUNT_UUID)).added, 1);
+    await ingestIndexes(ACCOUNT_UUID, [{ conversationId: 'online_only_123', fields: { title: 'Online only', titleSource: 'provider' } }]);
+    const html = existing + activityHtml('<p>New answer</p>', 'new_chat_123')
+        + activityHtml('<p>Another turn</p>', 'new_chat_123', '2026-09-02T12:01:00Z');
+    const first = await importTakeout(takeoutArchive(html), ACCOUNT_UUID);
+    assert.equal(first.imported, 2);
+    assert.equal(first.added, 1);
+    assert.equal((await getConversations(ACCOUNT_UUID)).length, 3);
+    const second = await importTakeout(takeoutArchive(html), ACCOUNT_UUID);
+    assert.equal(second.imported, 2);
+    assert.equal(second.added, 0);
+    assert.equal((await getConversations(ACCOUNT_UUID)).length, 3);
+});
+
+test('concurrent imports attribute a new conversation to only its creating transaction', async () => {
+    const html = activityHtml('<p>Answer</p>', 'concurrent_chat_123');
+    const results = await Promise.all([importTakeout(takeoutArchive(html), ACCOUNT_UUID),
+        importTakeout(takeoutArchive(html), ACCOUNT_UUID)]);
+    assert.equal(results[0].added + results[1].added, 1);
+    assert.equal((await getConversations(ACCOUNT_UUID)).length, 1);
+});
 
 test('Takeout import exposes only count/status after committing multi-turn facts with case-preserved source identity', async () => {
     const html = activityHtml('<p>First answer</p>', 'CasePreserved_123') + activityHtml('<p>Second answer</p>', 'CasePreserved_123', '2026-09-02T12:01:00Z');
     const progress: number[] = [];
     const result = await importTakeout(takeoutArchive(html), ACCOUNT_UUID, n => progress.push(n));
-    assert.deepEqual(Object.keys(result).sort(), ['imported', 'status']); assert.equal(result.imported, 1);
+    assert.deepEqual(Object.keys(result).sort(), ['added', 'imported', 'status']); assert.equal(result.imported, 1);
     const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'CasePreserved_123' });
     assert.ok(stored); assert.equal(stored.messages.length, 4);
     assert.equal((await getConversations(ACCOUNT_UUID))[0].titleSource, 'derived');

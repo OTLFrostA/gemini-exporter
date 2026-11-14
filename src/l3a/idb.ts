@@ -6,7 +6,7 @@ import type { DetailIngestResult } from '../l2/ingestion.js';
 import type { ExportRecord } from '../l2/exportRecord.js';
 
 const DATABASE_NAME = 'gemini_exporter_v2';
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 
 interface CoverageRow { accountId: string; streamId: string; value: StreamCoverage }
 interface ExportRow { accountId: string; conversationId: string; value: ExportRecord }
@@ -45,12 +45,43 @@ type StoreQueryResult = void | boolean | string | Account | Account[] | DomainCo
     | DomainConversationDetail | CoverageRow | ExportRow | Record<string, ExportRecord>
     | FileSystemDirectoryHandle | DetailIngestResult | null;
 
+/** Before v2, Gemini pagination could certify a lossy structured fallback as complete.
+ * No persisted evidence identifies those bodies. Recheck that provider once, retaining
+ * all body bytes, source versions, attachment results and stable destination names. */
+function revokeUnverifiedGeminiCompleteness(tx: TypedIDBTransaction): void {
+    const accounts = tx.objectStore('accounts').getAll();
+    accounts.onsuccess = () => {
+        for (const account of accounts.result) {
+            if (account.providerId !== 'gemini') continue;
+            const range = IDBKeyRange.bound([account.id], [account.id, []]);
+            const details = tx.objectStore('details');
+            const bodies = details.getAll(range);
+            bodies.onsuccess = () => {
+                for (const detail of bodies.result) {
+                    if (detail.quality.status === 'complete') details.put({ ...detail,
+                        quality: { ...detail.quality, status: 'unknown' } });
+                }
+            };
+            const exports = tx.objectStore('exportRecords');
+            const receipts = exports.getAll(range);
+            receipts.onsuccess = () => {
+                for (const row of receipts.result) exports.put({ ...row,
+                    value: { ...row.value, status: 'partial', otherContentMissing: true } });
+            };
+        }
+    };
+}
+
 /** Call from an extension-origin context. Browser Runtime owns IPC routing. */
 export function openStorageDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
         const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
-        request.onupgradeneeded = () => {
+        request.onupgradeneeded = event => {
             const db = request.result;
+            if (event.oldVersion !== 0) {
+                if (request.transaction) revokeUnverifiedGeminiCompleteness(request.transaction);
+                return;
+            }
             db.createObjectStore('accounts', { keyPath: 'id' })
                 .createIndex('providerIdentity', ['providerId', 'providerAccountId'], { unique: true });
             db.createObjectStore('indexes', { keyPath: ['key.accountId', 'key.conversationId'] });

@@ -15,14 +15,14 @@ test('Shared ZIP import follows the selected ChatGPT account', async ({ page }) 
     await page.locator('#btnImportTakeout').click();
     expect((await chooser).isMultiple()).toBe(false);
     await page.locator('#takeoutFileInput').setInputFiles(archive);
-    await expect(page.locator('#status')).toHaveText('Imported 2 conversations; skipped 0; unavailable attachments 0.');
+    await expect(page.locator('#scanStatus')).toHaveText('OpenAI ZIP import complete · Read: 2 · Added: 0 · Total conversations: 1');
     expect(await read(page, 'imports')).toEqual([A]);
     expect(await read(page, 'patches')).not.toContainEqual({ takeoutPromptCompleted: true });
     await expect(page.locator('#takeoutFileInput')).toHaveValue('');
 });
 
 test('empty OpenAI archive has explicit bilingual feedback and can be selected again', async ({ page }) => {
-    await mount(page, 'options', { accounts: [chatgpt], openaiResult: { imported: 0, skipped: 0, missingAssets: 0, status: 'empty' } });
+    await mount(page, 'options', { accounts: [chatgpt], openaiResult: { read: 0, added: 0, imported: 0, skipped: 0, missingAssets: 0, status: 'empty' } });
     await page.locator('#takeoutFileInput').setInputFiles(archive);
     await expect(page.locator('#status')).toHaveText('This OpenAI ZIP contains no conversation bodies. No conversations were imported.');
     await page.locator('#langToggle').uncheck();
@@ -36,10 +36,10 @@ test('switching accounts routes the same ZIP input to the selected platform', as
         { id: B, providerId: 'gemini', providerAccountId: 'default' },
         { id: 'claude-account', providerId: 'claude', providerAccountId: 'claude-user' }] });
     await page.locator('#takeoutFileInput').setInputFiles(archive);
-    await expect(page.locator('#status')).toContainText('skipped 0');
+    await expect(page.locator('#scanStatus')).toContainText('OpenAI ZIP import complete');
     await page.locator('#accountIdSelect').selectOption(B);
     await page.locator('#takeoutFileInput').setInputFiles(archive);
-    await expect(page.locator('#status')).toHaveText('Imported 2 conversations (partial)');
+    await expect(page.locator('#scanStatus')).toHaveText('Takeout import partially completed · Read: 2 · Added: 0 · Total conversations: 1');
     expect(await read(page, 'imports')).toEqual([A, B]);
     await page.locator('#accountIdSelect').selectOption('claude-account');
     await expect(page.locator('#btnImportTakeout')).toBeDisabled();

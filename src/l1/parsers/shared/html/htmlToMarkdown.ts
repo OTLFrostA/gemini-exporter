@@ -12,7 +12,7 @@ function stripHtmlTags(str: string): string {
 
 export function convertHtmlToMarkdown(html?: string | null): string {
     if (!html) return '';
-    if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i|table)[\s>]/i.test(html)) return html;
+    if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i|table|a|img)[\s/>]/i.test(html)) return html;
 
     let res = html;
     const __codeSpans: string[] = [];
@@ -71,6 +71,29 @@ export function convertHtmlToMarkdown(html?: string | null): string {
     res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m: string, lvl: string, txt: string) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
     res = res.replace(/<(strong|b)(?=[\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
     res = res.replace(/<(em|i)(?=[\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*');
+    // Bind visible HTML resources before the remaining tags are stripped. Code
+    // has already been stashed, so literal <a>/<img> inside it stays literal.
+    const attribute = (attributes: string, name: string): string | undefined => {
+        for (const match of attributes.matchAll(/([^\s=<>/]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)) {
+            if (match[1].toLowerCase() === name) return unescapeHtml(match[2] ?? match[3] ?? match[4] ?? '');
+        }
+        return undefined;
+    };
+    const destination = (value: string | undefined): string | undefined => {
+        if (!value || /[\u0000-\u0020]/.test(value)) return undefined;
+        if (/^[a-z][\w+.-]*:/i.test(value) && !/^(?:https?|mailto|cid):/i.test(value)) return undefined;
+        return value.replace(/[<>()]/g, character => '%' + character.charCodeAt(0).toString(16).toUpperCase());
+    };
+    const label = (value: string): string => value.replace(/[\\[\]]/g, '\\$&');
+    res = res.replace(/<img\b([^>]*)>/gi, (_match: string, attributes: string) => {
+        const alt = attribute(attributes, 'alt') ?? '';
+        const target = destination(attribute(attributes, 'src'));
+        return target ? `![${label(alt)}](${target})` : label(alt);
+    });
+    res = res.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (_match: string, attributes: string, content: string) => {
+        const target = destination(attribute(attributes, 'href'));
+        return target ? `[${content}](${target})` : content;
+    });
     res = res.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_match: string, tableContent: string) => {
         const parsedRows: Array<Array<{ value: string; colSpan: number; rowSpan: number }>> = [];
         const span = (attributes: string, name: 'colspan' | 'rowspan'): number => {
