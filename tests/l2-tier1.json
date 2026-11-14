@@ -2,6 +2,7 @@
   "suites": [
     "tests/domain_admission_rules.test.ts",
     "tests/domain_runtime_validation.test.ts",
+    "tests/domain_cloud_payload.test.ts",
     "tests/stream_coverage.test.ts",
     "tests/l2-v2-unit-mocked.test.ts"
   ],

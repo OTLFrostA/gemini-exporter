@@ -302,9 +302,9 @@ test('Content scripts and MAIN hooks never bundle IndexedDB, Migration, Backgrou
             for (const edge of graph.get(current) ?? []) {
                 if (!edge.runtime) continue;
                 const nextChain = [...chain, edge.target].join(' -> ');
-                assert.ok(!/^(?:l3a|migration|l3b|l4|application|runtime\/background)\//.test(edge.target),
+                assert.ok(!/^(?:l3a|migration|l3b|l4|application|runtime\/background|shared\/crypto)\//.test(edge.target),
                     `${entry} bundles forbidden runtime module: ${nextChain}`);
-                assert.ok(!/^l2\/(?:ingestion|accountAdmission|coverageAdmission|readConversation|sourceCooldown)\.ts$/.test(edge.target),
+                assert.ok(!/^l2\/(?:ingestion|accountAdmission|coverageAdmission|readConversation|sourceCooldown|cloudPayload)\.ts$/.test(edge.target),
                     `${entry} bundles extension-origin L2 persistence module: ${nextChain}`);
                 walkRuntime(edge.target, [...chain, edge.target]);
             }

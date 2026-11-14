@@ -18,7 +18,7 @@ const entries = new Map<string, Set<string>>([
     ['parseGeminiRpcConversation', new Set(['l1/parsers/gemini/rpc/parseResponse.ts'])],
     ['assertSchema', new Set([validator])], ['assertDomainClosure', new Set([validator])],
     ['validateParserDomain', new Set([...parserOwners, 'l2/ingestion.ts'])], ['restoreDomainSnapshot', new Set(['l2/readConversation.ts'])],
-    ['restoreDomainDetail', new Set(['l2/ingestion.ts', detailIpcIngress])],
+    ['restoreDomainDetail', new Set(['l2/ingestion.ts', 'l2/cloudPayload.ts', detailIpcIngress])],
     ['requestNativeDetail', new Set()],
     ['requestNativeBatch', new Set()],
     ['callDomainBroker', new Set()],
