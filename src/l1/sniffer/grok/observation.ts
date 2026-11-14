@@ -1,5 +1,9 @@
 import { grokUuid } from '../../parsers/grok/source.js';
 export const GROK_SOURCE_EVENT = 'gemini-exporter:grok-source-v1';
+export function grokConversationIdFromPath(pathname: string): string | null {
+    const id = /^\/c\/([^/]+)\/?$/.exec(pathname)?.[1];
+    return grokUuid(id) ? id : null;
+}
 export function grokRequest(url: string, method: string) {
     let source: URL;
     try { source = new URL(url); } catch { return null; }

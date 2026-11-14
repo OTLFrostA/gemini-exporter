@@ -1,6 +1,10 @@
 export const CLAUDE_SOURCE_EVENT = 'gemini-exporter:claude-source-v1';
 export const claudeUuid = (value: string | null | undefined): value is string => value != null
     && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(value);
+export function claudeConversationIdFromPath(pathname: string): string | null {
+    const id = pathname.split('/chat/')[1]?.split('/')[0];
+    return claudeUuid(id) ? id : null;
+}
 export function claudeRequest(url: string, method: string) {
     const source = new URL(url);
     if (source.origin !== 'https://claude.ai') return null;

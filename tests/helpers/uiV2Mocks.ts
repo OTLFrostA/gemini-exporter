@@ -90,9 +90,10 @@ export function installUiV2Mocks(): void {
     stub('../../src/runtime/capabilities/tabService.js', {
         resolveScanTarget: () => unconfigured('Runtime.resolveScanTarget'),
     });
-    stub('../../src/l3a/storageService.js', {
-        listIndexes: () => unconfigured('Storage.listIndexes'),
-        listExportRecords: () => unconfigured('Storage.listExportRecords'),
+    stub('../../src/application/conversations/catalogQueries.js', {
+        getIndex: () => unconfigured('Application.getIndex'),
+        listIndexes: () => unconfigured('Application.listIndexes'),
+        listExportRecords: () => unconfigured('Application.listExportRecords'),
     });
     stub('../../src/application/imports/importTakeout.js', {
         importTakeout: () => unconfigured('Application.importTakeout'),

@@ -30,7 +30,7 @@ function allowedAssetUrl(value: unknown): value is string {
         return url.protocol === 'https:' && /(^|\.)(googleusercontent\.com|gstatic\.com|googleapis\.com|google\.com)$/.test(url.hostname);
     } catch { return false; }
 }
-export function init(): void {
+export function init(isActive: () => boolean = () => true): void {
     const listener = (message: unknown, sender: chrome.runtime.MessageSender, sendResponse: (response: unknown) => void) => {
         if (!message || typeof message !== 'object' || !('action' in message)
             || !['getAccountContext', 'ping', 'getFileBlob', 'getImageBlob'].includes(String(message.action))) return false;
@@ -39,10 +39,11 @@ export function init(): void {
         void (async () => {
             try {
                 if (sender.id !== chrome.runtime.id) throw new Error('Foreign extension sender');
+                if (!isActive()) throw new Error('Content script superseded');
                 if (message.action === 'ping') { respond({ ok: true, version: getExtensionVersion() }); return; }
                 const href = location.href;
                 const account = await resolveCurrentAccount();
-                if (location.href !== href || account && !isCurrentAccount(account)) throw new Error('Page changed while resolving account');
+                if (!isActive() || location.href !== href || account && !isCurrentAccount(account)) throw new Error('Page changed while resolving account');
                 if (message.action === 'getAccountContext') {
                     respond({ ok: true, accountContext: account, conversationId: extractConversationIdFromUrl(new URL(href).pathname) }); return;
                 }
@@ -53,7 +54,7 @@ export function init(): void {
                 await handler({ url: message.url }, value => { result = value; });
                 if (result === undefined) throw new Error('Resource operation returned no result');
                 const fresh = await resolveCurrentAccount();
-                if (fresh?.accountId !== account.accountId || !isCurrentAccount(account)) throw new Error('Account changed during resource acquisition');
+                if (!isActive() || fresh?.accountId !== account.accountId || !isCurrentAccount(account)) throw new Error('Account changed during resource acquisition');
                 assertResourceIpcSize(result);
                 respond(result);
             } catch (error) { respond({ ok: false, success: false, error: error instanceof Error ? error.message : String(error) }); }

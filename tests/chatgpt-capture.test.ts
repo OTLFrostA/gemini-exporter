@@ -59,6 +59,8 @@ test('MAIN capture never consumes the page response or exposes tokens, and rejec
         Object.defineProperty(globalThis, 'window', { configurable: true, value: windowMock });
         Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: 'https://chatgpt.com/c/'+cid, origin: 'https://chatgpt.com' } });
         installChatGPTHook();
+        // Repeated MAIN-world script execution on the same window must be idempotent (never double-wrap fetch).
+        installChatGPTHook();
         const response = await windowMock.fetch('https://chatgpt.com/backend-api/conversation/'+cid);
         assert.equal(response.bodyUsed, false);
         assert.equal((await response.json()).id, cid);

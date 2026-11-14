@@ -13,7 +13,7 @@ invalidateAccountContext();
 let active = true;
 registerCleanup(() => { active = false; invalidateAccountContext(); });
 initBootstrap();
-MessageRouter.init();
+MessageRouter.init(() => active);
 LiveSaveCoordinator.init({ badge: BadgeView });
 registerCleanup(LiveSaveCoordinator.cleanup);
 const refreshAccount = () => { void BadgeView.refreshAccount().catch(error => console.warn('[Runtime] Badge account refresh failed', error)); };

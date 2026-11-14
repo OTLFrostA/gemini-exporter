@@ -1,6 +1,6 @@
 import { getSettings, updateSettings } from '../../application/settings/index.js';
 import { listAccounts } from '../../runtime/api/accountRegistry.js';
-import { listExportRecords } from '../../l3a/storageService.js';
+import { listExportRecords } from '../../application/conversations/catalogQueries.js';
 import { REVIEW_URL, DISCORD_URL } from '../../shared/utils/constants.js';
 import { text } from './settings.js';
 

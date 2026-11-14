@@ -1,5 +1,5 @@
 import { listAccounts } from '../../../runtime/api/accountRegistry.js';
-import { listIndexes, listExportRecords } from '../../../l3a/storageService.js';
+import { listIndexes, listExportRecords } from '../../../application/conversations/catalogQueries.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import { compareConversationIndexes } from '../../../l2/conversationIndex.js';
 import type { DomainConversationIndex } from '../../../l2/conversationIndex.js';

@@ -1,8 +1,12 @@
-import { chatGPTRequest, CHATGPT_SOURCE_EVENT, chatGPTObservedIdentity, chatGPTConversationId, chatGPTStreamEvent } from './observation.js';
+import { chatGPTRequest, CHATGPT_SOURCE_EVENT, chatGPTObservedIdentity, chatGPTConversationId, chatGPTStreamEvent, chatGPTWorkspaceMatches } from './observation.js';
 import { installChatGPTSidebarCapture } from './sidebar.js';
+
+const HOOK_FLAG = '__gemExporterChatGPTHookInstalled';
 
 /** MAIN-world acquisition only. Tokens never cross the world/message boundary. */
 export function installChatGPTHook(): void {
+    if (Reflect.get(window, HOOK_FLAG) === true) return;
+    Reflect.set(window, HOOK_FLAG, true);
     const original = window.fetch;
     const nativeFetch = original.bind(window);
     const identity = async (): Promise<string | null> => {
@@ -23,7 +27,7 @@ export function installChatGPTHook(): void {
         const requestIdentity = await identity();
         const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
         const workspace = headers.get('ChatGPT-Account-ID');
-        const identityMatchesWorkspace = !workspace || !!requestIdentity && JSON.parse(requestIdentity)[1] === workspace;
+        const identityMatchesWorkspace = !workspace || chatGPTWorkspaceMatches(requestIdentity, workspace);
         let body: unknown;
         try {
             const text = typeof init?.body === 'string' ? init.body : input instanceof Request ? await input.clone().text() : '';
