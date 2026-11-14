@@ -1,5 +1,6 @@
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { OperationError, operationError } from '../../../shared/errors/operationError.js';
+import { mapWithConcurrency } from '../../../shared/utils/concurrency.js';
 import { PLATFORM_HOSTS, matchesPlatformPageUrl } from '../../../shared/platformHosts.js';
 import type { AIProvider, ProviderListOptions, ProviderReadiness, ListEnd } from '../aiProvider.js';
 import {
@@ -86,14 +87,21 @@ export class GrokProvider implements AIProvider {
         if (!Array.isArray(nodes)) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Invalid Grok response nodes');
         const ids = nodes.map(value => { const rid = grokObject(value).responseId;
             if (!grokUuid(rid)) throw new TypeError('Invalid Grok response UUID'); return rid; });
-        const responses: unknown[] = [];
+        const batchSlices: string[][] = [];
         for (let offset = 0; offset < ids.length; offset += 100) {
-            const batch = grokObject(await read(base + '/load-responses', { responseIds: ids.slice(offset, offset + 100) }));
-            const batchItems: unknown = batch.responses;
-            if (!Array.isArray(batchItems)) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Invalid Grok response batch');
-            for (const item of batchItems as readonly unknown[]) responses.push(item);
+            batchSlices.push(ids.slice(offset, offset + 100));
         }
-        const captured = await this.images(id, account.providerAccountId);
+        const [batchPayloads, captured] = await Promise.all([
+            mapWithConcurrency(batchSlices, 3, async (slice): Promise<readonly unknown[]> => {
+                const batch = grokObject(await read(base + '/load-responses', { responseIds: slice }));
+                const batchItems: unknown = batch.responses;
+                if (!Array.isArray(batchItems)) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Invalid Grok response batch');
+                const typedItems: readonly unknown[] = batchItems;
+                return typedItems;
+            }, signal),
+            this.images(id, account.providerAccountId),
+        ]);
+        const responses: unknown[] = batchPayloads.flat();
         signal?.throwIfAborted();
         for (const image of captured) {
             const response = responses.find(value => grokObject(value).responseId === image.responseId);

@@ -38,10 +38,40 @@ export async function readClaudeFile(organization: string, file: string, signal?
                 return { status: 0, issue: { code: 'ACCOUNT_CHANGED', message: 'Claude attachment account changed' } };
             }
             if (initialCookie === undefined) {
-                const orgResp = await fetch('/api/organizations', { credentials: 'include', headers: { Accept: 'application/json' } });
-                if (!orgResp.ok) return { status: orgResp.status };
-                const orgs: unknown = await orgResp.json();
-                if (!Array.isArray(orgs) || !orgs.some((item: unknown) => item !== null && typeof item === 'object' && 'uuid' in item && item.uuid === org)) {
+                const CACHE_KEY = '__gemExporterClaudeOrgsCache';
+                const TTL_MS = 10_000;
+                const cookieSnap = document.cookie;
+                const rawCache: unknown = cookieSnap ? Reflect.get(globalThis, CACHE_KEY) : null;
+                let cachedUuids: string[] | null = null;
+                if (cookieSnap && rawCache && typeof rawCache === 'object') {
+                    const snap: unknown = Reflect.get(rawCache, 'cookie');
+                    const verifiedAt: unknown = Reflect.get(rawCache, 'verifiedAt');
+                    const uuids: unknown = Reflect.get(rawCache, 'uuids');
+                    if (snap === cookieSnap && typeof verifiedAt === 'number' && Date.now() - verifiedAt < TTL_MS
+                        && Array.isArray(uuids) && uuids.every((u): u is string => typeof u === 'string')) {
+                        cachedUuids = uuids;
+                    }
+                }
+                if (!cachedUuids) {
+                    const orgResp = await fetch('/api/organizations', { credentials: 'include', headers: { Accept: 'application/json' } });
+                    if (!orgResp.ok) return { status: orgResp.status };
+                    const orgs: unknown = await orgResp.json();
+                    if (!Array.isArray(orgs)) {
+                        return { status: 0, issue: { code: 'ACCOUNT_CHANGED', message: 'Claude organization/account changed' } };
+                    }
+                    const orgItems: readonly unknown[] = orgs;
+                    cachedUuids = [];
+                    for (const item of orgItems) {
+                        if (item !== null && typeof item === 'object') {
+                            const uuid: unknown = Reflect.get(item, 'uuid');
+                            if (typeof uuid === 'string') cachedUuids.push(uuid);
+                        }
+                    }
+                    if (document.cookie) {
+                        Reflect.set(globalThis, CACHE_KEY, { cookie: document.cookie, verifiedAt: Date.now(), uuids: cachedUuids });
+                    }
+                }
+                if (!cachedUuids.includes(org)) {
                     return { status: 0, issue: { code: 'ACCOUNT_CHANGED', message: 'Claude organization/account changed' } };
                 }
             }

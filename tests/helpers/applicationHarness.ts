@@ -130,14 +130,31 @@ stubModule('../../src/l3a/storageService.js', {
         if (state.failRead) throw new Error('read failed');
         return indexes.get(address(conversationKey)) ?? null;
     },
+    async listIndexes(accountId: string) {
+        if (state.failRead) throw new Error('read failed');
+        return [...indexes.values()].filter(row => row.key.accountId === accountId);
+    },
     async getExportRecord(conversationKey: ConversationKey) {
         if (state.failRead) throw new Error('read failed');
         return records.get(address(conversationKey)) ?? null;
     },
+    async listExportRecords(accountId: string) {
+        if (state.failRead) throw new Error('read failed');
+        const out: Record<string, ExportRecord> = {};
+        for (const [addr, rec] of records) {
+            const [accId, convId] = JSON.parse(addr) as [string, string];
+            if (accId === accountId) out[convId] = rec;
+        }
+        return out;
+    },
     async putExportRecord(conversationKey: ConversationKey, record: ExportRecord) {
         events.push('record:' + conversationKey.conversationId);
         if (state.failRecord === conversationKey.conversationId) throw new Error('record failed');
-        records.set(address(conversationKey), record);
+        const prev = records.get(address(conversationKey));
+        const merged = record.folderBaseName === undefined && prev?.folderBaseName
+            ? { ...record, folderBaseName: prev.folderBaseName }
+            : record;
+        records.set(address(conversationKey), merged);
     },
     async clearStoredAccountExportRecords(accountId: string) {
         events.push('clear-export:' + accountId);
@@ -164,6 +181,21 @@ stubModule('../../src/runtime/api/accountRegistry.js', { async getAccount(id: st
     if (id === chatgptAccount.id) return { ...chatgptAccount };
     return { ...account, id };
 } });
+stubModule('../../src/l3a/exportRecordStore.js', {
+    async putExportRecords(entries: ReadonlyArray<{ key: ConversationKey; record: ExportRecord }>) {
+        for (const entry of entries) {
+            if (state.failRecord === entry.key.conversationId) throw new Error('record failed');
+        }
+        for (const entry of entries) {
+            events.push('record:' + entry.key.conversationId);
+            const prev = records.get(address(entry.key));
+            const merged = entry.record.folderBaseName === undefined && prev?.folderBaseName
+                ? { ...entry.record, folderBaseName: prev.folderBaseName }
+                : entry.record;
+            records.set(address(entry.key), merged);
+        }
+    },
+});
 stubModule('../../src/l2/ingestion.js', {
     async ingestDetail(accountId: string, conversationId: string,
         detail: Omit<import('../../src/l2/conversationDetail.js').DomainConversationDetail, 'key'>,
@@ -171,6 +203,21 @@ stubModule('../../src/l2/ingestion.js', {
         if (state.detailError) throw state.detailError;
         state.admittedDetails.push({ accountId, conversationId, detail, indexFields });
         return { ...state.detailDecision };
+    },
+    async ingestDetailsBatch(
+        accountId: string,
+        entries: readonly import('../../src/l2/ingestion.js').DetailBatchIngestEntry[],
+    ) {
+        if (state.detailError) throw state.detailError;
+        return entries.map(entry => {
+            state.admittedDetails.push({
+                accountId,
+                conversationId: entry.conversationId,
+                detail: entry.detail as Omit<import('../../src/l2/conversationDetail.js').DomainConversationDetail, 'key'>,
+                indexFields: entry.indexFields,
+            });
+            return { ...state.detailDecision };
+        });
     },
 });
 stubModule('../../src/l2/coverageAdmission.js', {

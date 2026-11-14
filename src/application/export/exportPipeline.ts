@@ -1,10 +1,14 @@
 import { OperationError, operationIssue, operationError } from '../../shared/errors/operationError.js';
+import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
+import { createSemaphore } from '../../shared/utils/concurrency.js';
 import { ConfirmedSourceEmptyError } from '../../l1/client/sourceErrors.js';
 import { readConversation } from '../../l2/readConversation.js';
 import { getSettings } from '../settings/index.js';
 import { getAccount } from '../../runtime/api/accountRegistry.js';
-import { getIndex, getExportRecord, putExportRecord, getDirectoryHandle } from '../../l3a/storageService.js';
+import { getIndex, listIndexes, getExportRecord, listExportRecords, putExportRecord, getDirectoryHandle } from '../../l3a/storageService.js';
+import { putExportRecords } from '../../l3a/exportRecordStore.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
+import type { DomainConversationIndex } from '../../l2/conversationIndex.js';
 import type { Account } from '../../l2/accountRegistry.js';
 import { type ReadonlyDomain } from '../../l2/runtimeValidation.js';
 import type { AIProvider } from '../../l1/client/aiProvider.js';
@@ -106,8 +110,26 @@ export async function executeExportWithSession(
     const cancel = (): void => controller.abort(options.signal?.reason);
     if (options.signal?.aborted) cancel();
     else options.signal?.addEventListener('abort', cancel, { once: true });
-    // Attachment work has its own bounded pool; it never gates the next source read.
-    let downstream = Promise.resolve();
+    // Attachment work runs across a bounded multi-conversation pool with a shared asset semaphore;
+    // it never gates the next source read while keeping total concurrent transfers bounded.
+    const downstreamSemaphore = createSemaphore(4);
+    const assetAcquireSemaphore = createSemaphore(6);
+    const detailPrefetchSemaphore = createSemaphore(3);
+    const activeDownstream = new Set<Promise<void>>();
+    let retireChain = Promise.resolve();
+    const drainDownstream = async (): Promise<void> => {
+        while (activeDownstream.size > 0) {
+            await Promise.all([...activeDownstream]);
+        }
+        await retireChain;
+    };
+    interface PrefetchedDetailOutcome {
+        readonly before: ReadonlyDomain | null;
+        readonly needsSourceReaders: boolean;
+        readonly diagnostics: readonly Diagnostic[];
+        readonly error?: unknown;
+    }
+    const prefetchedDetails = new Map<number, Promise<PrefetchedDetailOutcome | null>>();
     let saveCancelledFiles: (() => Promise<void>) | undefined;
     const queued = new Map<string, Promise<void>>();
     const deliveredBodies = new Set<string>();
@@ -160,21 +182,38 @@ export async function executeExportWithSession(
         return provider;
     };
     const readLocal = readConversation;
+    const applyCommittedGroupStats = (group: ExportGroup, record: ExportRecord): void => {
+        result.exported++;
+        if (group.record.status === 'partial') { result.partial++; result.otherPartial ??= 0; }
+        if (group.record.attachmentIssues?.length) result.attachmentIssues = [...(result.attachmentIssues ?? []), ...group.record.attachmentIssues];
+        if (group.record.attachmentIssues?.some(issue => resourceIssueKind(issue) === 'expired')) result.expiredConversations = (result.expiredConversations ?? 0) + 1;
+        if (group.record.status === 'partial' && (!group.record.attachmentIssues?.length
+            || group.record.otherContentMissing)) result.otherPartial = (result.otherPartial ?? 0) + 1;
+        report({ key: group.key, status: 'exported', record });
+    };
     const finalize = async (groups: readonly ExportGroup[]): Promise<void> => {
+        if (groups.length === 0) return;
         // Once Delivery returned, cancellation cannot suppress records for that group/ZIP.
         const exportedAt = Date.now();
+        if (groups.length > 1) {
+            for (const group of groups) bodyDelivered(group.key);
+            const entries = groups.map(group => ({ key: group.key, record: { ...group.record, exportedAt } }));
+            try {
+                await putExportRecords(entries);
+                for (const [idx, group] of groups.entries()) {
+                    applyCommittedGroupStats(group, entries[idx].record);
+                }
+                return;
+            } catch {
+                // Fall back to per-item writes so one bad record never drops sibling receipts.
+            }
+        }
         for (const group of groups) {
             bodyDelivered(group.key);
             try {
                 const record: ExportRecord = { ...group.record, exportedAt };
                 await putExportRecord(group.key, record);
-                result.exported++;
-                if (group.record.status === 'partial') { result.partial++; result.otherPartial ??= 0; }
-                if (group.record.attachmentIssues?.length) result.attachmentIssues = [...(result.attachmentIssues ?? []), ...group.record.attachmentIssues];
-                if (group.record.attachmentIssues?.some(issue => resourceIssueKind(issue) === 'expired')) result.expiredConversations = (result.expiredConversations ?? 0) + 1;
-                if (group.record.status === 'partial' && (!group.record.attachmentIssues?.length
-                    || group.record.otherContentMissing)) result.otherPartial = (result.otherPartial ?? 0) + 1;
-                report({ key: group.key, status: 'exported', record });
+                applyCommittedGroupStats(group, record);
             } catch (error) {
                 console.warn('[Gemini Exporter] ExportRecord write failed', group.key, error);
                 fail([group.key], operationError(error, 'RECORD_WRITE_FAILED'));
@@ -290,41 +329,161 @@ export async function executeExportWithSession(
         if (linked && !directory) saveCancelledFiles = async () => {
             // Acquisition stops first; one ZIP preserves completed attachments and all
             // rendered bodies. Unfinished items never receive a successful record.
-            await downstream;
+            await drainDownstream();
             await deliverBrowserBodies(true);
         };
-        const pending: PendingExport[] = [];
+        const accountKeyCounts = new Map<string, number>();
+        const firstOccurrenceIndex = new Map<string, number>();
+        for (const [idx, k] of request.keys.entries()) {
+            accountKeyCounts.set(k.accountId, (accountKeyCounts.get(k.accountId) ?? 0) + 1);
+            const id = identity(k);
+            if (!firstOccurrenceIndex.has(id)) firstOccurrenceIndex.set(id, idx);
+        }
+        const accountCache = new Map<string, Promise<Account | null>>();
+        const accountMetaCache = new Map<string, Promise<{
+            indexes: ReadonlyMap<string, DomainConversationIndex>;
+            records: Readonly<Record<string, ExportRecord>>;
+        }>>();
+        const seenKeyIdentities = new Set<string>();
+        const loadAccountCached = (accountId: string): Promise<Account | null> => {
+            const cached = accountCache.get(accountId);
+            if (cached) return cached;
+            const pendingAccount = getAccount(accountId).catch((error: unknown) => {
+                accountCache.delete(accountId);
+                throw error;
+            });
+            accountCache.set(accountId, pendingAccount);
+            return pendingAccount;
+        };
+        const loadLocalMetadata = async (
+            targetKey: ConversationKey,
+            isRepeatKey: boolean,
+        ): Promise<[Account | null, DomainConversationIndex | null, ExportRecord | null]> => {
+            if (!isRepeatKey && (accountKeyCounts.get(targetKey.accountId) ?? 0) >= 4) {
+                let metaPromise = accountMetaCache.get(targetKey.accountId);
+                if (!metaPromise) {
+                    metaPromise = Promise.all([listIndexes(targetKey.accountId), listExportRecords(targetKey.accountId)])
+                        .then(([rows, recordMap]) => ({
+                            indexes: new Map(rows.map(row => [row.key.conversationId, row])),
+                            records: recordMap,
+                        }))
+                        .catch((error: unknown) => {
+                            accountMetaCache.delete(targetKey.accountId);
+                            throw error;
+                        });
+                    accountMetaCache.set(targetKey.accountId, metaPromise);
+                }
+                const [account, meta] = await Promise.all([loadAccountCached(targetKey.accountId), metaPromise]);
+                return [account, meta.indexes.get(targetKey.conversationId) ?? null, meta.records[targetKey.conversationId] ?? null];
+            }
+            return Promise.all([loadAccountCached(targetKey.accountId), getIndex(targetKey), getExportRecord(targetKey)]);
+        };
+        const evaluateRefreshNeed = (
+            targetKey: ConversationKey,
+            account: Account,
+            conversation: ReadonlyDomain | null,
+        ): { needed: boolean; needsSourceReaders: boolean } => {
+            const needsSourceReaders = Boolean(request.includeAssets && conversation?.detail.assets.some(asset =>
+                !options.importedResources?.has(targetKey, asset.id)
+                && !/^https:\/\//i.test(asset.sourceUri ?? '')
+                && !asset.document?.contentMarkdown
+                && providerFor(account.providerId).canAcquireResourceDirectly?.(asset) !== true));
+            const needed = Boolean(options.refreshDetail || !conversation || !isFresh(conversation) || needsSourceReaders);
+            return { needed, needsSourceReaders };
+        };
+        const verifiedRemoteAccounts = new Set<string>();
+        const scheduleLookaheadDetailPrefetch = (afterIndex: number): void => {
+            if (signal.aborted || request.keys.length <= 2) return;
+            let scheduled = 0;
+            for (let target = afterIndex + 1; target < request.keys.length && scheduled < 4; target++) {
+                if (prefetchedDetails.has(target)) {
+                    scheduled++;
+                    continue;
+                }
+                const candidateKey = request.keys[target];
+                if (!verifiedRemoteAccounts.has(candidateKey.accountId)) continue;
+                const id = identity(candidateKey);
+                if (firstOccurrenceIndex.get(id) !== target || queued.has(id)) continue;
+                scheduled++;
+                const job = detailPrefetchSemaphore.run(async (): Promise<PrefetchedDetailOutcome | null> => {
+                    if (signal.aborted) return null;
+                    const [account, localIndex, record] = await loadLocalMetadata(candidateKey, false);
+                    if (!account) return null;
+                    if (!options.refreshDetail && localIndex && shouldSkipExport(record, localIndex.updatedAt, request)) {
+                        return null;
+                    }
+                    const before = await readLocal(candidateKey);
+                    if (signal.aborted) return null;
+                    const refreshNeed = evaluateRefreshNeed(candidateKey, account, before);
+                    if (!refreshNeed.needed) return null;
+                    const diagnostics: Diagnostic[] = [];
+                    try {
+                        await providerFor(account.providerId).fetchConversationDetail(
+                            candidateKey.accountId,
+                            candidateKey.conversationId,
+                            signal,
+                            diagnostic => { diagnostics.push(diagnostic); },
+                        );
+                        return { before, needsSourceReaders: refreshNeed.needsSourceReaders, diagnostics };
+                    } catch (error) {
+                        stopOnRateLimit(error);
+                        return { before, needsSourceReaders: refreshNeed.needsSourceReaders, diagnostics, error };
+                    }
+                }, signal).catch((error: unknown): PrefetchedDetailOutcome | null => {
+                    stopOnRateLimit(error);
+                    return null;
+                });
+                prefetchedDetails.set(target, job);
+            }
+        };
+
+        const pendingSlots: (PendingExport | undefined)[] = [];
         for (const [index, key] of request.keys.entries()) {
+            const keyId = identity(key);
+            const isRepeatKey = seenKeyIdentities.has(keyId);
+            seenKeyIdentities.add(keyId);
             // Duplicate keys share task-owned readers; finish their earlier use first.
-            const previous = queued.get(identity(key));
+            const previous = queued.get(keyId);
             if (previous) await previous;
             signal.throwIfAborted();
             options.onProgress?.({ current: index + 1, total: request.keys.length, key });
+            scheduleLookaheadDetailPrefetch(index);
             let handedOff = false;
             try {
-                // These local facts are independent; don't serialize three storage round trips.
-                const [account, localIndex, record] = await Promise.all([
-                    getAccount(key.accountId), getIndex(key),
-                    getExportRecord(key),
-                ]);
+                // Batch exports prefetch per-account Indexes and ExportRecords in one pass.
+                const [account, localIndex, record] = await loadLocalMetadata(key, isRepeatKey);
                 if (!account) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Account unavailable');
                 if (!options.refreshDetail && localIndex && shouldSkipExport(record, localIndex.updatedAt, request)) {
                     result.skipped++;
                     report({ key, status: 'skipped' });
                     continue;
                 }
-                let conversation = await readLocal(key);
+                const prefetched = await prefetchedDetails.get(index);
+                prefetchedDetails.delete(index);
+                let conversation = prefetched ? prefetched.before : await readLocal(key);
                 let refreshFailed = false;
                 let refreshFailure: { error: unknown } | undefined;
                 // Inline packets and expiring locators are task-owned, never cached bytes.
                 // A fresh Detail alone cannot rehydrate these resources in a later export.
-                const needsSourceReaders = request.includeAssets && conversation?.detail.assets.some(asset =>
-                    !options.importedResources?.has(key, asset.id) && !/^https:\/\//i.test(asset.sourceUri ?? '') && !asset.document?.contentMarkdown
-                    && providerFor(account.providerId).canAcquireResourceDirectly?.(asset) !== true);
-                if (options.refreshDetail || !conversation || !isFresh(conversation) || needsSourceReaders) {
+                const refreshCheck = prefetched
+                    ? { needed: true, needsSourceReaders: prefetched.needsSourceReaders }
+                    : evaluateRefreshNeed(key, account, conversation);
+                const needsSourceReaders = refreshCheck.needsSourceReaders;
+                if (refreshCheck.needed) {
                     const before = conversation;
-                    try { await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
-                            diagnostic => diagnose({ key, stage: 'source_parse', ...diagnostic })); }
+                    try {
+                        if (prefetched) {
+                            for (const diagnostic of prefetched.diagnostics) {
+                                diagnose({ key, stage: 'source_parse', ...diagnostic });
+                            }
+                            if (prefetched.error !== undefined) throw prefetched.error;
+                        } else {
+                            await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
+                                diagnostic => diagnose({ key, stage: 'source_parse', ...diagnostic }));
+                        }
+                        verifiedRemoteAccounts.add(key.accountId);
+                        scheduleLookaheadDetailPrefetch(index);
+                    }
                     catch (error) {
                         // L1 has reliably confirmed deletion and L2 has removed the local Key.
                         // Unlike a transient refresh failure, this must never fall back to old Detail.
@@ -399,8 +558,8 @@ export async function executeExportWithSession(
                     // A refresh retries failed identities only; successful bytes remain task-owned.
                     const requiredIds = new Set([...source.requiredIds].filter(id => !reused.has(id) && !previous?.get(id)?.ok));
                     const acquired = await prepareExportResources(source.conversation.detail.assets, requiredIds,
-                        (asset, abort) => {
-                            const observe = (diagnostic: import('../../shared/diagnostics/diagnostic.js').Diagnostic) => diagnose({
+                        (asset, abort) => assetAcquireSemaphore.run(() => {
+                            const observe = (diagnostic: Diagnostic) => diagnose({
                                 key, stage: 'resource', ...diagnostic,
                                 details: { resourceId: asset.id, providerId: account.providerId, observation: diagnostic.details ?? null },
                             });
@@ -408,7 +567,7 @@ export async function executeExportWithSession(
                                 ? options.importedResources.acquire(key, asset, abort,
                                     () => providerFor(account.providerId).acquireResource(key, asset, abort, observe), observe)
                                 : providerFor(account.providerId).acquireResource(key, asset, abort, observe);
-                        }, signal, (completed, total, result) => {
+                        }, abort ?? signal), signal, (completed, total, result) => {
                             if (result?.ok) downloadedResources.add(JSON.stringify([key.accountId, key.conversationId, result.resourceId]));
                             options.onResourceProgress?.({ key, completed: completed + reused.size, total: total + reused.size, downloaded: downloadedResources.size });
                             diagnose({ key, stage: 'resource', severity: 'info', code: 'RESOURCE_ACQUISITION_PROGRESS',
@@ -435,7 +594,11 @@ export async function executeExportWithSession(
                     }
                     if (!source.requiredIds.size) continue;
                 }
-                downstream = downstream.then(async () => {
+                const pendingSlot = !body && !(folderPlanner && directory) ? pendingSlots.push(undefined) - 1 : -1;
+                type AcquiredOutcome =
+                    | { readonly ok: true; readonly item: PendingExport; readonly finalPlan: ExportPathPlan | undefined; readonly sourceChanged: boolean }
+                    | { readonly ok: false; readonly error: unknown };
+                const acquisitionPromise: Promise<AcquiredOutcome> = downstreamSemaphore.run(async (): Promise<AcquiredOutcome> => {
                     signal.throwIfAborted();
                     let item = await prepare(source, plan);
                     let finalPlan = plan;
@@ -481,6 +644,20 @@ export async function executeExportWithSession(
                             item = await prepare(refreshedSource, finalPlan, initial);
                         }
                     }
+                    return { ok: true, item, finalPlan, sourceChanged };
+                }, signal).catch((error: unknown): AcquiredOutcome => {
+                    if (cancelled(error)) controller.abort(error);
+                    return { ok: false, error };
+                });
+                const acquireDone = acquisitionPromise.then(() => undefined);
+                activeDownstream.add(acquireDone);
+                void acquireDone.finally(() => { activeDownstream.delete(acquireDone); });
+
+                const taskPromise: Promise<void> = retireChain.then(async () => {
+                    const outcome = await acquisitionPromise;
+                    if (!outcome.ok) throw outcome.error;
+                    signal.throwIfAborted();
+                    const { item, finalPlan, sourceChanged } = outcome;
                     const { prepared, fileIds } = item;
                     if (body && finalPlan) {
                         const failures = Object.fromEntries([...prepared].filter((entry): entry is [string, ResourceFailure] => !entry[1].ok));
@@ -508,7 +685,9 @@ export async function executeExportWithSession(
                         const group = await renderGroup(item, folderPlanner(item.conversation, prepared, fileIds, item.folderBaseName));
                         await writeToFolder(group.files, directory);
                         await finalize([group]);
-                    } else pending.push(item);
+                    } else if (pendingSlot >= 0) {
+                        pendingSlots[pendingSlot] = item;
+                    }
                 }).catch(error => {
                     if (cancelled(error)) controller.abort(error);
                     else {
@@ -517,25 +696,29 @@ export async function executeExportWithSession(
                     }
                 }).finally(() => {
                     resources.releaseConversation(key);
-                    queued.delete(identity(key));
+                    if (queued.get(keyId) === taskPromise) queued.delete(keyId);
+                    activeDownstream.delete(taskPromise);
                 });
+                retireChain = taskPromise;
                 handedOff = true;
-                queued.set(identity(key), downstream);
+                activeDownstream.add(taskPromise);
+                queued.set(keyId, taskPromise);
             } catch (error) {
                 if (cancelled(error)) throw error;
                 console.warn('[Gemini Exporter] Export item failed', key, error);
                 fail([key], error);
             } finally {
-                if (!handedOff) resources.releaseConversation(key);
+                if (!handedOff && !prefetchedDetails.has(index)) resources.releaseConversation(key);
             }
         }
-        await downstream;
+        await drainDownstream();
         signal.throwIfAborted();
         if (linked) {
             if (!directory) await deliverBrowserBodies();
             result.aborted = signal.aborted;
             return result;
         }
+        const pending = pendingSlots.filter((item): item is PendingExport => item !== undefined);
         let plans: readonly ExportPathPlan[];
         try {
             plans = folderPlanner ? [] : planExportPaths(pending, request.format);
@@ -583,7 +766,8 @@ export async function executeExportWithSession(
         return result;
     } finally {
         controller.abort();
-        await downstream;
+        await Promise.allSettled([...prefetchedDetails.values()]);
+        await drainDownstream();
         options.signal?.removeEventListener('abort', cancel);
         resources.release();
         rendererSession.dispose?.();

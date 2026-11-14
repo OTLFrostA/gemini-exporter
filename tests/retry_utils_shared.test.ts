@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { calculateBackoff, abortableSleep } from '../src/shared/utils/retryUtils.js';
+import { createSemaphore, mapWithConcurrency } from '../src/shared/utils/concurrency.js';
 const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 
 
@@ -128,4 +129,65 @@ test('architecture - retryUtils.ts does not import engine or api modules', () =>
     const src = SRC('src/shared/utils/retryUtils.ts');
     assert.ok(!/from\s+['"][^'"]*engine/i.test(src), 'retryUtils must not import from engine');
     assert.ok(!/from\s+['"][^'"]*api/i.test(src), 'retryUtils must not import from api');
+});
+
+test('concurrency - createSemaphore enforces capacity and cancels queued waiters cleanly without leaking slots', async () => {
+    const sem = createSemaphore(2);
+    let active = 0;
+    let peak = 0;
+    const makeGate = () => {
+        let release = () => {};
+        const promise = new Promise<void>(resolve => { release = resolve; });
+        return { promise, release };
+    };
+    const holdA = makeGate();
+    const holdB = makeGate();
+    const abortMiddle = new AbortController();
+
+    const taskA = sem.run(async () => {
+        active++;
+        peak = Math.max(peak, active);
+        await holdA.promise;
+        active--;
+        return 'A';
+    });
+    const taskB = sem.run(async () => {
+        active++;
+        peak = Math.max(peak, active);
+        await holdB.promise;
+        active--;
+        return 'B';
+    });
+    const taskAborted = sem.run(async () => 'never', abortMiddle.signal);
+    const taskC = sem.run(async () => {
+        active++;
+        peak = Math.max(peak, active);
+        await new Promise<void>(resolve => setImmediate(resolve));
+        active--;
+        return 'C';
+    });
+
+    abortMiddle.abort();
+    await assert.rejects(taskAborted, { name: 'AbortError' });
+    holdA.release();
+    holdB.release();
+    assert.deepEqual(await Promise.all([taskA, taskB, taskC]), ['A', 'B', 'C']);
+    assert.equal(peak, 2);
+});
+
+test('concurrency - mapWithConcurrency bounds parallel workers and preserves deterministic input order', async () => {
+    let active = 0;
+    let peak = 0;
+    const items = [30, 5, 20, 1, 15, 10];
+    const results = await mapWithConcurrency(items, 3, async (delay, index) => {
+        active++;
+        peak = Math.max(peak, active);
+        for (let step = 0; step < (delay % 4) + 1; step++) {
+            await new Promise<void>(resolve => setImmediate(resolve));
+        }
+        active--;
+        return `${index}:${delay}`;
+    });
+    assert.equal(peak, 3);
+    assert.deepEqual(results, items.map((d, i) => `${i}:${d}`));
 });

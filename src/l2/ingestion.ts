@@ -7,6 +7,7 @@ import CoverageAdmission from './coverageAdmission.js';
 import type { PageObservationHead } from './pageObservation.js';
 import { restoreConversationIndex, type DomainConversationIndex, type ConversationIndex, mergeConversationIndex } from './conversationIndex.js';
 import { getAccount, updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from '../l3a/storageService.js';
+import { updateConversationsAtomically } from '../l3a/conversationStore.js';
 import { conversationKey } from './conversationKey.js';
 import * as sameStoredFacts from './domainEquality.js';
 
@@ -69,14 +70,14 @@ export interface DetailIngestResult {
     changed: boolean;
 }
 
-export async function ingestDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'],
-    detail: Omit<ConversationDetail, 'key'>, indexFields: Omit<ConversationIndex, 'key'> = {}): Promise<DetailIngestResult> {
-    const account = await readExistingAccount(accountId);
-    if (!account) throw new TypeError('Detail account does not exist');
-    const key = { accountId, conversationId };
+function buildConversationDecision(
+    key: ConversationKey,
+    detail: Omit<ConversationDetail, 'key'>,
+    indexFields: Omit<ConversationIndex, 'key'> = {},
+) {
     const incoming = acceptDetailFacts(key, detail);
     const index = restoreConversationIndex({ ...indexFields, key });
-    return updateConversationAtomically(key, (oldIndex, oldDetail) => {
+    return (oldIndex: DomainConversationIndex | null, oldDetail: DomainConversationDetail | null) => {
         const existingIndex = oldIndex ? restoreConversationIndex(oldIndex) : undefined;
         const acceptedIndex = mergeConversationIndex(existingIndex, index);
         const existing = oldDetail ? restoreDomainDetail(oldDetail) : null;
@@ -89,7 +90,35 @@ export async function ingestDetail(accountId: Account['id'], conversationId: Con
             ...(!sameStoredFacts.detail(selected, existing) ? { detail: selected } : {}),
             result: { accepted, changed },
         };
+    };
+}
+
+export interface DetailBatchIngestEntry {
+    readonly conversationId: ConversationKey['conversationId'];
+    readonly detail: Omit<ConversationDetail, 'key'>;
+    readonly indexFields?: Omit<ConversationIndex, 'key'>;
+}
+
+export async function ingestDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'],
+    detail: Omit<ConversationDetail, 'key'>, indexFields: Omit<ConversationIndex, 'key'> = {}): Promise<DetailIngestResult> {
+    const account = await readExistingAccount(accountId);
+    if (!account) throw new TypeError('Detail account does not exist');
+    const key = { accountId, conversationId };
+    return updateConversationAtomically(key, buildConversationDecision(key, detail, indexFields));
+}
+
+export async function ingestDetailsBatch(
+    accountId: Account['id'],
+    entries: readonly DetailBatchIngestEntry[],
+): Promise<DetailIngestResult[]> {
+    const account = await readExistingAccount(accountId);
+    if (!account) throw new TypeError('Detail account does not exist');
+    if (entries.length === 0) return [];
+    const prepared = entries.map(entry => {
+        const key = { accountId, conversationId: entry.conversationId };
+        return { key, decide: buildConversationDecision(key, entry.detail, entry.indexFields) };
     });
+    return updateConversationsAtomically(prepared);
 }
 
 /** Invoked only after L1 verifies a specific remotely deleted/nonexistent conversation. */

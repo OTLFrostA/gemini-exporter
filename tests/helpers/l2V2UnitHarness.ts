@@ -77,6 +77,11 @@ const updateIndexesAtomically: typeof import('../../src/l3a/storageService.js').
         for (const value of updates) indexes.set(address(value.key), value);
     };
 
+const getIndex: typeof import('../../src/l3a/storageService.js').getIndex =
+    async key => indexes.get(address(key)) ?? null;
+const getDetail: typeof import('../../src/l3a/storageService.js').getDetail =
+    async key => details.get(address(key)) ?? null;
+
 const updateConversationAtomically: typeof import('../../src/l3a/storageService.js').updateConversationAtomically =
     async (key, decide) => {
         checkWrite();
@@ -85,6 +90,20 @@ const updateConversationAtomically: typeof import('../../src/l3a/storageService.
         if (decision.index) indexes.set(address(decision.index.key), decision.index);
         if (decision.detail) details.set(address(decision.detail.key), decision.detail);
         return decision.result;
+    };
+
+const updateConversationsAtomically: typeof import('../../src/l3a/conversationStore.js').updateConversationsAtomically =
+    async items => {
+        checkWrite();
+        const results = [];
+        for (const item of items) {
+            calls.detailUpdates.push({ ...item.key });
+            const decision = item.decide(indexes.get(address(item.key)) ?? null, details.get(address(item.key)) ?? null);
+            if (decision.index) indexes.set(address(decision.index.key), decision.index);
+            if (decision.detail) details.set(address(decision.detail.key), decision.detail);
+            results.push(decision.result);
+        }
+        return results;
     };
 
 const updateCoverageAtomically: typeof import('../../src/l3a/storageService.js').updateCoverageAtomically =
@@ -121,9 +140,20 @@ const admitAccountAtomically: typeof import('../../src/l3a/storageService.js').a
     };
 
 const storage = {
-    getAccount, getCoverage, updateCoverageAtomically, updateIndexesAtomically, updateConversationAtomically,
+    getAccount, getIndex, getDetail, getCoverage, updateCoverageAtomically, updateIndexesAtomically,
+    updateConversationAtomically,
     deleteStoredConversation, insertAccountIfAbsent, admitAccountAtomically, putAccount,
 } satisfies Partial<typeof import('../../src/l3a/storageService.js')>;
+
+const getConversationSnapshot: typeof import('../../src/l3a/conversationStore.js').getConversationSnapshot =
+    async key => ({
+        index: indexes.get(address(key)) ?? null,
+        detail: details.get(address(key)) ?? null,
+    });
+const conversationStoreMock = {
+    getConversationSnapshot,
+    updateConversationsAtomically,
+} satisfies Partial<typeof import('../../src/l3a/conversationStore.js')>;
 
 type Loader = { _load(request: string, parent?: NodeModule | null, isMain?: boolean): unknown };
 const loader = Module as unknown as Loader;
@@ -136,6 +166,7 @@ loader._load = (request, parent, isMain) => {
     const caller = parent?.filename.replace(/\\/g, '/') ?? '';
     if (caller.includes('/src/l2/')) {
         if (request === '../l3a/storageService.js') return storage;
+        if (request === '../l3a/conversationStore.js') return conversationStoreMock;
         if (['../l1/', '../l3a/', '../l3b/', '../l4/', '../application/', '../runtime/', '../ui/', '../migration/'].some(part => request.includes(part)))
             throw new Error('Unmocked L2 external-v2 runtime dependency: ' + request);
     }
@@ -149,7 +180,7 @@ try {
     loader._load = originalLoad;
 }
 
-export const { ingestIndexes, ingestDetail, ingestDeletedConversation } = ingestion;
+export const { ingestIndexes, ingestDetail, ingestDetailsBatch, ingestDeletedConversation } = ingestion;
 export const { getOrCreateAccount } = admission;
 export const { recordPageCoverage } = coverageAdmission;
 resetL2UnitPorts();

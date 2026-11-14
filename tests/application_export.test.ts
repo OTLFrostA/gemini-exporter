@@ -841,3 +841,39 @@ test('Folder preflight overlaps independent attachment lookups before acquiring 
     assert.deepEqual(probed, ['mock/image', 'mock/file', 'mock/unused']);
     assert.deepEqual(events.filter(event => event.startsWith('acquire:')), ['acquire:file', 'acquire:unused']);
 });
+
+test('batch export overlaps cross-conversation Detail refreshes after cold-start probe and overlaps attachment downloads while retiring in strict input order', async () => {
+    const ids = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6'];
+    for (const id of ids) {
+        indexes.set(address(key(id)), { key: key(id), title: id, titleSource: 'provider', updatedAt: 100 });
+    }
+    let activeRefreshes = 0;
+    let peakRefreshes = 0;
+    let activeAcquires = 0;
+    let peakAcquires = 0;
+    provider.fetchConversationDetail = async (_accountId, id) => {
+        activeRefreshes++;
+        peakRefreshes = Math.max(peakRefreshes, activeRefreshes);
+        for (let step = 0; step < 3; step++) {
+            await new Promise<void>(resolve => setImmediate(resolve));
+        }
+        seed(id, { assets: true });
+        activeRefreshes--;
+    };
+    provider.acquireResource = async (conversationKey, asset) => {
+        activeAcquires++;
+        peakAcquires = Math.max(peakAcquires, activeAcquires);
+        const delaySteps = conversationKey.conversationId === 'c1' ? 5 : 1;
+        for (let step = 0; step < delaySteps; step++) {
+            await new Promise<void>(resolve => setImmediate(resolve));
+        }
+        activeAcquires--;
+        return { bytes: Uint8Array.of(1, 2), mediaType: asset.mediaType };
+    };
+    const result = await runExport(request({ keys: ids.map(id => key(id)), delivery: 'folderWriter' }));
+    assert.equal(result.exported, ids.length);
+    assert.ok(peakRefreshes >= 2 && peakRefreshes <= 3, `expected bounded parallel refreshes, got ${peakRefreshes}`);
+    assert.ok(peakAcquires >= 4 && peakAcquires <= 6, `expected cross-conversation parallel attachment transfers, got ${peakAcquires}`);
+    assert.deepEqual(state.releasedKeys, ids, 'resource contexts still retire strictly in input order');
+    assert.deepEqual(events.filter(event => event.startsWith('record:')), ids.map(id => `record:${id}`));
+});
