@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as storage from '../src/l3a/storageService.js';
+import { putExportRecords } from '../src/l3a/exportRecordStore.js';
 import { useStorageUnitEnvironment as useIndexStorage } from './helpers/l3aStorageUnitEnvironment.js';
 import { fixtureKey } from './helpers/domainFixture.js';
 
@@ -24,4 +25,28 @@ test('Settings patches persist exactly the caller-supplied v2 values', async () 
     assert.deepEqual(await storage.getStoredSettings(), { defaultFormat: 'markdown', skipExported: false });
     await storage.patchStoredSettings({ defaultFormat: 'pdf' });
     assert.deepEqual(await storage.getStoredSettings(), { defaultFormat: 'pdf', skipExported: false });
+});
+
+test('L3a connection pool reuses one IDBDatabase across sequential transactions and batch ExportRecord writes preserve folderBaseName', async () => {
+    let opens = 0;
+    const rawOpen = indexedDB.open;
+    indexedDB.open = function (...args: Parameters<IDBFactory['open']>) {
+        opens++;
+        return rawOpen.apply(this, args);
+    };
+    try {
+        const k1 = fixtureKey('pool-1');
+        const k2 = fixtureKey('pool-2');
+        await storage.putIndexes([{ key: k1, title: 'One', titleSource: 'provider' }, { key: k2, title: 'Two', titleSource: 'provider' }]);
+        await storage.putExportRecord(k1, { exportedAt: 10, format: 'markdown', status: 'ok', folderBaseName: 'KeepFolderOne' });
+        await putExportRecords([
+            { key: k1, record: { exportedAt: 20, format: 'html', status: 'ok' } },
+            { key: k2, record: { exportedAt: 20, format: 'html', status: 'ok', folderBaseName: 'FolderTwo' } },
+        ]);
+        assert.equal((await storage.getExportRecord(k1))?.folderBaseName, 'KeepFolderOne');
+        assert.equal((await storage.getExportRecord(k2))?.folderBaseName, 'FolderTwo');
+        assert.equal(opens, 1, 'pooled connection must open IndexedDB only once per factory/open binding');
+    } finally {
+        indexedDB.open = rawOpen;
+    }
 });

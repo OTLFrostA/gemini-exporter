@@ -422,3 +422,52 @@ test('Claude tool file paths stay narrow through delivery and Artifact publicati
     assert.deepEqual(denied.issues, ['Published artifact content is unavailable or uses unsupported edits']);
     assert.equal(state.files.has('/home/claude/result.py'), false);
 });
+
+test('Claude tab execution caches organization verification per Cookie snapshot and invalidates immediately on Cookie switch', async () => {
+    const savedChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    const savedDoc = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    const savedFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+    Reflect.deleteProperty(globalThis, '__gemExporterClaudeOrgsCache');
+    Reflect.deleteProperty(globalThis, '__gemExporterClaudeOrgsInflight');
+    let cookie = 'sessionKey=abc; lastActiveOrg=' + c1;
+    let orgCalls = 0;
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: { get cookie() { return cookie; } } });
+    Object.defineProperty(globalThis, 'fetch', {
+        configurable: true,
+        value: async (input: string) => {
+            if (input === '/api/organizations') {
+                orgCalls++;
+                return Response.json(claudeOrganizationsGen('CL_ACCOUNT_MIXED_ROWS_01'));
+            }
+            return Response.json(claudeListGen('CL_L1_SOURCE_PARSE_SORTED_01'));
+        },
+    });
+    Object.defineProperty(globalThis, 'chrome', {
+        configurable: true,
+        value: {
+            permissions: { contains: async () => true },
+            tabs: { query: async () => [{ id: 1, active: true, url: 'https://claude.ai/chats' }], get: async () => ({ id: 1, url: 'https://claude.ai/chats' }) },
+            scripting: {
+                executeScript: async (injection: { func: (...args: unknown[]) => Promise<unknown>; args: unknown[] }) => [{
+                    result: await injection.func(...injection.args),
+                }],
+            },
+        },
+    });
+    try {
+        const listPath = `/api/organizations/${c1}/chat_conversations`;
+        await readClaudeSource(listPath, c1);
+        await readClaudeSource(listPath, c1);
+        await readClaudeSource(listPath, c1);
+        assert.equal(orgCalls, 1, 'unchanged Cookie snapshot must reuse verified organization membership');
+
+        cookie = 'sessionKey=switched; lastActiveOrg=' + c2;
+        await assert.rejects(readClaudeSource(listPath, c1), /differs from selected account/);
+    } finally {
+        Reflect.deleteProperty(globalThis, '__gemExporterClaudeOrgsCache');
+        Reflect.deleteProperty(globalThis, '__gemExporterClaudeOrgsInflight');
+        if (savedChrome) Object.defineProperty(globalThis, 'chrome', savedChrome); else Reflect.deleteProperty(globalThis, 'chrome');
+        if (savedDoc) Object.defineProperty(globalThis, 'document', savedDoc); else Reflect.deleteProperty(globalThis, 'document');
+        if (savedFetch) Object.defineProperty(globalThis, 'fetch', savedFetch); else Reflect.deleteProperty(globalThis, 'fetch');
+    }
+});

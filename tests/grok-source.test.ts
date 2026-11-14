@@ -430,3 +430,57 @@ test('Grok detail overlaps independent metadata and initial tree requests', asyn
         assert.equal(treeReads, 2, 'snapshot verification must still re-read the tree');
     } finally { env.restore(); }
 });
+
+test('Grok tab execution caches current-user verification per Cookie snapshot and re-verifies immediately when Cookie mutates mid-flight', async () => {
+    const savedChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    const savedDoc = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    const savedFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
+    Reflect.deleteProperty(globalThis, '__gemExporterGrokUserCache');
+    Reflect.deleteProperty(globalThis, '__gemExporterGrokUserInflight');
+    const owner = '11111111-1111-4111-8111-111111111111';
+    const foreign = '22222222-2222-4222-8222-222222222222';
+    let cookie = 'sso=token-1';
+    let mutateDuringList = false;
+    let authCalls = 0;
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: { get cookie() { return cookie; } } });
+    Object.defineProperty(globalThis, 'fetch', {
+        configurable: true,
+        value: async (input: string) => {
+            if (input === '/rest/auth/get-user') {
+                authCalls++;
+                return Response.json(grokUserGen('GR_USER_PROVIDER_01'));
+            }
+            if (mutateDuringList) cookie = 'sso=token-2';
+            return Response.json(grokListGen('GR_LIST_TERMINAL_01'));
+        },
+    });
+    Object.defineProperty(globalThis, 'chrome', {
+        configurable: true,
+        value: {
+            permissions: { contains: async () => true },
+            tabs: { query: async () => [{ id: 1, active: true, url: 'https://grok.com/' }], get: async () => ({ id: 1, url: 'https://grok.com/' }) },
+            scripting: {
+                executeScript: async (injection: { func: (...args: unknown[]) => Promise<unknown>; args: unknown[] }) => [{
+                    result: await injection.func(...injection.args),
+                }],
+            },
+        },
+    });
+    try {
+        await readGrokSource('/rest/app-chat/conversations?pageSize=60', owner);
+        await readGrokSource('/rest/app-chat/conversations?pageSize=60', owner);
+        assert.equal(authCalls, 1, 'stable Cookie snapshot must eliminate redundant pre/post /rest/auth/get-user round trips');
+
+        mutateDuringList = true;
+        await readGrokSource('/rest/app-chat/conversations?pageSize=60', owner);
+        assert.equal(authCalls, 2, 'mid-request Cookie mutation must force an immediate post-read /rest/auth/get-user re-check');
+
+        await assert.rejects(readGrokSource('/rest/app-chat/conversations?pageSize=60', foreign), /account changed/i);
+    } finally {
+        Reflect.deleteProperty(globalThis, '__gemExporterGrokUserCache');
+        Reflect.deleteProperty(globalThis, '__gemExporterGrokUserInflight');
+        if (savedChrome) Object.defineProperty(globalThis, 'chrome', savedChrome); else Reflect.deleteProperty(globalThis, 'chrome');
+        if (savedDoc) Object.defineProperty(globalThis, 'document', savedDoc); else Reflect.deleteProperty(globalThis, 'document');
+        if (savedFetch) Object.defineProperty(globalThis, 'fetch', savedFetch); else Reflect.deleteProperty(globalThis, 'fetch');
+    }
+});

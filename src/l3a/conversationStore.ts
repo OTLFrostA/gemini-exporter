@@ -33,6 +33,27 @@ export async function putIndexes(accepted: readonly DomainConversationIndex[]): 
 export function getDetail(key: ConversationKey): Promise<DomainConversationDetail | null> {
     return readOne('details', conversationAddress(key));
 }
+export function getConversationSnapshot(
+    key: ConversationKey,
+): Promise<{ index: DomainConversationIndex | null; detail: DomainConversationDetail | null }> {
+    return inStores<{ index: DomainConversationIndex | null; detail: DomainConversationDetail | null }>(
+        ['indexes', 'details'],
+        'readonly',
+        (tx, done) => {
+            const address = conversationAddress(key);
+            let index: DomainConversationIndex | null = null;
+            let detail: DomainConversationDetail | null = null;
+            let remaining = 2;
+            const settle = () => {
+                if (--remaining === 0) done({ index, detail });
+            };
+            const indexRequest = tx.objectStore('indexes').get(address);
+            indexRequest.onsuccess = () => { index = indexRequest.result ?? null; settle(); };
+            const detailRequest = tx.objectStore('details').get(address);
+            detailRequest.onsuccess = () => { detail = detailRequest.result ?? null; settle(); };
+        },
+    );
+}
 
 /** L2 supplies all decisions; both reads and writes stay inside one native IDB transaction. */
 export function updateIndexesAtomically(keys: readonly ConversationKey[],
@@ -100,5 +121,73 @@ export function updateConversationAtomically<R extends DetailIngestResult | void
         indexRequest.onsuccess = () => { oldIndex = indexRequest.result ?? null; decideAndWrite(); };
         const detailRequest = details.get(conversationAddress(key));
         detailRequest.onsuccess = () => { oldDetail = detailRequest.result ?? null; decideAndWrite(); };
+    });
+}
+
+export interface ConversationAtomicBatchItem {
+    readonly key: ConversationKey;
+    readonly decide: (
+        oldIndex: DomainConversationIndex | null,
+        oldDetail: DomainConversationDetail | null,
+    ) => { index?: DomainConversationIndex; detail?: DomainConversationDetail; result: DetailIngestResult };
+}
+
+/** Admit a slice of conversations inside one native IDB readwrite transaction while preserving sequential same-key semantics. */
+export function updateConversationsAtomically(
+    items: readonly ConversationAtomicBatchItem[],
+): Promise<DetailIngestResult[]> {
+    if (items.length === 0) return Promise.resolve([]);
+    return inStores<DetailIngestResult[]>(['indexes', 'details'], 'readwrite', (tx, done, fail) => {
+        const indexes = tx.objectStore('indexes');
+        const details = tx.objectStore('details');
+        const uniqueKeys = new Map<string, ConversationKey>();
+        for (const item of items) {
+            const id = JSON.stringify(conversationAddress(item.key));
+            if (!uniqueKeys.has(id)) uniqueKeys.set(id, item.key);
+        }
+        const currentIndexes = new Map<string, DomainConversationIndex | null>();
+        const currentDetails = new Map<string, DomainConversationDetail | null>();
+        let remaining = uniqueKeys.size * 2;
+        const decideAndWriteAll = () => {
+            if (--remaining !== 0) return;
+            try {
+                const dirtyIndexes = new Map<string, DomainConversationIndex>();
+                const dirtyDetails = new Map<string, DomainConversationDetail>();
+                const results: DetailIngestResult[] = [];
+                for (const item of items) {
+                    const id = JSON.stringify(conversationAddress(item.key));
+                    const oldIndex = currentIndexes.get(id) ?? null;
+                    const oldDetail = currentDetails.get(id) ?? null;
+                    const accepted = item.decide(oldIndex, oldDetail);
+                    for (const row of [accepted.index, accepted.detail]) {
+                        if (row && (row.key.accountId !== item.key.accountId || row.key.conversationId !== item.key.conversationId)) {
+                            throw new TypeError('Conversation decision key mismatch');
+                        }
+                    }
+                    if (accepted.detail && !accepted.index && !oldIndex) {
+                        throw new TypeError('Detail requires a matching Index');
+                    }
+                    if (accepted.index) {
+                        currentIndexes.set(id, accepted.index);
+                        dirtyIndexes.set(id, accepted.index);
+                    }
+                    if (accepted.detail) {
+                        currentDetails.set(id, accepted.detail);
+                        dirtyDetails.set(id, accepted.detail);
+                    }
+                    results.push(accepted.result);
+                }
+                for (const row of dirtyIndexes.values()) indexes.put(row);
+                for (const row of dirtyDetails.values()) details.put(row);
+                done(results);
+            } catch (error) { fail(error); }
+        };
+        for (const [id, key] of uniqueKeys) {
+            const addr = conversationAddress(key);
+            const indexRequest = indexes.get(addr);
+            indexRequest.onsuccess = () => { currentIndexes.set(id, indexRequest.result ?? null); decideAndWriteAll(); };
+            const detailRequest = details.get(addr);
+            detailRequest.onsuccess = () => { currentDetails.set(id, detailRequest.result ?? null); decideAndWriteAll(); };
+        }
     });
 }

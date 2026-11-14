@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { putOne } from '../src/l3a/idb.js';
 import { indexStorage } from './helpers/indexStorage.js';
-import { ingestDetail, ingestIndexes, ingestDeletedConversation } from '../src/l2/ingestion.js';
+import { ingestDetail, ingestDetailsBatch, ingestIndexes, ingestDeletedConversation } from '../src/l2/ingestion.js';
 import { readStoredConversation } from './helpers/readStoredConversation.js';
 import { conversationKey } from '../src/l2/conversationKey.js';
 import { getIndex, getDetail, getExportRecord, putExportRecord, updateConversationAtomically } from '../src/l3a/storageService.js';
@@ -142,5 +142,25 @@ test('stale reads cannot republish metadata or resurrect confirmed deletion', as
         await ingestDeletedConversation(accountId, 'chat'); const writes = env.writes();
         assert.equal(await readStoredConversation(key), null); assert.equal(await getIndex(key), null);
         assert.equal(env.writes(), writes); assert.equal(cached?.detail.messages.length, 2);
+    } finally { env.restore(); }
+});
+
+test('ingestDetailsBatch commits a multi-conversation slice atomically and preserves sequential same-key selection', async () => {
+    const env = indexStorage();
+    try {
+        const outcomes = await ingestDetailsBatch(accountId, [
+            { conversationId: 'batch-a', detail: { ...body(), savedAt: 100, quality: { status: 'complete' } }, indexFields: { title: 'Initial A', titleSource: 'derived', updatedAt: 100 } },
+            { conversationId: 'batch-a', detail: { ...body(), savedAt: 200, quality: { status: 'partial' }, messages: body().messages.slice(0, 1) }, indexFields: { title: 'Authoritative A', titleSource: 'provider', updatedAt: 200 } },
+            { conversationId: 'batch-b', detail: { ...body(), savedAt: 150, quality: { status: 'complete' } }, indexFields: { title: 'Chat B', titleSource: 'provider', updatedAt: 150 } },
+        ]);
+        assert.deepEqual(outcomes, [
+            { accepted: true, changed: true },
+            { accepted: false, changed: false },
+            { accepted: true, changed: true },
+        ]);
+        const storedA = await readStoredConversation({ accountId, conversationId: 'batch-a' });
+        assert.equal(storedA?.index.title, 'Authoritative A');
+        assert.equal(storedA?.detail.messages.length, 2, 'inferior partial detail in same batch must not overwrite complete body');
+        assert.equal((await readStoredConversation({ accountId, conversationId: 'batch-b' }))?.index.title, 'Chat B');
     } finally { env.restore(); }
 });

@@ -60,8 +60,9 @@ test('large unchanged exports do not rebuild the conversation list for each skip
     const metrics = await page.evaluate(()=>Reflect.get(window,'skipMetrics'));
     console.log('Unchanged export performance:',{durationMs:Date.now()-started,...metrics});
     expect(downloads).toBe(0);
-    // A few task-start/task-end renders are allowed; per-item list replacement is not.
+    // A few task-start/task-end renders are allowed; per-item list replacement and per-item DB opens are not.
     expect(metrics.listRebuilds).toBeLessThanOrEqual(6);
+    expect(metrics.storageOpens).toBeLessThanOrEqual(4);
     await expect(page.locator('#list input:checked')).toHaveCount(1343);
 });
 

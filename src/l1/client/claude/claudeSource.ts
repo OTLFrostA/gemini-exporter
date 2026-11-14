@@ -34,12 +34,17 @@ export async function readClaudeSource(path: string, expectedOrganization?: stri
                 constructor(readonly code: OperationErrorCode, message: string, readonly httpStatus?: number) { super(message); }
             }
             try {
-                const checkCookieOrg = () => {
-                    if (!organization) return;
-                    const cookieOrg = document.cookie.split(';').map(part => part.trim())
+                const CACHE_KEY = '__gemExporterClaudeOrgsCache';
+                const INFLIGHT_KEY = '__gemExporterClaudeOrgsInflight';
+                const TTL_MS = 10_000;
+                const currentCookie = (): string => typeof document !== 'undefined' ? document.cookie : '';
+                const checkCookieOrg = (): string | undefined => {
+                    if (!organization) return undefined;
+                    const cookieOrg = currentCookie().split(';').map(part => part.trim())
                         .find(part => part.startsWith('lastActiveOrg='))?.slice('lastActiveOrg='.length);
                     if (cookieOrg && decodeURIComponent(cookieOrg) !== organization)
                         throw new RequestFailure('ACCOUNT_CHANGED', 'Active Claude organization differs from selected account');
+                    return cookieOrg;
                 };
                 const getJson = async (resource: string): Promise<unknown> => {
                     const response = await fetch(resource, { credentials: 'include',
@@ -48,17 +53,94 @@ export async function readClaudeSource(path: string, expectedOrganization?: stri
                     const json: unknown = await response.json();
                     return json;
                 };
-                if (organization) {
-                    checkCookieOrg();
-                    const organizations = await getJson('/api/organizations');
-                    if (!Array.isArray(organizations)) throw new RequestFailure('SOURCE_RESPONSE_INVALID', 'Invalid Claude organizations response');
-                    if (!organizations.some(
-                        (org: unknown) => org !== null && typeof org === 'object'
-                            && 'uuid' in org && org.uuid === organization))
+                const extractOrgUuids = (payload: unknown): string[] => {
+                    if (!Array.isArray(payload)) throw new RequestFailure('SOURCE_RESPONSE_INVALID', 'Invalid Claude organizations response');
+                    const items: readonly unknown[] = payload;
+                    const uuids: string[] = [];
+                    for (const org of items) {
+                        if (org !== null && typeof org === 'object') {
+                            const uuid: unknown = Reflect.get(org, 'uuid');
+                            if (typeof uuid === 'string') uuids.push(uuid);
+                        }
+                    }
+                    return uuids;
+                };
+                const readCachedOrgs = (cookieSnap: string): string[] | null => {
+                    if (!cookieSnap) return null;
+                    const raw: unknown = Reflect.get(globalThis, CACHE_KEY);
+                    if (!raw || typeof raw !== 'object') return null;
+                    const cachedCookie: unknown = Reflect.get(raw, 'cookie');
+                    const verifiedAt: unknown = Reflect.get(raw, 'verifiedAt');
+                    const uuids: unknown = Reflect.get(raw, 'uuids');
+                    if (cachedCookie !== cookieSnap || typeof verifiedAt !== 'number' || Date.now() - verifiedAt >= TTL_MS || !Array.isArray(uuids)) {
+                        return null;
+                    }
+                    return uuids.every((item): item is string => typeof item === 'string') ? uuids : null;
+                };
+                const saveCachedOrgs = (cookieSnap: string, uuids: string[]): void => {
+                    if (!cookieSnap) return;
+                    Reflect.set(globalThis, CACHE_KEY, { cookie: cookieSnap, verifiedAt: Date.now(), uuids });
+                };
+                const verifyOrgMembership = async (forceRefresh: boolean): Promise<void> => {
+                    if (!organization) return;
+                    const snap = currentCookie();
+                    if (!forceRefresh) {
+                        const cached = readCachedOrgs(snap);
+                        if (cached) {
+                            if (!cached.includes(organization)) {
+                                throw new RequestFailure('ACCOUNT_CHANGED', 'Claude organization/account changed');
+                            }
+                            return;
+                        }
+                    }
+                    let inflight: Promise<string[]> | undefined;
+                    if (!forceRefresh) {
+                        const existing: unknown = Reflect.get(globalThis, INFLIGHT_KEY);
+                        if (existing && typeof existing === 'object' && Reflect.get(existing, 'cookie') === snap) {
+                            const pending: unknown = Reflect.get(existing, 'promise');
+                            if (pending instanceof Promise) inflight = pending;
+                        }
+                    }
+                    if (!inflight) {
+                        const fetchPromise = getJson('/api/organizations').then(payload => {
+                            const uuids = extractOrgUuids(payload);
+                            saveCachedOrgs(currentCookie(), uuids);
+                            return uuids;
+                        }).finally(() => {
+                            const current: unknown = Reflect.get(globalThis, INFLIGHT_KEY);
+                            if (current && typeof current === 'object' && Reflect.get(current, 'promise') === fetchPromise) {
+                                Reflect.deleteProperty(globalThis, INFLIGHT_KEY);
+                            }
+                        });
+                        Reflect.set(globalThis, INFLIGHT_KEY, { cookie: snap, promise: fetchPromise });
+                        inflight = fetchPromise;
+                    }
+                    const uuids = await inflight;
+                    if (!uuids.includes(organization)) {
                         throw new RequestFailure('ACCOUNT_CHANGED', 'Claude organization/account changed');
+                    }
+                };
+
+                const cookieBefore = currentCookie();
+                checkCookieOrg();
+                if (requestedPath === '/api/organizations') {
+                    const value = await getJson(requestedPath);
+                    const uuids = extractOrgUuids(value);
+                    saveCachedOrgs(currentCookie(), uuids);
+                    if (organization && !uuids.includes(organization)) {
+                        throw new RequestFailure('ACCOUNT_CHANGED', 'Claude organization/account changed');
+                    }
+                    checkCookieOrg();
+                    return { ok: true, value };
+                }
+                if (organization) {
+                    await verifyOrgMembership(false);
                 }
                 const value = await getJson(requestedPath);
-                checkCookieOrg();
+                const postCookieOrg = checkCookieOrg();
+                if (organization && currentCookie() !== cookieBefore && postCookieOrg === undefined) {
+                    await verifyOrgMembership(true);
+                }
                 return { ok: true, value };
             } catch (error) {
                 return { ok: false, issue: { code: error instanceof RequestFailure ? error.code : 'UNKNOWN_ERROR',

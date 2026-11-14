@@ -43,12 +43,21 @@ declare global {
 
 type StoreQueryResult = void | boolean | string | Account | Account[] | DomainConversationIndex | DomainConversationIndex[]
     | DomainConversationDetail | CoverageRow | ExportRow | Record<string, ExportRecord>
-    | FileSystemDirectoryHandle | DetailIngestResult | null;
+    | FileSystemDirectoryHandle | DetailIngestResult | DetailIngestResult[]
+    | { index: DomainConversationIndex | null; detail: DomainConversationDetail | null } | null;
 
-/** Call from an extension-origin context. Browser Runtime owns IPC routing. */
-export function openStorageDB(): Promise<IDBDatabase> {
+interface PooledConnectionEntry {
+    readonly openFn: IDBFactory['open'];
+    readonly promise: Promise<IDBDatabase>;
+}
+
+const pooledConnections = new WeakMap<IDBFactory, PooledConnectionEntry>();
+
+function openDatabaseOnFactory(factory: IDBFactory, onEvict?: () => void): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+        const request = factory === indexedDB
+            ? indexedDB.open(DATABASE_NAME, DATABASE_VERSION)
+            : factory.open(DATABASE_NAME, DATABASE_VERSION);
         request.onupgradeneeded = () => {
             const db = request.result;
             db.createObjectStore('accounts', { keyPath: 'id' })
@@ -61,31 +70,70 @@ export function openStorageDB(): Promise<IDBDatabase> {
         };
         request.onsuccess = () => {
             const db = request.result;
-            db.onversionchange = () => db.close();
+            db.onversionchange = () => {
+                onEvict?.();
+                db.close();
+            };
+            db.onclose = () => { onEvict?.(); };
             resolve(db);
         };
-        request.onerror = () => reject(request.error);
+        request.onerror = () => {
+            onEvict?.();
+            reject(request.error);
+        };
     });
+}
+
+/** Call from an extension-origin context. Browser Runtime owns IPC routing. */
+export function openStorageDB(): Promise<IDBDatabase> {
+    return openDatabaseOnFactory(indexedDB);
+}
+
+function acquirePooledStorageDB(): Promise<IDBDatabase> {
+    const factory = indexedDB;
+    const currentOpen = factory.open;
+    const cached = pooledConnections.get(factory);
+    if (cached && cached.openFn === currentOpen) return cached.promise;
+    let entry: PooledConnectionEntry | undefined;
+    const evict = (): void => {
+        if (pooledConnections.get(factory) === entry) pooledConnections.delete(factory);
+    };
+    const promise = openDatabaseOnFactory(factory, evict);
+    entry = { openFn: currentOpen, promise };
+    pooledConnections.set(factory, entry);
+    return promise;
+}
+
+async function openTransaction(names: readonly StoreName[], mode: IDBTransactionMode): Promise<TypedIDBTransaction> {
+    const factory = indexedDB;
+    const db = await acquirePooledStorageDB();
+    try {
+        return db.transaction([...names], mode);
+    } catch (error) {
+        if (error instanceof DOMException && error.name === 'InvalidStateError') {
+            pooledConnections.delete(factory);
+            const fresh = await acquirePooledStorageDB();
+            return fresh.transaction([...names], mode);
+        }
+        throw error;
+    }
 }
 
 /** Run synchronous IDB requests in one store-scoped transaction, resolving only after commit. */
 export async function inStores<T extends StoreQueryResult = void>(names: readonly StoreName[], mode: IDBTransactionMode,
     run: (tx: TypedIDBTransaction, result: (value: T) => void, fail: (error: unknown) => void) => void): Promise<T> {
-    const db = await openStorageDB();
-    try {
-        return await new Promise<T>((resolve, reject) => {
-            const tx = db.transaction([...names], mode);
-            let value: T, failure: unknown;
-            const fail = (error: unknown) => {
-                failure = error;
-                try { tx.abort(); } catch { reject(error); }
-            };
-            tx.oncomplete = () => resolve(value);
-            tx.onabort = () => reject(failure ?? tx.error ?? new Error('Storage transaction aborted'));
-            try { run(tx, result => { value = result; }, fail); }
-            catch (error) { fail(error); }
-        });
-    } finally { db.close(); }
+    const tx = await openTransaction(names, mode);
+    return new Promise<T>((resolve, reject) => {
+        let value: T, failure: unknown;
+        const fail = (error: unknown) => {
+            failure = error;
+            try { tx.abort(); } catch { reject(error); }
+        };
+        tx.oncomplete = () => resolve(value);
+        tx.onabort = () => reject(failure ?? tx.error ?? new Error('Storage transaction aborted'));
+        try { run(tx, result => { value = result; }, fail); }
+        catch (error) { fail(error); }
+    });
 }
 export function inStore<S extends StoreName, T extends StoreQueryResult = void>(name: S, mode: IDBTransactionMode,
     run: (store: TypedObjectStore<StoreValueMap[S]>, result: (value: T) => void) => void): Promise<T> {

@@ -15,7 +15,7 @@ function ownedTypeScriptFiles(relativeDir) {
 const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
     .concat(['src/l1/parsers/gemini', 'src/l1/client/gemini', 'src/l1/sniffer/gemini', 'src/l1/imports/takeout', 'src/l1/imports/openai', 'src/l1/parsers/shared/resources'])
     .flatMap(ownedTypeScriptFiles)
-    .concat(['src/shared/platformHosts.ts', 'src/shared/utils/typeGuards.ts', 'src/shared/types/accountContextReply.ts',
+    .concat(['src/shared/platformHosts.ts', 'src/shared/utils/typeGuards.ts', 'src/shared/utils/concurrency.ts', 'src/shared/types/accountContextReply.ts',
         'src/shared/types/export.ts', 'src/shared/types/directoryHandle.ts', 'src/shared/utils/devMode.ts',
         'src/l1/parsers/shared/time.ts', 'src/l1/parsers/shared/markdown/texBrackets.ts',
         'src/l1/imports/shared/zipArchive.ts',
@@ -40,7 +40,7 @@ const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
         'src/l1/protocol/gemini/url.ts', 'src/l1/resources/gemini/assetFetcher.ts',
         'src/l1/client/claude/fileAssets.ts',
         'src/l1/client/claude/claudeProvider.ts', 'src/l1/client/claude/claudeSource.ts',
-        'src/l1/client/grok/grokSource.ts', 'src/ui/guidance/tourGuide.ts', 'src/ui/guidance/tourSteps.ts',
+        'src/l1/client/grok/grokSource.ts', 'src/l1/client/grok/grokImages.ts', 'src/l1/client/grok/grokProvider.ts', 'src/ui/guidance/tourGuide.ts', 'src/ui/guidance/tourSteps.ts',
         'src/runtime/content/chatgptContent.ts', 'src/runtime/content/claudeContent.ts',
         'src/runtime/content/grokContent.ts', 'src/l1/sniffer/chatgpt/messageBridge.ts',
         'src/l1/sniffer/claude/messageBridge.ts', 'src/l1/sniffer/grok/messageBridge.ts',
