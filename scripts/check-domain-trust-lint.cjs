@@ -12,12 +12,13 @@ function ownedTypeScriptFiles(relativeDir) {
 }
 // Typed business and downstream layers reject implicit any flow. The compiler-based
 // architecture gate additionally rejects all casts and non-null assertions in these owners.
-const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
+const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4', 'cloud-server/src']
     .concat(['src/l1/parsers/gemini', 'src/l1/client/gemini', 'src/l1/sniffer/gemini', 'src/l1/imports/takeout', 'src/l1/imports/openai', 'src/l1/parsers/shared/resources'])
     .flatMap(ownedTypeScriptFiles)
     .concat(['src/shared/platformHosts.ts', 'src/shared/utils/typeGuards.ts', 'src/shared/utils/concurrency.ts',
         'src/shared/crypto/recoveryKey.ts', 'src/shared/crypto/vaultKeys.ts',
         'src/shared/crypto/boundedGzip.ts', 'src/shared/crypto/aeadEnvelope.ts', 'src/shared/crypto/index.ts',
+        'src/shared/types/cloudSync.ts',
         'src/shared/types/accountContextReply.ts',
         'src/shared/types/export.ts', 'src/shared/types/directoryHandle.ts', 'src/shared/utils/devMode.ts',
         'src/l1/parsers/shared/time.ts', 'src/l1/parsers/shared/markdown/texBrackets.ts',
