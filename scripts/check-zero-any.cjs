@@ -14,7 +14,7 @@ function ownedTypeScriptFiles(relativeDir) {
         return entry.isFile() && /\.tsx?$/.test(entry.name) ? [relative] : [];
     });
 }
-const production = ownedTypeScriptFiles('src');
+const production = [...ownedTypeScriptFiles('src'), ...ownedTypeScriptFiles('cloud-server/src')];
 const files = [...new Set([...scopedFiles, ...production])].sort();
 const cli = path.join(path.dirname(require.resolve('oxlint/package.json')), 'bin', 'oxlint');
 const result = spawnSync(process.execPath, [cli, '-A', 'all', '-D', 'typescript/no-explicit-any', '--no-ignore', '--disable-nested-config', ...files], { cwd: root, stdio: 'inherit' });
