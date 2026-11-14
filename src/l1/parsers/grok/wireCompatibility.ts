@@ -49,8 +49,9 @@ export function compatibleGrokBodies(payload: { responses: GrokWireResponse[] },
             } catch { warn('grok.card.invalid', 'Malformed Grok card'); }
         }
         // Asset records carry downloadable keys; legacy metadata can contain only UUIDs.
-        const metadata = [...(Array.isArray(row.fileAttachmentAssetMetadata) ? row.fileAttachmentAssetMetadata : []),
-            ...(Array.isArray(row.fileAttachmentsMetadata) ? row.fileAttachmentsMetadata : [])];
+        const assetMeta: readonly unknown[] = Array.isArray(row.fileAttachmentAssetMetadata) ? (row.fileAttachmentAssetMetadata as readonly unknown[]) : [];
+        const legacyMeta: readonly unknown[] = Array.isArray(row.fileAttachmentsMetadata) ? (row.fileAttachmentsMetadata as readonly unknown[]) : [];
+        const metadata: readonly unknown[] = [...assetMeta, ...legacyMeta];
         for (const value of metadata) {
             const file = grokObject(value), id = file.fileMetadataId ?? file.assetId;
             const url = assetUrl(file.fileUri || file.key);

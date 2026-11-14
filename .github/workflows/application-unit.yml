@@ -31,4 +31,5 @@ jobs:
           node -r ./tests/ts_register.js --test \
             tests/application_export.test.ts \
             tests/application_sync.test.ts \
-            tests/application_settings_cleanup.test.ts
+            tests/application_settings_cleanup.test.ts \
+            tests/application_imports.test.ts

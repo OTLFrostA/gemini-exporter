@@ -8,7 +8,7 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import type { SourceConversationParseResult } from '../src/l1/parsers/parsingResult.js';
 import { validateParserDomain } from '../src/l2/runtimeValidation.js';
-import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { importTakeout } from '../src/application/imports/importTakeout.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { ingestDetail } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';

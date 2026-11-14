@@ -32,8 +32,11 @@ export async function attemptResource(resourceId: string, work: () => Promise<Re
             return { ...missingResource(resourceId, error.message, code), httpStatus: status,
                 issue: { code, message: error.message, httpStatus: status } };
         }
-        if (error instanceof OperationError) return { ...missingResource(resourceId, error.message, error.code),
-            ...(error.httpStatus !== undefined ? { httpStatus: error.httpStatus } : {}), issue: operationIssue(error) };
+        if (error instanceof OperationError) {
+            if (error.retryAt !== undefined) throw error;
+            return { ...missingResource(resourceId, error.message, error.code),
+                ...(error.httpStatus !== undefined ? { httpStatus: error.httpStatus } : {}), issue: operationIssue(error) };
+        }
         return missingResource(resourceId, error instanceof Error ? error.message : String(error));
     }
 }

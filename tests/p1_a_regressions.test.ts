@@ -73,7 +73,7 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
                 cb({ success: true });
             }
         };
-        const { AssetFetcher } = require('../src/runtime/capabilities/assetFetcher.js');
+        const { AssetFetcher } = require('../src/l1/resources/gemini/assetFetcher.js');
         const originalAssets = { ...AssetFetcher };
         Object.assign(AssetFetcher, assets);
         MessageRouter.init();

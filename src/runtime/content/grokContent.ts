@@ -1,8 +1,9 @@
-import { grokUuid } from '../../l1/parsers/grok/source.js';
+import { grokConversationIdFromPath } from '../../l1/sniffer/grok/observation.js';
 import { initGrokMessageBridge } from '../../l1/sniffer/grok/messageBridge.js';
 import { observeGrokAccount } from '../../l1/client/grok/accountObservation.js';
 import { ensureContentReady } from '../api/contentReady.js';
 import { invalidateAccountContext, resolveCurrentAccount, setAccountChangedHandler } from './accountContext.js';
+import { registerContentControlRouter } from './controlRouter.js';
 import { BadgeView } from '../../ui/badge/badgeView.js';
 import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { registerCleanup, runCleanups } from './cleanupRegistry.js';
@@ -21,10 +22,7 @@ async function currentAccount() {
     const context = await resolveCurrentAccount(observation);
     return context && observation ? { ...observation, id: context.accountId } : null;
 }
-const conversationId = () => {
-    const id = /^\/c\/([^/]+)\/?$/.exec(location.pathname)?.[1];
-    return grokUuid(id) ? id : null;
-};
+const conversationId = () => grokConversationIdFromPath(location.pathname);
 
 const bridge = initGrokMessageBridge({
     isActive: () => active,
@@ -50,13 +48,9 @@ void ensureContentReady().then(() => {
     }
 }).catch(console.warn);
 
-const onMessage = (message: unknown, sender: chrome.runtime.MessageSender, respond: (value: unknown) => void) => {
-    if (sender.id !== chrome.runtime.id || !message || typeof message !== 'object' || !('action' in message)
-        || !['ping', 'getAccountContext'].includes(String(message.action))) return false;
-    void currentAccount().then(account => respond({ ok: true,
-        accountContext: account ? { accountId: account.id, providerId: 'grok' } : null, conversationId: conversationId() }))
-        .catch(error => respond({ ok: false, error: String(error) }));
-    return true;
-};
-chrome.runtime.onMessage.addListener(onMessage);
-registerCleanup(() => chrome.runtime.onMessage.removeListener(onMessage));
+registerContentControlRouter({
+    providerId: 'grok',
+    isActive: () => active,
+    resolveAccountId: async () => (await currentAccount())?.id ?? null,
+    conversationIdFromPath: grokConversationIdFromPath,
+});

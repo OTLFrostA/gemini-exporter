@@ -2,6 +2,7 @@ import { extractImageEvidence, type ImageAttachment } from "./sourceAttachments.
 import { isJsonValue, type JsonValue } from "../../../../shared/utils/jsonTypes.js";
 import { isHttpUrl, decodeDocumentLinks, decodeResearchPlan, decodeMapCard, decodeFlightCard, decodeBusinessCard, decodeFinanceCard, decodeMailCard } from './cardNodes.js';
 import { matchesCandidateBody } from './structuredBodyMatch.js';
+import { isGeminiSourceId } from './sourceAttributions.js';
 
 export type GeminiAnnotation = { start: number; end: number } & (
     | { type: 0 | 2 | 4 | 5 | 7 | 12 }
@@ -142,8 +143,7 @@ function isWireArray(value: unknown): value is unknown[] {
  * the same source-ID grammar and never leak unchecked arrays. */
 function decodeSourceIds(value: unknown): string[] | null {
     if (!isWireArray(value) || value.length === 0) return null;
-    return value.every((id): id is string => typeof id === 'string' && /^(?:(?:spp_|sp_|cit_)[\w-]+|0)$/.test(id))
-        ? [...value] : null;
+    return value.every(isGeminiSourceId) ? [...value] : null;
 }
 
 /** Citation sources are a wire union: Workspace, uploaded file, or web page.
@@ -863,7 +863,8 @@ export function inspectStructuredContent(input: GeminiStructuredEvidenceInput): 
     if (input.candidateIndex !== 0) return { status: 'candidate_unmatched' };
     const issues: DecodeIssues = [];
     const document = decodeGeminiStructuredPayload(input.turnDocument, issues);
-    if (document) return { status: 'decoded', document };
+    if (document) return { status: 'decoded', document,
+        ...(isJsonValue(input.turnDocument) ? { rawDocument: input.turnDocument } : {}) };
     // Several native bodies are alternatives, not concatenated chat segments.
     // Require exactly one independently matching body. Position alone does not
     // establish ownership, and duplicate matches stay explicitly unsupported.

@@ -77,7 +77,8 @@ test('unknown nested annotation retains replay evidence outside Domain content',
     assert.deepEqual(diagnostic?.details, { reason: 'decode_rejected',
         issue: { kind: 'annotation', styleFlag: 999, rawValue: [0, 19, [[null, null, null, null, 999]]],
             path: '/0/0/1/11/0/0/0/0/1/3/0' },
-        rawDocument, documentSource: 'turn[3][12]', candidateIndex: 0, fallbackMarkdown: fallback });
+        rawDocument, documentSource: 'turn[3][12]', candidateIndex: 0, fallbackMarkdown: fallback,
+        candidateEvidence: { candidateId: 'rc_answer', candidateIndex: 0, candidateText: fallback } });
     assert.ok(diagnostic?.sourceRef?.providerMessageId);
     assert.ok(JSON.stringify(diagnostic).includes('PRIVATE_SOURCE_TEXT'));
     assert.ok(!JSON.stringify(result.conversation).includes('PRIVATE_SOURCE_TEXT'));
@@ -125,7 +126,7 @@ test('unknown field 6 retains its full payload and parent document through JSON 
     assert.equal(decodeGeminiStructuredPayload(rawDocument), null);
     const supported = { children: [{ nodeType: 18, text: 'supported' }] };
     assert.deepEqual(inspectStructuredContent({ turnDocument: supported, candidateIndex: 0 }),
-        { status: 'decoded', document: supported }, 'successful decoding adds no raw evidence');
+        { status: 'decoded', document: supported, rawDocument: supported }, 'successful decoding retains wire evidence for possible adapter/source failure');
 });
 
 test('adapter rejection remains visible and preserves complete Markdown body', () => {

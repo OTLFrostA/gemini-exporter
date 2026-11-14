@@ -21,7 +21,7 @@ import { getCoverage } from '../src/l2/coverageAdmission.js';
 import { getAccount } from '../src/runtime/api/accountRegistry.js';
 import { init, handleWindowMessage } from '../src/l1/sniffer/gemini/messageBridge.js';
 import { CrossWorldEvents } from '../src/l1/protocol/gemini/protocol.js';
-import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { importTakeout } from '../src/application/imports/importTakeout.js';
 import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
 import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';

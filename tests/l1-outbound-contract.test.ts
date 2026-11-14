@@ -10,11 +10,13 @@ import type { AIProvider, ProviderListOptions, PageEvidence, CommittedListPage,
 import type { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import type { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import type { GeminiNetworkBatchexecutePayload } from '../src/l1/protocol/gemini/events.js';
-import type { TakeoutParseResult } from '../src/l1/imports/takeout/importTakeout.js';
+import type { GeminiTakeoutZipRaw } from '../src/l1/imports/takeout/readArchive.js';
+import type { GeminiTakeoutParseResult } from '../src/l1/parsers/gemini/takeout/parseConversation.js';
 
 type Assert<T extends true> = T;
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
-type Takeout = typeof import('../src/l1/imports/takeout/importTakeout.js').importTakeout;
+type ParseTakeoutArchive = typeof import('../src/l1/imports/takeout/readArchive.js').parseGeminiTakeoutZipArchive;
+type ParseOpenAIArchive = typeof import('../src/l1/imports/openai/parseArchive.js').parseOpenAIExportArchive;
 type FrozenPageEvidence = Omit<PageObservation, 'providerId' | 'accountId'>;
 
 type Contract = [
@@ -40,10 +42,10 @@ type Contract = [
         'text' | 'url' | 'slot' | 'requestedAt' | 'truncated' | 'requestAccountObservation' | 'listRequest' | 'detailRequest'>>,
     Assert<Equal<GeminiNetworkBatchexecutePayload['detailRequest'],
         { conversationId: ConversationKey['conversationId']; requestCursor: string | null } | undefined>>,
-    Assert<Equal<Parameters<Takeout>[0], File>>,
-    Assert<Equal<Parameters<Takeout>[1], Account['id']>>,
-    Assert<Equal<ReturnType<Takeout>, Promise<TakeoutParseResult>>>,
-    Assert<Equal<TakeoutParseResult, { imported: number; added: number; status: 'ok' | 'partial' }>>,
+    Assert<Equal<Parameters<ParseTakeoutArchive>[0], GeminiTakeoutZipRaw>>,
+    Assert<Equal<ReturnType<ParseTakeoutArchive>, Promise<GeminiTakeoutParseResult[]>>>,
+    Assert<Equal<Parameters<ParseOpenAIArchive>[0], Blob | Uint8Array>>,
+    Assert<Equal<Parameters<ParseOpenAIArchive>[1], string>>,
 ];
 const verified: Contract = [
     true, true, true, true, true, true, true, true,

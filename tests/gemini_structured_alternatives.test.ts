@@ -61,6 +61,32 @@ test('selected alternative does not inherit the other body image', () => {
     assert.ok(!result.markdown.includes('image.jpg') && !result.markdown.includes('Other body.'));
 });
 
+test('composite inline fragments do not introduce spaces at citation and punctuation boundaries', () => {
+    const composite: GeminiStructuredDocument = { children: [{ nodeType: 'paragraph', children: [
+        { nodeType: 18, text: '引言' }, { nodeType: 'citationGroup', children: [
+            { nodeType: 'citation', number: 1, title: 'Fixture source', url: 'https://example.com/source' },
+        ] }, { nodeType: 18, text: '：尾巴' },
+    ] }] };
+    assert.equal(matchesCandidateBody(composite, '引言[cite: 1]：尾巴'), true);
+    assert.equal(matchesCandidateBody(composite, '引言 ：尾巴'), false);
+    const table: GeminiStructuredDocument = { children: [{ nodeType: 17, rows: [{ cells: [
+        { children: [{ nodeType: 18, text: '词' }, { nodeType: 18, text: '：尾巴' }] },
+    ] }] }] };
+    assert.equal(matchesCandidateBody(table, '| 词：尾巴 |\n| --- |'), true);
+});
+
+test('block boundaries remain distinct while composite code fragments preserve exact content', () => {
+    const separate: GeminiStructuredDocument = { children: [{ nodeType: 18, text: 'first' }, { nodeType: 18, text: 'second' }] };
+    assert.equal(matchesCandidateBody(separate, 'first second'), true);
+    assert.equal(matchesCandidateBody(separate, 'firstsecond'), false);
+    const composite: GeminiStructuredDocument = { children: [{ nodeType: 'paragraph', children: [
+        { nodeType: 18, text: 'first ' }, { nodeType: 18, text: 'a  b', annotations: [{ start: 0, end: 4, type: 7 }] },
+        { nodeType: 18, text: ' second' },
+    ] }] };
+    assert.equal(matchesCandidateBody(composite, 'first `a  b` second'), true);
+    assert.equal(matchesCandidateBody(composite, 'first `a b` second'), false);
+});
+
 test('opaque unbound citation identities survive normalized document roundtrip', () => {
     for (const id of ['cit_fixture', 'sp_fixture', '0']) {
         const doc = { children: [{ nodeType: 18, text: 'body', annotations: [{ start: 0, end: 0, type: 'source', sourceIds: [id] }] }] };

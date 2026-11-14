@@ -1,26 +1,29 @@
-import { notifyDomainChanged } from '../../../runtime/api/domainChanges.js';
-import type { Account } from '../../../l2/accountRegistry.js';
-import type { SourceResourceContext } from '../../resources/sourceResources.js';
-import { getAccount } from '../../../runtime/api/accountRegistry.js';
-import { ingestDetail } from '../../../l2/ingestion.js';
-import { parseGeminiTakeoutZipArchive, readTakeoutBytes } from './readArchive.js';
-import { TakeoutParseError } from '../../../shared/types/errors.js';
+import { notifyDomainChanged } from '../../runtime/api/domainChanges.js';
+import type { Account } from '../../l2/accountRegistry.js';
+import type { SourceResourceContext } from '../../l1/resources/sourceResources.js';
+import { getAccount } from '../../runtime/api/accountRegistry.js';
+import { ingestDetail } from '../../l2/ingestion.js';
+import { parseGeminiTakeoutZipArchive, readTakeoutBytes } from '../../l1/imports/takeout/readArchive.js';
+import { OperationError } from '../../shared/errors/operationError.js';
+import { TakeoutParseError } from '../../shared/types/errors.js';
 
 export interface TakeoutParseResult { imported: number; added: number; status: 'ok' | 'partial' }
 
-/** UI/acquisition adapter: native parsing precedes the one-way storage projection. */
+/** Application offline import workflow: L1 archive parsing precedes L2 admission and UI invalidation. */
 export async function importTakeout(file: File, accountId: Account['id'], onProgress?: (percent: number) => void, resources?: SourceResourceContext): Promise<TakeoutParseResult> {
-    if (!accountId) throw new TypeError('Takeout requires an account UUID');
+    if (!accountId) throw new OperationError('GEMINI_ACCOUNT_REQUIRED', 'Takeout requires an account UUID');
     const account = await getAccount(accountId);
-    if (!account || account.providerId !== 'gemini') throw new TypeError('Takeout requires an existing Gemini account');
+    if (!account || account.providerId !== 'gemini') throw new OperationError('GEMINI_ACCOUNT_REQUIRED', 'Takeout requires an existing Gemini account');
     onProgress?.(15);
     const results = await parseGeminiTakeoutZipArchive(file, { account, providerId: 'gemini',
         onProgress: (completed, total) => onProgress?.(70 + Math.floor(completed / total * 18)),
         onArchiveReady: () => { onProgress?.(40); onProgress?.(70); },
     }).catch((error: unknown) => {
-        if (error instanceof TakeoutParseError) throw error;
+        if (error instanceof TakeoutParseError || error instanceof OperationError) throw error;
         const message = error instanceof Error ? error.message : String(error);
-        if (message.includes('no recognized conversation identities') || message.includes('Unsupported Takeout')) throw new TakeoutParseError('Unsupported Takeout structure', true, 'MyActivity.html');
+        if (message.includes('no recognized conversation identities') || message.includes('Unsupported Takeout')) {
+            throw new TakeoutParseError('Unsupported Takeout structure', true, 'MyActivity.html');
+        }
         throw new TakeoutParseError(message, false);
     });
     const importedIds = new Set(results.map(result => result.conversationId));

@@ -8,13 +8,13 @@ defines the module boundaries used by this directory tree:
 | `l1/client` | [L1](https://app.notion.com/p/3fb5d4d759e1812f9962cf24dcf9116a): provider requests, pagination and credentials |
 | `l1/sniffer` | L1: passive Gemini request/response capture and source message bridge |
 | `l1/parsers`, `l1/protocol` | L1: source decoding, provider wire schemas and unbound parse results |
-| `l1/imports`, `l1/resources` | L1: Takeout import and temporary resource acquisition |
+| `l1/imports`, `l1/resources` | L1: offline archive decoding/binding and temporary resource acquisition |
 | `l2` | [L2](https://app.notion.com/p/3fb5d4d759e1814aaa92ee02a21419a7): Domain schemas, account identity, Index/Detail admission and Coverage |
 | `l3a` | [L3a](https://app.notion.com/p/3fb5d4d759e1816dbc65c1cd23854e00): passive IndexedDB, Settings and directory-handle persistence |
 | `l3b/ast`, `l3b/compose` | [L3b](https://app.notion.com/p/3fb5d4d759e181ed9ea7cffc849a5769): document AST and composition |
 | `l4/format` | [L4](https://app.notion.com/p/3fb5d4d759e18131aaf0ecbe526d5ace): Markdown/HTML/JSON/DOCX/Typst rendering, PDF compiler, sandbox and bundled resources |
 | `l4/packaging`, `l4/delivery` | L4: archive paths, ZIP writer, browser downloads and filesystem writer |
-| `application` | [Application](https://app.notion.com/p/3fb5d4d759e181169ed3dfed880a093a): sync/export workflows, Settings defaults and record cleanup |
+| `application` | [Application](https://app.notion.com/p/3fb5d4d759e181169ed3dfed880a093a): sync/export/import workflows, Settings defaults and record cleanup |
 | `ui` | [UI](https://app.notion.com/p/3fb5d4d759e181cdad0fc2f778766999): Popup, Options, badge, guidance and presentation helpers |
 | `runtime` | [Runtime](https://app.notion.com/p/3fc5d4d759e181378680fb979175bc38): background/content entrypoints, IPC, account routing, readiness and browser capabilities |
 | `migration` | Independent one-time, nondestructive v1 metadata/preferences migration |

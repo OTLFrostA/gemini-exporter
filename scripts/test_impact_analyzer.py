@@ -65,7 +65,7 @@ COMPONENT_UNIT_MAP = {
 # These source groups were formerly src/content; keep their implicit entry coverage.
 _CONTENT_PREFIXES = ("src/l1/sniffer/", "src/l1/client/gemini/bootstrap.ts",
                      "src/l1/parsers/gemini/dom/accountSniffer.ts", "src/ui/badge/",
-                     "src/runtime/capabilities/assetFetcher.ts")
+                     "src/l1/resources/gemini/assetFetcher.ts")
 for _prefix in _CONTENT_PREFIXES:
     COMPONENT_E2E_MAP[_prefix] = COMPONENT_E2E_MAP["src/runtime/content"]
     COMPONENT_UNIT_MAP[_prefix] = COMPONENT_UNIT_MAP["src/runtime/content"]

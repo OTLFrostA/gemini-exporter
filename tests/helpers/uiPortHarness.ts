@@ -6,7 +6,24 @@ import path from 'node:path';
 // Only the UI is under test. Domain/Application/Runtime ports are deliberate mocks.
 const mock = `
 const h = globalThis.harness;
-export const ScanConnectionError = h.ScanConnectionError ??= class extends Error { constructor(platform,message){super(message);this.platform=platform;} };
+export const OperationError = h.OperationError ??= class extends Error {
+ constructor(code, message, httpStatus, options) {
+  super(message, options);
+  this.name = 'OperationError';
+  this.code = code;
+  if (httpStatus !== undefined) this.httpStatus = httpStatus;
+  if (options?.retryAt !== undefined) this.retryAt = options.retryAt;
+ }
+};
+export const TakeoutParseError = h.TakeoutParseError ??= class extends Error {
+ constructor(message, formatDrift = false, entryName) {
+  super(message);
+  this.name = 'TakeoutParseError';
+  this.formatDrift = formatDrift;
+  this.entryName = entryName;
+ }
+};
+export const ScanConnectionError = h.ScanConnectionError ??= class extends Error { constructor(platform,message){super(message);this.name='ScanConnectionError';this.platform=platform;} };
 export const resourceDownloadOrigin = uri => {try {const u=new URL(uri);return u.origin==='https://cdn.sanity.io'&&!u.username&&!u.password?'https://cdn.sanity.io/*':undefined;}catch{return undefined;}};
 export const hasResourceAccess = async () => {h.resourceAccessChecks=(h.resourceAccessChecks??0)+1;return h.resourceAccess ?? false;};
 export const requestResourceAuthorization = async uri => {
@@ -43,6 +60,14 @@ export const PLATFORM_HOSTS = {
  chatgpt:{pages:['https://chatgpt.com/*','https://chat.openai.com/*'],attachments:['https://images.openai.com/*']},
  grok:{pages:['https://grok.com/*'],attachments:['https://assets.grok.com/*']},
  claude:{pages:['https://claude.ai/*'],attachments:[]}
+};
+export const platformForPageUrl = url => {
+ if(!url) return null;
+ try {
+  const u = new URL(url);
+  if (u.protocol !== 'https:' || u.username || u.password) return null;
+  return SOURCE_PLATFORMS.find(p => PLATFORM_HOSTS[p].pages.some(page => new URL(page).origin === u.origin)) ?? null;
+ } catch { return null; }
 };
 export const DIRECT_WRITE_THRESHOLD = 20;
 export const DISCORD_URL = 'https://discord.gg/e3FgrXUZ8f';
@@ -125,7 +150,7 @@ export const reauthorizeDirHandle = async () => {
 };
 export const requestDirHandle = async () => {
  const handle=await globalThis.showDirectoryPicker({mode:'readwrite'});
- if(await handle.queryPermission({mode:'readwrite'})!=='granted')throw Error('Directory permission not granted');
+ if(await handle.queryPermission({mode:'readwrite'})!=='granted')throw new OperationError('DIRECTORY_PERMISSION_REQUIRED', 'Directory permission not granted');
  await saveStoredDirHandle(handle);h.activeDirectory=handle;h.pendingDirectory=null;return handle;
 };
 export const getDirHandle = () => h.activeDirectory ?? null;

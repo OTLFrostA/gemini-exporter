@@ -5,7 +5,8 @@ import { getOrCreateContentAccount } from '../api/contentAccountRegistry.js';
 import { readAccountParameters, DEFAULT_ACCOUNT_KEY, type Account } from '../../l2/accountRegistry.js';
 import { CrossWorldEvents } from '../../l1/protocol/gemini/protocol.js';
 import { chatgptAccountObservation } from '../../l1/client/chatgpt/accountObservation.js';
-import { detectSlotFromUrl } from '../../shared/utils/pathUtils.js';
+import { detectSlotFromUrl } from '../../l1/protocol/gemini/url.js';
+import { platformForPageUrl } from '../../shared/platformHosts.js';
 
 export interface AccountContext { readonly providerId: string; readonly accountId: string; readonly slot: string }
 let binding: { context: AccountContext; providerAccountId: string } | null = null;
@@ -19,7 +20,9 @@ export function setAccountChangedHandler(handler: () => void): void {
 let latestSignature: string | null = null;
 let pending: { signature: string; result: Promise<AccountContext | null> } | null = null;
 const providerNow = () => {
-    const host = typeof location === 'undefined' ? '' : location.hostname;
+    if (typeof location === 'undefined') return 'gemini';
+    if (location.href) return platformForPageUrl(location.href) ?? 'gemini';
+    const host = location.hostname;
     return host === 'grok.com' ? 'grok'
         : host === 'chatgpt.com' || host === 'chat.openai.com' ? 'chatgpt'
         : host === 'claude.ai' ? 'claude' : 'gemini';
@@ -59,11 +62,17 @@ function requestObservation(slot: string): Promise<Omit<Account, 'id'> | null> {
             unregister();
             if (error) reject(error); else resolve(observation);
         };
-        const receive = (event: MessageEvent): void => {
-            if (event.source !== window || event.origin !== location.origin
-                || event.data?.type !== CrossWorldEvents.ACCOUNT_OBSERVED) return;
-            const payload = event.data.payload;
-            if (payload?.requestId !== requestId || payload.slot !== slot) return;
+        const receive = (event: MessageEvent<unknown>): void => {
+            if (event.source !== window || event.origin !== location.origin) return;
+            const data = event.data;
+            if (!data || typeof data !== 'object' || Array.isArray(data)
+                || !('type' in data) || data.type !== CrossWorldEvents.ACCOUNT_OBSERVED
+                || !('payload' in data)) return;
+            const payload = data.payload;
+            if (!payload || typeof payload !== 'object' || Array.isArray(payload)
+                || !('requestId' in payload) || payload.requestId !== requestId
+                || !('slot' in payload) || payload.slot !== slot
+                || !('observation' in payload)) return;
             try { finish(payload.observation === null ? null : readAccountParameters(payload.observation)); }
             catch (error) { finish(null, error); }
         };

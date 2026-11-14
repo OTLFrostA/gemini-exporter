@@ -52,7 +52,8 @@ function setup(t: { after: (cleanup: () => void) => void }, overrides: {
             resolveCurrentAccount: overrides.account || (async () => account),
             isCurrentAccount: overrides.current || (() => true),
         },
-        'src/runtime/capabilities/assetFetcher.js': assets,
+        'src/l1/protocol/gemini/url.js': { extractConversationIdFromUrl: (pathname: string) => pathname.split('/app/')[1]?.split('/')[0] ?? null },
+        'src/l1/resources/gemini/assetFetcher.js': assets,
         'src/runtime/content/cleanupRegistry.js': { registerCleanup: (fn: () => void) => { cleanups.push(fn); return () => {}; } },
         'src/shared/utils/constants.js': { getExtensionVersion: () => 'v2' },
     }).init();
@@ -169,4 +170,86 @@ test('Content handler unregisters exactly its own listener during reinjection cl
     assert.equal(cleanups.length, 1);
     cleanups[0]();
     assert.deepEqual(removed, [listener]);
+});
+
+test('Shared multi-platform Content control router answers ping without auth I/O and guards navigation/reinjection races', async t => {
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    const originalLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+    const added: Function[] = [], removed: Function[] = [], cleanups: Array<() => void> = [];
+    (globalThis as any).location = {
+        href: 'https://chatgpt.com/c/6acffdc5-c4d0-83e8-8e1b-ba60979a618a',
+        pathname: '/c/6acffdc5-c4d0-83e8-8e1b-ba60979a618a',
+    };
+    (globalThis as any).chrome = { runtime: {
+        id: 'extension',
+        onMessage: { addListener: (fn: Function) => added.push(fn), removeListener: (fn: Function) => removed.push(fn) },
+    } };
+    t.after(() => {
+        cleanups.forEach(fn => fn());
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+        else Reflect.deleteProperty(globalThis, 'chrome');
+        if (originalLocation) Object.defineProperty(globalThis, 'location', originalLocation);
+        else Reflect.deleteProperty(globalThis, 'location');
+    });
+    let active = true;
+    let accountLookups = 0;
+    let resolveHook: (() => Promise<string | null>) = async () => { accountLookups++; return A; };
+    const originalLoad = Module._load;
+    Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
+        const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
+        if (resolved === path.resolve(root, 'src/runtime/content/cleanupRegistry.js')) {
+            return { registerCleanup: (fn: () => void) => { cleanups.push(fn); return () => {}; } };
+        }
+        if (resolved === path.resolve(root, 'src/shared/utils/constants.js')) {
+            return { getExtensionVersion: () => 'v2' };
+        }
+        if (request.startsWith('.')) assertRuntimeUnitBoundary(resolved, root);
+        return originalLoad.call(this, request, parent, ...args);
+    };
+    let controlRouter: typeof import('../src/runtime/content/controlRouter.js');
+    try {
+        const file = path.resolve(root, 'src/runtime/content/controlRouter.ts');
+        delete require.cache[require.resolve(file)];
+        controlRouter = require(file);
+    } finally { Module._load = originalLoad; }
+
+    controlRouter.registerContentControlRouter({
+        providerId: 'chatgpt',
+        isActive: () => active,
+        resolveAccountId: () => resolveHook(),
+        conversationIdFromPath: pathname => pathname.split('/c/')[1]?.split('/')[0] ?? null,
+    });
+    assert.equal(added.length, 1);
+    const send = (msg: unknown, sender: unknown = { id: 'extension' }) => new Promise<any>(resolve => {
+        assert.equal(added[0](msg, sender, resolve), true);
+    });
+
+    // 1. Ping responds immediately without triggering account/session network lookup
+    assert.deepEqual(await send({ action: 'ping' }), { ok: true, version: 'v2' });
+    assert.equal(accountLookups, 0);
+
+    // 2. Foreign sender fails closed
+    assert.match((await send({ action: 'ping' }, { id: 'evil' })).error, /Foreign extension sender/);
+
+    // 3. Atomic URL + Account snapshot succeeds when page is stable
+    assert.deepEqual(await send({ action: 'getAccountContext' }), {
+        ok: true,
+        accountContext: { accountId: A, providerId: 'chatgpt' },
+        conversationId: '6acffdc5-c4d0-83e8-8e1b-ba60979a618a',
+    });
+    assert.equal(accountLookups, 1);
+
+    // 4. SPA navigation mid-resolution rejects instead of pairing old account with new URL
+    resolveHook = async () => {
+        (globalThis as any).location.href = 'https://chatgpt.com/c/11111111-2222-4333-8444-555555555555';
+        (globalThis as any).location.pathname = '/c/11111111-2222-4333-8444-555555555555';
+        return A;
+    };
+    assert.match((await send({ action: 'getAccountContext' })).error, /Page changed/);
+
+    // 5. Superseded instance rejects after reinjection cleanup
+    active = false;
+    assert.match((await send({ action: 'getAccountContext' })).error, /superseded/);
+    cleanups[0]();
+    assert.deepEqual(removed, [added[0]]);
 });

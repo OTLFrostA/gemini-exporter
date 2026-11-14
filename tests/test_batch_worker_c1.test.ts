@@ -11,7 +11,7 @@ import { sourceDetail, sourceList, sourceMessage, activityHtml, takeoutArchive }
 import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { ConfirmedGeminiConversationNotFound } from '../src/l1/client/gemini/geminiClient.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
-import { importTakeout } from '../src/l1/imports/takeout/importTakeout.js';
+import { importTakeout } from '../src/application/imports/importTakeout.js';
 import { ingestDetail } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { getDetail, getIndex, getExportRecord, putExportRecord } from '../src/l3a/storageService.js';

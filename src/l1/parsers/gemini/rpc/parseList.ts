@@ -1,5 +1,6 @@
 import { geminiResponse, type GeminiResponseEnvelope } from './responseEnvelope.js';
-import { normId, isReservedRoute } from '../../../../shared/utils/pathUtils.js';
+import { normId } from '../../../../shared/utils/pathUtils.js';
+import { isReservedRoute } from '../../../protocol/gemini/url.js';
 import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
 import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
 export type ConversationListItem = GeminiIndexObservationInput & { id: string };

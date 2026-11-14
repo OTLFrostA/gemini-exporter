@@ -46,7 +46,7 @@ function markdownText(nodes: readonly (RootContent | PhrasingContent)[], source:
     }
     return parts.join('');
 }
-function nativeText(nodes: readonly GeminiStructuredNode[]): string | null {
+function nativeText(nodes: readonly GeminiStructuredNode[], inline = false): string | null {
     const parts: string[] = [];
     for (const node of nodes) {
         if (node.nodeType === 18) {
@@ -58,7 +58,7 @@ function nativeText(nodes: readonly GeminiStructuredNode[]): string | null {
                 parts.push(node.text.slice(cursor, span.start), `\u0000inline:${node.text.slice(span.start, span.end)}\u0000`);
                 cursor = span.end;
             }
-            parts.push(node.text.slice(cursor), ' ');
+            parts.push(node.text.slice(cursor), inline ? '' : ' ');
         } else if (node.nodeType === 1) {
             if (node.code.includes('\u0000') || node.info?.includes('\u0000')) return null;
             parts.push(`\u0000code:${node.info ?? ''}\u0000${node.code.replace(/\n$/, '')}\u0000`);
@@ -70,9 +70,9 @@ function nativeText(nodes: readonly GeminiStructuredNode[]): string | null {
         else if (node.nodeType === 'citation' || node.nodeType === 'sourceReference' || node.nodeType === 'citationGroup'
             || node.nodeType === 19 || node.nodeType === 0) continue;
         else if (node.nodeType === 'fragment' || node.nodeType === 'paragraph' || node.nodeType === 15) {
-            const children = nativeText(node.children);
+            const children = nativeText(node.children, node.nodeType === 'paragraph' || inline && node.nodeType === 'fragment');
             if (children === null) return null;
-            parts.push(children, ' ');
+            parts.push(children, inline ? '' : ' ');
         } else if (node.nodeType === 14 || node.nodeType === 20) {
             for (const item of node.items) {
                 const children = nativeText(item.children);
@@ -81,7 +81,7 @@ function nativeText(nodes: readonly GeminiStructuredNode[]): string | null {
             }
         } else if (node.nodeType === 17) {
             for (const row of node.rows) for (const cell of row.cells) {
-                const children = nativeText(cell.children);
+                const children = nativeText(cell.children, true);
                 if (children === null) return null;
                 parts.push(children, ' ');
             }

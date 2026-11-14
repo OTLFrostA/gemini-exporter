@@ -4,6 +4,7 @@ import type { Citation, TitleResult } from './extractors.js';
 import type { GeminiStructuredDocument, GeminiStructuredExtraction, GeminiCitationReference } from './structuredContent.js';
 import type { SourceGeneratedMediaIdentity } from '../../shared/resources/generationEvent.js';
 import type { classifyDetailBody } from './emptyDetail.js';
+import type { JsonValue } from '../../../../shared/utils/jsonTypes.js';
 
 /** Source extraction evidence, not the persisted Conversation/Message contract. */
 export interface GeminiAttachmentEvidence {
@@ -39,6 +40,19 @@ export interface GeminiDocumentEvidence {
     candidates?: string[];
     type: string;
     hasFabricatedText?: boolean;
+    /** A native document identity exists without an owned body in this response. */
+    contentMissing?: true;
+}
+
+/** Selected-candidate wire evidence for local failure diagnostics only. Never
+ * used to choose content, infer completeness, or persist Domain state. */
+export interface GeminiCandidateDiagnosticEvidence {
+    candidateIndex: number;
+    candidateId: string;
+    candidateText: string;
+    sourceMetadata?: JsonValue;
+    artifactPackets?: JsonValue;
+    groundingReferences?: JsonValue;
 }
 
 export interface GeminiMessageEvidence {
@@ -63,6 +77,7 @@ export interface GeminiMessageEvidence {
     structuredImages: ImageAttachment[];
     structuredContent?: GeminiStructuredDocument;
     structuredExtraction?: GeminiStructuredExtraction;
+    candidateEvidence?: GeminiCandidateDiagnosticEvidence;
     groundingCitationMarkers?: string[];
     /** Native marker/source bindings survive a rejected structured body. */
     groundingReferences?: GeminiCitationReference[];

@@ -12,6 +12,7 @@ import type { GlobalSettings } from '../../src/application/settings/index.js';
 import type { AIProvider, ListFailureDiagnostics } from '../../src/l1/client/aiProvider.js';
 import type { ExportArtifact } from '../../src/l4/artifacts.js';
 import type { SourceResourceContext } from '../../src/l1/resources/sourceResources.js';
+import type { DetailIngestResult } from '../../src/l2/ingestion.js';
 
 // Application unit-test ports. No production implementation from L1/L2/L3b/L4,
 // Storage or Runtime is loaded. Real inter-module contracts belong to integration tests.
@@ -23,6 +24,10 @@ export function stubModule(path: string, exports: object): void {
 
 export const account: Account = {
     id: '10000000-0000-4000-8000-000000000001', providerId: 'gemini', providerAccountId: 'fixture',
+};
+export const chatgptAccount: Account = {
+    id: '10000000-0000-4000-8000-000000000004', providerId: 'chatgpt',
+    providerAccountId: JSON.stringify(['user-1', 'workspace-1']),
 };
 export const key = (conversationId = 'first'): ConversationKey => ({ accountId: account.id, conversationId });
 export const address = (key: ConversationKey): string => JSON.stringify([key.accountId, key.conversationId]);
@@ -39,10 +44,19 @@ type RendererCall = { format: RenderFormat; key: string; locale?: 'zh' | 'en'; b
 type PlanCall = { format: ExportFormat; key: string; fileIds: string[]; preparedIds: string[] };
 type PackageCall = { delivery: ExportDelivery; groups: number; files: number };
 export const references = new Map<string, { referencedIds: string[]; imageIds: string[]; fileIds: string[] }>();
+const defaultDetailDecision: DetailIngestResult = { accepted: true, changed: true };
 export const state = {
     failRead: false, failSettingsRead: false, failSettingsWrite: false,
     failRecord: '', failDelivery: 0, failDelete: '', failPackage: false,
     failRender: '' as RenderFormat | '', failRenderKey: '' as string,
+    detailDecision: defaultDetailDecision,
+    detailError: null as Error | null,
+    admittedDetails: [] as Array<{ accountId: string; conversationId: string; detail: Omit<import('../../src/l2/conversationDetail.js').DomainConversationDetail, 'key'>; indexFields?: Omit<DomainConversationIndex, 'key'> }>,
+    notifications: [] as string[],
+    takeoutParsed: [] as import('../../src/l1/parsers/gemini/takeout/parseConversation.js').GeminiTakeoutParseResult[],
+    takeoutError: null as Error | null,
+    openaiParsed: { conversationCount: 0, conversations: [], skippedEmpty: 0, missingAssets: 0 } as import('../../src/l1/imports/openai/parseArchive.js').ParsedOpenAIArchive,
+    openaiError: null as Error | null,
     directory: {} as FileSystemDirectoryHandle | null,
     existingFiles: new Set<string>(),
     onDelivery: undefined as ((files: readonly ExportArtifact[]) => void | Promise<void>) | undefined,
@@ -86,7 +100,7 @@ const sourceErrorPort: Pick<typeof import('../../src/l1/client/sourceErrors.js')
     },
 };
 const domainChangePort: Pick<typeof import('../../src/runtime/api/domainChanges.js'), 'notifyDomainChanged'> = {
-    notifyDomainChanged(_accountId) {},
+    notifyDomainChanged(accountId) { state.notifications.push(accountId); },
 };
 const providerErrorPort: Pick<typeof import('../../src/l1/client/aiProvider.js'), 'ProviderListError'> = {
     ProviderListError: class extends Error {
@@ -148,19 +162,73 @@ stubModule('../../src/l3a/storageService.js', {
     },
 });
 stubModule('../../src/runtime/api/accountRegistry.js', { async getAccount(id: string) {
-    return state.accountOverride === undefined ? { ...account, id } : state.accountOverride;
+    if (state.accountOverride !== undefined) return state.accountOverride;
+    if (id === chatgptAccount.id) return { ...chatgptAccount };
+    return { ...account, id };
 } });
+stubModule('../../src/l2/ingestion.js', {
+    async ingestDetail(accountId: string, conversationId: string,
+        detail: Omit<import('../../src/l2/conversationDetail.js').DomainConversationDetail, 'key'>,
+        indexFields?: Omit<DomainConversationIndex, 'key'>) {
+        if (state.detailError) throw state.detailError;
+        state.admittedDetails.push({ accountId, conversationId, detail, indexFields });
+        return { ...state.detailDecision };
+    },
+});
+stubModule('../../src/l1/imports/takeout/readArchive.js', {
+    async parseGeminiTakeoutZipArchive(_bytes: unknown, context: { onArchiveReady?: () => void; onProgress?: (completed: number, total: number) => void }) {
+        if (state.takeoutError) throw state.takeoutError;
+        context.onArchiveReady?.();
+        context.onProgress?.(state.takeoutParsed.length, Math.max(1, state.takeoutParsed.length));
+        return state.takeoutParsed;
+    },
+    async readTakeoutBytes(file: { async?: (type: string) => Promise<unknown> }) {
+        const bytes = await file.async?.('uint8array');
+        return bytes instanceof Uint8Array && bytes.byteLength > 0 ? bytes : null;
+    },
+});
+stubModule('../../src/l1/imports/openai/parseArchive.js', {
+    async parseOpenAIExportArchive(_file: unknown, _expectedProviderAccountId: string, onDecoded?: () => void) {
+        if (state.openaiError) throw state.openaiError;
+        onDecoded?.();
+        return state.openaiParsed;
+    },
+});
 stubModule('../../src/l1/client/providerRegistry.js', {
     ProviderRegistry: { get() { return provider; }, register() {} },
 });
 stubModule('../../src/l1/client/gemini/geminiProvider.js', { defaultGeminiProvider: provider });
 stubModule('../../src/l1/resources/sourceResources.js', {
     createSourceResourceContext(): SourceResourceContext {
+        const readers = new Map<string, Map<string, () => Promise<{ bytes: Uint8Array }>>>();
+        const idOf = (k: ConversationKey) => JSON.stringify([k.accountId, k.conversationId]);
         const context = {
+            retain(k: ConversationKey, assetId: string, read: () => Promise<{ bytes: Uint8Array }>) {
+                const map = readers.get(idOf(k)) ?? new Map<string, () => Promise<{ bytes: Uint8Array }>>();
+                map.set(assetId, read);
+                readers.set(idOf(k), map);
+            },
+            retainParsed(k: ConversationKey, parsed: import('../../src/l1/parsers/parsingResult.js').SourceConversationParseResult) {
+                const map = new Map<string, () => Promise<{ bytes: Uint8Array }>>();
+                for (const asset of parsed.conversation.detail.assets) {
+                    const b64 = parsed.acquisitionHints[asset.id]?.dataBase64;
+                    if (b64) map.set(asset.id, async () => ({ bytes: Uint8Array.from(atob(b64), c => c.charCodeAt(0)) }));
+                }
+                readers.set(idOf(k), map);
+            },
+            has(k: ConversationKey, assetId: string) {
+                return readers.get(idOf(k))?.has(assetId) === true;
+            },
+            async acquire(k: ConversationKey, asset: { id: string }) {
+                const fn = readers.get(idOf(k))?.get(asset.id);
+                if (!fn) throw new Error('No resource reader');
+                return fn();
+            },
             releaseConversation(conversationKey: ConversationKey) {
+                readers.delete(idOf(conversationKey));
                 state.releasedKeys.push(conversationKey.conversationId);
             },
-            release() { state.releasedContexts++; },
+            release() { readers.clear(); state.releasedContexts++; },
         } as unknown as SourceResourceContext;
         return context;
     },
@@ -345,6 +413,9 @@ export function reset(): void {
     Object.assign(state, {
         failRead: false, failSettingsRead: false, failSettingsWrite: false,
         failRecord: '', failDelivery: 0, failDelete: '', failPackage: false, failRender: '', failRenderKey: '',
+        detailDecision: { accepted: true, changed: true }, detailError: null, admittedDetails: [], notifications: [],
+        takeoutParsed: [], takeoutError: null,
+        openaiParsed: { conversationCount: 0, conversations: [], skippedEmpty: 0, missingAssets: 0 }, openaiError: null,
         existingFiles: new Set<string>(), directory: {}, onDelivery: undefined, onPackage: undefined, sourceContext: undefined,
         releasedKeys: [], releasedContexts: 0,
         pdfPrepared: [], pdfBindings: {}, pdfDiagnostics: [], htmlDiagnostics: [],

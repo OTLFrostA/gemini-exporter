@@ -15,9 +15,9 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const manifest = file => JSON.parse(readFileSync(path.join(root, file), 'utf8')).suites;
 const application = ['tests/application_export.test.ts', 'tests/application_sync.test.ts',
-    'tests/application_settings_cleanup.test.ts'];
+    'tests/application_settings_cleanup.test.ts', 'tests/application_imports.test.ts'];
 const runtime = ['tests/browser_runtime_v2.test.ts', 'tests/background_modules.test.ts',
-    'tests/tab_service.test.ts', 'tests/asset_fetcher_cors_fallback.test.ts',
+    'tests/tab_service.test.ts',
     'tests/content_leak_fix.test.ts', 'tests/seam_s1_content_router.test.ts',
     'tests/seam_s2_background_router.test.ts'];
 

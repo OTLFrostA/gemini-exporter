@@ -2,6 +2,7 @@ import type { GeminiStructuredDocument, GeminiStructuredNode } from './structure
 import { isInternalChipUrl as canonicalIsInternalChipUrl } from "../../shared/chipUtils.js";
 import { isJsonValue, type JsonValue } from "../../../../shared/utils/jsonTypes.js";
 import { payloadToMs } from "./payload.js";
+import { decodeDocumentLinks } from './cardNodes.js';
 
 export interface ImageAttachment {
     /** JSON-serialized matched wire tuple; never an unvalidated runtime value. */
@@ -569,18 +570,18 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
                     const chip = fields[doc.CHIP_URL];
                     const chipParts = isUnknownArray(chip) ? chip : null;
                     const chipUrl = chipParts?.[0];
-                    const id = fields[doc.ID];
+                    const linkedDocument = decodeDocumentLinks([fields]) !== null;
+                    const id = fields[linkedDocument ? 1 : doc.ID];
                     const rawTitle = fields[doc.TITLE];
                     if (typeof chipUrl !== "string" || !chipUrl.includes("immersive_entry_chip")
                         || typeof id !== "string" || typeof rawTitle !== "string") continue;
 
-                    const title = researchPrefixRe.test(rawTitle) ? "" : rawTitle;
                     const rawTimestamp = fields[doc.TIMESTAMP];
                     const createdAt = payloadToMs(isUnknownArray(rawTimestamp) ? rawTimestamp[0] : undefined) ?? undefined;
                     const rawContentId = fields[doc.CONTENT_ID];
-                    const contentId = typeof rawContentId === "string" && rawContentId.length > 10
+                    const contentId = !linkedDocument && typeof rawContentId === "string" && rawContentId.length > 10
                         ? rawContentId : undefined;
-                    pushMeta({ id, title, chipUrl, createdAt, contentId });
+                    pushMeta({ id, title: rawTitle, chipUrl, createdAt, contentId, source: 'strict' });
                 }
             }
         });
@@ -654,6 +655,18 @@ export function createDocumentReader(root: unknown): GeminiDocumentReader {
             index();
             if (matches.has(id)) return matches.get(id) ?? null;
             const target = id.replace(/^c_/, '');
+            const exact = candidates.filter(({ identifiers }) => identifiers.some(value => value === id || value === target));
+            if (exact.length) {
+                const records = exact.map(({ node }) => {
+                    let sections = parsed.get(node);
+                    if (!sections) { sections = parseDocSections(node); parsed.set(node, sections); }
+                    return sections;
+                });
+                const first = records[0];
+                const result = records.every(record => JSON.stringify(record) === JSON.stringify(first)) ? first : null;
+                matches.set(id, result);
+                return result;
+            }
             for (const { node, identifiers } of candidates) {
                 // Preserve source order, including the established short substring fallback.
                 const value = identifiers.find(value => value === id || value === target

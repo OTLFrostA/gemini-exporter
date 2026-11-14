@@ -123,7 +123,7 @@ test('disabled and non-Markdown Live Save never check directory or invoke an exp
         const live = load('src/runtime/background/liveSaveHandler.ts', {
             'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }), isLiveSaveEffective: mockLiveSaveEffective },
             'src/l3a/storageService.js': { getDirectoryHandle: () => assert.fail('No directory lookup for inactive Live Save') },
-            'src/application/export/runExport.js': { runExport: () => assert.fail('Unexpected second writer') },
+            'src/application/export/runMarkdownExport.js': { runMarkdownExport: () => assert.fail('Unexpected second writer') },
             'src/runtime/background/keepAlive.js': { startKeepAlive: () => assert.fail('No keepalive for inactive export') },
         });
         assert.equal(await live.runLiveSave(key), null);
@@ -136,7 +136,7 @@ test('missing or ungranted directory fails without mutating user Settings or pro
         const live = load('src/runtime/background/liveSaveHandler.ts', {
             'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }), isLiveSaveEffective: mockLiveSaveEffective },
             'src/l3a/storageService.js': { getDirectoryHandle: async () => handle },
-            'src/application/export/runExport.js': { runExport: () => assert.fail('Export must not run') },
+            'src/application/export/runMarkdownExport.js': { runMarkdownExport: () => assert.fail('Export must not run') },
             'src/runtime/background/keepAlive.js': { startKeepAlive: () => assert.fail('KeepAlive must not start') },
         });
         await assert.rejects(live.runLiveSave(key), /directory|Reauthorize/);
@@ -153,7 +153,7 @@ test('Live Save calls the single Application Export with fixed Markdown/Folder a
             assert.deepEqual(request, { mode: 'readwrite' });
             return 'granted';
         }, requestPermission: () => assert.fail('Worker must not request user permission') }) },
-        'src/application/export/runExport.js': { runExport: async (request: unknown) => {
+        'src/application/export/runMarkdownExport.js': { runMarkdownExport: async (request: unknown) => {
             steps.push('export');
             assert.deepEqual(request, { keys: [key], format: 'markdown', delivery: 'folderWriter', includeAssets: false, skipUnchanged: false });
             return result;

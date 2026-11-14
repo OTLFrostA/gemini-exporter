@@ -233,6 +233,56 @@ CJK and non-BMP counterexamples prevent a blanket coordinate adjustment from
 passing as a repair. The report supplies decoded adapter inputs for these 31
 occurrences, not their original JSPB or a corrected-coordinate oracle.
 
+### Candidate source evidence and document ownership
+
+Source tables now accept the same exact identity grammar as native annotations:
+`spp_`, `sp_`, `cit_` and `0`. Prefixes are never translated, and an unselected
+candidate cannot supply a binding. Conflicting records and invalid HTTP URLs
+remain rejected. A zero-width `0` annotation without its own source record is
+still incomplete; it is not assumed to be a harmless sentinel.
+
+Invalid source coordinates can be recovered when the selected candidate supplies
+an independently verifiable quote. Its wire header must agree with both the
+UTF-8 byte positions and UTF-16 substring in the selected Markdown. The supported
+single-paragraph quote must then have exactly one visible match across all native
+text nodes, and every ID on the annotation must agree on that node and span.
+Valid coordinates remain unchanged. Repeated text, different punctuation/case,
+changed code whitespace, conflicting quotes, missing identities and invalid
+formatting cannot be repaired this way. A captured source table with six entries
+confirms the header shape; authored positive/negative tests establish the recovery
+contract. The old 44 partial source occurrences omit those headers and cannot
+retroactively establish a recovered span.
+
+Known document chips now read the ID from their validated schema, rather than
+allowing a flattened response ID and assistant narrative to become a document.
+Exact document IDs precede legacy substring matching; conflicting exact bodies
+are ambiguous. Strict chip metadata cannot borrow a body by title or substring.
+Cleaning a research-prompt title preserves its strict identity and cannot enable
+a flattened response-ID/narrative fallback.
+An explicit chip without owned content remains a missing document and produces
+`GEMINI_DOCUMENT_BINDING_FALLBACK`, partial quality and retry eligibility. One
+owned packet cannot hide another chip whose body is absent.
+
+The local replay contains native documents and source registries, but not the
+original candidate artifact packets. It therefore exposes missing artifact bodies
+for all 34 internal-document-chip occurrences: 27 had previously appeared complete,
+and seven had received heuristic documents made from assistant text. This corrects
+the completeness measurement; it does not demonstrate that 34 original full-RPC
+responses lacked their document bodies. Owned-packet inputs continue to recover
+their actual bodies and complete successfully.
+
+`gemini_source_evidence.test.ts` uses the common `coverageWire`/`citationText`
+fixture core to cover source identity, quote verification and conservative
+document binding. The physical export test additionally checks a missing-body
+receipt, same-version retry, an exact owned file in the repaired ZIP, and skipping
+only after confirmed completion. Original wire evidence is never mutated.
+
+Successful decoding retains L1-only raw document evidence so adapter/source or
+document-only failures can include the selected candidate's source table,
+artifact packets and grounding references before filtering. These raw fields
+remain local diagnostic data; they do not enter Domain or persisted conversation
+state. A fresh diagnostic is required to investigate the old missing evidence.
+
 ### Executable coverage and private replay
 
 `remainingFallbackCases.ts` extends the existing `detailGen` and fixture catalog.
@@ -270,15 +320,20 @@ framing, then production parse → merge → Domain closure → Markdown:
 
 | Result | Occurrences |
 | --- | ---: |
-| Native or authoritative Markdown, without a body/source fallback warning | 152 |
+| Native or authoritative Markdown, complete | 119 |
+| Native body retained, explicit document body missing in replay | 34 |
 | Native body retained, exact source anchoring/binding incomplete | 44 |
-| Whole-body fallback retained | 9 |
+| Whole-body fallback retained | 8 |
 | Domain/render exceptions | 0 |
 
-Thus 196/205 (95.6%) avoid whole-body fallback. **145** become complete; the
-other seven warning-free bodies retain existing heuristic-document partial
-quality. The nine unmatched alternative-body records retain the original
-fallback rather than guessing ownership or concatenating versions. These counts
+Thus 197/205 (96.1%) avoid whole-body fallback. The remaining 86 occurrences are
+partial and retryable. The source cases comprise 32 range-overflow occurrences
+and 12 unbound-identity occurrences. One additional alternative now matches after
+fixing an artificial space inserted between composite inline text fragments and
+adjacent citations/punctuation. Separate paragraphs retain their boundaries;
+inline code retains its whitespace. The other eight alternative-body records
+involve Markdown emphasis without enough independent native style evidence and
+retain the original fallback. These counts
 are warning occurrences, not unique conversations or a full-fidelity export
 rate. They do not prove original full-RPC framing, downloaded attachment bytes,
 widget visual fidelity or exact citation recovery.
@@ -288,3 +343,8 @@ containing 76 assistant replies), all previously successful outputs remain
 unchanged; four previous fallback inputs now retain their native bodies. Resource
 registries remain unchanged. The complete Tier 1 and isolated Tier 2 execution
 results are recorded with the PR; a partial Tier 2 run is never reported as a pass.
+
+The final source integrated with current main passes `npm test`: 402 unit-test
+files plus Python/static checks, TypeScript, the zero-any gate, production build,
+bundled-font checks and all 220 Playwright tests. The prior live Tier 2 setup
+failures remain unresolved; this does not establish a passing live account run.

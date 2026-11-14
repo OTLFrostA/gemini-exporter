@@ -2,7 +2,7 @@ import { notifyDomainChanged } from '../api/domainChanges.js';
 import { isDirectoryHandle } from '../capabilities/directoryHandle.js';
 import { getSettings, isLiveSaveEffective } from '../../application/settings/index.js';
 import { refreshConversation } from '../../application/conversations/refreshConversation.js';
-import { runExport } from '../../application/export/runExport.js';
+import { runMarkdownExport } from '../../application/export/runMarkdownExport.js';
 import { getDirectoryHandle } from '../../l3a/storageService.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
 import type { ExportResult } from '../../application/export/types.js';
@@ -21,7 +21,7 @@ async function exportLiveSave(key: ConversationKey, refreshDetail: boolean): Pro
     // during this one execution cannot be confused with a delivery receipt.
     const stopKeepAlive = startKeepAlive();
     try {
-        return await runExport({ keys: [key], format: 'markdown', delivery: 'folderWriter',
+        return await runMarkdownExport({ keys: [key], format: 'markdown', delivery: 'folderWriter',
             includeAssets: settings.includeAssets, skipUnchanged: false }, { refreshDetail });
     } finally {
         stopKeepAlive();

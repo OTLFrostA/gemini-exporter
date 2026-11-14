@@ -6,7 +6,7 @@ import type { DomainMessage, DomainCitation, DomainAsset } from '../src/l2/conve
 import type { ConversationKey } from '../src/l2/conversationKey.js';
 import type { ExportRequest, ExportResult, ExportProgress, ExportRecord } from '../src/application/export/types.js';
 import type { ScanResult, ScanProgress } from '../src/application/sync/scanController.js';
-import type { TakeoutParseResult } from '../src/l1/imports/takeout/importTakeout.js';
+import type { TakeoutParseResult } from '../src/application/imports/importTakeout.js';
 import type { DirectoryHandle } from '../src/runtime/capabilities/directoryHandle.js';
 import { ConversationViewState } from '../src/ui/options/state/conversationsStore.js';
 import * as Directory from '../src/runtime/capabilities/dirHandleController.js';

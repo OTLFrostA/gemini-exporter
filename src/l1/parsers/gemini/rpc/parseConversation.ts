@@ -113,6 +113,19 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
         const sourceRef = { providerId: 'gemini', providerMessageId: message.id, locator: `messages[${index}]` };
         const { citations, legacyCitations, sourceCitations } = citationsOf(message);
         const extraction = message.structuredExtraction;
+        const uncertainDocuments = message.documents?.filter(document => document.contentMissing || document.hasFabricatedText) ?? [];
+        if (uncertainDocuments.length) {
+            if (uncertainDocuments.some(document => document.contentMissing)) unrepresentedContent = true;
+            const rawDocument = extraction?.status === 'decoded' || extraction?.status === 'decode_rejected' ? extraction.rawDocument : undefined;
+            contentDiagnostics.push({ severity: 'warning', code: 'GEMINI_DOCUMENT_BINDING_FALLBACK',
+                message: 'Native document body is missing or cannot be bound with verified ownership', sourceRef,
+                details: { reason: uncertainDocuments.some(document => document.contentMissing) ? 'document_content_missing' : 'document_binding_unverified',
+                    documents: uncertainDocuments.map(document => ({ id: document.id, title: document.title,
+                        contentMissing: document.contentMissing === true, hasFabricatedText: document.hasFabricatedText === true })),
+                    ...(rawDocument !== undefined ? { rawDocument } : {}),
+                    ...(message.candidateEvidence ? { candidateEvidence: { ...message.candidateEvidence } } : {}),
+                } });
+        }
         if (extraction?.status === 'decode_rejected') unrepresentedContent = true;
         if (extraction && extraction.status !== 'decoded') contentDiagnostics.push({
             severity: extraction.status === 'decode_rejected' ? 'warning' : 'info',
@@ -122,6 +135,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             details: { reason: extraction.status, ...(extraction.status === 'decode_rejected' ? {
                 issue: { ...extraction.issue }, rawDocument: extraction.rawDocument,
                 documentSource: 'turn[3][12]', candidateIndex: 0, fallbackMarkdown: message.content,
+                ...(message.candidateEvidence ? { candidateEvidence: { ...message.candidateEvidence } } : {}),
                 ...(sourceCitations.size ? { sourceCitationsJson: JSON.stringify([...sourceCitations]) } : {}),
             } : {}) },
         });
@@ -132,6 +146,9 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             content: message.role === 'user' ? parseGeminiPrompt(message.content)
                 : parseGeminiBody(message.content, context.bodyRepresentation === 'markdown' ? undefined : message.structuredContent,
                     { diagnostics: contentDiagnostics, sourceRef, sourceCitations, recoverLiteralMath: context.bodyRepresentation !== 'structured',
+                        rawDocument: extraction?.status === 'decoded' ? extraction.rawDocument : undefined,
+                        candidateEvidence: message.candidateEvidence,
+                        sourceAttributions: message.sourceAttributions,
                         onStructuredFallback: () => { unrepresentedContent = true; } }),
             ...(message.timestamp !== null && Number.isFinite(message.timestamp) ? { timestamp: message.timestamp } : {}),
             ...(message.model ? { model: message.model } : {}),

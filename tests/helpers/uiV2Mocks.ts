@@ -55,7 +55,7 @@ export function assertUiNodeIsolation(): void {
         const normalized = filename.replace(/\\/g, '/');
         if (!normalized.startsWith(root)) continue;
         const owner = normalized.slice(root.length);
-        if (!owner.startsWith('ui/') && !mockedFiles.has(filename)) {
+        if (!owner.startsWith('ui/') && !owner.startsWith('shared/') && !mockedFiles.has(filename)) {
             throw new Error(`Unmocked non-UI production import: ${owner}`);
         }
     }
@@ -69,6 +69,9 @@ export function installUiV2Mocks(): void {
     };
     stub('../../src/l2/conversationIndex.js', dates);
     stub('../../src/application/export/runExport.js', { runExport: mockRunExport });
+    stub('../../src/application/export/fonts.js', {
+        warmLocalFontCache: () => unconfigured('Application.warmLocalFontCache'),
+    });
     stub('../../src/application/sync/scanController.js', {
         scanAll: () => unconfigured('Application.scanAll'),
     });
@@ -87,12 +90,19 @@ export function installUiV2Mocks(): void {
     stub('../../src/runtime/capabilities/tabService.js', {
         resolveScanTarget: () => unconfigured('Runtime.resolveScanTarget'),
     });
-    stub('../../src/l3a/storageService.js', {
-        listIndexes: () => unconfigured('Storage.listIndexes'),
-        listExportRecords: () => unconfigured('Storage.listExportRecords'),
+    stub('../../src/application/conversations/catalogQueries.js', {
+        getIndex: () => unconfigured('Application.getIndex'),
+        listIndexes: () => unconfigured('Application.listIndexes'),
+        listExportRecords: () => unconfigured('Application.listExportRecords'),
     });
-    stub('../../src/l1/imports/takeout/importTakeout.js', {
-        importTakeout: () => unconfigured('L1.importTakeout'),
+    stub('../../src/application/imports/importTakeout.js', {
+        importTakeout: () => unconfigured('Application.importTakeout'),
+    });
+    stub('../../src/application/imports/importOpenAI.js', {
+        importOpenAI: () => unconfigured('Application.importOpenAI'),
+    });
+    stub('../../src/application/resources.js', {
+        createSourceResourceContext: () => unconfigured('Application.createSourceResourceContext'),
     });
     stub('../../src/shared/utils/pathUtils.js', {
         isVersionGreater: (one: string, two: string) => {

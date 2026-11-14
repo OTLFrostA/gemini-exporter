@@ -1,8 +1,12 @@
 import { GROK_SOURCE_EVENT, grokRequest } from './observation.js';
 import { grokAccount } from '../../parsers/grok/source.js';
 
+const HOOK_FLAG = '__gemExporterGrokHookInstalled';
+
 /** Only completed native reads trigger acquisition. Request identity is checked at both ends. */
 export function installGrokHook(): void {
+    if (Reflect.get(window, HOOK_FLAG) === true) return;
+    Reflect.set(window, HOOK_FLAG, true);
     const nativeFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
         const url = new URL(input instanceof Request ? input.url : String(input), location.href).href;
@@ -35,8 +39,9 @@ export function installGrokHook(): void {
                 text += decoder.decode();
             } finally { void reader.cancel().catch(() => {}); reader.releaseLock(); }
             if (await identity() !== captured) return;
+            const responseBody: unknown = request.kind === 'list' ? JSON.parse(text) : null;
             window.postMessage({ type: GROK_SOURCE_EVENT, payload: { url, method, owner: captured,
-                status: response.status, responseBody: request.kind === 'list' ? JSON.parse(text) : null } }, location.origin);
+                status: response.status, responseBody } }, location.origin);
         })().catch(error => console.debug('[Grok source]', error));
         return response;
     };

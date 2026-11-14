@@ -3,6 +3,7 @@ import type { DomainCitation } from '../../../../l2/conversationDetail.js';
 import type { InlineNode } from '../../../../l2/content/inline.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../shared/markdown/index.js';
 import { convertHtmlToMarkdown } from '../../shared/html/htmlToMarkdown.js';
+import { validGeminiTextRange } from './sourceRanges.js';
 import type {
     GeminiAnnotation,
     GeminiStructuredDocument,
@@ -121,14 +122,7 @@ export function convertGeminiInlines(
 
     // Validate annotations integrity and bounds
     for (const a of annotations) {
-        if (!Number.isInteger(a.start) || !Number.isInteger(a.end) || a.start < 0 || a.end > text.length || a.start > a.end) {
-            return null;
-        }
-        // Every annotation slices this UTF-16 text, including formatting/link spans.
-        for (const boundary of [a.start, a.end]) {
-            const before = text.charCodeAt(boundary - 1), after = text.charCodeAt(boundary);
-            if (before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff) return null;
-        }
+        if (!validGeminiTextRange(text, a.start, a.end)) return null;
         // Supported inline annotation types:
         // 0: strong (bold)
         // 2: emphasis (italic)

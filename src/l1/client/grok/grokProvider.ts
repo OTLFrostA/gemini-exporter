@@ -81,8 +81,9 @@ export class GrokProvider implements AIProvider {
         const responses: unknown[] = [];
         for (let offset = 0; offset < ids.length; offset += 100) {
             const batch = grokObject(await read(base + '/load-responses', { responseIds: ids.slice(offset, offset + 100) }));
-            if (!Array.isArray(batch.responses)) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Invalid Grok response batch');
-            responses.push(...batch.responses);
+            const batchItems: unknown = batch.responses;
+            if (!Array.isArray(batchItems)) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Invalid Grok response batch');
+            for (const item of batchItems as readonly unknown[]) responses.push(item);
         }
         const captured = await this.images(id, account.providerAccountId);
         signal?.throwIfAborted();
@@ -90,7 +91,7 @@ export class GrokProvider implements AIProvider {
             const response = responses.find(value => grokObject(value).responseId === image.responseId);
             if (!response) continue;
             const row = grokObject(response);
-            const previous = Array.isArray(row.capturedImages) ? row.capturedImages : [];
+            const previous: readonly unknown[] = Array.isArray(row.capturedImages) ? (row.capturedImages as readonly unknown[]) : [];
             row.capturedImages = [...previous, image];
         }
         // A changing tree is a mixed snapshot; retry on the next operation.
