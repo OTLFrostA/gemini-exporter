@@ -1,5 +1,6 @@
-import { validateZipFile, validateZipEntries } from '../../parsers/shared/archive/zipBombGuard.js';
+import { isRecord } from '../../../shared/utils/typeGuards.js';
 import { parseGeminiTakeoutArchiveAsync, type GeminiTakeoutRaw, type GeminiTakeoutParseContext, type GeminiTakeoutParseResult, type TakeoutSourceFile } from '../../parsers/gemini/takeout/parseConversation.js';
+import { loadValidatedZipInventory } from '../shared/zipArchive.js';
 
 export type GeminiTakeoutZipRaw = Uint8Array | ArrayBuffer | Blob;
 type TakeoutArchiveReader = (bytes: GeminiTakeoutZipRaw) => Promise<unknown>;
@@ -9,24 +10,15 @@ interface GeminiTakeoutZipContext extends GeminiTakeoutParseContext {
     onArchiveReady?: () => void;
     onProgress?: (completed: number, total: number) => void;
 }
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-async function defaultArchiveReader(bytes: GeminiTakeoutZipRaw): Promise<unknown> {
-    const loader: unknown = Reflect.get(globalThis, 'JSZip');
-    if ((!isRecord(loader) && typeof loader !== 'function') || !('loadAsync' in loader) || typeof loader.loadAsync !== 'function') throw new TypeError('Takeout ZIP requires an archive reader');
-    const archive: unknown = await Reflect.apply(loader.loadAsync, loader, [bytes]);
-    return archive;
-}
+
 async function decodeArchive(bytes: GeminiTakeoutZipRaw, context: GeminiTakeoutZipContext): Promise<GeminiTakeoutRaw> {
     if (context.providerId !== 'gemini') throw new TypeError('Gemini Takeout parser requires providerId gemini');
-    const suppliedArchive = 'files' in bytes;
-    if (!suppliedArchive) validateZipFile(bytes);
-    const archive = suppliedArchive ? bytes : await (context.readArchive ?? defaultArchiveReader)(bytes);
-    if (!isRecord(archive) || !isRecord(archive.files)) throw new TypeError('Invalid Takeout archive inventory');
-    validateZipEntries(archive);
+    const inventory = await loadValidatedZipInventory(bytes, {
+        readArchive: context.readArchive,
+        invalidInventoryMessage: 'Invalid Takeout archive inventory',
+    });
     const files: Record<string, TakeoutSourceFile> = {};
-    for (const [path, entry] of Object.entries(archive.files)) {
+    for (const [path, entry] of Object.entries(inventory)) {
         if (!isRecord(entry) || (entry.dir !== undefined && typeof entry.dir !== 'boolean')) continue;
         const read = entry.async;
         const data = isRecord(entry._data) ? entry._data : null;

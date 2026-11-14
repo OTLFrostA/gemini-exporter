@@ -1,4 +1,5 @@
-import { PLATFORM_HOSTS, isSourcePlatform } from '../../shared/platformHosts.js';
+import { PLATFORM_HOSTS, isSourcePlatform, platformDisplayName, type SourcePlatform } from '../../shared/platformHosts.js';
+import { readBoundAccountContext } from '../../shared/types/accountContextReply.js';
 import { preparePlatformTab } from './platformInjection.js';
 import { ScanConnectionError } from './scanConnection.js';
 import { OperationError } from '../../shared/errors/operationError.js';
@@ -36,17 +37,19 @@ export async function sendTabMessage(tabId: number, message: unknown, timeout = 
         }
     });
 }
-function readBoundContext(response: unknown) {
-    if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true
-        || !('accountContext' in response)) return null;
-    const context = response.accountContext;
-    if (!context || typeof context !== 'object' || !('accountId' in context) || !('providerId' in context)) return null;
-    return context;
+
+function matchesBoundTab(response: unknown, accountId: string, providerId: string): boolean {
+    const context = readBoundAccountContext(response, providerId);
+    return context !== null && context.accountId === accountId;
 }
-function matches(response: unknown, accountId: string, providerId: string): boolean {
-    const context = readBoundContext(response);
-    return context !== null && context.accountId === accountId && context.providerId === providerId;
+
+function throwUnconnectedScanTarget(platform: SourcePlatform): never {
+    const message = platform === 'gemini'
+        ? 'Open Gemini, log in and refresh the page before scanning.'
+        : `Open ${platformDisplayName(platform)}, log in and connect the selected account before scanning.`;
+    throw new ScanConnectionError(platform, message);
 }
+
 /** Route only through a Content document bound to the selected provider Account. */
 export async function resolveAccountTab(accountId: string): Promise<AccountTab> {
     if (!isAccountId(accountId)) throw new TypeError('Tab routing requires an Account UUID');
@@ -60,16 +63,19 @@ export async function resolveAccountTab(accountId: string): Promise<AccountTab> 
         const id = tab.id;
         if (id === undefined) continue;
         try {
-            if (matches(await sendTabMessage(id, { action: 'getAccountContext' }, 3000), accountId, account.providerId)) return { ...tab, id };
+            if (matchesBoundTab(await sendTabMessage(id, { action: 'getAccountContext' }, 3000), accountId, account.providerId)) {
+                return { ...tab, id };
+            }
         } catch { /* Closed, navigating or uninjected tabs cannot be execution targets. */ }
     }
     throw new Error('No open Provider Tab matches this Account');
 }
-/** Resolve verified Gemini Content bindings or a granted ChatGPT session; never infer identity from a URL slot. */
+
+/** Resolve verified Gemini Content bindings or granted optional-platform sessions; never infer identity from a URL slot. */
 export async function resolveScanTarget(preferredAccountId?: string): Promise<string> {
     await ensureV2Ready();
     const accounts = new Set<string>();
-    const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+    const tabs = await chrome.tabs.query({ url: PLATFORM_HOSTS.gemini.pages[0] });
     for (const tab of tabs) {
         if (tab.id === undefined) continue;
         try {
@@ -80,18 +86,17 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
                 await preparePlatformTab('gemini', tab.id);
                 response = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
             }
-            const context = readBoundContext(response);
+            const context = readBoundAccountContext(response, 'gemini');
             if (!context || !isAccountId(context.accountId)) continue;
             const account = await getAccount(context.accountId);
             if (account?.providerId === 'gemini' && account.providerAccountId !== 'default'
-                && context.providerId === 'gemini' && account.id === context.accountId) accounts.add(account.id);
+                && account.id === context.accountId) accounts.add(account.id);
         } catch { /* Unavailable Content is not a scan source. */ }
     }
     const preferred = preferredAccountId ? await getAccount(preferredAccountId) : null;
-    // A selected Gemini source needs no ChatGPT network access.
     if (preferred?.providerId === 'gemini') {
         if (accounts.has(preferred.id)) return preferred.id;
-        throw new ScanConnectionError('gemini', 'Open Gemini, log in and refresh the page before scanning.');
+        throwUnconnectedScanTarget('gemini');
     }
     const discoveries = [
         { providerId: 'chatgpt', run: discoverChatGPTAccounts },
@@ -109,15 +114,16 @@ export async function resolveScanTarget(preferredAccountId?: string): Promise<st
         }
         for (const account of outcome.value) accounts.add(account.id);
     }
-    if (preferred?.providerId === 'grok' && !accounts.has(preferred.id)) throw new ScanConnectionError('grok', 'Open Grok, log in and connect the selected account before scanning.');
     if (preferredAccountId && accounts.has(preferredAccountId)) return preferredAccountId;
-    if (preferred?.providerId === 'chatgpt') throw new ScanConnectionError('chatgpt', 'Open ChatGPT, log in and connect the selected account before scanning.');
-    if (preferred?.providerId === 'claude') throw new ScanConnectionError('claude', 'Open Claude, log in and connect the selected account before scanning.');
+    if (preferred && isSourcePlatform(preferred.providerId)) {
+        throwUnconnectedScanTarget(preferred.providerId);
+    }
     if (accounts.size === 1) return [...accounts][0];
     throw new OperationError(accounts.size ? 'MULTIPLE_ACCOUNTS_CONNECTED' : 'NO_CONNECTED_ACCOUNT',
         accounts.size ? 'Multiple provider accounts are connected. Select the account to scan.'
             : 'Open Gemini, ChatGPT, Claude or Grok and connect an account before scanning.');
 }
+
 export async function sendToGeminiTab(message: unknown, accountId?: string, timeoutMs?: number): Promise<unknown> {
     if (!accountId) throw new TypeError('Tab routing requires an Account UUID');
     const tab = await resolveAccountTab(accountId);
@@ -125,10 +131,12 @@ export async function sendToGeminiTab(message: unknown, accountId?: string, time
     // The selected Content handler checks this UUID again immediately before execution.
     return sendTabMessage(tab.id, { ...message, accountId }, timeoutMs);
 }
+
 export async function getAITab(providerId = 'gemini', accountId?: string): Promise<AccountTab> {
     if (!accountId || (await getAccount(accountId))?.providerId !== providerId) throw new Error('Provider/account mismatch');
     return resolveAccountTab(accountId);
 }
+
 export async function sendToAITab(providerId: string, message: unknown, accountId?: string, timeoutMs?: number): Promise<unknown> {
     if (!accountId || (await getAccount(accountId))?.providerId !== providerId) throw new Error('Provider/account mismatch');
     return sendToGeminiTab(message, accountId, timeoutMs);

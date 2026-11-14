@@ -2,6 +2,7 @@ import { hasPlatformAccess } from '../../l1/client/platformAccess.js';
 import { getAccount } from '../../l3a/storageService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
 import { platformDisplayName, platformForPageUrl, type SourcePlatform } from '../../shared/platformHosts.js';
+import { readBoundAccountContext } from '../../shared/types/accountContextReply.js';
 import { expectRecord } from '../../shared/utils/typeGuards.js';
 
 export async function assertPlatformSiteAccess(providerId: SourcePlatform): Promise<void> {
@@ -54,9 +55,9 @@ export async function requireCurrentContentAccount(sender: chrome.runtime.Messag
                 });
         } catch (error) { clearTimeout(timer); reject(error); }
     });
-    const result = object(response);
-    const context = object(result.accountContext);
-    if (result.ok !== true || context.providerId !== account.providerId || context.accountId !== account.id) {
+    object(response);
+    const context = readBoundAccountContext(response, account.providerId);
+    if (!context || context.accountId !== account.id) {
         throw new Error('Requested Account does not match the sending Tab');
     }
     await assertPlatformSiteAccess(providerId);

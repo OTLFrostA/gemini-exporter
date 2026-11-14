@@ -54,15 +54,14 @@ export async function runExportSession(run: ExportRunDiagnostic, options: Export
     };
     options.onStart(message);
     paintProgress();
-    const timer = setInterval(() => { if (backoff.message()) paintProgress(); }, 1000);
+    const stopBackoffTicker = backoff.startTicker(paintProgress);
     try {
         await options.prepare();
         const result = await runExport(request, {
             signal: options.signal, importedResources: options.importedResources,
             onDiagnostic: diagnostic => {
                 if (!active) return;
-                backoff.observe(diagnostic);
-                if (['CHATGPT_BACKOFF_WAIT', 'CHATGPT_BACKOFF_END', 'CHATGPT_RATE_LIMITED', 'CHATGPT_COOLDOWN_ACTIVE'].includes(diagnostic.code)) paintProgress();
+                if (backoff.observe(diagnostic)) paintProgress();
                 // Failed items carry their diagnostic; count it once via onItemUpdate.
                 if (diagnostic.code !== 'EXPORT_FAILED') {
                     run.issues.add(diagnostic, options.titleFor(diagnostic.key));
@@ -98,5 +97,5 @@ export async function runExportSession(run: ExportRunDiagnostic, options: Export
     } catch (error) {
         run.error = error instanceof Error ? error.message : String(error);
         throw error;
-    } finally { active = false; clearInterval(timer); run.finishedAt = Date.now(); }
+    } finally { active = false; stopBackoffTicker(); run.finishedAt = Date.now(); }
 }

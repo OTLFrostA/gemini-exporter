@@ -1,4 +1,5 @@
 import { OperationError } from '../../../shared/errors/operationError.js';
+import { readAccountContextReply } from '../../../shared/types/accountContextReply.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
@@ -34,15 +35,15 @@ async function resolveRoute(accountId: string): Promise<string> {
         for (const tab of tabs) {
             if (tab.id === undefined) continue;
             try {
-                const response: unknown = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
-                if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true
-                    || !('accountContext' in response)) {
-                    failures.push(`tab ${tab.id}: ${response && typeof response === 'object' && 'error' in response ? String(response.error) : 'invalid reply'}`);
+                const parsed = readAccountContextReply(await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' }));
+                if (!parsed.ok) {
+                    failures.push(`tab ${tab.id}: ${parsed.error ?? 'invalid reply'}`);
                     continue;
                 }
-                const context = response.accountContext;
-                if (context && typeof context === 'object' && 'accountId' in context && context.accountId === accountId
-                    && 'slot' in context && typeof context.slot === 'string' && /^u\d+$/.test(context.slot)) return context.slot;
+                const context = parsed.accountContext;
+                if (context && context.accountId === accountId && context.slot && /^u\d+$/.test(context.slot)) {
+                    return context.slot;
+                }
                 failures.push(`tab ${tab.id}: ${context === null ? 'unknown account' : 'account or slot mismatch'}`);
             } catch (error) { failures.push(`tab ${tab.id}: ${error instanceof Error ? error.message : String(error)}`); }
         }
