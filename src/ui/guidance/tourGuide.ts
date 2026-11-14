@@ -23,6 +23,16 @@ export function consumeTourIntent(): boolean {
     if (url.searchParams.has('startTour')) { url.searchParams.delete('startTour'); history.replaceState(history.state, '', url); }
     return start;
 }
+
+function observeVisibleWindowReturn(onReturn: () => void): () => void {
+    const handler = () => { if (!document.hidden) onReturn(); };
+    window.addEventListener('focus', handler);
+    document.addEventListener('visibilitychange', handler);
+    return () => {
+        window.removeEventListener('focus', handler);
+        document.removeEventListener('visibilitychange', handler);
+    };
+}
 function destroy(): void {
     afterTutorial = undefined;
     delete document.body.dataset.guidedSelection;
@@ -463,12 +473,11 @@ function mountAccountDiscovery(popover: HTMLElement, before: HTMLElement, next: 
         }
     };
     const retry = button(host, text('Check again', '重新检测'), () => { userInteracted = true; void refresh(); }, 'btnDetectAccount', 'tour-nav-btn');
-    const returned = () => { if (!document.hidden) void refresh(); };
-    window.addEventListener('focus', returned);
-    document.addEventListener('visibilitychange', returned);
-    const stopPermissions = observePlatformAccess(returned);
+    const triggerRefresh = () => { void refresh(); };
+    const stopReturn = observeVisibleWindowReturn(triggerRefresh);
+    const stopPermissions = observePlatformAccess(() => { if (!document.hidden) triggerRefresh(); });
     void refresh();
-    return () => { active = false; clearInterval(backgroundDetection); stopPermissions(); window.removeEventListener('focus', returned); document.removeEventListener('visibilitychange', returned); host.remove(); };
+    return () => { active = false; clearInterval(backgroundDetection); stopPermissions(); stopReturn(); host.remove(); };
 }
 
 function mountAuthorization(
@@ -606,17 +615,14 @@ function showAccountConnection(platform: SourcePlatform, accountId: string, acco
             if (active) renderAction();
         });
     }, 'btnAccountConnection', 'tour-nav-btn primary');
-    const returned = () => {
-        if (!active || navigating || document.hidden) return;
+    const stopReturn = observeVisibleWindowReturn(() => {
+        if (!active || navigating) return;
         if (checking) refreshWhenSettled = true;
         else void checkConnection();
-    };
-    window.addEventListener('focus', returned);
-    document.addEventListener('visibilitychange', returned);
+    });
     cleanupStep = () => {
         active = false;
-        window.removeEventListener('focus', returned);
-        document.removeEventListener('visibilitychange', returned);
+        stopReturn();
     };
     void checkConnection();
     relayout?.();

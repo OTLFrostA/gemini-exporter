@@ -457,6 +457,8 @@ def test_tour_status_indicator_styling():
 def test_takeout_limit_modal_and_wall_detection():
     with open(os.path.join(BASE_DIR, "src/ui/options/options.ts"), encoding="utf-8") as f:
         options = f.read()
+    with open(os.path.join(BASE_DIR, "src/ui/options/controllers/takeoutController.ts"), encoding="utf-8") as f:
+        options += "\n" + f.read()
     with open(os.path.join(BASE_DIR, "src/ui/guidance/tourGuide.ts"), encoding="utf-8") as f:
         guide = f.read()
     with open(os.path.join(BASE_DIR, "src/ui/options/controllers/syncController.ts"), encoding="utf-8") as f:
@@ -492,10 +494,10 @@ def test_stage1_architecture_ssot_and_state_isolation():
     assert "__bgAborts" not in background and "__bgAborted" not in background, "Background must not restore parallel v1 abort flags"
 
     # Takeout is an explicit input + target Account, not an ambient per-slot cache.
-    takeout = read("src/application/imports/importTakeout.ts")
+    takeout = read("src/application/imports/importTakeout.ts") + "\n" + read("src/application/imports/batchAdmitImports.ts")
     assert "importTakeout(file: File, accountId:" in takeout and "getAccount(accountId)" in takeout, "Takeout must resolve its explicit trusted Account"
-    assert "ingestDetail(accountId, id," in takeout, "Application Takeout must admit parsed facts through L2"
-    assert "resources.retainParsed" in takeout and "__accountTakeouts" not in takeout, "Takeout must not retain a global resource/Domain cache"
+    assert "ingestDetail(" in takeout, "Application Takeout must admit parsed facts through L2"
+    assert "retainParsed(" in takeout and "__accountTakeouts" not in takeout, "Takeout must not retain a global resource/Domain cache"
 
     # L2 exclusively owns both Index and Detail selection; Options only reads
     # the resulting facts for display.

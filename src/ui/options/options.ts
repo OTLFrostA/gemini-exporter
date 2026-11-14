@@ -17,9 +17,9 @@ import type { UIExportRequest } from './controllers/exportController.js';
 import { runExportSession, type ExportRunDiagnostic } from './controllers/exportSession.js';
 import { startSync } from './controllers/syncController.js';
 import type { ScanResult } from '../../application/sync/scanController.js';
-import { importOpenAI } from '../../application/imports/importOpenAI.js';
 import { createSourceResourceContext } from '../../application/resources.js';
-import { handleTakeoutImport } from './controllers/takeoutController.js';
+import { handlePlatformArchiveImport } from './controllers/takeoutController.js';
+import { createOptimisticThemeToggle } from '../shared/themeToggle.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
 import { renderList, unmountList } from './views/listView.js';
@@ -53,8 +53,8 @@ export async function initWorkbench(): Promise<void> {
     let scanController: AbortController | null = null;
     let advanceTutorialScan: (() => void) | undefined;
     let currentScanStatus: UiMessage | null = null;
-    let themeSaving = false;
     let presentationSaving = false;
+    let themeToggle: ReturnType<typeof createOptimisticThemeToggle> | undefined;
     let lastRequest: UIExportRequest | null = null;
     let failed: UIExportRequest['keys'] = [];
     let dismissedFailures = false;
@@ -130,7 +130,7 @@ export async function initWorkbench(): Promise<void> {
             moreButton.setAttribute('aria-expanded', 'false');
         }
         labelThemeToggle(control('button', 'btnThemeToggle'), settings);
-        control('button', 'btnThemeToggle').disabled = !settings || themeSaving;
+        control('button', 'btnThemeToggle').disabled = !settings || (themeToggle?.isSaving() ?? false);
         document.body.dataset.busy = String(isBusy() || scanController !== null);
         document.body.dataset.foregroundBusy = String(isBusy());
         document.body.dataset.scanning = String(scanController !== null);
@@ -351,12 +351,11 @@ export async function initWorkbench(): Promise<void> {
             const diagnostics: Diagnostic[] = [];
             let scanProgressMessage = () => text('Resolving conversation source…', '正在确认会话来源…');
             const paintScanProgress = () => reportScan(() => scanProgressMessage() + (backoff.message() ? ` · ${backoff.message()}` : ''));
-            const backoffTimer = setInterval(() => { if (backoff.message()) paintScanProgress(); }, 1000);
+            const stopBackoffTicker = backoff.startTicker(paintScanProgress);
             const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
                 onDiagnostic: diagnostic => {
                     if (diagnostics.length < 1000) diagnostics.push(diagnostic);
-                    backoff.observe(diagnostic);
-                    if (['CHATGPT_BACKOFF_WAIT', 'CHATGPT_BACKOFF_END', 'CHATGPT_RATE_LIMITED', 'CHATGPT_COOLDOWN_ACTIVE'].includes(diagnostic.code)) paintScanProgress();
+                    if (backoff.observe(diagnostic)) paintScanProgress();
                 },
                 onTarget: select, onProgress: p => {
                     if (signal.aborted) return;
@@ -371,7 +370,7 @@ export async function initWorkbench(): Promise<void> {
                     }
                     scanSlow = p.conversationsFetched > 200 && state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini';
                     paintTaskPanel();
-                } }).finally(() => clearInterval(backoffTimer));
+                } }).finally(stopBackoffTicker);
             scanHasResults ||= result.conversationsFetched > 0;
             scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result, diagnostics });
             if (scanRuns.length > 10) scanRuns.shift();
@@ -577,10 +576,16 @@ export async function initWorkbench(): Promise<void> {
         const account = state.accounts.find(a => a.id === accountId);
         return perform('takeout', async () => {
             try {
-                if (account?.providerId === 'chatgpt') {
-                    status(() => text('Importing OpenAI ZIP…', '正在导入 OpenAI ZIP…'));
-                    const result = await importOpenAI(file, account.id,
-                        percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent), importedResources);
+                const outcome = await handlePlatformArchiveImport(file, account, accountId, {
+                    onStartKind: kind => status(() => kind === 'openai'
+                        ? text('Importing OpenAI ZIP…', '正在导入 OpenAI ZIP…')
+                        : text('Importing Takeout ZIP…', '正在导入 Takeout ZIP…')),
+                    onTarget: select,
+                    onProgress: percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent),
+                    resources: importedResources,
+                });
+                if (outcome.kind === 'openai') {
+                    const { result } = outcome;
                     if (result.status === 'empty') status(() => text(
                         'This OpenAI ZIP contains no conversation bodies. No conversations were imported.',
                         '此 OpenAI ZIP 没有聊天正文，未导入任何会话。'), 'warn');
@@ -589,9 +594,7 @@ export async function initWorkbench(): Promise<void> {
                         `已导入 ${result.imported} 条会话；跳过 ${result.skipped} 条；${result.missingAssets} 个附件不可用。${result.status === 'partial' ? '导入部分完成。' : ''}`),
                         result.status === 'partial' ? 'warn' : 'info');
                 } else {
-                    status(() => text('Importing Takeout ZIP…', '正在导入 Takeout ZIP…'));
-                    const result = await handleTakeoutImport(file, accountId, { onTarget: select,
-                        onProgress: percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent) });
+                    const { result } = outcome;
                     status(() => text(`Imported ${result.imported} conversations (${result.status})`,
                         `已提交 ${result.imported} 条对话（${result.status === 'ok' ? '完成' : result.status === 'partial' ? '部分完成' : '未知'}）`));
                 }
@@ -670,18 +673,14 @@ export async function initWorkbench(): Promise<void> {
     for (const [input, field] of checkboxSettings) input.addEventListener('change', () => {
         changeControlSetting(input, { [field]: input.checked });
     });
-    control('button', 'btnThemeToggle').addEventListener('click', () => {
-        if (!settings || themeSaving) return;
-        const previous = settings;
-        const theme = settings.theme === 'light' ? 'dark' : 'light';
-        themeSaving = true;
-        settings = { ...settings, theme };
-        useSettings(settings);
-        render();
-        void updateSettings({ theme }).then(async () => { settings = await readSettings(); })
-            .catch(error => { settings = previous; useSettings(previous); statusError(error); })
-            .finally(() => { themeSaving = false; render(); });
+    themeToggle = createOptimisticThemeToggle({
+        getSettings: () => settings,
+        setSettings: next => { settings = next; },
+        syncCommitted: async () => { settings = await readSettings(); },
+        render,
+        onError: statusError,
     });
+    control('button', 'btnThemeToggle').addEventListener('click', themeToggle.toggle);
     const savePresentation = async (patch: Pick<GlobalSettings, 'developerMode'> | Pick<GlobalSettings, 'language'>) => {
         if (!settings || presentationSaving) { render(); return; }
         const prior = settings;

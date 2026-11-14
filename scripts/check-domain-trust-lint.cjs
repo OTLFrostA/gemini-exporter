@@ -15,15 +15,20 @@ function ownedTypeScriptFiles(relativeDir) {
 const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
     .concat(['src/l1/parsers/gemini', 'src/l1/client/gemini', 'src/l1/sniffer/gemini', 'src/l1/imports/takeout', 'src/l1/imports/openai', 'src/l1/parsers/shared/resources'])
     .flatMap(ownedTypeScriptFiles)
-    .concat(['src/shared/platformHosts.ts', 'src/shared/utils/typeGuards.ts', 'src/shared/types/export.ts', 'src/shared/types/directoryHandle.ts', 'src/shared/utils/devMode.ts',
+    .concat(['src/shared/platformHosts.ts', 'src/shared/utils/typeGuards.ts', 'src/shared/types/accountContextReply.ts',
+        'src/shared/types/export.ts', 'src/shared/types/directoryHandle.ts', 'src/shared/utils/devMode.ts',
         'src/l1/parsers/shared/time.ts', 'src/l1/parsers/shared/markdown/texBrackets.ts',
+        'src/l1/imports/shared/zipArchive.ts',
         'src/l1/client/tabSourceRunner.ts', 'src/l1/client/providerShared.ts', 'src/l1/client/optionalProviderRegistration.ts',
         'src/l1/sniffer/shared/streamAndBridge.ts',
         'src/runtime/api/accountRegistry.ts', 'src/runtime/api/domainIngestion.ts',
         'src/runtime/api/contentReady.ts', 'src/runtime/api/contentAccountRegistry.ts',
         'src/runtime/api/contentDomainIngestion.ts', 'src/runtime/api/contentSettings.ts',
         'src/runtime/capabilities/platformAuthorization.ts', 'src/runtime/capabilities/platformInjection.ts',
-        'src/ui/shared/platformAuthorization.ts', 'src/l1/resources/attachmentBytes.ts',
+        'src/runtime/capabilities/platformDiscovery.ts', 'src/runtime/capabilities/chatgptDiscovery.ts',
+        'src/runtime/capabilities/claudeDiscovery.ts', 'src/runtime/capabilities/grokDiscovery.ts',
+        'src/ui/shared/platformAuthorization.ts', 'src/ui/shared/backoffNotice.ts', 'src/ui/shared/themeToggle.ts',
+        'src/l1/resources/attachmentBytes.ts',
         'src/ui/shared/elements.ts', 'src/ui/shared/settings.ts', 'src/ui/shared/readSettings.ts', 'src/ui/options/options.ts',
         'src/ui/popup/popup.ts', 'src/ui/options/views/cleanupPrompt.ts',
         'src/ui/options/views/directWritePrompt.ts', 'src/ui/options/views/listView.ts',

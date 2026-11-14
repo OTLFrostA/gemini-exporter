@@ -6,6 +6,7 @@ import { exportSummary } from '../shared/exportSummary.js';
 import { sendTabMessage } from '../../runtime/capabilities/tabService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
 import { platformForPageUrl, type SourcePlatform } from '../../shared/platformHosts.js';
+import { readAccountContextReply } from '../../shared/types/accountContextReply.js';
 import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
 import { AUTHORIZATION_STEP } from '../guidance/tourSteps.js';
@@ -16,6 +17,7 @@ import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { warmLocalFontCache } from '../../application/export/fonts.js';
 import { runExport } from '../../application/export/runExport.js';
 import { EXPORT_FORMATS, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
+import { createOptimisticThemeToggle } from '../shared/themeToggle.js';
 import { readSettings } from '../shared/readSettings.js';
 
 /** Only the explicitly opened Popup inspects its active tab; URLs never establish Account identity. */
@@ -29,17 +31,12 @@ async function readActiveSource(activeTab?: chrome.tabs.Tab): Promise<{ accountI
     if (tab?.id === undefined) return null;
     const expectedProvider = platformForTabUrl(tab.url);
     if (!expectedProvider) return null;
-    const response: unknown = await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000);
-    if (!response || typeof response !== 'object' || !('ok' in response) || response.ok !== true
-        || !('accountContext' in response) || !response.accountContext || typeof response.accountContext !== 'object')
-        return null;
-    const context = response.accountContext;
-    if (!('accountId' in context) || !isAccountId(context.accountId)
-        || !('providerId' in context) || context.providerId !== expectedProvider) return null;
-    const rawId = 'conversationId' in response ? response.conversationId : null;
+    const reply = readAccountContextReply(await sendTabMessage(tab.id, { action: 'getAccountContext' }, 3000));
+    const context = reply.ok ? reply.accountContext : null;
+    if (!reply.ok || !context || !isAccountId(context.accountId) || context.providerId !== expectedProvider) return null;
     let key: ConversationKey | null = null;
-    if (typeof rawId === 'string') {
-        try { key = conversationKey(context.accountId, rawId); }
+    if (reply.conversationId !== null) {
+        try { key = conversationKey(context.accountId, reply.conversationId); }
         catch { /* A malformed conversation ID must not discard the verified Account. */ }
     }
     return { accountId: context.accountId, key };
@@ -63,7 +60,7 @@ export async function initPopup(): Promise<void> {
     let indexTitle: string | null = null;
     let identityLoaded = false;
     let busy = false, active = true;
-    let themeSaving = false;
+    let themeToggle: ReturnType<typeof createOptimisticThemeToggle> | undefined;
     let permissionPlatform: SourcePlatform | null = null;
     let stopPermission: (() => void) | null = null;
     const buttons = [...document.getElementsByTagName('button')].filter(button => button.dataset.format !== undefined);
@@ -76,7 +73,7 @@ export async function initPopup(): Promise<void> {
         }
         labelThemeToggle(control('button', 'btnThemeToggle'), settings);
         // Appearance is independent of exporting or updating another preference.
-        control('button', 'btnThemeToggle').disabled = !settings || themeSaving;
+        control('button', 'btnThemeToggle').disabled = !settings || (themeToggle?.isSaving() ?? false);
         if (identityLoaded) el('currentChatTitle').textContent = indexTitle || (key
             ? text('Current conversation', '当前对话')
             : text('No current supported conversation', '当前没有受支持的对话'));
@@ -108,21 +105,14 @@ export async function initPopup(): Promise<void> {
             settings = prior; useSettings(prior); showError(e);
         }).finally(() => { busy = false; render(); });
     };
-    control('button', 'btnThemeToggle').addEventListener('click', () => {
-        if (!settings || themeSaving) return;
-        const previousTheme = settings.theme;
-        const theme = previousTheme === 'light' ? 'dark' : 'light';
-        themeSaving = true;
-        settings = { ...settings, theme };
-        useSettings(settings); render();
-        void updateSettings({ theme }).then(refresh)
-            .catch(error => {
-                settings = { ...settings, theme: previousTheme };
-                useSettings(settings);
-                showError(error);
-            })
-            .finally(() => { themeSaving = false; render(); });
+    themeToggle = createOptimisticThemeToggle({
+        getSettings: () => settings,
+        setSettings: next => { settings = next; },
+        syncCommitted: refresh,
+        render,
+        onError: showError,
     });
+    control('button', 'btnThemeToggle').addEventListener('click', themeToggle.toggle);
     for (const btn of buttons) btn.addEventListener('click', () => {
         const format = EXPORT_FORMATS.find(value => value === btn.dataset.format);
         if (format) changeSettings({ defaultFormat: format });
@@ -136,15 +126,14 @@ export async function initPopup(): Promise<void> {
         const backoff = createBackoffNotice();
         const exportMessage = () => backoff.message() ?? text('Preparing export…', '正在准备导出…');
         showStatus(exportMessage);
-        const backoffTimer = setInterval(() => { if (active && backoff.message()) showStatus(exportMessage); }, 1000);
+        const stopBackoffTicker = backoff.startTicker(() => { if (active) showStatus(exportMessage); });
         void (async () => {
             const [current, latest] = await Promise.all([readActiveKey(), readSettings(), fonts]);
             if (!current) { key = null; throw new OperationError('CURRENT_CONVERSATION_UNAVAILABLE', 'No trusted current conversation'); }
             const result = await runExport({ keys: [current], format, delivery: 'browserDownload',
                 includeAssets: latest.includeAssets, skipUnchanged: false }, {
                 onDiagnostic: diagnostic => {
-                    backoff.observe(diagnostic);
-                    if (active && (['CHATGPT_BACKOFF_WAIT', 'CHATGPT_BACKOFF_END', 'CHATGPT_RATE_LIMITED', 'CHATGPT_COOLDOWN_ACTIVE'].includes(diagnostic.code))) showStatus(exportMessage);
+                    if (backoff.observe(diagnostic) && active) showStatus(exportMessage);
                 },
             });
             if (!active) return;
@@ -155,7 +144,7 @@ export async function initPopup(): Promise<void> {
             if (result.exported > 0 && !result.partial && !result.failed.length && !result.aborted) void showRatingPromptIfEligible().catch(error => console.warn('[Rating prompt]', error));
         })().catch(e => { if (active) showError(e); })
             .finally(() => {
-                clearInterval(backoffTimer);
+                stopBackoffTicker();
                 if (active) { busy = false; render(); }
             });
     });
