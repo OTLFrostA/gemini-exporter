@@ -7,6 +7,7 @@ import { decodeChatGPTDetail } from '../../parsers/chatgpt/decodeDetail.js';
 import { ingestContentIndexes, ingestContentDetail, ingestContentDeletedConversation } from '../../../runtime/api/contentDomainIngestion.js';
 
 export interface ChatGPTMessageBridgeCallbacks {
+    isActive: () => boolean;
     currentAccount: () => Promise<(Account & { id: string }) | null>;
     onSaveRequested: (key: ConversationKey, refreshDetail: boolean) => Promise<unknown>;
     registerCleanup: (cleanup: () => void) => void;
@@ -21,7 +22,7 @@ export function initChatGPTMessageBridge(deps: ChatGPTMessageBridgeCallbacks): v
             || data.type !== CHATGPT_SOURCE_EVENT || !('payload' in data)) return;
         const raw = data.payload;
         queue = queue.catch(() => {}).then(async () => {
-            if (!raw || typeof raw !== 'object' || !('url' in raw) || typeof raw.url !== 'string'
+            if (!deps.isActive() || !raw || typeof raw !== 'object' || !('url' in raw) || typeof raw.url !== 'string'
                 || !('kind' in raw)
                 || !('requestIdentity' in raw) || typeof raw.requestIdentity !== 'string' || !('responseBody' in raw)) return;
             const method = raw.kind === 'detail' || raw.kind === 'list' ? 'GET'
@@ -32,7 +33,7 @@ export function initChatGPTMessageBridge(deps: ChatGPTMessageBridgeCallbacks): v
                 ? { kind: 'sidebar' as const } : chatGPTRequest(raw.url, method);
             if (!request || request.kind !== raw.kind) return;
             const account = await deps.currentAccount();
-            if (!account || account.providerAccountId !== raw.requestIdentity) return;
+            if (!deps.isActive() || !account || account.providerAccountId !== raw.requestIdentity) return;
             if (request.kind === 'list' || request.kind === 'sidebar') {
                 const parsed = parseChatGPTList(raw.responseBody);
                 if (parsed.conversations.some(item => !chatGPTConversationId(item.id))) return;

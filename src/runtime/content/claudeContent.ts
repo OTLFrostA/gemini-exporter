@@ -1,8 +1,9 @@
-import { claudeUuid } from '../../l1/sniffer/claude/observation.js';
+import { claudeConversationIdFromPath } from '../../l1/sniffer/claude/observation.js';
 import { initClaudeMessageBridge } from '../../l1/sniffer/claude/messageBridge.js';
 import { observeClaudeAccount } from '../../l1/client/claude/accountObservation.js';
 import { ensureContentReady } from '../api/contentReady.js';
 import { resolveCurrentAccount, invalidateAccountContext, setAccountChangedHandler } from './accountContext.js';
+import { registerContentControlRouter } from './controlRouter.js';
 import { BadgeView } from '../../ui/badge/badgeView.js';
 import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { registerCleanup, runCleanups } from './cleanupRegistry.js';
@@ -48,18 +49,12 @@ async function currentAccount() {
     return context && observation ? { ...observation, id: context.accountId } : null;
 }
 
-const onMessage = (message: unknown, sender: chrome.runtime.MessageSender, respond: (value: unknown) => void) => {
-    if (sender.id !== chrome.runtime.id || !message || typeof message !== 'object' || !('action' in message)) return false;
-    if (message.action !== 'getAccountContext' && message.action !== 'ping') return false;
-    void currentAccount().then(account => {
-        const id = location.pathname.split('/chat/')[1]?.split('/')[0];
-        respond({ ok: true, accountContext: account ? { accountId: account.id, providerId: 'claude' } : null,
-            conversationId: claudeUuid(id) ? id : null });
-    }).catch(error => respond({ ok: false, error: String(error) }));
-    return true;
-};
-chrome.runtime.onMessage.addListener(onMessage);
-registerCleanup(() => chrome.runtime.onMessage.removeListener(onMessage));
+registerContentControlRouter({
+    providerId: 'claude',
+    isActive: () => active,
+    resolveAccountId: async () => (await currentAccount())?.id ?? null,
+    conversationIdFromPath: claudeConversationIdFromPath,
+});
 
 initClaudeMessageBridge({
     isActive: () => active,

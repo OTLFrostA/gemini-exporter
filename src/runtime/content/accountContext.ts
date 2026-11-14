@@ -62,11 +62,17 @@ function requestObservation(slot: string): Promise<Omit<Account, 'id'> | null> {
             unregister();
             if (error) reject(error); else resolve(observation);
         };
-        const receive = (event: MessageEvent): void => {
-            if (event.source !== window || event.origin !== location.origin
-                || event.data?.type !== CrossWorldEvents.ACCOUNT_OBSERVED) return;
-            const payload = event.data.payload;
-            if (payload?.requestId !== requestId || payload.slot !== slot) return;
+        const receive = (event: MessageEvent<unknown>): void => {
+            if (event.source !== window || event.origin !== location.origin) return;
+            const data = event.data;
+            if (!data || typeof data !== 'object' || Array.isArray(data)
+                || !('type' in data) || data.type !== CrossWorldEvents.ACCOUNT_OBSERVED
+                || !('payload' in data)) return;
+            const payload = data.payload;
+            if (!payload || typeof payload !== 'object' || Array.isArray(payload)
+                || !('requestId' in payload) || payload.requestId !== requestId
+                || !('slot' in payload) || payload.slot !== slot
+                || !('observation' in payload)) return;
             try { finish(payload.observation === null ? null : readAccountParameters(payload.observation)); }
             catch (error) { finish(null, error); }
         };

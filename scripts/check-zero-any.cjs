@@ -5,7 +5,7 @@ const root = path.resolve(__dirname, '..');
 const scopedFiles = require('./zero-any-files.json');
 for (const file of scopedFiles) fs.accessSync(path.join(root, file));
 
-// All owned post-L1 modules are zero-any by contract, including newly added files.
+// All owned production modules under src/ are zero-any by contract, including newly added files.
 // Third-party generated declarations under vendor/ are excluded.
 function ownedTypeScriptFiles(relativeDir) {
     return fs.readdirSync(path.join(root, relativeDir), { withFileTypes: true }).flatMap(entry => {
@@ -14,9 +14,8 @@ function ownedTypeScriptFiles(relativeDir) {
         return entry.isFile() && /\.tsx?$/.test(entry.name) ? [relative] : [];
     });
 }
-const downstream = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
-    .flatMap(ownedTypeScriptFiles);
-const files = [...new Set([...scopedFiles, ...downstream])].sort();
+const production = ownedTypeScriptFiles('src');
+const files = [...new Set([...scopedFiles, ...production])].sort();
 const cli = path.join(path.dirname(require.resolve('oxlint/package.json')), 'bin', 'oxlint');
 const result = spawnSync(process.execPath, [cli, '-A', 'all', '-D', 'typescript/no-explicit-any', '--no-ignore', '--disable-nested-config', ...files], { cwd: root, stdio: 'inherit' });
 if (result.error) throw result.error;

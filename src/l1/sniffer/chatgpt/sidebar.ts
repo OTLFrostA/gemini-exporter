@@ -1,4 +1,4 @@
-import { chatGPTConversationId } from './observation.js';
+import { chatGPTConversationId, chatGPTWorkspaceMatches } from './observation.js';
 
 function record(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -9,8 +9,8 @@ function record(value: unknown): value is Record<string, unknown> {
 export async function chatGPTSidebarPage(history: unknown, identity: () => Promise<string | null>) {
     if (!record(history) || typeof history.accountId !== 'string' || !history.chats) return null;
     const before = await identity();
-    if (!before || JSON.parse(before)[1] !== history.accountId) return null;
-    const page: unknown = await history.chats;
+    if (!chatGPTWorkspaceMatches(before, history.accountId)) return null;
+    const page: unknown = await Promise.resolve(history.chats);
     if (!record(page)) return null;
     const items: unknown = page.items;
     if (!Array.isArray(items) || items.length > 100

@@ -1,7 +1,11 @@
 import { CLAUDE_SOURCE_EVENT, claudeRequest, activeClaudeOrganization } from './observation.js';
 
+const HOOK_FLAG = '__gemExporterClaudeHookInstalled';
+
 /** Observe the site's own requests. Never issue identity/source polling requests. */
 export function installClaudeHook(): void {
+    if (Reflect.get(window, HOOK_FLAG) === true) return;
+    Reflect.set(window, HOOK_FLAG, true);
     const nativeFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
         const url = new URL(input instanceof Request ? input.url : String(input), location.href).href;
@@ -28,7 +32,12 @@ export function installClaudeHook(): void {
                         const lines = pending.split('\n'); pending = lines.pop() ?? '';
                         for (const line of lines) {
                             if (!line.startsWith('data:')) continue;
-                            try { if (JSON.parse(line.slice(5)).type === 'message_stop') complete = true; } catch { /* SSE framing */ }
+                            try {
+                                const event: unknown = JSON.parse(line.slice(5));
+                                if (event && typeof event === 'object' && !Array.isArray(event) && Reflect.get(event, 'type') === 'message_stop') {
+                                    complete = true;
+                                }
+                            } catch { /* SSE framing */ }
                         }
                         if (complete) break;
                     }

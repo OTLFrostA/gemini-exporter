@@ -28,6 +28,7 @@ const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
         'src/ui/options/controllers/exportSession.ts', 'src/ui/options/views/taskPanelView.ts', 'src/ui/options/state/foregroundTask.ts',
         'src/ui/options/state/exportIssues.ts', 'src/ui/options/views/exportFailures.ts',
         'src/runtime/background/contentSender.ts', 'src/runtime/background/accountRegistryHandler.ts',
+        'src/runtime/content/controlRouter.ts', 'src/runtime/content/accountContext.ts',
         'src/l1/protocol/gemini/url.ts', 'src/l1/resources/gemini/assetFetcher.ts',
         'src/l1/client/claude/fileAssets.ts',
         'src/l1/client/claude/claudeProvider.ts', 'src/l1/client/claude/claudeSource.ts',

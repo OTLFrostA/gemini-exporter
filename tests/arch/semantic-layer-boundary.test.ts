@@ -136,7 +136,7 @@ function forbidden(owner: string, target: string): boolean {
     }
     if (owner.startsWith('ui/')) {
         if (owner.startsWith('ui/popup/') && target.startsWith('ui/options/')) return true;
-        return /^(l1\/|l3b\/|l4\/|migration\/)/.test(target);
+        return /^(l1\/|l3a\/|l3b\/|l4\/|migration\/)/.test(target);
     }
     if (owner.startsWith('migration/')) {
         return !/^(migration\/|l2\/|l3a\/|shared\/)/.test(target);
@@ -312,7 +312,7 @@ test('Content scripts and MAIN hooks never bundle IndexedDB, Migration, Backgrou
         walkRuntime(entry, [entry]);
         if (entry.startsWith('runtime/content/')) {
             for (const direct of graph.get(entry) ?? []) {
-                assert.ok(!direct.target.startsWith('l1/parsers/') || direct.target === 'l1/parsers/grok/source.ts',
+                assert.ok(!direct.target.startsWith('l1/parsers/'),
                     `${entry} must delegate source payload parsing to L1 sniffer bridges, not ${direct.target}`);
             }
         }

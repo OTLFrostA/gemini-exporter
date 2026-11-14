@@ -10,7 +10,7 @@ import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorizat
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
 import { AUTHORIZATION_STEP } from '../guidance/tourSteps.js';
 import { conversationKey, type ConversationKey } from '../../l2/conversationKey.js';
-import { getIndex } from '../../l3a/storageService.js';
+import { getIndex } from '../../application/conversations/catalogQueries.js';
 import { updateSettings, type GlobalSettings } from '../../application/settings/index.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { warmLocalFontCache } from '../../application/export/fonts.js';

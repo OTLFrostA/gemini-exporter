@@ -4,6 +4,21 @@ export const CHATGPT_SOURCE_EVENT = 'gemini-exporter:chatgpt-source-v1';
 export const chatGPTConversationId = (value: unknown): value is string =>
     typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
 
+export function chatGPTConversationIdFromPath(pathname: string): string | null {
+    const id = pathname.split('/c/')[1]?.split('/')[0];
+    return chatGPTConversationId(id) ? id : null;
+}
+
+export function chatGPTWorkspaceMatches(identity: string | null, workspaceId: string): boolean {
+    if (!identity) return false;
+    try {
+        const parsed: unknown = JSON.parse(identity);
+        return Array.isArray(parsed) && parsed[1] === workspaceId;
+    } catch {
+        return false;
+    }
+}
+
 export function chatGPTRequest(url: string, method: string): { kind: 'list' | 'detail' | 'stream' | 'delete'; conversationId?: string; method?: 'DELETE' } | null {
     const source = new URL(url);
     if (source.protocol !== 'https:' || !['chatgpt.com', 'chat.openai.com'].includes(source.hostname)) return null;
@@ -40,9 +55,9 @@ export function chatGPTStreamEvent(line: string): { done: boolean; conversationI
     try {
         const event: unknown = JSON.parse(data);
         if (!event || typeof event !== 'object' || Array.isArray(event)) return { done: false };
-        const direct = Reflect.get(event, 'conversation_id');
+        const direct: unknown = Reflect.get(event, 'conversation_id');
         const value: unknown = Reflect.get(event, 'v');
-        const nested = value && typeof value === 'object' && !Array.isArray(value) ? Reflect.get(value, 'conversation_id') : undefined;
+        const nested: unknown = value && typeof value === 'object' && !Array.isArray(value) ? Reflect.get(value, 'conversation_id') : undefined;
         const id = chatGPTConversationId(direct) ? direct : chatGPTConversationId(nested) ? nested : undefined;
         return { done: false, ...(id ? { conversationId: id } : {}) };
     } catch { return { done: false }; }
