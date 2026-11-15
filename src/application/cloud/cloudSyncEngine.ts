@@ -93,6 +93,7 @@ export interface CloudSyncEngine {
     getStatusSnapshot(): Promise<CloudSyncStatusSnapshot>;
     exportRecoveryKey(): Promise<string | null>;
     importRecoveryKey(recoveryKeyInput: string): Promise<{ keyFingerprint: string }>;
+    reconcilePostToggleAccount(accountId: string): Promise<void>;
     installAutoEnqueueListener(): () => void;
     waitForIdle(): Promise<void>;
 }
@@ -341,7 +342,15 @@ export function createCloudSyncEngine(deps: {
                 let downloaded = 0;
                 let accepted = 0;
                 let changed = 0;
-                let cursor = session.pulledSeq;
+                let hasAnyLocalConversation = false;
+                for (const acc of await listAccounts()) {
+                    if (acc.providerAccountId === DEFAULT_ACCOUNT_KEY) continue;
+                    if ((await listIndexes(acc.id)).length > 0) {
+                        hasAnyLocalConversation = true;
+                        break;
+                    }
+                }
+                let cursor = hasAnyLocalConversation ? session.pulledSeq : 0;
 
                 for (let page = 0; page < 200; page++) {
                     signal?.throwIfAborted();
@@ -357,7 +366,13 @@ export function createCloudSyncEngine(deps: {
                     const toDownload = [];
                     for (const meta of feed.items) {
                         const existing = await getSyncedCloudRecordByBlindId(session.ownerSubject, meta.blindRecordId);
-                        if (existing && existing.remoteRevision >= meta.revision) continue;
+                        if (existing && existing.remoteRevision >= meta.revision) {
+                            const localDetail = await getDetail({
+                                accountId: existing.accountId,
+                                conversationId: existing.conversationId,
+                            });
+                            if (localDetail) continue;
+                        }
                         toDownload.push(meta);
                     }
 
@@ -561,6 +576,37 @@ export function createCloudSyncEngine(deps: {
             const session = await requireActiveSession();
             const imported = await importVaultRecoveryKey(session.ownerSubject, recoveryKeyInput);
             return { keyFingerprint: imported.keyring.keyFingerprint };
+        },
+
+        async reconcilePostToggleAccount(accountId) {
+            if (suppressAutoEnqueueDepth > 0 || !accountId) return;
+            const [settings, session, acc] = await Promise.all([
+                getSettings(),
+                getCloudSyncSession(),
+                getAccount(accountId),
+            ]);
+            if (!settings.cloudSyncEnabled || !session || session.expiresAt <= now()) return;
+            if (!acc || acc.providerAccountId === DEFAULT_ACCOUNT_KEY) return;
+            const cutoff = session.enabledSinceAt ?? 0;
+            const indexes = await listIndexes(accountId);
+            const candidates: ConversationKey[] = [];
+            for (const idx of indexes) {
+                const synced = await getSyncedCloudRecord(session.ownerSubject, idx.key);
+                // Re-check any already-synced conversation OR any new conversation updated since the toggle was enabled
+                const activity = idx.updatedAt ?? idx.activityAt ?? 0;
+                if (!synced && activity > 0 && activity < cutoff) continue;
+                const detail = await getDetail(idx.key);
+                if (!detail) continue;
+                if (!synced && detail.savedAt !== undefined && detail.savedAt < cutoff && activity === 0) continue;
+                const json = encodePortableCloudConversation(acc, { index: idx, detail });
+                const sha = await sha256Utf8Hex(json);
+                if (synced && synced.payloadSha256 === sha) continue;
+                candidates.push(idx.key);
+            }
+            if (candidates.length > 0) {
+                await enqueueCloudOutboxKeys(candidates, now());
+            }
+            await flushOutbox();
         },
 
         installAutoEnqueueListener() {

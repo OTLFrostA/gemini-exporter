@@ -21,7 +21,17 @@ export function handleCloudSyncMessage(
     sender: chrome.runtime.MessageSender,
     respond: (value: unknown) => void,
 ): boolean {
-    if (!message || typeof message !== 'object' || !('action' in message) || message.action !== 'cloudSyncControl') {
+    if (!message || typeof message !== 'object' || !('action' in message)) {
+        return false;
+    }
+    if (message.action === 'domainChanged' && 'accountId' in message && typeof message.accountId === 'string') {
+        const accountId = message.accountId;
+        void defaultCloudSyncEngine.reconcilePostToggleAccount(accountId).catch(error => {
+            console.warn('[CloudSync] Post-toggle reconciliation failed:', error);
+        });
+        return false;
+    }
+    if (message.action !== 'cloudSyncControl') {
         return false;
     }
     void (async () => {

@@ -20,4 +20,6 @@ export interface GlobalSettings {
     cloudSyncEnabled?: boolean;
     /** Configured zero-knowledge Cloud Vault endpoint origin (HTTPS). */
     cloudSyncServerUrl?: string;
+    /** Configured Google OAuth 2.0 Web Client ID used for OIDC authentication. */
+    cloudSyncGoogleClientId?: string;
 }
