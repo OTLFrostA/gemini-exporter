@@ -43,7 +43,7 @@ test('current progress status displays committed counts, final result and clears
         assert.equal(await page.locator('#btnSyncAll').textContent(), 'Stop sync');
         assert.doesNotMatch(await page.locator('#scanStatus').textContent() ?? '', /%/);
         await page.evaluate(() => Reflect.get(window, 'harness').finishScan()); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
-        assert.match(await page.locator('#scanStatus').textContent() ?? '', /Local page budget reached/); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
+        assert.match(await page.locator('#scanStatus').textContent() ?? '', /Read 150 conversation records, added 0, total 1/); assert.equal(await page.locator('#btnSyncAll').isEnabled(), true);
         assert.equal(await page.locator('#progWrap').isVisible(), false);
         assert.doesNotMatch(await page.locator('#progWrap').getAttribute('class') ?? '', /indeterminate/);
     } finally { await browser.close(); }

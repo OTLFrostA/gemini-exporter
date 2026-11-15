@@ -12,6 +12,7 @@ import type { GlobalSettings } from '../../src/application/settings/index.js';
 import type { AIProvider, ListFailureDiagnostics } from '../../src/l1/client/aiProvider.js';
 import type { ExportArtifact } from '../../src/l4/artifacts.js';
 import type { SourceResourceContext } from '../../src/l1/resources/sourceResources.js';
+import type { DetailIngestResult } from '../../src/l2/ingestion.js';
 
 // Application unit-test ports. No production implementation from L1/L2/L3b/L4,
 // Storage or Runtime is loaded. Real inter-module contracts belong to integration tests.
@@ -43,11 +44,12 @@ type RendererCall = { format: RenderFormat; key: string; locale?: 'zh' | 'en'; b
 type PlanCall = { format: ExportFormat; key: string; fileIds: string[]; preparedIds: string[] };
 type PackageCall = { delivery: ExportDelivery; groups: number; files: number };
 export const references = new Map<string, { referencedIds: string[]; imageIds: string[]; fileIds: string[] }>();
+const defaultDetailDecision: DetailIngestResult = { accepted: true, changed: true };
 export const state = {
     failRead: false, failSettingsRead: false, failSettingsWrite: false,
     failRecord: '', failDelivery: 0, failDelete: '', failPackage: false,
     failRender: '' as RenderFormat | '', failRenderKey: '' as string,
-    detailDecision: { accepted: true, changed: true },
+    detailDecision: defaultDetailDecision,
     detailError: null as Error | null,
     admittedDetails: [] as Array<{ accountId: string; conversationId: string; detail: Omit<import('../../src/l2/conversationDetail.js').DomainConversationDetail, 'key'>; indexFields?: Omit<DomainConversationIndex, 'key'> }>,
     notifications: [] as string[],

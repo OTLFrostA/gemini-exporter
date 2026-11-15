@@ -46,10 +46,11 @@ test('Takeout summary counts new local identities and repeated imports add zero'
     await page.evaluate(() => {
         const h = Reflect.get(window, 'harness');
         h.indexes.push({ key: { accountId: h.accounts[0].id, conversationId: 'new-import' }, title: 'New import' });
+        h.takeoutResult = { imported: 2, added: 1, status: 'partial' };
         h.finishImport();
     });
     await expect(page.locator('#status')).toHaveText('Read 2 conversation records, added 1, total 2. Some content or attachments are incomplete.');
-    await page.evaluate(() => { Reflect.get(window, 'harness').holdImport = false; });
+    await page.evaluate(() => { const h = Reflect.get(window, 'harness'); h.holdImport = false; h.takeoutResult.added = 0; });
     await page.locator('#takeoutFileInput').setInputFiles(file);
     await expect(page.locator('#status')).toHaveText('Read 2 conversation records, added 0, total 2. Some content or attachments are incomplete.');
 });

@@ -96,7 +96,7 @@ test('ingestDetail reports admitted candidate and material change independently 
     try {
         const body = { ...snapshot('first', 'complete', 10).conversation.detail };
         const { key: _unused, ...facts } = body;
-        assert.deepEqual(await ingestDetail(account.id, key.conversationId, facts), { accepted: true, changed: true });
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, facts), { accepted: true, changed: true, indexAdded: true });
         assert.deepEqual(await ingestDetail(account.id, key.conversationId, { ...facts }), { accepted: true, changed: false });
         assert.deepEqual(await ingestDetail(account.id, key.conversationId, { ...facts, savedAt: 11 }),
             { accepted: true, changed: false }, 'savedAt-only progress does not trigger Live Save');
@@ -125,7 +125,7 @@ test('one failed Detail write rolls back its freshly created Index', async () =>
         env.fail();
         assert.equal(await getIndex(key), null);
         assert.equal(await getDetail(key), null);
-        assert.deepEqual(await ingestDetail(account.id, key.conversationId, facts), { accepted: true, changed: true });
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, facts), { accepted: true, changed: true, indexAdded: true });
         assert.ok(await getIndex(key));
         assert.ok(await getDetail(key));
     } finally { env.restore(); }
@@ -189,7 +189,7 @@ test('Detail admission compares semantic JSON facts, not object property inserti
     try {
         const facts = { messages: [{ role: 'assistant' as const, content: [] }], assets: [{ id: 'a', kind: 'image' as const }],
             quality: { status: 'complete' as const }, savedAt: 10 };
-        assert.deepEqual(await ingestDetail(account.id, key.conversationId, facts), { accepted: true, changed: true });
+        assert.deepEqual(await ingestDetail(account.id, key.conversationId, facts), { accepted: true, changed: true, indexAdded: true });
         const writes = env.writes();
         const equivalent = { quality: { status: 'complete' as const }, assets: [{ kind: 'image' as const, id: 'a' }],
             messages: [{ content: [], role: 'assistant' as const }], savedAt: 10 };
@@ -210,7 +210,7 @@ test('rejected partial Detail never grafts its resources onto a retained complet
             assets: [{ id: 'old-image', kind: 'image' as const }],
             messages: [{ role: 'assistant' as const, content: [{ type: 'image' as const, assetId: 'old-image' }] }] };
         assert.deepEqual(await ingestDetail(account.id, key.conversationId, original,
-            { title: 'Original', titleSource: 'provider' }), { accepted: true, changed: true });
+            { title: 'Original', titleSource: 'provider' }), { accepted: true, changed: true, indexAdded: true });
         const partial = { savedAt: 20, quality: { status: 'partial' as const },
             assets: [{ id: 'untrusted-image', kind: 'image' as const }],
             messages: [{ role: 'assistant' as const, content: [{ type: 'image' as const, assetId: 'untrusted-image' }] }] };
