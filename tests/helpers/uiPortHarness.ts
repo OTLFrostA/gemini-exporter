@@ -181,6 +181,12 @@ export const launchGoogleOidcIdTokenFlow = async clientId => {
  if (h.googleAuthError) throw h.googleAuthError;
  return h.googleIdToken ?? 'mock-google-id-token';
 };
+export const inspectVaultDirectoryStatus = async () => ({ state: 'missing' });
+export const pickVaultDirectoryHandle = async () => {
+ const handle = await globalThis.showDirectoryPicker({ mode: 'readwrite' });
+ return handle;
+};
+export const reauthorizeVaultDirectoryHandle = async () => globalThis.showDirectoryPicker({ mode: 'readwrite' });
 export const defaultCloudSyncEngine = {
  getStatusSnapshot: async () => h.cloudStatus ?? {
   enabled: Boolean(h.settings?.cloudSyncEnabled),
@@ -193,6 +199,11 @@ export const defaultCloudSyncEngine = {
  },
  exportRecoveryKey: async () => h.cloudRecoveryKey ?? null,
  installAutoEnqueueListener: () => () => {},
+ connectLocalFolderVault: async handle => {
+  h.cloudRecoveryKey ??= 'GEK1-01234-56789-ABCDE-FGHJK-MNPQR-STVWX-YZ012-34567-89ABC-DEFGH-JKMNP';
+  h.cloudStatus = { enabled: true, connected: true, backend: 'local-folder', folderName: handle.name, ownerSubject: 'local:vault', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true };
+  return { session: { id: 'active', backend: 'local-folder', serverUrl: 'local-vault://directory', ownerSubject: 'local:vault', sessionToken: 'local', folderName: handle.name, expiresAt: Number.MAX_SAFE_INTEGER, pulledSeq: 0 }, recoveryKey: h.cloudRecoveryKey, createdNewKey: true };
+ },
  connectWithGoogleIdToken: async (serverUrl, idToken) => {
   (h.cloudConnectCalls ??= []).push({ serverUrl, idToken });
   h.cloudRecoveryKey ??= 'GEK1-01234-56789-ABCDE-FGHJK-MNPQR-STVWX-YZ012-34567-89ABC-DEFGH-JKMNP';

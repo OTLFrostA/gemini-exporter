@@ -7,6 +7,8 @@ export const CLOUD_WIRE_MAGIC = [0x47, 0x45, 0x45, 0x31] as const; // "GEE1"
 export const CLOUD_MAX_RECORD_BYTES = 2 * 1024 * 1024; // 2 MiB
 export const CLOUD_DEFAULT_USER_QUOTA_BYTES = 100 * 1024 * 1024; // 100 MiB
 
+export type CloudVaultBackendType = 'local-folder' | 'cloud-server';
+
 export interface CloudAuthGoogleRequest {
     readonly idToken: string;
 }

@@ -121,6 +121,9 @@
   .cloud-modal-input{width:100%;height:34px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card-inner);color:var(--text);font-size:12px;outline:none}
   .cloud-modal-input:focus{border-color:var(--border-focus)}
   .cloud-modal-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .cloud-modal-tabs{display:flex;gap:6px;padding:4px;border-radius:10px;background:var(--card-inner);border:1px solid var(--border);margin-bottom:12px}
+  .cloud-modal-tab{flex:1;height:30px;padding:0 8px;font-size:12px;border-radius:7px;background:transparent;color:var(--muted);border:0}
+  .cloud-modal-tab[aria-selected="true"]{background:var(--card);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.22)}
   .cloud-modal-section{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
   #cloudModalFeedback{font-size:12px;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--ok) 12%,var(--card-inner));color:var(--text);margin-top:8px;overflow-wrap:anywhere}
   #cloudModalFeedback[data-error="true"]{background:color-mix(in srgb,#f87171 14%,var(--card-inner));color:#fca5a5}
@@ -392,13 +395,13 @@
 
     <div id="cloudVaultCard" class="cloud-vault-card">
       <div class="cloud-vault-header">
-        <span class="cloud-vault-title" data-ui-en="☁️ E2EE Cloud Sync" data-ui-zh="☁️ 端到端加密云同步">☁️ 端到端加密云同步</span>
+        <span class="cloud-vault-title" data-ui-en="🔒 E2EE Encrypted Vault" data-ui-zh="🔒 端到端加密保险箱">🔒 端到端加密保险箱</span>
         <div class="cloud-vault-controls">
-          <input type="checkbox" id="cloudSyncToggle" class="toggle" aria-label="E2EE Auto Cloud Sync" disabled>
+          <input type="checkbox" id="cloudSyncToggle" class="toggle" aria-label="E2EE Auto Sync" disabled>
           <button id="btnCloudVaultSetup" type="button" class="ghost small" data-ui-en="Manage" data-ui-zh="管理">管理</button>
         </div>
       </div>
-      <div id="cloudVaultSummary" class="cloud-vault-summary">登录 Google 开启零知识端到端加密自动备份</div>
+      <div id="cloudVaultSummary" class="cloud-vault-summary">选择本地文件夹或登录云端开启零知识自动加密备份</div>
     </div>
 
     <div id="logSection" class="dev-only" style="display:flex; flex-direction:column; gap:8px; flex:1; min-height:90px; overflow:hidden; margin-top:4px;">
@@ -496,24 +499,43 @@
 </dialog>
 <dialog id="cloudVaultModal" class="direct-write-modal" aria-labelledby="cloudVaultModalTitle">
   <div class="direct-write-header">
-    <h2 id="cloudVaultModalTitle" data-ui-en="🔒 Zero-Knowledge E2EE Cloud Vault" data-ui-zh="🔒 零知识端到端加密云保险箱">🔒 零知识端到端加密云保险箱</h2>
+    <h2 id="cloudVaultModalTitle" data-ui-en="🔒 Zero-Knowledge E2EE Encrypted Vault" data-ui-zh="🔒 零知识端到端加密保险箱">🔒 零知识端到端加密保险箱</h2>
     <button id="btnCloudModalClose" type="button" aria-label="Close">×</button>
   </div>
-  <p class="direct-write-description" data-ui-en="Conversations are compressed and encrypted locally with AES-256-GCM before leaving your browser. Your Master Key syncs via Chrome Sync and never touches the server." data-ui-zh="对话在本地压缩并使用 AES-256-GCM 加密后才上传，不含二进制大附件。主密钥通过浏览器同步托管，服务器永远无法解密。">对话在本地压缩并使用 AES-256-GCM 加密后才上传，不含二进制大附件。主密钥通过浏览器同步托管，服务器永远无法解密。</p>
-  <div class="cloud-modal-field">
-    <label for="cloudServerUrlInput" data-ui-en="Cloud Vault HTTPS URL" data-ui-zh="云同步服务器 HTTPS 地址">云同步服务器 HTTPS 地址</label>
-    <input id="cloudServerUrlInput" class="cloud-modal-input" type="url" placeholder="https://gemini-exporter-cloud-vault.your-domain.workers.dev">
+  <p class="direct-write-description" data-ui-en="Conversations are compressed and encrypted locally with AES-256-GCM (.gee1 ciphertexts). Switch seamlessly between a local folder and a Cloud Vault server." data-ui-zh="对话在本地压缩并使用 AES-256-GCM 加密（.gee1 密文格式），不含二进制大附件。支持先在本地文件夹实验，随时平滑切换至云服务器。">对话在本地压缩并使用 AES-256-GCM 加密（.gee1 密文格式），不含二进制大附件。支持先在本地文件夹实验，随时平滑切换至云服务器。</p>
+
+  <div class="cloud-modal-tabs" role="tablist">
+    <button id="btnVaultTabLocal" type="button" role="tab" aria-selected="true" class="cloud-modal-tab" data-ui-en="📁 Local Encrypted Folder" data-ui-zh="📁 本地加密文件夹">📁 本地加密文件夹</button>
+    <button id="btnVaultTabCloud" type="button" role="tab" aria-selected="false" class="cloud-modal-tab" data-ui-en="☁️ Cloud Vault Server" data-ui-zh="☁️ 云同步服务器">☁️ 云同步服务器</button>
   </div>
-  <div class="cloud-modal-field">
-    <label for="cloudGoogleClientIdInput" data-ui-en="Google OAuth Client ID" data-ui-zh="Google OAuth Client ID">Google OAuth Client ID</label>
-    <input id="cloudGoogleClientIdInput" class="cloud-modal-input" type="text" placeholder="1234567890-xxx.apps.googleusercontent.com">
+
+  <div id="vaultPanelLocal">
+    <div class="cloud-modal-row">
+      <button id="btnLocalVaultPick" type="button" class="primary" style="width:100%;" data-ui-en="Choose Folder & Enable Auto Encrypted Backup" data-ui-zh="选择本地文件夹并开启自动加密同步">选择本地文件夹并开启自动加密同步</button>
+      <button id="btnLocalVaultReauth" type="button" class="primary" style="width:100%;" hidden data-ui-en="Re-authorize Vault Folder Access" data-ui-zh="重新授权加密文件夹读写权限">重新授权加密文件夹读写权限</button>
+    </div>
   </div>
-  <div class="cloud-modal-row">
-    <button id="btnCloudConnectGoogle" type="button" class="primary" style="width:100%;" data-ui-en="Sign in with Google & Enable E2EE Sync" data-ui-zh="使用 Google 账号登录并开启加密同步">使用 Google 账号登录并开启加密同步</button>
+
+  <div id="vaultPanelCloud" hidden>
+    <div class="cloud-modal-field">
+      <label for="cloudServerUrlInput" data-ui-en="Cloud Vault HTTPS URL" data-ui-zh="云同步服务器 HTTPS 地址">云同步服务器 HTTPS 地址</label>
+      <input id="cloudServerUrlInput" class="cloud-modal-input" type="url" placeholder="https://gemini-exporter-cloud-vault.your-domain.workers.dev">
+    </div>
+    <div class="cloud-modal-field">
+      <label for="cloudGoogleClientIdInput" data-ui-en="Google OAuth Client ID" data-ui-zh="Google OAuth Client ID">Google OAuth Client ID</label>
+      <input id="cloudGoogleClientIdInput" class="cloud-modal-input" type="text" placeholder="1234567890-xxx.apps.googleusercontent.com">
+    </div>
+    <div class="cloud-modal-row">
+      <button id="btnCloudConnectGoogle" type="button" class="primary" style="width:100%;" data-ui-en="Sign in with Google & Enable E2EE Sync" data-ui-zh="使用 Google 账号登录并开启加密同步">使用 Google 账号登录并开启加密同步</button>
+    </div>
   </div>
-  <div id="cloudConnectedAccountRow" class="cloud-modal-row" style="justify-content:space-between;" hidden>
+
+  <div id="cloudConnectedAccountRow" class="cloud-modal-row" style="justify-content:space-between;margin-top:8px;" hidden>
     <span id="cloudConnectedEmail" class="stat" style="font-weight:600;color:var(--text);"></span>
-    <button id="btnCloudDisconnect" type="button" class="ghost small" data-ui-en="Disconnect" data-ui-zh="断开连接">断开连接</button>
+    <div class="cloud-modal-row">
+      <button id="btnLocalVaultChangeDir" type="button" class="ghost small" hidden data-ui-en="Change Folder" data-ui-zh="更换目录">更换目录</button>
+      <button id="btnCloudDisconnect" type="button" class="ghost small" data-ui-en="Disconnect" data-ui-zh="断开连接">断开连接</button>
+    </div>
   </div>
   <div id="cloudConnectedActions" class="cloud-modal-section" hidden>
     <div class="cloud-modal-row">

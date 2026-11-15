@@ -1,6 +1,11 @@
-import { defaultCloudSyncEngine, type CloudSyncStatusSnapshot } from '../../../application/cloud/cloudSyncEngine.js';
+import {
+    defaultCloudSyncEngine,
+    type CloudSyncStatusSnapshot,
+    type CloudVaultBackendType,
+} from '../../../application/cloud/cloudSyncEngine.js';
 import { getSettings, updateSettings } from '../../../application/settings/index.js';
 import { launchGoogleOidcIdTokenFlow } from '../../../runtime/capabilities/googleCloudAuth.js';
+import { pickVaultDirectoryHandle, reauthorizeVaultDirectoryHandle } from '../../../runtime/capabilities/vaultFolderAuth.js';
 import { elementById as el, requiredElement as control } from '../../shared/elements.js';
 import { errorText, text } from '../../shared/settings.js';
 import type { UiMessage } from '../state/foregroundTask.js';
@@ -22,6 +27,14 @@ export function mountCloudVaultPanel(callbacks: {
     const modal = el('cloudVaultModal');
     const isDialog = (node: HTMLElement): node is HTMLDialogElement => 'showModal' in node;
 
+    const btnTabLocal = control('button', 'btnVaultTabLocal');
+    const btnTabCloud = control('button', 'btnVaultTabCloud');
+    const panelLocal = el('vaultPanelLocal');
+    const panelCloud = el('vaultPanelCloud');
+    const btnLocalPick = control('button', 'btnLocalVaultPick');
+    const btnLocalReauth = control('button', 'btnLocalVaultReauth');
+    const btnLocalChangeDir = control('button', 'btnLocalVaultChangeDir');
+
     const serverInput = control('input', 'cloudServerUrlInput');
     const clientIdInput = control('input', 'cloudGoogleClientIdInput');
     const btnConnect = control('button', 'btnCloudConnectGoogle');
@@ -42,6 +55,8 @@ export function mountCloudVaultPanel(callbacks: {
     let externalBusy = false;
     let internalBusy = false;
     let keyRevealed = false;
+    let selectedTab: CloudVaultBackendType = 'local-folder';
+    let userPickedTab = false;
     let latestSnapshot: CloudSyncStatusSnapshot | null = null;
     let cachedRecoveryKey: string | null = null;
 
@@ -64,43 +79,74 @@ export function mountCloudVaultPanel(callbacks: {
     const paint = (): void => {
         const disabled = externalBusy || internalBusy;
         const snap = latestSnapshot;
-        toggle.checked = Boolean(snap?.enabled && snap.connected);
-        toggle.disabled = disabled || !snap?.connected;
+        const connected = Boolean(snap?.connected);
+        const activeBackend: CloudVaultBackendType = snap?.backend ?? selectedTab;
+        const viewingTab: CloudVaultBackendType = connected ? activeBackend : selectedTab;
+
+        btnTabLocal.setAttribute('aria-selected', String(viewingTab === 'local-folder'));
+        btnTabCloud.setAttribute('aria-selected', String(viewingTab === 'cloud-server'));
+        btnTabLocal.disabled = disabled || (connected && activeBackend !== 'local-folder');
+        btnTabCloud.disabled = disabled || (connected && activeBackend !== 'cloud-server');
+
+        panelLocal.hidden = viewingTab !== 'local-folder';
+        panelCloud.hidden = viewingTab !== 'cloud-server';
+
+        toggle.checked = Boolean(snap?.enabled && connected);
+        toggle.disabled = disabled || !connected;
         btnManage.disabled = disabled;
 
-        if (!snap?.connected) {
+        if (!connected) {
             summaryEl.textContent = text(
-                'Sign in with Google to enable zero-knowledge E2EE backup',
-                '登录 Google 开启零知识端到端加密自动备份',
+                'Choose a local folder or sign in to Cloud Vault to enable auto E2EE backup',
+                '选择本地文件夹或登录云端开启零知识自动加密备份',
+            );
+        } else if (snap?.backend === 'local-folder' && snap.folderPermissionRequired) {
+            summaryEl.textContent = text(
+                `Folder "${snap.folderName ?? ''}" needs permission — click Manage to re-authorize`,
+                `加密文件夹“${snap.folderName ?? ''}”需重新授权 — 请点击“管理”`,
             );
         } else {
-            const who = snap.email ?? snap.ownerSubject ?? '';
-            const queuePart = snap.pendingOutbox > 0
-                ? text(` · ${snap.pendingOutbox} queued`, ` · ${snap.pendingOutbox} 条待传`)
+            const targetDesc = snap?.backend === 'local-folder'
+                ? `📁 ${snap.folderName ?? 'Local Vault'}`
+                : (snap?.email ?? snap?.ownerSubject ?? '');
+            const queuePart = (snap?.pendingOutbox ?? 0) > 0
+                ? text(` · ${snap?.pendingOutbox} queued`, ` · ${snap?.pendingOutbox} 条待同步`)
                 : '';
-            const statePart = snap.enabled
-                ? text('Auto-sync ON', '自动同步已开启')
+            const statePart = snap?.enabled
+                ? text('Auto-sync ON', '自动加密中')
                 : text('Paused', '已暂停');
-            summaryEl.textContent = `${statePart}${who ? ' · ' + who : ''}${queuePart}`;
+            summaryEl.textContent = `${statePart}${targetDesc ? ' · ' + targetDesc : ''}${queuePart}`;
         }
 
-        const connected = Boolean(snap?.connected);
+        const isLocalConnected = connected && activeBackend === 'local-folder';
+        const needsLocalReauth = isLocalConnected && Boolean(snap?.folderPermissionRequired);
+        btnLocalPick.hidden = isLocalConnected;
+        btnLocalReauth.hidden = !needsLocalReauth;
+        btnLocalChangeDir.hidden = !isLocalConnected;
+        btnLocalPick.disabled = disabled;
+        btnLocalReauth.disabled = disabled;
+        btnLocalChangeDir.disabled = disabled;
+
+        const isCloudConnected = connected && activeBackend === 'cloud-server';
+        btnConnect.hidden = isCloudConnected;
+        serverInput.disabled = disabled || isCloudConnected;
+        clientIdInput.disabled = disabled || isCloudConnected;
+        btnConnect.disabled = disabled;
+
         connectedRow.hidden = !connected;
         actionsSection.hidden = !connected;
-        btnConnect.hidden = connected;
-        serverInput.disabled = disabled || connected;
-        clientIdInput.disabled = disabled || connected;
-        btnConnect.disabled = disabled;
         btnDisconnect.disabled = disabled;
-        btnSyncNow.disabled = disabled || !connected;
-        btnBackfill.disabled = disabled || !connected;
+        btnSyncNow.disabled = disabled || !connected || needsLocalReauth;
+        btnBackfill.disabled = disabled || !connected || needsLocalReauth;
         btnRevealKey.disabled = disabled || !cachedRecoveryKey;
         btnCopyKey.disabled = disabled || !cachedRecoveryKey;
         btnImportKey.disabled = disabled || !connected;
         importKeyInput.disabled = disabled || !connected;
 
         if (connected) {
-            connectedLabel.textContent = snap?.email ?? snap?.ownerSubject ?? '';
+            connectedLabel.textContent = activeBackend === 'local-folder'
+                ? `📁 ${snap?.folderName ?? ''}`
+                : (snap?.email ?? snap?.ownerSubject ?? '');
         }
         if (cachedRecoveryKey) {
             keyDisplay.value = keyRevealed ? cachedRecoveryKey : 'GEK1-•••••-•••••-•••••-•••••-•••••';
@@ -118,8 +164,12 @@ export function mountCloudVaultPanel(callbacks: {
         ]);
         latestSnapshot = snap;
         cachedRecoveryKey = key;
-        if (!serverInput.value && (snap.serverUrl ?? settings.cloudSyncServerUrl)) {
-            serverInput.value = snap.serverUrl ?? settings.cloudSyncServerUrl ?? '';
+        if (snap.connected && snap.backend && !userPickedTab) {
+            selectedTab = snap.backend;
+        }
+        if (!serverInput.value && snap.backend !== 'local-folder' && (snap.serverUrl ?? settings.cloudSyncServerUrl)) {
+            const candidate = snap.serverUrl ?? settings.cloudSyncServerUrl ?? '';
+            if (!candidate.startsWith('local-vault://')) serverInput.value = candidate;
         }
         if (!clientIdInput.value && settings.cloudSyncGoogleClientId) {
             clientIdInput.value = settings.cloudSyncGoogleClientId;
@@ -136,6 +186,9 @@ export function mountCloudVaultPanel(callbacks: {
             await work();
             await refresh();
         } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') {
+                return;
+            }
             const msg = errorText(error);
             setModalFeedback(msg, true);
             callbacks.onStatus(() => errorText(error), 'error');
@@ -145,13 +198,59 @@ export function mountCloudVaultPanel(callbacks: {
         }
     };
 
+    const onSelectTab = (tab: CloudVaultBackendType): void => {
+        if (latestSnapshot?.connected) return;
+        selectedTab = tab;
+        userPickedTab = true;
+        setModalFeedback('');
+        paint();
+    };
+
+    const onPickLocalFolder = (): void => {
+        if (internalBusy || externalBusy) return;
+        // CRITICAL: Invoke native directory picker synchronously inside the user click gesture!
+        const pickerPromise = pickVaultDirectoryHandle();
+        void runAction(async () => {
+            const handle = await pickerPromise;
+            const connected = await defaultCloudSyncEngine.connectLocalFolderVault(handle);
+            cachedRecoveryKey = connected.recoveryKey;
+            await defaultCloudSyncEngine.setAutoSyncEnabled(true);
+            setModalFeedback(connected.createdNewKey
+                ? text(
+                    `Local Vault "${handle.name}" active! Master Key generated — copy your recovery key for safe keeping.`,
+                    `本地加密文件夹“${handle.name}”已启用！已生成主密钥，建议复制保存恢复密钥。`,
+                )
+                : text(
+                    `Local Vault "${handle.name}" active! Existing Master Key loaded.`,
+                    `本地加密文件夹“${handle.name}”已启用！已自动加载主密钥。`,
+                ));
+            callbacks.onStatus(() => text(
+                `Auto-encrypting new conversations to "${handle.name}"`,
+                `已开启自动加密保存至本地文件夹“${handle.name}”`,
+            ));
+        });
+    };
+
+    const onReauthLocalFolder = (): void => {
+        if (internalBusy || externalBusy) return;
+        const reauthPromise = reauthorizeVaultDirectoryHandle();
+        void runAction(async () => {
+            const handle = await reauthPromise;
+            const flushed = await defaultCloudSyncEngine.flushOutbox();
+            setModalFeedback(text(
+                `Folder "${handle.name}" re-authorized · Flushed ${flushed.uploaded} queued conversations`,
+                `文件夹“${handle.name}”已重新授权 · 已自动补写 ${flushed.uploaded} 条待同步会话`,
+            ));
+        });
+    };
+
     const onToggleChange = (): void => {
         const desired = toggle.checked;
         void runAction(async () => {
             await defaultCloudSyncEngine.setAutoSyncEnabled(desired);
             callbacks.onStatus(() => desired
-                ? text('E2EE automatic cloud sync enabled', '已开启端到端加密自动云同步')
-                : text('E2EE automatic cloud sync paused', '已暂停端到端加密自动云同步'));
+                ? text('E2EE automatic sync enabled', '已开启端到端加密自动同步')
+                : text('E2EE automatic sync paused', '已暂停端到端加密自动同步'));
         });
     };
 
@@ -169,7 +268,7 @@ export function mountCloudVaultPanel(callbacks: {
         paint();
     };
 
-    const onConnect = (): void => {
+    const onConnectCloud = (): void => {
         void runAction(async () => {
             const serverUrl = serverInput.value.trim();
             const googleClientId = clientIdInput.value.trim();
@@ -204,8 +303,9 @@ export function mountCloudVaultPanel(callbacks: {
             await defaultCloudSyncEngine.disconnect({ revokeRemoteTokens: false });
             cachedRecoveryKey = null;
             keyRevealed = false;
-            setModalFeedback(text('Disconnected from Cloud Vault', '已断开云同步连接'));
-            callbacks.onStatus(() => text('Cloud Sync disconnected', '已断开云同步'));
+            userPickedTab = false;
+            setModalFeedback(text('Disconnected from Encrypted Vault', '已断开加密保险箱连接'));
+            callbacks.onStatus(() => text('Encrypted Vault disconnected', '已断开加密保险箱'));
         });
     };
 
@@ -216,8 +316,8 @@ export function mountCloudVaultPanel(callbacks: {
                 await callbacks.onRestored();
             }
             const msg = text(
-                `Sync complete · Restored ${outcome.pull.accepted}, Uploaded ${outcome.push.uploaded}`,
-                `云同步完成 · 恢复 ${outcome.pull.accepted} 条，上传 ${outcome.push.uploaded} 条`,
+                `Sync complete · Restored ${outcome.pull.accepted}, Saved ${outcome.push.uploaded}`,
+                `加密同步完成 · 解密恢复 ${outcome.pull.accepted} 条，加密写入 ${outcome.push.uploaded} 条`,
             );
             setModalFeedback(msg);
             callbacks.onStatus(() => msg);
@@ -229,8 +329,8 @@ export function mountCloudVaultPanel(callbacks: {
             const count = await defaultCloudSyncEngine.enqueueAllExistingHistory();
             const pushed = await defaultCloudSyncEngine.flushOutbox();
             const msg = text(
-                `Queued ${count} local conversations · Uploaded ${pushed.uploaded}`,
-                `已扫描 ${count} 条本地历史会话 · 新增上传 ${pushed.uploaded} 条`,
+                `Queued ${count} local conversations · Saved ${pushed.uploaded} encrypted records`,
+                `已扫描 ${count} 条本地历史会话 · 新增写入 ${pushed.uploaded} 条密文`,
             );
             setModalFeedback(msg);
             callbacks.onStatus(() => msg);
@@ -263,10 +363,18 @@ export function mountCloudVaultPanel(callbacks: {
         });
     };
 
+    const selectLocal = () => onSelectTab('local-folder');
+    const selectCloud = () => onSelectTab('cloud-server');
+
+    btnTabLocal.addEventListener('click', selectLocal);
+    btnTabCloud.addEventListener('click', selectCloud);
+    btnLocalPick.addEventListener('click', onPickLocalFolder);
+    btnLocalChangeDir.addEventListener('click', onPickLocalFolder);
+    btnLocalReauth.addEventListener('click', onReauthLocalFolder);
     toggle.addEventListener('change', onToggleChange);
     btnManage.addEventListener('click', onOpenModal);
     btnCloseModal.addEventListener('click', onCloseModal);
-    btnConnect.addEventListener('click', onConnect);
+    btnConnect.addEventListener('click', onConnectCloud);
     btnDisconnect.addEventListener('click', onDisconnect);
     btnSyncNow.addEventListener('click', onSyncNow);
     btnBackfill.addEventListener('click', onBackfill);
@@ -291,10 +399,15 @@ export function mountCloudVaultPanel(callbacks: {
             unsubscribeAutoEnqueue();
             window.removeEventListener('online', onOnline);
             window.removeEventListener('focus', onWindowFocus);
+            btnTabLocal.removeEventListener('click', selectLocal);
+            btnTabCloud.removeEventListener('click', selectCloud);
+            btnLocalPick.removeEventListener('click', onPickLocalFolder);
+            btnLocalChangeDir.removeEventListener('click', onPickLocalFolder);
+            btnLocalReauth.removeEventListener('click', onReauthLocalFolder);
             toggle.removeEventListener('change', onToggleChange);
             btnManage.removeEventListener('click', onOpenModal);
             btnCloseModal.removeEventListener('click', onCloseModal);
-            btnConnect.removeEventListener('click', onConnect);
+            btnConnect.removeEventListener('click', onConnectCloud);
             btnDisconnect.removeEventListener('click', onDisconnect);
             btnSyncNow.removeEventListener('click', onSyncNow);
             btnBackfill.removeEventListener('click', onBackfill);

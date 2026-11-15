@@ -112,6 +112,7 @@ export function installUiV2Mocks(): void {
             }),
             exportRecoveryKey: async () => null,
             installAutoEnqueueListener: () => () => {},
+            connectLocalFolderVault: () => unconfigured('Application.cloudSync.connectLocalFolderVault'),
             connectWithGoogleIdToken: () => unconfigured('Application.cloudSync.connect'),
             disconnect: async () => {},
             setAutoSyncEnabled: async () => {},
@@ -129,6 +130,11 @@ export function installUiV2Mocks(): void {
     });
     stub('../../src/runtime/capabilities/googleCloudAuth.js', {
         launchGoogleOidcIdTokenFlow: () => unconfigured('Runtime.launchGoogleOidcIdTokenFlow'),
+    });
+    stub('../../src/runtime/capabilities/vaultFolderAuth.js', {
+        inspectVaultDirectoryStatus: async () => ({ state: 'missing' as const }),
+        pickVaultDirectoryHandle: () => unconfigured('Runtime.pickVaultDirectoryHandle'),
+        reauthorizeVaultDirectoryHandle: () => unconfigured('Runtime.reauthorizeVaultDirectoryHandle'),
     });
     stub('../../src/shared/utils/pathUtils.js', {
         isVersionGreater: (one: string, two: string) => {
