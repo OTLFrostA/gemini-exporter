@@ -190,6 +190,7 @@ export const reauthorizeVaultDirectoryHandle = async () => globalThis.showDirect
 export const defaultCloudSyncEngine = {
  getStatusSnapshot: async () => h.cloudStatus ?? {
   enabled: Boolean(h.settings?.cloudSyncEnabled),
+  includeDetail: Boolean(h.settings?.cloudSyncIncludeDetail),
   connected: false,
   pulledSeq: 0,
   pendingOutbox: 0,
@@ -201,17 +202,18 @@ export const defaultCloudSyncEngine = {
  installAutoEnqueueListener: () => () => {},
  connectLocalFolderVault: async handle => {
   h.cloudRecoveryKey ??= 'GEK1-01234-56789-ABCDE-FGHJK-MNPQR-STVWX-YZ012-34567-89ABC-DEFGH-JKMNP';
-  h.cloudStatus = { enabled: true, connected: true, backend: 'local-folder', folderName: handle.name, ownerSubject: 'local:vault', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true };
+  h.cloudStatus = { enabled: true, includeDetail: false, connected: true, backend: 'local-folder', folderName: handle.name, ownerSubject: 'local:vault', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true };
   return { session: { id: 'active', backend: 'local-folder', serverUrl: 'local-vault://directory', ownerSubject: 'local:vault', sessionToken: 'local', folderName: handle.name, expiresAt: Number.MAX_SAFE_INTEGER, pulledSeq: 0 }, recoveryKey: h.cloudRecoveryKey, createdNewKey: true };
  },
  connectWithGoogleIdToken: async (serverUrl, idToken) => {
   (h.cloudConnectCalls ??= []).push({ serverUrl, idToken });
   h.cloudRecoveryKey ??= 'GEK1-01234-56789-ABCDE-FGHJK-MNPQR-STVWX-YZ012-34567-89ABC-DEFGH-JKMNP';
-  h.cloudStatus = { enabled: true, connected: true, serverUrl, ownerSubject: 'google:mock', email: 'mock@example.com', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true };
+  h.cloudStatus = { enabled: true, includeDetail: false, connected: true, serverUrl, ownerSubject: 'google:mock', email: 'mock@example.com', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true };
   return { session: { id: 'active', serverUrl, ownerSubject: 'google:mock', sessionToken: 'tok', expiresAt: Date.now() + 3600000, pulledSeq: 0 }, recoveryKey: h.cloudRecoveryKey, createdNewKey: true };
  },
- disconnect: async () => { h.cloudStatus = { enabled: false, connected: false, pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: false }; },
+ disconnect: async () => { h.cloudStatus = { enabled: false, includeDetail: false, connected: false, pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: false }; },
  setAutoSyncEnabled: async enabled => { h.settings.cloudSyncEnabled = enabled; if (h.cloudStatus) h.cloudStatus.enabled = enabled; },
+ setIncludeDetail: async v => { h.settings.cloudSyncIncludeDetail = v; if (h.cloudStatus) h.cloudStatus.includeDetail = v; },
  enqueueAllExistingHistory: async () => 0,
  flushOutbox: async () => ({ uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 }),
  pullChanges: async () => ({ downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 }),

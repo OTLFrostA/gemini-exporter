@@ -26,7 +26,7 @@ function load(file: string, stubs: Record<string, unknown> = {}) {
                     push: { uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 },
                 }),
                 getStatusSnapshot: async () => ({
-                    enabled: false, connected: false, pulledSeq: 0,
+                    enabled: false, includeDetail: false, connected: false, pulledSeq: 0,
                     pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: false,
                 }),
             },

@@ -118,6 +118,7 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
             const connectedA = await engineA.connectWithGoogleIdToken(SERVER_URL, idToken);
             assert.equal(connectedA.createdNewKey, true);
             assert.match(connectedA.recoveryKey, /^GEK1-/);
+            await engineA.setIncludeDetail(true);
             await engineA.setAutoSyncEnabled(true);
 
             assert.equal(backend.store.inspectRawBlobs().size, 0, 'pre-toggle history stays untouched until explicitly queued or updated');
@@ -177,6 +178,7 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
             const idTokenB = await backend.mintIdToken('google_sub_sync_1', 'sync@example.com');
             const connectedB = await engineB.connectWithGoogleIdToken(SERVER_URL, idTokenB);
             assert.equal(connectedB.createdNewKey, false, 'Device B automatically inherited Master Key from chrome.storage.sync!');
+            await engineB.setIncludeDetail(true);
             await engineB.setAutoSyncEnabled(true);
 
             // Pull changes onto Device B
@@ -222,6 +224,7 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
         });
         const idTokenC = await backend.mintIdToken('google_sub_sync_1', 'sync@example.com');
         await engineC.connectWithGoogleIdToken(SERVER_URL, idTokenC);
+        await engineC.setIncludeDetail(true);
         await engineC.setAutoSyncEnabled(true);
 
         // Device C has NOT pulled yet (thinks remoteRevision is 0), and has an older local draft (savedAt: 1500)

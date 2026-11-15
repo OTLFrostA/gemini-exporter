@@ -7,7 +7,7 @@ import type { ConversationKey } from '../../l2/conversationKey.js';
 import { encodePortableCloudConversation, type PortableCloudConversation } from '../../l2/cloudPayload.js';
 import { subscribeCommittedKeys } from '../../l2/ingestion.js';
 import { readConversation } from '../../l2/readConversation.js';
-import { getAccount, listAccounts, getDetail, listIndexes } from '../../l3a/storageService.js';
+import { getAccount, listAccounts, getDetail, getIndex, listIndexes } from '../../l3a/storageService.js';
 import {
     clearCloudSyncSession,
     countCloudOutbox,
@@ -45,9 +45,11 @@ import {
 import { getSettings, updateSettings } from '../settings/index.js';
 import {
     openCloudConversation,
+    portableVaultSubject,
     restoreCloudConversationsToLocal,
     sealCloudConversation,
 } from './cloudArchiveCodec.js';
+import type { PortableConversationSource } from '../../l2/cloudPayload.js';
 
 async function sha256Utf8Hex(text: string): Promise<string> {
     const bytes = toOwnedBytes(new TextEncoder().encode(text));
@@ -64,6 +66,7 @@ export type { CloudVaultBackendType } from '../../shared/types/cloudSync.js';
 
 export interface CloudSyncStatusSnapshot {
     readonly enabled: boolean;
+    readonly includeDetail: boolean;
     readonly connected: boolean;
     readonly backend?: CloudVaultBackendType;
     readonly serverUrl?: string;
@@ -105,6 +108,7 @@ export interface CloudSyncEngine {
     }>;
     disconnect(options?: { revokeRemoteTokens?: boolean }): Promise<void>;
     setAutoSyncEnabled(enabled: boolean): Promise<void>;
+    setIncludeDetail(includeDetail: boolean): Promise<void>;
     enqueueAllExistingHistory(): Promise<number>;
     flushOutbox(signal?: AbortSignal): Promise<CloudFlushResult>;
     pullChanges(signal?: AbortSignal): Promise<CloudPullResult>;
@@ -173,26 +177,70 @@ export function createCloudSyncEngine(deps: {
         return loaded.keyring;
     };
 
+    const readLocalSyncSource = async (
+        key: ConversationKey,
+        includeDetail: boolean,
+    ): Promise<PortableConversationSource | null> => {
+        if (includeDetail) {
+            const full = await readConversation(key);
+            if (full) return full;
+        }
+        const index = await getIndex(key);
+        if (!index) return null;
+        return { index };
+    };
+
+    const openWithPortableFallback = async (
+        keyring: VaultKeyring,
+        session: CloudSyncSessionState,
+        blindRecordId: string,
+        revision: number,
+        envelope: Uint8Array,
+    ): Promise<PortableCloudConversation> => {
+        try {
+            return await openCloudConversation({
+                keyring,
+                ownerSubject: portableVaultSubject(keyring),
+                blindRecordId,
+                revision,
+                envelope,
+            });
+        } catch (primaryError) {
+            if (primaryError instanceof OperationError && primaryError.code === 'CLOUD_DECRYPT_AUTH_FAILED') {
+                return openCloudConversation({
+                    keyring,
+                    ownerSubject: session.ownerSubject,
+                    blindRecordId,
+                    revision,
+                    envelope,
+                });
+            }
+            throw primaryError;
+        }
+    };
+
     const pushSingleConversation = async (
         session: CloudSyncSessionState,
         keyring: VaultKeyring,
+        includeDetail: boolean,
         key: ConversationKey,
         attemptNumber: number,
         signal?: AbortSignal,
     ): Promise<'uploaded' | 'skipped' | 'oversized' | 'retry'> => {
-        const [account, conversation] = await Promise.all([
+        const [account, initialSource] = await Promise.all([
             getAccount(key.accountId),
-            readConversation(key),
+            readLocalSyncSource(key, includeDetail),
         ]);
-        if (!account || account.providerAccountId === DEFAULT_ACCOUNT_KEY || !conversation) {
+        if (!account || account.providerAccountId === DEFAULT_ACCOUNT_KEY || !initialSource) {
             await removeCloudOutboxKey(key);
             return 'skipped';
         }
 
-        let currentConversation = conversation;
+        let currentSource: PortableConversationSource = initialSource;
+        const aadSubject = portableVaultSubject(keyring);
         for (let conflictAttempt = 0; conflictAttempt < 3; conflictAttempt++) {
             signal?.throwIfAborted();
-            const portableJson = encodePortableCloudConversation(account, currentConversation);
+            const portableJson = encodePortableCloudConversation(account, currentSource);
             const payloadSha256 = await sha256Utf8Hex(portableJson);
             const synced = await getSyncedCloudRecord(session.ownerSubject, key);
             if (synced && synced.payloadSha256 === payloadSha256 && synced.oversizedBytes === undefined) {
@@ -206,10 +254,10 @@ export function createCloudSyncEngine(deps: {
             try {
                 sealed = await sealCloudConversation({
                     keyring,
-                    ownerSubject: session.ownerSubject,
+                    ownerSubject: aadSubject,
                     revision: nextRevision,
                     account,
-                    conversation: currentConversation,
+                    conversation: currentSource,
                 });
             } catch (error) {
                 if (error instanceof OperationError && error.code === 'CLOUD_RECORD_TOO_LARGE') {
@@ -270,13 +318,13 @@ export function createCloudSyncEngine(deps: {
                 if (!remote) {
                     throw new OperationError('CLOUD_SERVER_ERROR', 'Conflicting remote record disappeared during reconciliation');
                 }
-                const remotePortable = await openCloudConversation({
+                const remotePortable = await openWithPortableFallback(
                     keyring,
-                    ownerSubject: session.ownerSubject,
-                    blindRecordId: sealed.blindRecordId,
-                    revision: remote.revision,
-                    envelope: remote.envelope,
-                });
+                    session,
+                    sealed.blindRecordId,
+                    remote.revision,
+                    remote.envelope,
+                );
                 suppressAutoEnqueueDepth++;
                 try {
                     await restoreCloudConversationsToLocal([remotePortable]);
@@ -285,7 +333,7 @@ export function createCloudSyncEngine(deps: {
                 }
                 const remoteJson = encodePortableCloudConversation(account, {
                     index: { ...remotePortable.index, key },
-                    detail: { ...remotePortable.detail, key },
+                    ...(remotePortable.detail !== undefined ? { detail: { ...remotePortable.detail, key } } : {}),
                 });
                 const remoteSha256 = await sha256Utf8Hex(remoteJson);
                 await putSyncedCloudRecord({
@@ -298,12 +346,12 @@ export function createCloudSyncEngine(deps: {
                     syncedAt: now(),
                 }, false);
 
-                const mergedLocal = await readConversation(key);
+                const mergedLocal = await readLocalSyncSource(key, includeDetail);
                 if (!mergedLocal) {
                     await removeCloudOutboxKey(key);
                     return 'skipped';
                 }
-                currentConversation = mergedLocal;
+                currentSource = mergedLocal;
             } catch (error) {
                 if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;
                 // Auth, folder permission, or quota errors bubble up to halt the batch cleanly while keeping items queued
@@ -337,6 +385,7 @@ export function createCloudSyncEngine(deps: {
                 if (!settings.cloudSyncEnabled) {
                     return { uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 };
                 }
+                const includeDetail = settings.cloudSyncIncludeDetail === true;
                 const session = await requireActiveSession();
                 const keyring = await resolveKeyring(session.ownerSubject);
                 let uploaded = 0;
@@ -352,7 +401,7 @@ export function createCloudSyncEngine(deps: {
                     for (const entry of due) {
                         signal?.throwIfAborted();
                         const key = { accountId: entry.accountId, conversationId: entry.conversationId };
-                        const status = await pushSingleConversation(session, keyring, key, entry.attempts, signal);
+                        const status = await pushSingleConversation(session, keyring, includeDetail, key, entry.attempts, signal);
                         if (status === 'uploaded') uploaded++;
                         else if (status === 'skipped') skippedUnchanged++;
                         else if (status === 'oversized') oversizedSkipped++;
@@ -404,11 +453,11 @@ export function createCloudSyncEngine(deps: {
                     for (const meta of feed.items) {
                         const existing = await getSyncedCloudRecordByBlindId(session.ownerSubject, meta.blindRecordId);
                         if (existing && existing.remoteRevision >= meta.revision) {
-                            const localDetail = await getDetail({
+                            const localIndex = await getIndex({
                                 accountId: existing.accountId,
                                 conversationId: existing.conversationId,
                             });
-                            if (localDetail) continue;
+                            if (localIndex) continue;
                         }
                         toDownload.push(meta);
                     }
@@ -425,13 +474,13 @@ export function createCloudSyncEngine(deps: {
                             signal,
                         });
                         if (!blob) return null;
-                        const portable = await openCloudConversation({
+                        const portable = await openWithPortableFallback(
                             keyring,
-                            ownerSubject: session.ownerSubject,
-                            blindRecordId: meta.blindRecordId,
-                            revision: blob.revision,
-                            envelope: blob.envelope,
-                        });
+                            session,
+                            meta.blindRecordId,
+                            blob.revision,
+                            blob.envelope,
+                        );
                         downloaded++;
                         // Compute canonical JSON hash so auto-enqueue recognizes this exact state as already synced
                         const tempAccountId = '00000000-0000-4000-8000-000000000000';
@@ -440,7 +489,7 @@ export function createCloudSyncEngine(deps: {
                             { id: tempAccountId, ...portable.account },
                             {
                                 index: { ...portable.index, key: tempKey },
-                                detail: { ...portable.detail, key: tempKey },
+                                ...(portable.detail !== undefined ? { detail: { ...portable.detail, key: tempKey } } : {}),
                             },
                         );
                         const payloadSha256 = await sha256Utf8Hex(canonicalJson);
@@ -587,15 +636,25 @@ export function createCloudSyncEngine(deps: {
             }
         },
 
+        async setIncludeDetail(includeDetail) {
+            await updateSettings({ cloudSyncIncludeDetail: includeDetail });
+        },
+
         async enqueueAllExistingHistory() {
+            const settings = await getSettings();
+            const includeDetail = settings.cloudSyncIncludeDetail === true;
             const accounts = await listAccounts();
             const keys: ConversationKey[] = [];
             for (const acc of accounts) {
                 if (acc.providerAccountId === DEFAULT_ACCOUNT_KEY) continue;
                 const indexes = await listIndexes(acc.id);
                 for (const idx of indexes) {
-                    const detail = await getDetail(idx.key);
-                    if (detail) keys.push(idx.key);
+                    if (includeDetail) {
+                        // Even when detail mode is enabled, still back up Index-only rows as Index!
+                        keys.push(idx.key);
+                    } else {
+                        keys.push(idx.key);
+                    }
                 }
             }
             await enqueueCloudOutboxKeys(keys, now());
@@ -640,6 +699,7 @@ export function createCloudSyncEngine(deps: {
                 : [0, null];
             return {
                 enabled: settings.cloudSyncEnabled === true,
+                includeDetail: settings.cloudSyncIncludeDetail === true,
                 connected,
                 ...(session?.backend ? { backend: session.backend } : {}),
                 ...(session?.serverUrl ?? settings.cloudSyncServerUrl
@@ -678,18 +738,17 @@ export function createCloudSyncEngine(deps: {
             ]);
             if (!settings.cloudSyncEnabled || !session || session.expiresAt <= now()) return;
             if (!acc || acc.providerAccountId === DEFAULT_ACCOUNT_KEY) return;
+            const includeDetail = settings.cloudSyncIncludeDetail === true;
             const cutoff = session.enabledSinceAt ?? 0;
             const indexes = await listIndexes(accountId);
             const candidates: ConversationKey[] = [];
             for (const idx of indexes) {
                 const synced = await getSyncedCloudRecord(session.ownerSubject, idx.key);
-                // Re-check any already-synced conversation OR any new conversation updated since the toggle was enabled
-                const activity = idx.updatedAt ?? idx.activityAt ?? 0;
+                const activity = idx.updatedAt ?? idx.activityAt ?? idx.createdAt ?? 0;
                 if (!synced && activity > 0 && activity < cutoff) continue;
-                const detail = await getDetail(idx.key);
-                if (!detail) continue;
-                if (!synced && detail.savedAt !== undefined && detail.savedAt < cutoff && activity === 0) continue;
-                const json = encodePortableCloudConversation(acc, { index: idx, detail });
+                const detail = includeDetail ? await getDetail(idx.key) : null;
+                const source: PortableConversationSource = detail ? { index: idx, detail } : { index: idx };
+                const json = encodePortableCloudConversation(acc, source);
                 const sha = await sha256Utf8Hex(json);
                 if (synced && synced.payloadSha256 === sha) continue;
                 candidates.push(idx.key);
@@ -711,11 +770,11 @@ export function createCloudSyncEngine(deps: {
                     if (!settings.cloudSyncEnabled || !session || session.expiresAt <= now()) return;
                     const eligible: ConversationKey[] = [];
                     for (const key of keys) {
-                        const [acc, detail] = await Promise.all([
+                        const [acc, index] = await Promise.all([
                             getAccount(key.accountId),
-                            getDetail(key),
+                            getIndex(key),
                         ]);
-                        if (acc && acc.providerAccountId !== DEFAULT_ACCOUNT_KEY && detail) {
+                        if (acc && acc.providerAccountId !== DEFAULT_ACCOUNT_KEY && index) {
                             eligible.push(key);
                         }
                     }

@@ -8,13 +8,13 @@ import {
     type VaultKeyring,
 } from '../../shared/crypto/index.js';
 import type { Account } from '../../l2/accountRegistry.js';
-import type { ReadonlyDomain } from '../../l2/runtimeValidation.js';
 import {
     decodePortableCloudConversation,
     encodePortableCloudConversation,
     type PortableCloudConversation,
+    type PortableConversationSource,
 } from '../../l2/cloudPayload.js';
-import { ingestDetail, ingestDetailsBatch } from '../../l2/ingestion.js';
+import { ingestDetail, ingestDetailsBatch, ingestIndexes } from '../../l2/ingestion.js';
 import { getOrCreateAccount } from '../../runtime/api/accountRegistry.js';
 import { notifyDomainChanged } from '../../runtime/api/domainChanges.js';
 
@@ -24,15 +24,24 @@ export interface SealedCloudConversation {
 }
 
 /**
+ * Backend-agnostic cryptographic AAD subject derived purely from the Master Key's HKDF fingerprint.
+ * Ensures `.gee1` ciphertext files written to a local folder can be copied directly to any Cloud Vault
+ * server (and vice versa) with zero re-encryption while preserving strict cross-vault isolation.
+ */
+export function portableVaultSubject(keyring: VaultKeyring): string {
+    return `vault:${keyring.keyFingerprint}`;
+}
+
+/**
  * Validate, strip device-local UUIDs, compress, and AEAD-seal a Domain conversation
- * with strict AAD binding to `(ownerSubject, blindRecordId, revision)`.
+ * (Index-only by default, or Index + Detail when opted in).
  */
 export async function sealCloudConversation(options: {
     readonly keyring: VaultKeyring;
-    readonly ownerSubject: string;
+    readonly ownerSubject?: string;
     readonly revision: number;
     readonly account: Readonly<Account>;
-    readonly conversation: ReadonlyDomain;
+    readonly conversation: PortableConversationSource;
     readonly sealOptions?: SealOptions;
 }): Promise<SealedCloudConversation> {
     let jsonText: string;
@@ -47,10 +56,11 @@ export async function sealCloudConversation(options: {
         options.account.providerAccountId,
         options.conversation.index.key.conversationId,
     );
+    const aadSubject = options.ownerSubject ?? portableVaultSubject(options.keyring);
     const envelope = await sealUtf8Record(
         options.keyring,
         jsonText,
-        { ownerSubject: options.ownerSubject, blindRecordId, revision: options.revision },
+        { ownerSubject: aadSubject, blindRecordId, revision: options.revision },
         options.sealOptions,
     );
     return { blindRecordId, envelope };
@@ -62,16 +72,17 @@ export async function sealCloudConversation(options: {
  */
 export async function openCloudConversation(options: {
     readonly keyring: VaultKeyring;
-    readonly ownerSubject: string;
+    readonly ownerSubject?: string;
     readonly blindRecordId: string;
     readonly revision: number;
     readonly envelope: Uint8Array;
     readonly openOptions?: OpenOptions;
 }): Promise<PortableCloudConversation> {
+    const aadSubject = options.ownerSubject ?? portableVaultSubject(options.keyring);
     const jsonText = await openUtf8Record(
         options.keyring,
         options.envelope,
-        { ownerSubject: options.ownerSubject, blindRecordId: options.blindRecordId, revision: options.revision },
+        { ownerSubject: aadSubject, blindRecordId: options.blindRecordId, revision: options.revision },
         options.openOptions,
     );
     let portable: PortableCloudConversation;
@@ -104,7 +115,7 @@ export interface CloudRestoreSummary {
 
 /**
  * Remap portable `(providerId, providerAccountId)` identities to this device's local Account UUIDs
- * and admit decrypted conversations through L2's authoritative Index/Detail merge rules.
+ * and admit decrypted conversations (both Index-only and full Detail entries) through L2 merge rules.
  */
 export async function restoreCloudConversationsToLocal(
     items: readonly PortableCloudConversation[],
@@ -136,8 +147,33 @@ export async function restoreCloudConversationsToLocal(
         );
         touchedAccountIds.push(localAccount.id);
 
-        for (let offset = 0; offset < entries.length; offset += batchSize) {
-            const slice = entries.slice(offset, offset + batchSize);
+        const indexOnlyEntries: PortableCloudConversation[] = [];
+        const withDetailEntries: Array<PortableCloudConversation & { detail: NonNullable<PortableCloudConversation['detail']> }> = [];
+        for (const entry of entries) {
+            if (entry.detail !== undefined) {
+                withDetailEntries.push({ ...entry, detail: entry.detail });
+            } else {
+                indexOnlyEntries.push(entry);
+            }
+        }
+
+        if (indexOnlyEntries.length > 0) {
+            for (let offset = 0; offset < indexOnlyEntries.length; offset += 100) {
+                const slice = indexOnlyEntries.slice(offset, offset + 100);
+                const indexResult = await ingestIndexes(
+                    localAccount.id,
+                    slice.map(entry => ({
+                        conversationId: entry.conversationId,
+                        fields: entry.index,
+                    })),
+                );
+                accepted += slice.length;
+                changed += indexResult.added + indexResult.updated;
+            }
+        }
+
+        for (let offset = 0; offset < withDetailEntries.length; offset += batchSize) {
+            const slice = withDetailEntries.slice(offset, offset + batchSize);
             const outcomes = slice.length === 1
                 ? [await ingestDetail(
                     localAccount.id,

@@ -502,7 +502,7 @@
     <h2 id="cloudVaultModalTitle" data-ui-en="🔒 Zero-Knowledge E2EE Encrypted Vault" data-ui-zh="🔒 零知识端到端加密保险箱">🔒 零知识端到端加密保险箱</h2>
     <button id="btnCloudModalClose" type="button" aria-label="Close">×</button>
   </div>
-  <p class="direct-write-description" data-ui-en="Conversations are compressed and encrypted locally with AES-256-GCM (.gee1 ciphertexts). Switch seamlessly between a local folder and a Cloud Vault server." data-ui-zh="对话在本地压缩并使用 AES-256-GCM 加密（.gee1 密文格式），不含二进制大附件。支持先在本地文件夹实验，随时平滑切换至云服务器。">对话在本地压缩并使用 AES-256-GCM 加密（.gee1 密文格式），不含二进制大附件。支持先在本地文件夹实验，随时平滑切换至云服务器。</p>
+  <p class="direct-write-description" data-ui-en="By default, only conversation Index metadata (titles & timestamps, including mobile/other-device chats) is AES-256-GCM encrypted into portable .gee1 files — zero message bodies leave this browser unless explicitly enabled." data-ui-zh="默认仅将对话目录（标题与时间，自动涵盖手机或其他端新增对话）使用 AES-256-GCM 加密为通用 .gee1 文件——聊天正文留在本地以保证最小隐私暴露，并可在本地文件夹与云服务器间无缝移植。">默认仅将对话目录（标题与时间，自动涵盖手机或其他端新增对话）使用 AES-256-GCM 加密为通用 .gee1 文件——聊天正文留在本地以保证最小隐私暴露，并可在本地文件夹与云服务器间无缝移植。</p>
 
   <div class="cloud-modal-tabs" role="tablist">
     <button id="btnVaultTabLocal" type="button" role="tab" aria-selected="true" class="cloud-modal-tab" data-ui-en="📁 Local Encrypted Folder" data-ui-zh="📁 本地加密文件夹">📁 本地加密文件夹</button>
@@ -538,6 +538,13 @@
     </div>
   </div>
   <div id="cloudConnectedActions" class="cloud-modal-section" hidden>
+    <label class="live-save-row" style="min-height:34px;">
+      <span class="live-save-copy">
+        <span class="live-save-title" data-ui-en="Include full message bodies" data-ui-zh="包含完整聊天正文">包含完整聊天正文</span>
+        <span class="live-save-hint" data-ui-en="Off by default: syncs Index catalog only for minimal privacy exposure" data-ui-zh="默认关闭：仅加密同步会话目录（Index），隐私暴露面最小">默认关闭：仅加密同步会话目录（Index），隐私暴露面最小</span>
+      </span>
+      <input type="checkbox" id="cloudIncludeDetailToggle" class="toggle">
+    </label>
     <div class="cloud-modal-row">
       <button id="btnCloudSyncNow" type="button" class="primary small" style="flex:1;" data-ui-en="Sync & Restore Now" data-ui-zh="立即同步 / 恢复">立即同步 / 恢复</button>
       <button id="btnCloudBackfill" type="button" class="ghost small" style="flex:1;" data-ui-en="Backup Existing History" data-ui-zh="备份现有本地历史">备份现有本地历史</button>

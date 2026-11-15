@@ -319,7 +319,7 @@ test('Multi-tenant E2EE Cloud Vault enforces CORS, tenant isolation, plaintext r
         revision: Number(downloadRes.headers.get('X-Record-Revision')),
         envelope: downloadedBytes,
     });
-    assert.ok(JSON.stringify(decrypted.detail.messages).includes('Revision 2 updated answer'));
+    assert.ok(JSON.stringify(decrypted.detail?.messages).includes('Revision 2 updated answer'));
 
     // 9. Per-user storage quota enforcement (413 QUOTA_EXCEEDED)
     const bigText = Array.from({ length: 400 }, (_, i) => `Unique incompressible token ${i}-${crypto.randomUUID()}`).join(' ');

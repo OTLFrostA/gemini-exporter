@@ -4,8 +4,19 @@ import { OperationError } from '../src/shared/errors/operationError.js';
 import type { DirectoryHandle } from '../src/shared/types/directoryHandle.js';
 import { createLocalFolderVaultClient, LOCAL_VAULT_OWNER_SUBJECT } from '../src/l1/cloud/localFolderVaultClient.js';
 import { createCloudSyncEngine } from '../src/application/cloud/cloudSyncEngine.js';
-import { ingestDetail } from '../src/l2/ingestion.js';
+import { openCloudConversation } from '../src/application/cloud/cloudArchiveCodec.js';
+import { createCloudVaultClient } from '../src/l1/cloud/vaultClient.js';
+import { ingestDetail, ingestIndexes } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
+import { getDetail, getIndex } from '../src/l3a/storageService.js';
+import { deriveVaultKeyring, parseRecoveryKey } from '../src/shared/crypto/index.js';
+import {
+    createGoogleOidcVerifier,
+    encodeBase64UrlBytes,
+    type JsonWebKeyWithKid,
+} from '../cloud-server/src/auth/googleOidc.js';
+import { createCloudServerHandler } from '../cloud-server/src/router.js';
+import { createInMemoryVaultStore, sha256Hex } from '../cloud-server/src/storage/vaultStore.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { clearLocalScanRecords } from '../src/application/localCleanup.js';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -138,15 +149,28 @@ test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-r
             const connected = await engine.connectLocalFolderVault(folder.handle);
             assert.equal(connected.session.backend, 'local-folder');
             assert.equal(connected.session.ownerSubject, LOCAL_VAULT_OWNER_SUBJECT);
+            assert.equal((await engine.getStatusSnapshot()).includeDetail, false, 'Index-only privacy mode is default');
             await engine.setAutoSyncEnabled(true);
 
-            // Simulate browser restart revoking directory permission -> conversation stays safely queued in Outbox!
+            // 1. Mobile/other-platform chat scanned ONLY as an Index row (zero local Detail!) -> automatically backed up!
+            await ingestIndexes(acc.id, [{
+                conversationId: 'c_mobile_only_index',
+                fields: { title: 'Mobile Chat From Phone App', titleSource: 'provider', updatedAt: 4000 },
+            }]);
+            await engine.waitForIdle();
+            const recordsSubdir = folder.subdirs.get('records');
+            assert.ok(recordsSubdir);
+            assert.equal(recordsSubdir.files.size, 1, 'Index-only conversation from mobile scan was immediately saved as .gee1!');
+
+            // 2. Simulate browser restart revoking directory permission -> conversation WITH sensitive body stays queued,
+            //    and once flushed in default Index-only mode, its decrypted payload contains ZERO message bodies!
             folder.setPermission('prompt');
+            const ultraPrivateBody = 'NEVER_LEAVE_THIS_DEVICE_BODY_99182';
             await ingestDetail(acc.id, 'c_local_1', {
                 savedAt: 5000,
                 quality: { status: 'complete' },
                 assets: [],
-                messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Queued while locked' }] }] }],
+                messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: ultraPrivateBody }] }] }],
             }, { title: 'Locked Folder Test', titleSource: 'provider', updatedAt: 5000 });
             await engine.waitForIdle();
             assert.equal((await engine.getStatusSnapshot()).pendingOutbox, 1);
@@ -156,22 +180,81 @@ test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-r
             const flushed = await engine.flushOutbox();
             assert.equal(flushed.uploaded, 1);
             assert.equal((await engine.getStatusSnapshot()).pendingOutbox, 0);
-            assert.equal(folder.files.has('vault-manifest.json'), true);
-            const recordsSubdir = folder.subdirs.get('records');
-            assert.ok(recordsSubdir);
-            assert.equal(recordsSubdir.files.size, 1);
+            assert.equal(recordsSubdir.files.size, 2);
 
-            // Wipe local DB and verify pullChanges restores 100% from the local encrypted folder
+            // Verify even with the real Master Key, decrypted .gee1 files hold ONLY Index metadata (detail === undefined)!
+            const keyring = await deriveVaultKeyring(await parseRecoveryKey(connected.recoveryKey));
+            for (const [fileName, bytes] of recordsSubdir.files) {
+                const blindId = fileName.replace(/\.gee1$/, '');
+                const opened = await openCloudConversation({
+                    keyring,
+                    blindRecordId: blindId,
+                    revision: 1,
+                    envelope: bytes,
+                });
+                assert.equal(opened.detail, undefined, 'default Index-only mode never serializes message bodies');
+                assert.equal(JSON.stringify(opened).includes(ultraPrivateBody), false);
+            }
+
+            // 3. Wipe local DB and verify pullChanges restores BOTH Index entries cleanly from the local encrypted folder
             await clearLocalScanRecords(acc.id);
+            assert.equal(await getIndex({ accountId: acc.id, conversationId: 'c_mobile_only_index' }), null);
             assert.equal(await readConversation({ accountId: acc.id, conversationId: 'c_local_1' }), null);
 
             const pulled = await engine.pullChanges();
-            assert.equal(pulled.accepted, 1);
-            const restored = await readConversation({ accountId: acc.id, conversationId: 'c_local_1' });
-            assert.ok(restored);
-            assert.equal(restored.index.title, 'Locked Folder Test');
+            assert.equal(pulled.accepted, 2);
+            const restoredMobileIdx = await getIndex({ accountId: acc.id, conversationId: 'c_mobile_only_index' });
+            const restoredLocalIdx = await getIndex({ accountId: acc.id, conversationId: 'c_local_1' });
+            assert.equal(restoredMobileIdx?.title, 'Mobile Chat From Phone App');
+            assert.equal(restoredLocalIdx?.title, 'Locked Folder Test');
+            assert.equal(await getDetail({ accountId: acc.id, conversationId: 'c_local_1' }), null, 'no body stored or restored in Index-only mode');
 
-            // Tamper 1 byte in the on-disk .gee1 file -> getEncryptedRecord detects SHA-256 corruption immediately!
+            // 4. Zero-reencryption Local-to-Cloud portability proof:
+            //    Copy raw .gee1 files verbatim from local folder into Cloud Vault Server and pull from Cloud!
+            const keyPair = await crypto.subtle.generateKey(
+                { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+                true,
+                ['sign', 'verify'],
+            );
+            const pubJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
+            const jwk: JsonWebKeyWithKid = { ...pubJwk, kid: 'port-1', alg: 'RS256', use: 'sig' };
+            const cloudStore = createInMemoryVaultStore();
+            const cloudHandler = createCloudServerHandler({
+                store: cloudStore,
+                oidcVerifier: createGoogleOidcVerifier(async () => ({ keys: [jwk] })),
+                config: { sessionHmacSecret: 'portability-hmac-secret-at-least-32-bytes!!', googleClientIds: ['cid'], allowedOrigins: ['*'] },
+            });
+            await cloudStore.ensureUser('google:migrated_user', 10_000_000);
+            for (const [fileName, bytes] of recordsSubdir.files) {
+                const blindId = fileName.replace(/\.gee1$/, '');
+                const putRes = await cloudStore.putRecord({
+                    ownerSubject: 'google:migrated_user',
+                    blindRecordId: blindId,
+                    expectedRevision: 0,
+                    ciphertext: bytes, // Exact untouched bytes from local disk!
+                    sha256: await sha256Hex(bytes),
+                });
+                assert.equal(putRes.status, 'committed');
+            }
+
+            await clearLocalScanRecords(acc.id);
+            const nowSec = Math.floor(Date.now() / 1000);
+            const h = encodeBase64UrlBytes(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', kid: 'port-1' })));
+            const p = encodeBase64UrlBytes(new TextEncoder().encode(JSON.stringify({
+                iss: 'https://accounts.google.com', aud: 'cid', sub: 'migrated_user', iat: nowSec - 5, exp: nowSec + 3600,
+            })));
+            const sig = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', keyPair.privateKey, new Uint8Array(new TextEncoder().encode(`${h}.${p}`))));
+            const cloudEngine = createCloudSyncEngine({
+                client: createCloudVaultClient((url, init) => cloudHandler(new Request(url, init))),
+            });
+            const cloudConn = await cloudEngine.connectWithGoogleIdToken('https://cloud.port.test', `${h}.${p}.${encodeBase64UrlBytes(sig)}`);
+            assert.equal(cloudConn.recoveryKey, connected.recoveryKey, 'Local vault key automatically promoted to Cloud account!');
+            const cloudPull = await cloudEngine.pullChanges();
+            assert.equal(cloudPull.accepted, 2, 'Untouched local .gee1 files decrypted seamlessly from Cloud Vault!');
+            assert.equal((await getIndex({ accountId: acc.id, conversationId: 'c_mobile_only_index' }))?.title, 'Mobile Chat From Phone App');
+
+            // 5. Tamper 1 byte in the on-disk .gee1 file -> LocalFolderVaultClient detects SHA-256 corruption immediately!
+            await engine.connectLocalFolderVault(folder.handle);
             const [gee1Name, gee1Bytes] = [...recordsSubdir.files.entries()][0]!;
             const corrupted = new Uint8Array(gee1Bytes);
             corrupted[10] ^= 0xff;
