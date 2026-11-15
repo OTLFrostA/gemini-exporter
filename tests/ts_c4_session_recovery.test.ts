@@ -197,19 +197,16 @@ test('C4-v2-8: Browser staging reports prepared items without claiming delivery'
     assert.deepEqual(updates, ['prepared:first', 'prepared:second', 'exported:first', 'exported:second']);
 });
 
-test('C4-v2-9: Folder reports committed results before delivering the next item', async () => {
+test('C4-v2-9: Folder reports each committed result without waiting for an earlier item', { timeout: 5000 }, async () => {
     seed('first');
     seed('second');
     const updates: string[] = [];
-    let deliveryCount = 0;
-    state.onDelivery = () => {
-        if (++deliveryCount === 2) {
-            assert.deepEqual(updates, ['exported:first']);
-            assert.equal(records.has(address(key())), true);
-            assert.equal(records.has(address(key('second'))), false);
-        }
+    let release = (): void => {};
+    const firstCommit = new Promise<void>(resolve => { release = resolve; });
+    state.onDelivery = async files => {
+        if (files[0].fileName === 'mock-first.markdown') await firstCommit;
     };
-    const result = await runExport(request({ keys: [key(), key('second')], delivery: 'folderWriter' }), {
+    const exporting = runExport(request({ keys: [key(), key('second')], delivery: 'folderWriter' }), {
         onItemUpdate: update => {
             updates.push(update.status + ':' + update.key.conversationId);
             assert.equal(update.status, 'exported');
@@ -218,9 +215,16 @@ test('C4-v2-9: Folder reports committed results before delivering the next item'
             }
         },
     });
+    try {
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.deepEqual(updates, ['exported:second']);
+        assert.equal(records.has(address(key())), false, 'pending commit cannot produce a successful record');
+        assert.equal(records.has(address(key('second'))), true);
+    } finally { release(); }
+    const result = await exporting;
     assert.equal(result.exported, 2);
-    assert.deepEqual(updates, ['exported:first', 'exported:second']);
-    assert.deepEqual(events, ['delivery', 'record:first', 'delivery', 'record:second']);
+    assert.deepEqual(updates, ['exported:second', 'exported:first']);
+    assert.deepEqual(events, ['delivery', 'delivery', 'record:second', 'record:first']);
 });
 
 test('C4-v2-10: Failed ZIP delivery never promotes prepared items to exported', async () => {

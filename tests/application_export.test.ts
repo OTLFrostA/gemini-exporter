@@ -255,6 +255,191 @@ function gate() {
     const promise = new Promise<void>(resolve => { release = resolve; });
     return { promise, release };
 }
+for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
+    test(`${format}: a pending Folder commit does not block later sources or attachments`, { timeout: 5000 }, async () => {
+        const ids = ['first', 'second', 'third', 'fourth', 'fifth'];
+        for (const id of ids) seed(id, { assets: true, savedAt: 90 });
+        records.set(address(key()), previous);
+        const sourceReads: string[] = [];
+        const acquired: string[] = [];
+        const receipts: string[] = [];
+        const commit = gate();
+        provider.fetchConversationDetail = async (_account, id) => {
+            sourceReads.push(id);
+            seed(id, { assets: true });
+        };
+        provider.acquireResource = async (target, asset) => {
+            acquired.push(target.conversationId + ':' + asset.id);
+            return { bytes: Uint8Array.of(1) };
+        };
+        state.onDelivery = async files => {
+            if (files.some(file => file.fileName === `mock-first.${format}`)) await commit.promise;
+        };
+        const exporting = runExport(request({ keys: ids.map(id => key(id)), format, delivery: 'folderWriter' }), {
+            onBodyDelivered: target => receipts.push(target.conversationId),
+        });
+        try {
+            await new Promise<void>(resolve => setImmediate(resolve));
+            assert.deepEqual(sourceReads, ids);
+            assert.equal(acquired.length, ids.length * (format === 'json' ? 3 : 2));
+            assert.deepEqual(receipts, ids.slice(1), 'later commits can finish independently');
+            assert.strictEqual(records.get(address(key())), previous, 'a pending commit must preserve the old record');
+            for (const id of ids.slice(1)) assert.equal(records.get(address(key(id)))?.status, 'ok');
+            assert.equal(state.releasedKeys.includes('first'), false, 'retain this key until its write settles');
+        } finally { commit.release(); }
+        const result = await exporting;
+        assert.equal(result.exported, ids.length);
+        assert.deepEqual(result.failed, []);
+        assert.deepEqual(receipts, [...ids.slice(1), 'first']);
+        assert.equal(records.get(address(key()))?.status, 'ok');
+        assert.equal(state.releasedContexts, 1);
+    });
+}
+test('a delayed Folder write failure affects only its key and leaves later successful records intact', { timeout: 5000 }, async () => {
+    const ids = ['first', 'second', 'third', 'fourth', 'fifth'];
+    for (const id of ids) seed(id, { assets: true });
+    records.set(address(key()), previous);
+    const commit = gate();
+    const siblingCommits = gate();
+    const receipts: string[] = [];
+    state.onDelivery = async files => {
+        if (files.some(file => file.fileName === 'mock-first.markdown')) {
+            await commit.promise;
+            throw new Error('Delayed native commit failure');
+        }
+        if (files.some(file => ['mock-second.markdown', 'mock-third.markdown'].includes(file.fileName))) {
+            await siblingCommits.promise;
+        }
+    };
+    const exporting = runExport(request({ keys: ids.map(id => key(id)), delivery: 'folderWriter' }), {
+        onBodyDelivered: target => receipts.push(target.conversationId),
+    });
+    try {
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.equal(deliveries.length, 3, 'all write slots are occupied');
+        assert.deepEqual(receipts, []);
+        commit.release();
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.deepEqual(receipts, ids.slice(3), 'capacity waiters do not inherit the failed write');
+        assert.strictEqual(records.get(address(key())), previous);
+    } finally { commit.release(); siblingCommits.release(); }
+    const result = await exporting;
+    assert.equal(result.exported, ids.length - 1);
+    assert.deepEqual(result.failed, [key()]);
+    assert.strictEqual(records.get(address(key())), previous);
+    for (const id of ids.slice(1)) assert.equal(records.get(address(key(id)))?.status, 'ok');
+});
+test('Folder backpressure bounds pending conversations and active commit groups', { timeout: 5000 }, async () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `chat-${i}`);
+    for (const id of ids) seed(id, { assets: true });
+    const prepared: string[] = [];
+    const acquired: string[] = [];
+    const commit = gate();
+    let active = 0;
+    let peak = 0;
+    provider.acquireResource = async (target, asset) => {
+        acquired.push(target.conversationId + ':' + asset.id);
+        return { bytes: Uint8Array.of(1) };
+    };
+    state.onDelivery = async () => {
+        active++;
+        peak = Math.max(peak, active);
+        await commit.promise;
+        active--;
+    };
+    const exporting = runExport(request({ keys: ids.map(id => key(id)), delivery: 'folderWriter' }), {
+        onConversationPrepared: target => prepared.push(target.conversationId),
+    });
+    try {
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.deepEqual(prepared, ids.slice(0, 8));
+        assert.equal(acquired.length, 16, 'attachments progress within the bounded pending window');
+        assert.equal(active, 3);
+        assert.equal(deliveries.length, 3);
+        assert.equal(records.size, 0);
+    } finally { commit.release(); }
+    assert.equal((await exporting).exported, ids.length);
+    assert.equal(peak, 3);
+    assert.equal(active, 0);
+    assert.deepEqual(prepared, ids);
+});
+test('Folder cancellation drains started commits without starting queued writes or marking untouched keys failed', { timeout: 5000 }, async () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `chat-${i}`);
+    for (const id of ids) seed(id);
+    const controller = new AbortController();
+    const commit = gate();
+    const receipts: string[] = [];
+    let settled = false;
+    state.onDelivery = () => commit.promise;
+    const exporting = runExport(request({ keys: ids.map(id => key(id)), delivery: 'folderWriter' }), {
+        signal: controller.signal,
+        onBodyDelivered: target => receipts.push(target.conversationId),
+    }).then(result => { settled = true; return result; });
+    try {
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.equal(deliveries.length, 3);
+        controller.abort();
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.equal(settled, false, 'native commits must drain before the task returns');
+        assert.equal(records.size, 0);
+        assert.equal(deliveries.length, 3);
+        assert.equal(state.releasedContexts, 0);
+    } finally { commit.release(); }
+    const result = await exporting;
+    assert.equal(result.aborted, true);
+    assert.equal(result.exported, 3, 'successful in-flight commits retain their records after cancellation');
+    assert.deepEqual(result.failed, []);
+    assert.deepEqual(receipts, ids.slice(0, 3));
+    assert.equal(deliveries.length, 3);
+    assert.equal(records.size, 3);
+    assert.equal(state.releasedContexts, 1);
+});
+test('Folder cancellation retains a successful attachment commit already in flight', { timeout: 5000 }, async () => {
+    seed('first', { assets: true });
+    const controller = new AbortController();
+    const commit = gate();
+    state.onDelivery = async () => {
+        if (deliveries.length === 2) await commit.promise;
+    };
+    const exporting = runExport(request({ delivery: 'folderWriter' }), { signal: controller.signal });
+    try {
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.equal(deliveries.length, 2, 'the attachment group has started writing');
+        controller.abort();
+        assert.equal(records.size, 0);
+        assert.equal(state.releasedContexts, 0);
+    } finally { commit.release(); }
+    const result = await exporting;
+    assert.equal(result.aborted, true);
+    assert.equal(result.exported, 1);
+    assert.deepEqual(result.failed, []);
+    assert.equal(records.get(address(key()))?.status, 'ok');
+    assert.equal(state.releasedContexts, 1);
+});
+test('Folder corrections wait for their original body commit while resource acquisition continues', { timeout: 5000 }, async () => {
+    seed('first', { assets: true });
+    const commit = gate();
+    let originalCommitted = false;
+    provider.acquireResource = async () => { throw new Error('Resource unavailable'); };
+    state.onDelivery = async () => {
+        if (deliveries.length === 1) {
+            await commit.promise;
+            originalCommitted = true;
+        } else assert.equal(originalCommitted, true, 'an older body must never overwrite its correction');
+    };
+    const exporting = runExport(request({ delivery: 'folderWriter' }));
+    try {
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.equal(state.builtFiles.length, 2, 'attachment failure has already produced a corrected body');
+        assert.equal(deliveries.length, 1, 'correction must wait for the original write');
+        assert.equal(records.size, 0);
+    } finally { commit.release(); }
+    const result = await exporting;
+    assert.equal(result.partial, 1);
+    assert.equal(result.exported, 1);
+    assert.equal(deliveries.length, 2);
+    assert.equal(records.get(address(key()))?.status, 'partial');
+});
 for (const delivery of ['folderWriter', 'browserDownload'] as const) {
     test(`${delivery} prepares all bodies while the first conversation attachments remain blocked`, { timeout: 5000 }, async () => {
         const ids = ['first', 'second', 'third', 'fourth', 'fifth'];
