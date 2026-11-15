@@ -175,11 +175,7 @@ test('E2EE Cloud Vault full browser UI flow: Google OIDC sign-in -> post-toggle 
 
     await page.locator('#btnCloudConnectGoogle').click();
     await expect(page.locator('#cloudConnectedEmail')).toHaveText('e2e-researcher@example.com');
-    await page.locator('#cloudImportKeyInput').fill(savedRecoveryKey);
-    await page.locator('#btnCloudImportKey').click();
-    await expect(page.locator('#cloudModalFeedback')).toContainText('verified');
-
-    await page.locator('#btnCloudSyncNow').click();
+    // Signing in automatically restores the vault without requiring ANY extra button click!
     await expect(page.locator('#cloudModalFeedback')).toContainText('Restored 1');
     await page.locator('#btnCloudModalClose').click();
 
@@ -215,13 +211,25 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
         });
     });
 
+    // Seed a pre-existing conversation BEFORE connecting the vault: picking the folder must automatically back it up with ZERO extra clicks!
+    const preExistingTitle = 'Pre-Existing History Auto Backed Up';
+    await page.evaluate(async ({ accountId, preExistingTitle }) => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        await api.ingestIndexes(accountId, [{
+            conversationId: 'c_pre_existing_00',
+            fields: { title: preExistingTitle, titleSource: 'provider', updatedAt: 1700000000000 },
+        }]);
+    }, { accountId, preExistingTitle });
+
     // 1. Open Vault modal (defaults to Local Encrypted Folder tab!) and pick local folder
     await page.locator('#btnCloudVaultSetup').click();
     await expect(page.locator('#cloudVaultModal')).toBeVisible();
+    await expect(page.locator('#btnCloudBackfill')).toHaveCount(0); // Redundant dual button removed!
     await expect(page.locator('#btnVaultTabLocal')).toHaveAttribute('aria-selected', 'true');
     await page.locator('#btnLocalVaultPick').click();
 
     await expect(page.locator('#cloudConnectedEmail')).toContainText('LocalEncryptedVaultExperiment');
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Saved 1');
     await expect(page.locator('#cloudSyncToggle')).toBeChecked();
     await expect(page.locator('#cloudIncludeDetailToggle')).not.toBeChecked();
 
@@ -248,7 +256,7 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
     }, accountId);
     await helperExtPage.close();
 
-    // 3. Inspect real files written inside the folder: verify vault-manifest.json + records/<blindId>.gee1 with ZERO plaintext!
+    // 3. Inspect real files written inside the folder: BOTH pre-existing + mobile Index conversations are encrypted on disk!
     await expect.poll(async () => page.evaluate(async () => {
         try {
             const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('LocalEncryptedVaultExperiment');
@@ -258,7 +266,7 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
         } catch {
             return 0;
         }
-    }), { timeout: 10000 }).toBe(1);
+    }), { timeout: 10000 }).toBe(2);
 
     const diskInspection = await page.evaluate(async () => {
         const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('LocalEncryptedVaultExperiment');
@@ -279,12 +287,12 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
     expect(diskInspection.blindId).toMatch(/^[0-9a-f]{64}$/);
     expect(diskInspection.magic).toEqual([0x47, 0x45, 0x45, 0x31]); // "GEE1"
     expect(diskInspection.byteLength).toBeLessThan(600); // Compact Index-only ciphertext (~220 bytes)
-    for (const sensitive of [localTitle, 'c_local_vault_01', 'gemini']) {
+    for (const sensitive of [localTitle, preExistingTitle, 'c_local_vault_01', 'c_pre_existing_00', 'gemini']) {
         expect(diskInspection.manifestText).not.toContain(sensitive);
         expect(diskInspection.rawLatin1).not.toContain(sensitive);
     }
 
-    // 4. Wipe extension's local conversation list, then restore catalog directly from the local encrypted folder!
+    // 4. Wipe extension's local conversation list, then restore catalog!
     await page.locator('#btnMoreActions').click();
     await page.locator('#btnClearScan').click();
     await page.locator('#btnCleanupConfirm').click();
@@ -292,9 +300,10 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
 
     await page.locator('#btnCloudVaultSetup').click();
     await page.locator('#btnCloudSyncNow').click();
-    await expect(page.locator('#cloudModalFeedback')).toContainText('Restored 1');
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Restored 2');
     await page.locator('#btnCloudModalClose').click();
 
-    await expect(page.locator('#list .item')).toHaveCount(1);
+    await expect(page.locator('#list .item')).toHaveCount(2);
     await expect(page.locator('#list')).toContainText(localTitle);
+    await expect(page.locator('#list')).toContainText(preExistingTitle);
 });
