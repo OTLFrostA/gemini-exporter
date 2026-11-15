@@ -75,14 +75,13 @@ function flatDocItem(title = "Adequate Flat Title Here"): unknown[] {
 test('P1-9a: 严格路径命中的文档不标 heuristic', () => {
     const out = attachments.extractDocumentsMeta([strictDocItem()]);
     assert.strictEqual(out.length, 1);
-    assert.strictEqual(out[0].source, 'strict', '严格身份显式标记，不能使用 heuristic 正文匹配');
-    assert.strictEqual(out[0].id, UUID);
+    assert.strictEqual(out[0].source, undefined, '严格路径不应带 source 标记');
 });
 
 test('P1-9b: flat 兜底仅在严格路径产出为 0 时执行', () => {
     const out = attachments.extractDocumentsMeta([strictDocItem(), flatDocItem()]);
     assert.strictEqual(out.length, 1, '已有严格结果时 flat 兜底不应再产出');
-    assert.strictEqual(out[0].source, 'strict');
+    assert.strictEqual(out[0].source, undefined);
 });
 
 test('P1-9c: 纯 flat 形态产出标记 source=heuristic-flat', () => {
@@ -124,6 +123,74 @@ test('P1-9e2: strict document time uses canonical finite safe milliseconds', () 
     }
 });
 
+test('P1-9f: findDocContentById 全等路径不标 contentMatch', () => {
+    const real = ["docExact1", "## 真实标题\n\n" + "正文".repeat(100)];
+    const found = attachments.createDocumentReader([real]).byId("docExact1");
+    assert.ok(found);
+    assert.strictEqual(found?.contentMatch, undefined, '全等路径不应标记');
+});
+
+test('P1-9g: findDocContentById includes 长元素（>=80）不再命中', () => {
+    const elem = "n".repeat(40) + "docLong1" + "m".repeat(40); // 88 字符，确实包含 docId
+    assert.strictEqual(elem.length, 88);
+    assert.ok(elem.includes("docLong1"));
+    const found = attachments.createDocumentReader([[elem]]).byId("docLong1");
+    assert.strictEqual(found, null, '>=80 字符的 includes 元素不应命中');
+});
+
+test('P1-9h: findDocContentById includes 短元素命中并标 substring', () => {
+    const node = ["ab_docShort1_cd", "## 短文档标题\n\n" + "正文".repeat(100)];
+    const found = attachments.createDocumentReader([node]).byId("docShort1");
+    assert.ok(found);
+    assert.strictEqual(found?.contentMatch, 'substring');
+    assert.equal(Object.hasOwn(node, 'contentMatch'), false, 'raw source must not be mutated');
+});
+
+test('P1-9i: parseDocSections explicitly propagates typed match provenance', () => {
+    const arr = [["Section Title", "https://example.com/doc"]];
+    const res = attachments.parseDocSections(arr, 'substring');
+    assert.strictEqual(res.contentMatch, 'substring', '应透传上游标记');
+    assert.equal(Object.hasOwn(arr, 'contentMatch'), false);
+    const clean = attachments.parseDocSections([["Section Title", "https://example.com/doc"]]);
+    assert.strictEqual(clean.contentMatch, undefined);
+});
+
+test('P1-9k: findDocContentById substring match -> parseDocSections 端到端透传 contentMatch 标记', () => {
+    const rawSection = "这是一段用于测试文档段落的文字内容，长度确保超过五十个字符以进入 sections 集合。".repeat(2);
+    const substringNode = ["prefix_docSubId_suffix", [[rawSection, "https://example.com/doc-link"]]];
+    const root = [substringNode];
+
+    const found = attachments.createDocumentReader(root).byId("docSubId");
+    assert.ok(found);
+    assert.strictEqual(found?.contentMatch, 'substring', 'substring 匹配必须标记为启发式');
+    assert.equal(Object.hasOwn(substringNode, 'contentMatch'), false, '原始 RPC 节点不得被修改');
+
+    const res = found;
+    assert.strictEqual(res.contentMatch, 'substring', 'parseDocSections 必须透传匹配依据');
+    assert.ok(res.contentMarkdown.includes("这是一段用于测试文档段落的文字内容"), 'sections 内容应被正确解析为 markdown');
+
+    // 3. 对照组：全等匹配节点不标记 contentMatch，经 parseDocSections 后 contentMatch 保持 undefined
+    const exactNode = ["docExactId", [[rawSection, "https://example.com/doc-link"]]];
+    const exactFound = attachments.createDocumentReader([exactNode]).byId("docExactId");
+    assert.ok(exactFound);
+    assert.strictEqual(exactFound?.contentMatch, undefined, '全等匹配不应带有 contentMatch 标记');
+    const exactRes = exactFound;
+    assert.strictEqual(exactRes.contentMatch, undefined, '全等匹配经 parseDocSections 不应带有 contentMatch');
+});
+
+test('matching content from a frozen RPC node preserves source bytes and heuristic provenance', () => {
+    const rawSection = '## A fixed, immutable document section. '.repeat(10);
+    const raw = Object.freeze(['prefix_docFrozen_suffix', Object.freeze([[rawSection]])]);
+    const source = Object.freeze([raw]);
+    const original = JSON.stringify(source);
+    const result = attachments.createDocumentReader(source).byId('docFrozen');
+    assert.ok(result);
+    assert.strictEqual(result?.contentMatch, 'substring');
+    assert.strictEqual(result.contentMatch, 'substring');
+    assert.strictEqual(JSON.stringify(source), original);
+    assert.equal(Object.hasOwn(raw, 'contentMatch'), false);
+});
+
 test('P1-9j: heuristic 链的文档最终标 hasFabricatedText=true', () => {
     const clueText = "## End To End Heuristic Title\n\n" + "正文".repeat(100);
     assert.ok(clueText.length > 200);
@@ -134,27 +201,44 @@ test('P1-9j: heuristic 链的文档最终标 hasFabricatedText=true', () => {
     assert.strictEqual(doc.hasFabricatedText, true, 'heuristic 链文档必须标 hasFabricatedText');
 });
 
-test('decodeGeminiDetail: a nearby heading cannot supply a chip document body or title', () => {
+test('decodeGeminiDetail: strips immersive_entry_chip from document contentMarkdown and extracts heading title', () => {
     const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_DOC_02'));
     const model = modelMessageOf(res);
     assert.ok(model && model.documents && model.documents.length > 0, '应产出 documents');
     const doc = model.documents[0];
-    assert.equal(doc.contentMarkdown, undefined);
-    assert.equal(doc.contentMissing, true);
-    assert.notEqual(doc.title, '虚构城市水力建模分析', 'unowned prose cannot rename the chip');
+    assert.strictEqual(doc.contentMarkdown.includes('immersive_entry_chip'), false, 'contentMarkdown 不应残留 internal chip url');
+    assert.strictEqual(doc.title, '虚构城市水力建模分析', 'title 应提取 markdown 首行标题，而非 Document');
 });
 
-test('decodeGeminiDetail: a chip URL alone retains an unresolved document without fabricated body', () => {
+test('decodeGeminiDetail: ignores document when contentMarkdown contains only chip URL', () => {
     const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_DOC_03'));
     const model = modelMessageOf(res);
-    assert.ok(model?.documents?.length);
-    for (const doc of model.documents) { assert.equal(doc.contentMissing, true); assert.equal(doc.contentMarkdown, undefined); }
+    assert.ok(!model || !model.documents || model.documents.length === 0, '仅包含 chip 的空文档不应产出');
 });
 
 
+
+test('LP-03: only a unique first-heading match can bind an unattributed Research document', () => {
+    const matching = '# Target Research Report\n\n' + 'Matched body '.repeat(40);
+    const longerOther = '# Unrelated Research Report\n\n' + 'Unrelated body '.repeat(100);
+    const meta = { id: 'doc-target', title: 'Target Research Report' };
+    assert.equal(attachments.createDocumentReader([longerOther, matching]).byTitle(meta), matching);
+    assert.equal(attachments.createDocumentReader([matching, matching]).byTitle(meta), matching, 'repeated same source is not ambiguous');
+});
+
+test('LP-03: missing, mentioned-only or ambiguous title must not claim an unrelated document', () => {
+    const unrelated = '# Unrelated Report\n\n' + 'This discusses Target Research Report in passing. '.repeat(12);
+    const target = '# Target Research Report\n\n' + 'Target body '.repeat(40);
+    const otherTarget = '## Target Research Report\n\n' + 'Different body '.repeat(45);
+    const meta = { id: 'doc-target', title: 'Target Research Report' };
+    assert.equal(attachments.createDocumentReader([unrelated]).byTitle(meta), '', 'body mention is not a document heading');
+    assert.equal(attachments.createDocumentReader([unrelated, target, otherTarget]).byTitle(meta), '', 'multiple distinct heading matches are ambiguous');
+    assert.equal(attachments.createDocumentReader([unrelated]).byTitle({ ...meta, title: '' }), '', 'untitled document cannot guess');
+    assert.equal(attachments.createDocumentReader([unrelated]).byTitle({ ...meta, title: 'Document' }), '', 'placeholder title cannot guess');
+});
 
 test('LP-03: Detail decoding leaves unmatched deep research content unattached', () => {
     const model = modelMessageOf(detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_DOC_04')));
     assert.ok(model, 'valid model reply remains present');
-    for (const doc of model.documents ?? []) { assert.equal(doc.contentMarkdown, undefined); assert.equal(doc.contentMissing, true); }
+    assert.equal(model.documents?.length ?? 0, 0, 'unmatched material must not be manufactured into the target document');
 });

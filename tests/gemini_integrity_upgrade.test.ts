@@ -59,13 +59,13 @@ async function seedPreviousDatabase(count = 1): Promise<void> {
     } finally { db.close(); }
 }
 
-test('upgrade revokes old Gemini completeness receipts without deleting body, metadata or other providers', async () => {
+test('upgrade revokes old Gemini Detail completeness without altering ExportRecords, body bytes or other providers', async () => {
     const env = indexStorage({}, { seedAccounts: false });
     try {
         await seedPreviousDatabase();
         const db = await openStorageDB(); db.close();
         assert.deepEqual(await getDetail(key), { ...body(), quality: { status: 'unknown' } });
-        assert.deepEqual(await getExportRecord(key), { ...record, status: 'partial', otherContentMissing: true });
+        assert.deepEqual(await getExportRecord(key), record);
         const otherKey = { ...key, accountId: otherAccount.id };
         assert.deepEqual(await getDetail(otherKey), body(otherAccount.id));
         assert.deepEqual(await getExportRecord(otherKey), record);
@@ -95,7 +95,7 @@ test('large-history upgrade reads records by cursor without loading account-wide
         for (const conversationId of [key.conversationId, 'history_511']) {
             const geminiKey = { ...key, conversationId };
             assert.equal((await getDetail(geminiKey))?.quality.status, 'unknown');
-            assert.equal((await getExportRecord(geminiKey))?.otherContentMissing, true);
+            assert.deepEqual(await getExportRecord(geminiKey), record);
             assert.equal((await getDetail({ ...geminiKey, accountId: otherAccount.id }))?.quality.status, 'complete');
         }
     } finally { IDBObjectStore.prototype.getAll = getAll; env.restore(); }
@@ -131,7 +131,7 @@ test('aborted upgrade rolls back all changes and can be retried without losing h
         previous.close();
         const retried = await openStorageDB(); retried.close();
         assert.equal((await getDetail(key))?.quality.status, 'unknown');
-        assert.equal((await getExportRecord(key))?.otherContentMissing, true);
+        assert.deepEqual(await getExportRecord(key), record);
         assert.ok((await getDetail(key))?.messages.length);
     } finally { IDBCursorWithValue.prototype.update = update; env.restore(); }
 });

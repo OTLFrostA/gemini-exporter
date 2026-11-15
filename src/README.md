@@ -64,18 +64,15 @@ collect these raw samples. Existing diagnostic count limits still apply.
 Successful decoded messages retain neither per-candidate replay metadata nor raw
 document arrays. After a content failure, the adapter finds that selected candidate
 in the current response and materializes only the diagnostic fields it needs.
-Native document bodies are admitted only through typed, selected-candidate artifact
-packets; an ID, substring or heading in a surrounding container cannot claim prose.
+Typed artifact packets in `candidate[30]` establish complete native document ownership;
+response-level document recovery excludes candidate narrative/citation metadata and
+nested identified containers, marking recovered fallback bodies as partial.
 
 Unresolved Gemini source annotations additionally report each affected native text
 node, the rejected coordinates, coordinate validity, and unbound source IDs.
-`GEMINI_SOURCE_REPLAY_EVIDENCE` retains the complete decoded `hNvQHb` payload once
-per affected Detail page, including currently unread candidate, model and envelope
-fields. `captureStatus` distinguishes a captured payload from an unavailable
-decoded-only input. The payload remains in task diagnostics through pagination;
-it does not enter Domain or persistent conversation state. Other RPC responses
-and request headers are not included. A saved diagnostic cannot restore fields
-omitted by an earlier build or bindings that the server never returned.
+When developer mode is enabled, `GEMINI_SOURCE_REPLAY_EVIDENCE` retains the complete
+decoded `hNvQHb` payload once per affected Detail page for offline replay, without
+entering Domain or persistent conversation state.
 
 Diagnostic revision 4 includes the current browser online state and granted extension
 permissions, ChatGPT branch-coverage reasons and candidate admission outcomes,
@@ -97,16 +94,6 @@ These observations stay outside Domain and do not add duplicate UI failure group
 Export-run evidence lives in the current Options page: reproduce the export and
 download diagnostics before reloading or closing that page. Stored partial records
 alone cannot reconstruct an earlier run's source responses or failure causes.
-
-Coverage quality stays separate from retry policy. Fully paginated, versioned
-snapshots with only unresolved source annotations remain partial and can carry a
-`quality.repair` reason, retry trigger and parser revision. Their delivered receipts
-retain `contentRepair`; unchanged input at the same parser revision can be skipped
-without certifying completeness. Source/parser changes or explicit source refresh
-retry the snapshot. Unknown versions, incomplete pagination, missing document bodies,
-refresh failures, format omissions and transient attachments keep their existing
-retry behavior. Parser changes that can repair these gaps must bump
-`shared/parserRevision.ts`, independently of unrelated extension releases.
 
 `build.js` maps the relocated source entrypoints to the existing `dist/content`,
 `dist/background` and `dist/ui` bundle names. Manifest paths and sandbox resource

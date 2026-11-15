@@ -82,7 +82,7 @@ test('unversioned source-coordinate degradation writes native code and known sou
     assert.equal(refreshes, before + 1);
 });
 
-test('versioned source-only loss persists a partial receipt and avoids duplicate HTTP requests after physical delivery', async t => {
+test('versioned source-only loss persists a partial receipt with native body intact and remains eligible for retry', async t => {
     const host = v2ExportHost(t);
     const frames: unknown[] = JSON.parse(sourceReplayFixture().wire);
     frames.unshift(['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
@@ -101,15 +101,11 @@ test('versioned source-only loss persists a partial receipt and avoids duplicate
     assert.equal((await runExport(request)).partial, 1);
     const record = await getExportRecord(exportKey(source.conversationId));
     assert.equal(record?.status, 'partial');
-    assert.deepEqual(record?.contentRepair, source.conversation.detail.quality.repair);
+    assert.equal(record?.otherContentMissing, true);
     assert.match(await host.blobs[0].text(), /Native source diagnostic\./);
-    const deliveries = host.blobs.length;
-    assert.equal((await runExport(request)).skipped, 1);
-    assert.equal(refreshes, 0);
-    assert.equal(host.blobs.length, deliveries);
-    assert.equal((await getExportRecord(exportKey(source.conversationId)))?.status, 'partial');
-    assert.equal((await runExport(request, { refreshDetail: true })).partial, 1);
-    assert.equal(refreshes, 1);
+    const before = refreshes;
+    assert.equal((await runExport(request)).partial, 1);
+    assert.equal(refreshes, before + 1);
 });
 
 test('interaction cleanup and a partial-code quote produce complete physical Markdown and a truthful receipt', async t => {
@@ -200,7 +196,6 @@ test('a missing document body remains retryable and an owned packet supplies the
     assert.doesNotMatch(missingText, /Unknown error/);
     assert.ok(!missingFiles.some(file => file.name.startsWith('files/') && file.name.endsWith('.md')),
         'an unresolved chip must not create an empty or fabricated report');
-    assert.equal(record?.contentRepair, undefined, 'missing document bodies retain ordinary retry behavior');
     assert.ok(record?.attachmentIssues?.some(issue => issue.code === 'RESOURCE_LOCATOR_UNAVAILABLE'));
     const beforeRetry = refreshes;
     await runExport(request);

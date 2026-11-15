@@ -87,9 +87,7 @@ async function verify(db: IDBDatabase, upgraded: boolean): Promise<number> {
             if (JSON.stringify(detail) !== JSON.stringify(expected)) { fail('Body, identity, version or quality changed incorrectly'); return; }
             const receiptRequest = tx.objectStore('exportRecords').get([owner.id, detail.key.conversationId]);
             receiptRequest.onsuccess = () => {
-                const expectedReceipt = upgraded && owner.providerId === 'gemini'
-                    ? { ...receipt, status: 'partial', otherContentMissing: true } : receipt;
-                if (JSON.stringify(receiptRequest.result?.value) !== JSON.stringify(expectedReceipt)) { fail('Export receipt changed incorrectly'); return; }
+                if (JSON.stringify(receiptRequest.result?.value) !== JSON.stringify(receipt)) { fail('Export receipt changed'); return; }
                 const index = tx.objectStore('indexes').get([owner.id, detail.key.conversationId]);
                 index.onsuccess = () => {
                     if (index.result?.updatedAt !== sourceVersion) { fail('Index version was changed'); return; }
@@ -123,8 +121,8 @@ export async function runNativeUpgrade(mode: 'large' | 'abort'): Promise<NativeU
     IDBCursorWithValue.prototype.update = function(value: unknown) {
         const request = update.call(this, value);
         result.updates++;
-        // Abort after all bodies and some receipts have changed in the first account.
-        if (mode === 'abort' && result.updates === count + 2 && this.source instanceof IDBObjectStore) this.source.transaction.abort();
+        // Abort midway through the first Gemini account's Detail updates.
+        if (mode === 'abort' && result.updates === 16 && this.source instanceof IDBObjectStore) this.source.transaction.abort();
         return request;
     };
     const upgrading = performance.now();

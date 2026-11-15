@@ -6,14 +6,12 @@ export interface QualityEvidence {
     heuristicDocumentIds?: string[];
     /** An available source body could not be represented without unverified loss. */
     unrepresentedContent?: boolean;
-    /** This page has only deterministic source-annotation loss, not missing bodies. */
-    sourceOnlyFailure?: true;
 }
 
 /** Known content loss or uncertain reconstruction makes the body partial. */
 export function contentQuality(facts: ContentQuality & QualityEvidence): ContentQuality {
     const sourceTurn = facts.sourceTurn ? { sourceTurn: facts.sourceTurn } : {};
     if (facts.status === 'partial' || (facts.rejectedTurns ?? 0) > 0 || facts.truncation || facts.heuristicDocumentIds?.length || facts.unrepresentedContent)
-        return { ...sourceTurn, status: 'partial', ...(facts.repair ? { repair: facts.repair } : {}) };
+        return { ...sourceTurn, status: 'partial' };
     return { ...sourceTurn, status: facts.status };
 }

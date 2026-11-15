@@ -13,6 +13,12 @@ export interface CloudAuthGoogleRequest {
     readonly idToken: string;
 }
 
+export interface CloudAuthKeyRequest {
+    readonly keyFingerprint: string;
+    readonly authToken: string;
+    readonly accessCode?: string;
+}
+
 export interface CloudAuthSessionResponse {
     readonly sessionToken: string;
     readonly ownerSubject: string;
@@ -51,6 +57,7 @@ export interface CloudErrorResponse {
     readonly error: {
         readonly code:
             | 'UNAUTHORIZED'
+            | 'ACCESS_CODE_REQUIRED'
             | 'INVALID_REQUEST'
             | 'PLAINTEXT_REJECTED'
             | 'RECORD_TOO_LARGE'

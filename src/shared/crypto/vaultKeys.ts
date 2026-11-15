@@ -6,13 +6,15 @@ const HKDF_SALT = encoder.encode('gemini-exporter/cloud-e2ee/hkdf-salt/v1');
 const INFO_RECORD_ID = encoder.encode('gemini-exporter/cloud-e2ee/v1/record-id-hmac');
 const INFO_PAYLOAD_AEAD = encoder.encode('gemini-exporter/cloud-e2ee/v1/payload-aes-256-gcm');
 const INFO_FINGERPRINT = encoder.encode('gemini-exporter/cloud-e2ee/v1/keyring-fingerprint');
+const INFO_SERVER_AUTH = encoder.encode('gemini-exporter/cloud-e2ee/v1/server-auth-token');
 
 /**
  * Non-extractable derived subkeys isolated by cryptographic purpose.
- * Raw key bytes are never retained on this object.
+ * `authToken` is domain-separated via HKDF-SHA256 and cryptographically independent of `payloadKey` and `recordIdKey`.
  */
 export interface VaultKeyring {
     readonly keyFingerprint: string;
+    readonly authToken: string;
     readonly recordIdKey: CryptoKey;
     readonly payloadKey: CryptoKey;
 }
@@ -58,7 +60,7 @@ export async function deriveVaultKeyring(masterKeyBytes: Uint8Array): Promise<Va
     try {
         const baseKey = await crypto.subtle.importKey('raw', ownedKey, 'HKDF', false, ['deriveKey', 'deriveBits']);
         const salt = toOwnedBytes(HKDF_SALT);
-        const [recordIdKey, payloadKey, fingerprintBits] = await Promise.all([
+        const [recordIdKey, payloadKey, fingerprintBits, authTokenBits] = await Promise.all([
             crypto.subtle.deriveKey(
                 { name: 'HKDF', hash: 'SHA-256', salt, info: toOwnedBytes(INFO_RECORD_ID) },
                 baseKey,
@@ -78,9 +80,15 @@ export async function deriveVaultKeyring(masterKeyBytes: Uint8Array): Promise<Va
                 baseKey,
                 128,
             ),
+            crypto.subtle.deriveBits(
+                { name: 'HKDF', hash: 'SHA-256', salt, info: toOwnedBytes(INFO_SERVER_AUTH) },
+                baseKey,
+                256,
+            ),
         ]);
         return {
             keyFingerprint: bytesToHex(new Uint8Array(fingerprintBits)),
+            authToken: bytesToHex(new Uint8Array(authTokenBits)),
             recordIdKey,
             payloadKey,
         };

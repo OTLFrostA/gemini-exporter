@@ -4,7 +4,7 @@ import type { BlockNode, TableBlock, TableColumn, TableRow, TableCell, ListItem 
 import { MAX_TABLE_COLUMNS, MAX_TABLE_ROW_SPAN, tableCellPlacements } from './content/tableLayout.js';
 import type { InlineNode } from './content/inline.js';
 import type { ConversationKey } from './conversationKey.js';
-import type { ContentQuality, ContentRepairPolicy } from './quality.js';
+import type { ContentQuality } from './quality.js';
 import type { DomainAsset, DomainCitation, DomainDocumentMetadata, DomainGeneratedMediaIdentity, DomainMessage, DomainConversationDetail, ConversationDetail } from './conversationDetail.js';
 import { assertDomainClosure } from './closure.js';
 import type { DomainConversation, DomainConversationWithDetail } from './conversation.js';
@@ -89,9 +89,7 @@ function block(v: unknown): v is BlockNode {
     }
 }
 const message = shape<DomainMessage>({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(sourceTime), attachmentIds: optional(array(text)), reasoning: optional(array(block)), citations: optional(array(citation)) });
-const repair = shape<ContentRepairPolicy>({ reason: enumeration('source_annotations_unrepresented'), retry: enumeration('source_or_parser_change'), parserRevision: text });
-const qualityFields = shape<{ status: ContentQuality['status']; sourceTurn?: ContentQuality['sourceTurn']; repair?: ContentRepairPolicy }>({ status: enumeration('complete', 'partial', 'unknown'), sourceTurn: optional(enumeration('finished', 'unfinished', 'interrupted', 'handoff', 'awaiting_reply', 'tool_pending', 'unknown')), repair: optional(repair) });
-const quality = (v: unknown): v is ContentQuality => qualityFields(v) && (v.status === 'partial' || v.repair === undefined);
+const quality = shape<ContentQuality>({ status: enumeration('complete', 'partial', 'unknown'), sourceTurn: optional(enumeration('finished', 'unfinished', 'interrupted', 'handoff', 'awaiting_reply', 'tool_pending', 'unknown')) });
 const domainFields: Fields<DomainConversationDetail> = { key: (v): v is ConversationKey => { try { readConversationKey(v); return true; } catch { return false; } }, savedAt: optional(sourceTime), assets: array(asset), messages: array(message), quality };
 const domain = shape<DomainConversationDetail>(domainFields);
 

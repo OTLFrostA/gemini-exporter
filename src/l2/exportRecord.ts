@@ -1,5 +1,5 @@
 import type { ExportFormat } from '../shared/types/export.js';
-import type { SourceTurnStatus, ContentRepairPolicy } from './quality.js';
+import type { SourceTurnStatus } from './quality.js';
 
 export interface ExportAttachmentIssue {
     resourceId: string;
@@ -17,7 +17,6 @@ export interface ExportRecord {
     status: 'ok' | 'partial';
     chatTime?: number;
     otherContentMissing?: boolean;
-    contentRepair?: ContentRepairPolicy;
     sourceTurn?: SourceTurnStatus;
     attachmentIssues?: readonly ExportAttachmentIssue[];
 }

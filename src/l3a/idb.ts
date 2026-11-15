@@ -52,8 +52,8 @@ type StoreQueryResult = void | boolean | string | Account | Account[] | DomainCo
     | { index: DomainConversationIndex | null; detail: DomainConversationDetail | null } | null;
 
 /** Before v2, Gemini pagination could certify a lossy structured fallback as complete.
- * No persisted evidence identifies those bodies. Recheck that provider once, retaining
- * all body bytes, source versions, attachment results and stable destination names. */
+ * Withdraw unverified Detail completeness so later refreshes can admit repaired snapshots,
+ * while preserving all body bytes, source versions and existing ExportRecords untouched. */
 function revokeUnverifiedGeminiCompleteness(tx: TypedIDBTransaction): void {
     const accounts = tx.objectStore('accounts').openCursor();
     accounts.onsuccess = () => {
@@ -64,22 +64,12 @@ function revokeUnverifiedGeminiCompleteness(tx: TypedIDBTransaction): void {
         const bodies = tx.objectStore('details').openCursor(range);
         bodies.onsuccess = () => {
             const cursor = bodies.result;
-            if (cursor) {
-                const detail = cursor.value;
-                if (detail.quality.status === 'complete') {
-                    cursor.update({ ...detail, quality: { ...detail.quality, status: 'unknown' } })
-                        .onsuccess = () => cursor.continue();
-                } else cursor.continue();
-                return;
-            }
-            const receipts = tx.objectStore('exportRecords').openCursor(range);
-            receipts.onsuccess = () => {
-                const cursor = receipts.result;
-                if (!cursor) { account.continue(); return; }
-                const row = cursor.value;
-                cursor.update({ ...row, value: { ...row.value, status: 'partial', otherContentMissing: true } })
+            if (!cursor) { account.continue(); return; }
+            const detail = cursor.value;
+            if (detail.quality.status === 'complete') {
+                cursor.update({ ...detail, quality: { ...detail.quality, status: 'unknown' } })
                     .onsuccess = () => cursor.continue();
-            };
+            } else cursor.continue();
         };
     };
 }

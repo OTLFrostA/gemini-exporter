@@ -89,6 +89,17 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
     }
 });
 
+test('P0-4: doc title-fallback regex must match a real markdown H1 heading', () => {
+    const { DOC_TITLE_FALLBACK_RE } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
+    assert.ok(DOC_TITLE_FALLBACK_RE instanceof RegExp, 'DOC_TITLE_FALLBACK_RE must be exported as RegExp');
+    assert.strictEqual(
+        DOC_TITLE_FALLBACK_RE.test('# 真实标题'), true,
+        'title-fallback regex does not match a real H1 heading'
+    );
+    assert.strictEqual(DOC_TITLE_FALLBACK_RE.test('# Title with words'), true);
+    assert.strictEqual(DOC_TITLE_FALLBACK_RE.test('No heading here'), false);
+});
+
 test('P0-5: popup displays export errors to the user', async () => {
     const { chromium } = require('playwright');
     const { mount } = require('./helpers/uiPortHarness.js');

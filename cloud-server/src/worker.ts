@@ -6,9 +6,11 @@ export interface WorkerEnv {
     readonly VAULT_DB: D1DatabaseLike;
     readonly VAULT_BLOBS: R2BucketLike;
     readonly SESSION_HMAC_SECRET: string;
-    /** Comma-separated Google OAuth 2.0 Client IDs permitted to authenticate. */
-    readonly GOOGLE_CLIENT_IDS: string;
-    /** Comma-separated allowed Origins, e.g. `chrome-extension://<extension-id>`. */
+    /** Optional shared access/invite code guarding `/v1/auth/key`. */
+    readonly SERVER_ACCESS_CODE?: string;
+    /** Optional comma-separated Google OAuth 2.0 Client IDs if OIDC login is also enabled. */
+    readonly GOOGLE_CLIENT_IDS?: string;
+    /** Comma-separated allowed Origins, e.g. `chrome-extension://*`. */
     readonly ALLOWED_ORIGINS?: string;
     /** Optional per-user quota override in bytes (defaults to 100 MiB). */
     readonly DEFAULT_QUOTA_BYTES?: string;
@@ -24,13 +26,15 @@ function splitCsv(raw: string | undefined): string[] {
 export default {
     async fetch(request: Request, env: WorkerEnv): Promise<Response> {
         const quotaOverride = env.DEFAULT_QUOTA_BYTES ? Number(env.DEFAULT_QUOTA_BYTES) : undefined;
+        const allowed = splitCsv(env.ALLOWED_ORIGINS);
         const handler = createCloudServerHandler({
             store: createCloudflareVaultStore(env.VAULT_DB, env.VAULT_BLOBS),
             oidcVerifier,
             config: {
                 sessionHmacSecret: env.SESSION_HMAC_SECRET,
                 googleClientIds: splitCsv(env.GOOGLE_CLIENT_IDS),
-                allowedOrigins: splitCsv(env.ALLOWED_ORIGINS),
+                ...(env.SERVER_ACCESS_CODE?.trim() ? { serverAccessCode: env.SERVER_ACCESS_CODE.trim() } : {}),
+                allowedOrigins: allowed.length > 0 ? allowed : ['chrome-extension://*'],
                 ...(quotaOverride && Number.isSafeInteger(quotaOverride) && quotaOverride > 0
                     ? { defaultQuotaBytes: quotaOverride }
                     : {}),

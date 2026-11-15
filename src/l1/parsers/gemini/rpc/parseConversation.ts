@@ -17,6 +17,7 @@ import { closeDomainResources } from '../../shared/resources/domainResourceAdapt
 import { parseGeminiBody, parseGeminiPrompt, parseSourceReasoning, structuredBodyAttachments } from '../shared/contentAdapter.js';
 import type { SourceConversationParseResult } from '../../parsingResult.js';
 import { isJsonValue } from '../../../../shared/utils/jsonTypes.js';
+import { isDevMode } from '../../../../shared/utils/devMode.js';
 
 export interface GeminiRpcParseContext extends ConversationParseContext {
     targetConvId?: string;
@@ -111,15 +112,12 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
     if (context.providerId !== 'gemini') throw new TypeError('Gemini evidence adapter requires providerId gemini');
     const contentDiagnostics: Diagnostic[] = [];
     let unrepresentedContent = false;
-    let sourceAnnotationFailure = false;
-    let otherContentFailure = false;
     const messages: DomainMessage[] = evidence.messages.map((message, index) => {
         const sourceRef = { providerId: 'gemini', providerMessageId: message.id, locator: `messages[${index}]` };
         const { citations, legacyCitations, sourceCitations } = citationsOf(message);
         const extraction = message.structuredExtraction;
         const uncertainDocuments = message.documents?.filter(document => document.contentMissing || document.hasFabricatedText) ?? [];
         if (uncertainDocuments.length) {
-            otherContentFailure = true;
             if (uncertainDocuments.some(document => document.contentMissing)) unrepresentedContent = true;
             const rawDocument = extraction?.status === 'decode_rejected' ? extraction.rawDocument : undefined;
             contentDiagnostics.push({ severity: 'warning', code: 'GEMINI_DOCUMENT_BINDING_FALLBACK',
@@ -130,7 +128,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
                     ...(rawDocument !== undefined ? { rawDocument } : {}),
                 } });
         }
-        if (extraction?.status === 'decode_rejected') { unrepresentedContent = true; otherContentFailure = true; }
+        if (extraction?.status === 'decode_rejected') unrepresentedContent = true;
         if (extraction && extraction.status !== 'decoded') contentDiagnostics.push({
             severity: extraction.status === 'decode_rejected' ? 'warning' : 'info',
             code: 'GEMINI_STRUCTURED_FALLBACK',
@@ -151,11 +149,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
                     { diagnostics: contentDiagnostics, sourceRef, sourceCitations, recoverLiteralMath: context.bodyRepresentation !== 'structured',
                         candidateText: message.candidateText,
                         sourceAttributions: message.sourceAttributions,
-                        onStructuredFallback: reason => {
-                            unrepresentedContent = true;
-                            if (reason === 'source_annotations') sourceAnnotationFailure = true;
-                            else otherContentFailure = true;
-                        } }),
+                        onStructuredFallback: () => { unrepresentedContent = true; } }),
             ...(message.timestamp !== null && Number.isFinite(message.timestamp) ? { timestamp: message.timestamp } : {}),
             ...(message.model ? { model: message.model } : {}),
             ...(reasoning !== undefined ? { reasoning } : {}),
@@ -235,21 +229,18 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
         details: { sourceVersion: updatedAt, newerMessages } });
     diagnostics.push(...contentDiagnostics);
     const sourceFallbacks = contentDiagnostics.filter(diagnostic => diagnostic.code === 'GEMINI_SOURCE_ANNOTATION_FALLBACK');
-    if (sourceFallbacks.length) diagnostics.push({ severity: 'info', code: 'GEMINI_SOURCE_REPLAY_EVIDENCE',
+    if (sourceFallbacks.length && isDevMode()) diagnostics.push({ severity: 'info', code: 'GEMINI_SOURCE_REPLAY_EVIDENCE',
         message: 'Detail response evidence for unresolved source annotations',
         details: { rpcId: 'hNvQHb', conversationId: evidence.id,
             providerMessageIds: [...new Set(sourceFallbacks.flatMap(diagnostic =>
                 diagnostic.sourceRef?.providerMessageId ? [diagnostic.sourceRef.providerMessageId] : []))],
-            // Capture once per affected page before pagination drops transport payloads.
-            // Includes unread source slots, but no request headers or other RPC responses.
+            // Capture once per affected page in developer mode before pagination drops transport payloads.
             ...(evidence._raw != null && isJsonValue(evidence._raw)
                 ? { captureStatus: 'captured', payload: evidence._raw }
                 : { captureStatus: 'unavailable' }),
         } });
     return {
-        evidence: { rejectedTurns: evidence.turnsRejected, ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds, unrepresentedContent,
-            ...(sourceAnnotationFailure && !otherContentFailure && !evidence.turnsRecovered && !rejected
-                && !resources.heuristicDocumentIds.length ? { sourceOnlyFailure: true } : {}) },
+        evidence: { rejectedTurns: evidence.turnsRejected, ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds, unrepresentedContent },
         ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}),
         conversationId: normId(evidence.id), conversation, acquisitionHints: resources.acquisitionHints,
         diagnostics,

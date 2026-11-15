@@ -12,17 +12,12 @@ Chrome Storage key, and Patch uses an extension-origin Web Lock. Writes resolve 
 missing values return null/empty collections and IO errors reject. No memory
 fallback, resource bytes or persistent task state is stored here.
 
-The v1-to-v2 schema upgrade revokes historical, unverified Gemini completeness
-without deleting content. It processes one account and one Detail/ExportRecord
-cursor at a time, waiting for each update before continuing. It never loads a
-whole account's bodies with `getAll()`. An aborted upgrade rolls back all writes;
-the failed pooled connection is evicted so the next storage read can retry.
-Native Chromium extension-origin tests exercise the production upgrade across
-6,144 full histories (two Gemini accounts and another provider), reject bulk
-reads, and compare every stored body, source version, receipt and Index. A
-separate mid-upgrade abort checks v1 rollback and recovery through the same
-failed pooled API. These tests do not measure process peak memory or simulate
-OS termination, disk exhaustion or quota failures.
+The v1-to-v2 schema upgrade revokes historical, unverified Gemini Detail
+completeness without deleting content or invalidating existing ExportRecords. It
+processes one account and one Detail cursor at a time, waiting for each update
+before continuing, and never loads an account's bodies with `getAll()`. An aborted
+upgrade rolls back all writes and evicts the failed pooled connection so the next
+storage read can retry.
 
 L2 owns identity, Index merging, Detail selection and Coverage admission.
 Application owns defaults, Skip, export records and user record cleanup. Runtime

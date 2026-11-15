@@ -26,8 +26,8 @@ for (const mode of ['large', 'abort'] as const) {
         expect(result.verified).toBe(result.conversations);
         if (mode === 'large') {
             expect(result.bodyBytes).toBeGreaterThan(190_000_000);
-            // Two Gemini accounts; preexisting partial bodies need no update.
-            expect(result.updates).toBe(2 * (2048 + 2048 - Math.ceil(2048 / 5)));
+            // Two Gemini accounts; preexisting partial bodies and ExportRecords remain untouched.
+            expect(result.updates).toBe(2 * (2048 - Math.ceil(2048 / 5)));
         } else {
             expect(result.failedOpen).toBe('AbortError');
             expect(result.rollbackVerified).toBe(result.conversations);

@@ -195,7 +195,14 @@ test('diagnostic download preserves native rejection evidence for offline replay
 
 test('diagnostic download retains unresolved source reasons and the complete affected Detail page', async ({ page }) => {
     const { wire, payload } = sourceReplayFixture();
-    const parsed = parseGeminiRpcConversation(wire, { account: fixtureAccount('gemini'), providerId: 'gemini' });
+    const prevDev = globalThis.__gemExporterDevMode;
+    globalThis.__gemExporterDevMode = true;
+    let parsed: ReturnType<typeof parseGeminiRpcConversation>;
+    try {
+        parsed = parseGeminiRpcConversation(wire, { account: fixtureAccount('gemini'), providerId: 'gemini' });
+    } finally {
+        globalThis.__gemExporterDevMode = prevDev;
+    }
     const diagnostics = parsed.diagnostics.filter(d => ['GEMINI_SOURCE_ANNOTATION_FALLBACK', 'GEMINI_SOURCE_REPLAY_EVIDENCE'].includes(d.code));
     expect(diagnostics).toHaveLength(3);
     await mount(page, 'options', { holdExport: true });

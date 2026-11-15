@@ -99,8 +99,12 @@ const OPERATION_ERROR_MESSAGES: Readonly<Partial<Record<OperationErrorCode, read
         '所选账号不可用。',
     ],
     CLOUD_AUTH_REQUIRED: [
-        'Please sign in with Google in Cloud Sync settings first.',
-        '请先在云同步设置中使用 Google 账号登录。',
+        'Please connect to your Encrypted Vault first.',
+        '请先在加密保险箱设置中完成连接。',
+    ],
+    CLOUD_ACCESS_CODE_INVALID: [
+        'Invalid or missing server access code. Check the access code configured on your Cloud Vault.',
+        '服务器访问口令错误或未填写，请核对服务端配置的访问口令。',
     ],
     CLOUD_KEY_INVALID: [
         'Invalid recovery key format or checksum. Please verify every character.',

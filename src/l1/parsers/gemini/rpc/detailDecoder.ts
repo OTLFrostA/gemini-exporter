@@ -16,12 +16,13 @@ import {
     cleanTitle,
     isRealTitle
 } from "./extractors.js";
+import { createDocumentReader } from "./sourceAttachments.js";
 import GeminiProtocol from "../../../protocol/gemini/protocol.js";
 import { isDevMode as devModeEnabled } from "../../../../shared/utils/devMode.js";
 import { extractNextPageToken } from "./payload.js";
 import { classifyDetailBody } from './emptyDetail.js';
 import { resolveDetailTitle } from "../../../../shared/utils/titleText.js";
-import { decodeGeminiTurn } from './turnResources.js';
+import { decodeGeminiTurn, DOC_TITLE_FALLBACK_RE } from './turnResources.js';
 
 const isTurnCache = new WeakMap<unknown[], boolean>();
 
@@ -189,6 +190,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
         if (convId === "c_unknown" && targetConvId) convId = targetConvId;
 
         const allMsgs: GeminiMessageEvidence[] = [];
+        const documents = createDocumentReader(inner);
         const dedupSet = new Set<string>();
         const docDedupSet = new Set<string>();
         const rev = [...turns].reverse();
@@ -207,7 +209,7 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
                 continue;
             }
             if (!isTurn(rawTurn)) turnsRecovered++;
-            allMsgs.push(...decodeGeminiTurn(turn, rawTurn, dedupSet, docDedupSet, convId));
+            allMsgs.push(...decodeGeminiTurn(turn, rawTurn, documents, dedupSet, docDedupSet, convId));
         }
 
         const metadata = findListConversationMetadata(response, convId === 'c_unknown' ? targetConvId ?? '' : convId);
@@ -267,5 +269,5 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
     }
 }
 
-export { decodeGeminiDetail, isTurn, findTurnsDeep };
+export { decodeGeminiDetail, isTurn, findTurnsDeep, DOC_TITLE_FALLBACK_RE };
 

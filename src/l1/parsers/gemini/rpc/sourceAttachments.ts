@@ -47,6 +47,13 @@ export interface DocLink {
     url: string;
 }
 
+export interface DocSectionsResult {
+    sections: string[];
+    links: DocLink[];
+    contentMarkdown: string;
+    contentMatch?: "exact" | "substring";
+}
+
 import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extractors.js";
 
 
@@ -574,7 +581,7 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
                     const rawContentId = fields[doc.CONTENT_ID];
                     const contentId = !linkedDocument && typeof rawContentId === "string" && rawContentId.length > 10
                         ? rawContentId : undefined;
-                    pushMeta({ id, title: rawTitle, chipUrl, createdAt, contentId, source: 'strict' });
+                    pushMeta({ id, title: rawTitle, chipUrl, createdAt, contentId });
                 }
             }
         });
@@ -610,6 +617,143 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         return out;
     }
 
+/** One lazy response scan shared by every Turn. Raw nodes never leave this decoder. */
+export interface GeminiDocumentReader {
+    byId(id: string): DocSectionsResult | null;
+    byTitle(meta: DeepResearchDocMeta): string;
+}
+
+function walkDocumentEvidence(node: unknown, visit: (arr: unknown[]) => void, depth = 0): void {
+    if (!node || depth > 25) return;
+    if (isUnknownArray(node)) {
+        visit(node);
+        const isCandidateTuple = typeof node[0] === 'string' && node[0].startsWith('rc_');
+        for (let i = 0; i < node.length; i++) {
+            // Candidate body (slot 1) is assistant narrative and slot 2 is source citation metadata;
+            // neither owns standalone Deep Research document bodies.
+            if (isCandidateTuple && (i === 1 || i === 2)) continue;
+            walkDocumentEvidence(node[i], visit, depth + 1);
+        }
+    } else if (isRecord(node)) {
+        for (const key in node) {
+            if (Object.prototype.hasOwnProperty.call(node, key)) {
+                walkDocumentEvidence(node[key], visit, depth + 1);
+            }
+        }
+    }
+}
+
+export function createDocumentReader(root: unknown): GeminiDocumentReader {
+    const candidates: { node: unknown[]; identifiers: string[] }[] = [];
+    const markdown = new Map<string, Set<string>>();
+    const parsed = new Map<unknown[], DocSectionsResult>();
+    const matches = new Map<string, DocSectionsResult | null>();
+    let indexed = false;
+    function index() {
+        if (indexed) return;
+        indexed = true;
+        walkDocumentEvidence(root, node => {
+            const strings = node.filter((value): value is string => typeof value === 'string');
+            const hasSections = node.some(x => isUnknownArray(x) && x.some(y => isUnknownArray(y) && typeof y[0] === 'string' && y[0].length > 50));
+            const hasLongStr = strings.some(value => value.length > 200 && (value.includes('#') || value.includes('\n\n')));
+            if (hasSections || hasLongStr) candidates.push({ node, identifiers: strings });
+            for (const text of strings) {
+                if (text.length <= 200 || !(text.includes('# ') || text.includes('\n\n'))
+                    || text.includes('immersive_entry_chip') || text.includes('BardErrorInfo')) continue;
+                const heading = /^\s*#{1,6}[ \t]+([^\r\n]+)/.exec(text);
+                const title = heading?.[1].replace(/[ \t]+#+[ \t]*$/, '').trim();
+                if (!title) continue;
+                const values = markdown.get(title) ?? new Set<string>();
+                values.add(text);
+                markdown.set(title, values);
+            }
+        });
+    }
+    return {
+        byId(id) {
+            if (!id) return null;
+            index();
+            if (matches.has(id)) return matches.get(id) ?? null;
+            const target = id.replace(/^c_/, '');
+            const exact = candidates.filter(({ identifiers }) => identifiers.some(value => value === id || value === target));
+            if (exact.length) {
+                const records = exact.map(({ node }) => {
+                    let sections = parsed.get(node);
+                    if (!sections) { sections = parseDocSections(node); parsed.set(node, sections); }
+                    return sections;
+                });
+                const first = records[0];
+                const result = records.every(record => JSON.stringify(record) === JSON.stringify(first)) ? first : null;
+                matches.set(id, result);
+                return result;
+            }
+            for (const { node, identifiers } of candidates) {
+                // Preserve source order, including the established short substring fallback.
+                const value = identifiers.find(value => value === id || value === target
+                    || value.length < 80 && (value.includes(id) || value.includes(target)));
+                if (value === undefined) continue;
+                let sections = parsed.get(node);
+                if (!sections) { sections = parseDocSections(node); parsed.set(node, sections); }
+                const result: DocSectionsResult = { ...sections,
+                    ...(value !== id && value !== target ? { contentMatch: 'substring' } : {}) };
+                matches.set(id, result);
+                return result;
+            }
+            matches.set(id, null);
+            return null;
+        },
+        byTitle(meta) {
+            const title = meta.title.trim();
+            if (!title || title === 'Document') return '';
+            index();
+            const values = markdown.get(title);
+            return values?.size === 1 ? [...values][0] : '';
+        },
+    };
+}
+
+    function walkDocSectionNodes(node: unknown, root: unknown, visit: (arr: unknown[]) => void, depth = 0): void {
+        if (!isUnknownArray(node) || depth > 25) return;
+        // Do not descend into a nested container that owns its own short document identifier.
+        if (node !== root
+            && node.some(item => typeof item === 'string' && item.length > 0 && item.length <= 50 && !item.startsWith('http'))
+            && node.some(item => isUnknownArray(item))) {
+            return;
+        }
+        visit(node);
+        for (const child of node) walkDocSectionNodes(child, root, visit, depth + 1);
+    }
+
+    function parseDocSections(docContentArr: unknown, contentMatch?: "substring"): DocSectionsResult {
+        let sections: string[] = [];
+        let links: DocLink[] = [];
+        let contentMarkdown = "";
+        // P1-9: provenance is explicitly passed from the matcher, never read
+        // as an ad hoc property on the raw wire array.
+        if (!isUnknownArray(docContentArr)) return { sections, links, contentMarkdown, contentMatch };
+
+        walkDocSectionNodes(docContentArr, docContentArr, (node) => {
+            if (node.length >= 2 && typeof node[0] === "string" && typeof node[1] === "string" && node[1].startsWith("http")) {
+                links.push({
+                    title: node[0],
+                    url: node[1]
+                });
+            }
+            if (node.length >= 1 && typeof node[0] === "string" && node[0].length > 50) {
+                let text = node[0];
+                if (!sections.includes(text)) sections.push(text);
+            }
+        });
+        if (sections.length) {
+            contentMarkdown = sections.join("\n\n");
+        }
+        return {
+            sections,
+            links,
+            contentMarkdown,
+            contentMatch
+        };
+    }
 
 
 export {
@@ -620,6 +764,7 @@ export {
     extractResponseImageEvidence,
     extractUserFiles,
     extractDocumentsMeta,
+    parseDocSections,
     itemMatchesFilename,
     extractFileNameFromUrl
 };

@@ -2,10 +2,12 @@ import { deepWalk, GEMINI_JSPB_SCHEMA, type DecodedGeminiTurn, type DecodedGemin
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence, GeminiMessageEvidence } from './detailEvidence.js';
 import {
+    createDocumentReader,
     extractImageEvidence,
     extractResponseImageEvidence,
     extractUserFiles,
     extractDocumentsMeta,
+    type GeminiDocumentReader,
     filterNewImages,
     isInternalChipUrl,
     type ImageAttachment,
@@ -14,6 +16,8 @@ import {
 } from './sourceAttachments.js';
 import { inspectStructuredContent, decodeGeminiCitationReference, type GeminiStructuredExtraction, type GeminiCitationReference } from './structuredContent.js';
 import { stripInternalChipMarkdown } from '../../shared/chipUtils.js';
+import { RESEARCH_PROMPT_PREFIX_RE } from '../../../../shared/utils/titleText.js';
+import { shortId } from '../../../../shared/utils/pathUtils.js';
 
 /** Central Gemini resource decoder: untrusted wire slots stop here.
  * Message composition only receives validated and normalized source evidence. */
@@ -31,6 +35,8 @@ export interface DecodedGeminiCandidateResources {
     structuredExtraction: GeminiStructuredExtraction;
     groundingReferences: GeminiCitationReference[];
 }
+
+export const DOC_TITLE_FALLBACK_RE = /^#\s+(.+)$/m;
 
 function wireArray(value: unknown): value is unknown[] {
     return Array.isArray(value);
@@ -52,6 +58,7 @@ export function decodeGeminiUserResources(
  * raw media/document slots and never re-select a Candidate themselves. */
 export function decodeGeminiCandidateResources(
     candidate: DecodedGeminiCandidate,
+    documents: GeminiDocumentReader,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
     convId?: string
@@ -82,7 +89,7 @@ export function decodeGeminiCandidateResources(
         // Only the correlated answer document may supply missing chip metadata.
         docsMeta = extractDocumentsMeta([cand, rawAnswerDocument]);
     }
-    if (nativeDocuments.length) docsMeta = docsMeta.filter(meta => meta.source === 'strict'
+    if (nativeDocuments.length) docsMeta = docsMeta.filter(meta => meta.source !== 'heuristic-flat'
         && !nativeDocuments.some(document => document.id === meta.id));
     const docs = docsMeta.filter((docItem: DeepResearchDocMeta) => {
         if (generatedFiles.some(file => file.id === docItem.id)
@@ -101,15 +108,58 @@ export function decodeGeminiCandidateResources(
         docDedupSet.add(doc.id);
         return true;
     });
-    // Only candidate[30]'s typed artifact packets bind identity to body. An
-    // ID found in a surrounding container or a matching heading proves neither
-    // ownership nor completeness; retain the chip as an unresolved document.
-    for (const meta of docs) docDetails.push({
-        id: meta.id, title: meta.title || 'Document', createdAt: meta.createdAt,
-        chipUrl: meta.chipUrl ?? '', sections: [], links: [], url: '', type: 'file',
-        contentMissing: true,
-        ...(meta.source === 'heuristic-flat' ? { hasFabricatedText: true } : {}),
-    });
+    if (docs.length) {
+        try {
+            for (const metaItem of docs) {
+                const strictChip = metaItem.source !== 'heuristic-flat';
+                const primary = documents.byId(metaItem.id);
+                const alternate = metaItem.contentId && metaItem.contentId !== metaItem.id ? documents.byId(metaItem.contentId) : null;
+                // Strict chip metadata never borrows a body by substring or heading title.
+                const parsedPrimary = strictChip && primary?.contentMatch === 'substring' ? null : primary;
+                const parsedAlt = strictChip && alternate?.contentMatch === 'substring' ? null : alternate;
+                const md = parsedPrimary?.contentMarkdown || parsedAlt?.contentMarkdown
+                    || (strictChip ? '' : documents.byTitle(metaItem));
+                const cleanMd = md ? stripInternalChipMarkdown(md).trim() : "";
+                if (!cleanMd) {
+                    if (!strictChip) continue;
+                    docDetails.push({
+                        id: metaItem.id, title: metaItem.title || 'Document', createdAt: metaItem.createdAt,
+                        chipUrl: metaItem.chipUrl ?? '', sections: [], links: [], url: '', type: 'file',
+                        contentMissing: true,
+                    });
+                    continue;
+                }
+
+                let docTitle = metaItem.title || "";
+                if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle) || docTitle === "Document") {
+                    const hMatch = cleanMd.match(DOC_TITLE_FALLBACK_RE);
+                    if (hMatch && hMatch[1].trim()) {
+                        docTitle = hMatch[1].trim();
+                    }
+                }
+                if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle)) {
+                    docTitle = `深度研究报告_${shortId(metaItem.id || "doc")}`;
+                }
+
+                // Response-level section recovery preserves legacy/unpacketized Deep Research
+                // bodies, while marking ownership unverified (partial) outside candidate[30].
+                docDetails.push({
+                    id: metaItem.id,
+                    title: docTitle,
+                    createdAt: metaItem.createdAt,
+                    chipUrl: metaItem.chipUrl ?? "",
+                    sections: [...(parsedPrimary?.sections ?? []), ...(parsedAlt?.sections ?? [])],
+                    links: [...(parsedPrimary?.links ?? []), ...(parsedAlt?.links ?? [])],
+                    contentMarkdown: cleanMd,
+                    url: "",
+                    type: "file",
+                    hasFabricatedText: true,
+                });
+            }
+        } catch (er) {
+            console.warn("doc parse err", er);
+        }
+    }
 
     return {
         images: candImages,
@@ -318,8 +368,9 @@ function parseCandidateResponse(
 export function decodeGeminiTurn(
     turn: DecodedGeminiTurn,
     rawTurn: unknown,
-    dedupSet: Set<string>,
-    docDedupSet: Set<string>,
+    documents: GeminiDocumentReader = createDocumentReader(rawTurn),
+    dedupSet: Set<string> = new Set(),
+    docDedupSet: Set<string> = new Set(),
     convId?: string
 ): GeminiMessageEvidence[] {
     const messages: GeminiMessageEvidence[] = [];
@@ -327,7 +378,7 @@ export function decodeGeminiTurn(
     if (userMessage) messages.push(userMessage);
 
     if (turn.candidate) {
-        const resources = decodeGeminiCandidateResources(turn.candidate, dedupSet, docDedupSet, convId);
+        const resources = decodeGeminiCandidateResources(turn.candidate, documents, dedupSet, docDedupSet, convId);
         const modelMessage = parseCandidateResponse(turn.candidate, turn, resources, convId);
         if (modelMessage) messages.push(modelMessage);
     }

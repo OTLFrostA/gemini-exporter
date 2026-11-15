@@ -8,7 +8,6 @@ import { boundaryTop } from './fixtures/providers/gemini/detail/protocol.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { extractSourceAttributions } from '../src/l1/parsers/gemini/rpc/sourceAttributions.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
-import { CONTENT_PARSER_REVISION } from '../src/shared/parserRevision.js';
 import { recoverGeminiSourceRanges } from '../src/l1/parsers/gemini/shared/sourceRanges.js';
 import { inspectStructuredContent, type GeminiStructuredDocument } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 
@@ -75,21 +74,6 @@ test('zero-width source ID zero cannot be inferred from a source record position
     assert.ok(JSON.stringify(result.conversation.detail.messages[1].content).includes('Native body.'));
     assert.ok(!JSON.stringify(result.conversation.detail.messages[1].content).includes('citationRef'));
     assertDomainClosure(result.conversation.detail);
-});
-
-test('only fully acquired source-only failures receive a deferred retry policy', () => {
-    const partial = parse(rawBody('spp_unbound'));
-    assert.deepEqual(partial.conversation.detail.quality.repair, { reason: 'source_annotations_unrepresented',
-        retry: 'source_or_parser_change', parserRevision: CONTENT_PARSER_REVISION });
-    assert.equal(partial.conversation.detail.quality.status, 'partial');
-    for (const merged of [
-        mergeConversationPages([partial], 'page_failed', false),
-        mergeConversationPages([partial], undefined, false),
-        mergeConversationPages([partial, { ...partial, sourceVersion: (partial.sourceVersion ?? 0) + 1 }], undefined, true),
-        mergeConversationPages([partial, { ...partial, evidence: { rejectedTurns: 1 } }], undefined, true),
-        mergeConversationPages([partial, parse([[[citationText('Body'), { unsupported: true }]]])], undefined, true),
-    ]) assert.equal(merged.conversation.detail.quality.repair, undefined);
-    assert.equal(parse(rawBody('owned'), table('owned')).conversation.detail.quality.repair, undefined);
 });
 
 test('direct-citation binding rejects foreign candidates, conflicting targets and malformed entries', () => {
@@ -395,31 +379,48 @@ test('source-only failures retain raw coordinates and the selected candidate sou
     assertDomainClosure(result.conversation.detail);
 });
 
-test('source failures capture one complete Detail payload per page, including unread source fields, for exact replay', () => {
+test('source failures capture one complete Detail payload per page in developer mode only', () => {
     const { wire, payload } = sourceReplayFixture();
     const context = { account: fixtureAccount('gemini'), providerId: 'gemini' };
-    const parsed = parseGeminiRpcConversation(wire, context);
-    assert.equal(parsed.diagnostics.filter(d => d.code === 'GEMINI_SOURCE_ANNOTATION_FALLBACK').length, 2);
-    const evidence = parsed.diagnostics.filter(d => d.code === 'GEMINI_SOURCE_REPLAY_EVIDENCE');
-    assert.equal(evidence.length, 1);
-    assert.equal(evidence[0].severity, 'info');
-    assert.deepEqual(evidence[0].details, { rpcId: 'hNvQHb', conversationId: 'c_source_replay',
-        providerMessageIds: ['rc_source_old', 'rc_source_new'], captureStatus: 'captured', payload });
-    const serialized = JSON.stringify(evidence);
-    for (const field of ['UNPARSED_CANDIDATE_SOURCE_SLOT', 'UNPARSED_MODEL_SOURCE_SLOT', 'UNPARSED_DETAIL_SOURCE_SLOT'])
-        assert.ok(serialized.includes(field));
-    assert.ok(!serialized.includes('UNRELATED_RPC_SAMPLE'));
-    assert.ok(!JSON.stringify(parsed.conversation).includes('UNPARSED_'));
-    const replay = parseGeminiRpcConversation(boundaryTop(payload), context);
-    assert.deepEqual(replay.conversation, parsed.conversation);
-    assertDomainClosure(parsed.conversation.detail);
+    const defaultParsed = parseGeminiRpcConversation(wire, context);
+    assert.equal(defaultParsed.diagnostics.filter(d => d.code === 'GEMINI_SOURCE_ANNOTATION_FALLBACK').length, 2);
+    assert.equal(defaultParsed.diagnostics.some(d => d.code === 'GEMINI_SOURCE_REPLAY_EVIDENCE'), false,
+        'normal exports must not retain full multi-turn RPC page dumps');
+
+    const prevDev = globalThis.__gemExporterDevMode;
+    globalThis.__gemExporterDevMode = true;
+    try {
+        const parsed = parseGeminiRpcConversation(wire, context);
+        assert.equal(parsed.diagnostics.filter(d => d.code === 'GEMINI_SOURCE_ANNOTATION_FALLBACK').length, 2);
+        const evidence = parsed.diagnostics.filter(d => d.code === 'GEMINI_SOURCE_REPLAY_EVIDENCE');
+        assert.equal(evidence.length, 1);
+        assert.equal(evidence[0].severity, 'info');
+        assert.deepEqual(evidence[0].details, { rpcId: 'hNvQHb', conversationId: 'c_source_replay',
+            providerMessageIds: ['rc_source_old', 'rc_source_new'], captureStatus: 'captured', payload });
+        const serialized = JSON.stringify(evidence);
+        for (const field of ['UNPARSED_CANDIDATE_SOURCE_SLOT', 'UNPARSED_MODEL_SOURCE_SLOT', 'UNPARSED_DETAIL_SOURCE_SLOT'])
+            assert.ok(serialized.includes(field));
+        assert.ok(!serialized.includes('UNRELATED_RPC_SAMPLE'));
+        assert.ok(!JSON.stringify(parsed.conversation).includes('UNPARSED_'));
+        const replay = parseGeminiRpcConversation(boundaryTop(payload), context);
+        assert.deepEqual(replay.conversation, parsed.conversation);
+        assertDomainClosure(parsed.conversation.detail);
+    } finally {
+        globalThis.__gemExporterDevMode = prevDev;
+    }
 });
 
-test('successful source parsing does not retain complete Detail payload samples', () => {
-    const { wire } = sourceReplayFixture(false);
-    const parsed = parseGeminiRpcConversation(wire, { account: fixtureAccount('gemini'), providerId: 'gemini' });
-    assert.ok(!parsed.diagnostics.some(d => d.code === 'GEMINI_SOURCE_REPLAY_EVIDENCE'));
-    assert.ok(!JSON.stringify(parsed.diagnostics).includes('UNPARSED_'));
+test('successful source parsing does not retain complete Detail payload samples even in developer mode', () => {
+    const prevDev = globalThis.__gemExporterDevMode;
+    globalThis.__gemExporterDevMode = true;
+    try {
+        const { wire } = sourceReplayFixture(false);
+        const parsed = parseGeminiRpcConversation(wire, { account: fixtureAccount('gemini'), providerId: 'gemini' });
+        assert.ok(!parsed.diagnostics.some(d => d.code === 'GEMINI_SOURCE_REPLAY_EVIDENCE'));
+        assert.ok(!JSON.stringify(parsed.diagnostics).includes('UNPARSED_'));
+    } finally {
+        globalThis.__gemExporterDevMode = prevDev;
+    }
 });
 
 test('successful decoded messages retain no per-candidate replay fields or raw documents', () => {
@@ -439,12 +440,18 @@ test('successful structured decoding does not traverse foreign documents for dia
 });
 
 test('source replay evidence explicitly reports when a decoded-only input has no original payload', () => {
-    const decoded = decodeGeminiDetail(sourceReplayFixture().wire);
-    const parsed = parseGeminiDetailEvidence({ ...decoded, _raw: undefined },
-        { account: fixtureAccount('gemini'), providerId: 'gemini' });
-    const evidence = parsed.diagnostics.find(d => d.code === 'GEMINI_SOURCE_REPLAY_EVIDENCE');
-    assert.deepEqual(evidence?.details, { rpcId: 'hNvQHb', conversationId: 'c_source_replay',
-        providerMessageIds: ['rc_source_old', 'rc_source_new'], captureStatus: 'unavailable' });
+    const prevDev = globalThis.__gemExporterDevMode;
+    globalThis.__gemExporterDevMode = true;
+    try {
+        const decoded = decodeGeminiDetail(sourceReplayFixture().wire);
+        const parsed = parseGeminiDetailEvidence({ ...decoded, _raw: undefined },
+            { account: fixtureAccount('gemini'), providerId: 'gemini' });
+        const evidence = parsed.diagnostics.find(d => d.code === 'GEMINI_SOURCE_REPLAY_EVIDENCE');
+        assert.deepEqual(evidence?.details, { rpcId: 'hNvQHb', conversationId: 'c_source_replay',
+            providerMessageIds: ['rc_source_old', 'rc_source_new'], captureStatus: 'unavailable' });
+    } finally {
+        globalThis.__gemExporterDevMode = prevDev;
+    }
 });
 
 test('decode rejection retains original document indices and candidate metadata before filtering', () => {

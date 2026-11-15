@@ -1,3 +1,4 @@
+import { createDocumentReader } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 import type { GeminiMessageEvidence } from '../src/l1/parsers/gemini/rpc/detailEvidence.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -287,7 +288,7 @@ test('single Turn decoder closes selected draft and user resources into typed me
     const raw = [[ID, 'r_AB12'], [1700000000, 500000000], [['Prompt']], [candidates, null, 'google', 'rc_selected']];
     const turn = decodeTurn(raw);
     assert.ok(turn);
-    const messages = decodeGeminiTurn(turn, raw, new Set(), new Set(), ID);
+    const messages = decodeGeminiTurn(turn, raw, createDocumentReader(raw), new Set(), new Set(), ID);
     assert.deepEqual(messages.map(({ role, id, content }) => [role, id, content]), [
         ['user', 'r_AB12', 'Prompt'],
         ['model', 'rc_selected', 'Selected answer']
@@ -405,7 +406,7 @@ test('Gemini resource decoder consumes raw Turn/Candidate wire slots but exports
     assert.deepEqual(userResources.images, []);
     assert.deepEqual(userResources.files, []);
     const result = decodeGeminiCandidateResources(
-        decoded.candidate, new Set(), new Set(), ID
+        decoded.candidate, createDocumentReader(rawTurn), new Set(), new Set(), ID
     );
     assert.equal(result.structuredExtraction.status, 'decoded');
     assert.equal(result.generatedFiles.length, 0);

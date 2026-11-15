@@ -21,7 +21,8 @@
     "test:l3b:unit": "node scripts/test-l3b.cjs",
     "test:v2:unit-isolation": "node scripts/test-v2-unit-isolation.cjs",
     "test:v2:unit-ports": "node scripts/typecheck-v2-unit-ports.cjs",
-    "test:release-fonts": "node scripts/release-gate-checks/check-bundled-fonts.js"
+    "test:release-fonts": "node scripts/release-gate-checks/check-bundled-fonts.js",
+    "cloud:local": "node -r ./tests/ts_register.js scripts/run_local_cloud_vault.ts"
   },
   "keywords": [
     "gemini",

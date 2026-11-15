@@ -176,6 +176,18 @@ test('P1-071b: Pattern 2 的 rawFileName 扩展名与 MIME 一致（.avif）', (
     assert.strictEqual(imgs[0].mimeType, "image/avif");
 });
 
+test('P1-072a: findDocContentById 不命中正文里仅"提到" ID 的节点', () => {
+    const decoy = ["note", "本文引用了 doc99999 的观点\n\n" + "y".repeat(250)];
+    const real = ["c_doc99999", "## 真实文档正文\n\n" + "正文".repeat(150)];
+    const found = attachments.createDocumentReader([decoy, real]).byId("c_doc99999");
+    assert.ok(found);
+    assert.equal(found?.contentMatch, undefined);
+});
+
+test('P1-072b: findDocContentById 无匹配时返回 null', () => {
+    assert.strictEqual(attachments.createDocumentReader([["a", "b"]]).byId("c_nope123456"), null);
+});
+
 test('P1-073a: extractConversationId 深搜找 ID，全程不做 JSON.stringify', () => {
     const inner = [[[[["c_deepfind1234567890"]]]]];
     const origStringify = JSON.stringify;

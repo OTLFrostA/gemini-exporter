@@ -43,17 +43,6 @@ const sampleDetail = (): DomainConversationDetail => ({
         attachmentIds: ['image', 'file'], reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'thought' }] }] }],
 });
 
-test('parser repair revisions participate in persisted quality equality', () => {
-    const a = sampleDetail();
-    a.quality = { status: 'partial', repair: { reason: 'source_annotations_unrepresented', retry: 'source_or_parser_change', parserRevision: 'parser-1' } };
-    const b = structuredClone(a);
-    assert.equal(equal.detail(a, b), true);
-    assert.ok(b.quality.repair);
-    b.quality.repair.parserRevision = 'parser-2';
-    assert.equal(equal.detail(a, b), false);
-    assert.equal(equal.material(a, b), false);
-});
-
 test('typed Domain equality ignores object insertion order but checks all Index fields', () => {
     const a = sampleIndex();
     const b: DomainConversationIndex = { activityAt: 25, updatedAt: 20, createdAt: 10,

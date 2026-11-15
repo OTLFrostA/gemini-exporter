@@ -417,3 +417,55 @@ test('Cloudflare D1 + R2 VaultStore cleans up staged R2 orphan blobs when optimi
     assert.equal(r2Objects.size, 0, 'staged R2 blob must be deleted immediately on D1 conflict');
     assert.equal(deletedKeys.length, 1);
 });
+
+test('Zero-config key-derived authentication (/v1/auth/key): enforces optional SERVER_ACCESS_CODE, blocks spoofed authTokens against an existing keyFingerprint, and permits chrome-extension://* while blocking web origins', async () => {
+    const store = createInMemoryVaultStore();
+    const handler = createCloudServerHandler({
+        store,
+        config: {
+            sessionHmacSecret: 'zero-config-key-auth-hmac-secret-32bytes+!!',
+            serverAccessCode: 'invite-2026-alpha',
+            allowedOrigins: ['chrome-extension://*'],
+        },
+    });
+
+    const aliceKeyring = await deriveVaultKeyring(generateMasterKeyBytes());
+    const attackerKeyring = await deriveVaultKeyring(generateMasterKeyBytes());
+    const validExtOrigin = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
+
+    // 1. Web page Origin is blocked by CORS allowlist even when chrome-extension://* is configured
+    const evilOriginRes = await handler(new Request('https://vault.example.com/v1/auth/key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: 'https://evil.example.com' },
+        body: JSON.stringify({ keyFingerprint: aliceKeyring.keyFingerprint, authToken: aliceKeyring.authToken, accessCode: 'invite-2026-alpha' }),
+    }));
+    assert.equal(evilOriginRes.status, 403);
+
+    // 2. Missing or wrong server access code returns 401 ACCESS_CODE_REQUIRED
+    const badCodeRes = await handler(new Request('https://vault.example.com/v1/auth/key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: validExtOrigin },
+        body: JSON.stringify({ keyFingerprint: aliceKeyring.keyFingerprint, authToken: aliceKeyring.authToken, accessCode: 'wrong-code' }),
+    }));
+    assert.equal(badCodeRes.status, 401);
+    assert.equal(((await badCodeRes.json()) as CloudErrorResponse).error.code, 'ACCESS_CODE_REQUIRED');
+
+    // 3. Valid key-derived auth + access code registers `vault:<fp>` tenant and returns bearer token
+    const okRes = await handler(new Request('https://vault.example.com/v1/auth/key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: validExtOrigin },
+        body: JSON.stringify({ keyFingerprint: aliceKeyring.keyFingerprint, authToken: aliceKeyring.authToken, accessCode: 'invite-2026-alpha' }),
+    }));
+    assert.equal(okRes.status, 200);
+    const session = (await okRes.json()) as CloudAuthSessionResponse;
+    assert.equal(session.ownerSubject, `vault:${aliceKeyring.keyFingerprint}`);
+
+    // 4. Attacker who knows Alice's public keyFingerprint CANNOT authenticate with a forged/different authToken!
+    const spoofRes = await handler(new Request('https://vault.example.com/v1/auth/key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: validExtOrigin },
+        body: JSON.stringify({ keyFingerprint: aliceKeyring.keyFingerprint, authToken: attackerKeyring.authToken, accessCode: 'invite-2026-alpha' }),
+    }));
+    assert.equal(spoofRes.status, 401);
+    assert.equal(((await spoofRes.json()) as CloudErrorResponse).error.code, 'UNAUTHORIZED');
+});
