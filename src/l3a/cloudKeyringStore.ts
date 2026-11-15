@@ -9,6 +9,7 @@ import { OperationError } from '../shared/errors/operationError.js';
 import { getLocalKeyMirror, putLocalKeyMirror } from './cloudSyncStore.js';
 
 const SYNC_KEY_PREFIX = 'ge_cloud_key_v1:';
+const PORTABLE_LOCAL_KEY_SLOT = 'ge_cloud_key_v1:local:vault';
 
 function syncStorageKey(ownerSubject: string): string {
     if (!ownerSubject.trim()) {
@@ -77,6 +78,19 @@ export async function loadOrProvisionVaultKeyring(ownerSubject: string): Promise
     if (fromLocal) {
         await writeChromeSyncKey(keyName, fromLocal.canonical);
         return { keyring: fromLocal.keyring, recoveryKey: fromLocal.canonical, createdNew: false };
+    }
+
+    // Seamless Local-to-Cloud promotion: if the user already initialized a Local Encrypted Folder key on this browser
+    // and is connecting a cloud account for the very first time, inherit the same Master Key so existing .gee1 files stay 100% compatible!
+    if (ownerSubject !== 'local:vault') {
+        const promoted = await tryParseValidKey(
+            await readChromeSyncKey(PORTABLE_LOCAL_KEY_SLOT) ?? await getLocalKeyMirror('local:vault'),
+        );
+        if (promoted) {
+            await putLocalKeyMirror(ownerSubject, promoted.canonical);
+            await writeChromeSyncKey(keyName, promoted.canonical);
+            return { keyring: promoted.keyring, recoveryKey: promoted.canonical, createdNew: false };
+        }
     }
 
     const freshBytes = generateMasterKeyBytes();

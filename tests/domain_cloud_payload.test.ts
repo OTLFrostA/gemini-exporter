@@ -98,10 +98,19 @@ test('L2 cloudPayload strips device-local Account UUID and preserves full semant
     });
     assert.equal(decoded.conversationId, 'c_rich_01');
     assert.equal('key' in decoded.index, false);
+    assert.ok(decoded.detail);
     assert.equal('key' in decoded.detail, false);
     assert.equal(decoded.index.title, 'Quantum Harmonic Oscillator');
-    assert.equal(decoded.detail.messages.length, 2);
-    assert.equal(decoded.detail.assets[1]?.document?.contentMarkdown, '```python\nimport numpy as np\n```');
+    assert.equal(decoded.detail?.messages.length, 2);
+    assert.equal(decoded.detail?.assets[1]?.document?.contentMarkdown, '```python\nimport numpy as np\n```');
+
+    // Privacy-minimal Index-only mode omits detail completely
+    const indexOnlyJson = encodePortableCloudConversation(DEVICE_A_ACCOUNT, { index: conv.index });
+    assert.equal(indexOnlyJson.includes('messages'), false);
+    assert.equal(indexOnlyJson.includes('Derive the ground state energy'), false);
+    const decodedIndexOnly = decodePortableCloudConversation(indexOnlyJson);
+    assert.equal(decodedIndexOnly.detail, undefined);
+    assert.equal(decodedIndexOnly.index.title, 'Quantum Harmonic Oscillator');
 });
 
 test('L2 cloudPayload rejects default placeholder accounts, key mismatches, dangling references, and malformed schemas', () => {

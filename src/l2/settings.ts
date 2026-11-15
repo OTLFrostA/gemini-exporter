@@ -18,6 +18,8 @@ export interface GlobalSettings {
     directWritePromptCompleted?: true;
     /** Opt-in automatic zero-knowledge E2EE cloud backup for subsequent conversation updates. */
     cloudSyncEnabled?: boolean;
+    /** When false or omitted (default), only conversation Index metadata is synced; message bodies stay local. */
+    cloudSyncIncludeDetail?: boolean;
     /** Configured zero-knowledge Cloud Vault endpoint origin (HTTPS). */
     cloudSyncServerUrl?: string;
     /** Configured Google OAuth 2.0 Web Client ID used for OIDC authentication. */

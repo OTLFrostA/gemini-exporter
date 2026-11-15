@@ -115,6 +115,10 @@ test('E2EE Cloud Vault full browser UI flow: Google OIDC sign-in -> post-toggle 
 
     await expect(page.locator('#cloudConnectedEmail')).toHaveText('e2e-researcher@example.com');
     await expect(page.locator('#cloudSyncToggle')).toBeChecked();
+    await expect(page.locator('#cloudIncludeDetailToggle')).not.toBeChecked();
+    // Explicitly opt into full body sync for this end-to-end Markdown body export test
+    await page.locator('#cloudIncludeDetailToggle').click();
+    await expect(page.locator('#cloudIncludeDetailToggle')).toBeChecked();
 
     // Reveal & capture the generated GEK1-... Master Recovery Key
     await page.locator('#btnCloudRevealKey').click();
@@ -219,28 +223,23 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
 
     await expect(page.locator('#cloudConnectedEmail')).toContainText('LocalEncryptedVaultExperiment');
     await expect(page.locator('#cloudSyncToggle')).toBeChecked();
+    await expect(page.locator('#cloudIncludeDetailToggle')).not.toBeChecked();
 
     await page.locator('#btnCloudRevealKey').click();
     const localRecoveryKey = await page.locator('#cloudRecoveryKeyDisplay').inputValue();
     expect(localRecoveryKey).toMatch(/^GEK1(?:-[0-9A-Z]{5}){11}$/);
     await page.locator('#btnCloudModalClose').click();
 
-    // 2. Add a new conversation AFTER enabling Local Encrypted Vault -> must automatically write .gee1 file!
-    const localSecret = 'LOCAL-DISK-CIPHERTEXT-EXPERIMENT-77193';
-    const localTitle = 'Encrypted Local Folder Experiment';
+    // 2. Simulate scanning a mobile/other-device conversation where ONLY Index metadata exists (no local Detail!)
+    const localTitle = 'Mobile Cross-Device Index Only Chat';
     const postTime = Date.now() + 5000;
-    await page.evaluate(async ({ accountId, localSecret, localTitle, postTime }) => {
+    await page.evaluate(async ({ accountId, localTitle, postTime }) => {
         const api = Reflect.get(globalThis, 'uiFixture');
-        await api.ingestDetail(accountId, 'c_local_vault_01', {
-            savedAt: postTime,
-            quality: { status: 'complete', sourceTurn: 'finished' },
-            assets: [],
-            messages: [
-                { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Test local encrypted save?' }] }] },
-                { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: localSecret }] }] },
-            ],
-        }, { title: localTitle, titleSource: 'provider', updatedAt: postTime });
-    }, { accountId, localSecret, localTitle, postTime });
+        await api.ingestIndexes(accountId, [{
+            conversationId: 'c_local_vault_01',
+            fields: { title: localTitle, titleSource: 'provider', updatedAt: postTime },
+        }]);
+    }, { accountId, localTitle, postTime });
 
     const helperExtPage = await context.newPage();
     await helperExtPage.goto(`chrome-extension://${extensionId}/src/ui/popup/popup.html`);
@@ -271,6 +270,7 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
         return {
             manifestText,
             blindId,
+            byteLength: gee1Bytes.byteLength,
             magic: Array.from(gee1Bytes.slice(0, 4)),
             rawLatin1: new TextDecoder('latin1').decode(gee1Bytes),
         };
@@ -278,12 +278,13 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
 
     expect(diskInspection.blindId).toMatch(/^[0-9a-f]{64}$/);
     expect(diskInspection.magic).toEqual([0x47, 0x45, 0x45, 0x31]); // "GEE1"
-    for (const sensitive of [localSecret, localTitle, 'c_local_vault_01', 'gemini', 'Test local encrypted save?']) {
+    expect(diskInspection.byteLength).toBeLessThan(600); // Compact Index-only ciphertext (~220 bytes)
+    for (const sensitive of [localTitle, 'c_local_vault_01', 'gemini']) {
         expect(diskInspection.manifestText).not.toContain(sensitive);
         expect(diskInspection.rawLatin1).not.toContain(sensitive);
     }
 
-    // 4. Wipe extension's local conversation list, then restore directly from the local encrypted folder!
+    // 4. Wipe extension's local conversation list, then restore catalog directly from the local encrypted folder!
     await page.locator('#btnMoreActions').click();
     await page.locator('#btnClearScan').click();
     await page.locator('#btnCleanupConfirm').click();
@@ -296,12 +297,4 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
 
     await expect(page.locator('#list .item')).toHaveCount(1);
     await expect(page.locator('#list')).toContainText(localTitle);
-
-    await page.locator('#btnSelectAll').click();
-    const downloadPromise = page.waitForEvent('download');
-    await page.locator('#btnExport').click();
-    const download = await downloadPromise;
-    const exportedMd = await readFile((await download.path())!, 'utf8');
-    expect(exportedMd).toContain(localTitle);
-    expect(exportedMd).toContain(localSecret);
 });

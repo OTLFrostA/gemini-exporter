@@ -42,6 +42,7 @@ export function mountCloudVaultPanel(callbacks: {
     const connectedRow = el('cloudConnectedAccountRow');
     const connectedLabel = el('cloudConnectedEmail');
     const actionsSection = el('cloudConnectedActions');
+    const includeDetailToggle = control('input', 'cloudIncludeDetailToggle');
     const btnSyncNow = control('button', 'btnCloudSyncNow');
     const btnBackfill = control('button', 'btnCloudBackfill');
     const keyDisplay = control('input', 'cloudRecoveryKeyDisplay');
@@ -112,8 +113,11 @@ export function mountCloudVaultPanel(callbacks: {
             const queuePart = (snap?.pendingOutbox ?? 0) > 0
                 ? text(` · ${snap?.pendingOutbox} queued`, ` · ${snap?.pendingOutbox} 条待同步`)
                 : '';
+            const modePart = snap?.includeDetail
+                ? text('Full', '含正文')
+                : text('Index-only', '仅目录');
             const statePart = snap?.enabled
-                ? text('Auto-sync ON', '自动加密中')
+                ? text(`Auto-sync (${modePart})`, `自动加密 (${modePart})`)
                 : text('Paused', '已暂停');
             summaryEl.textContent = `${statePart}${targetDesc ? ' · ' + targetDesc : ''}${queuePart}`;
         }
@@ -135,6 +139,8 @@ export function mountCloudVaultPanel(callbacks: {
 
         connectedRow.hidden = !connected;
         actionsSection.hidden = !connected;
+        includeDetailToggle.checked = Boolean(snap?.includeDetail);
+        includeDetailToggle.disabled = disabled || !connected;
         btnDisconnect.disabled = disabled;
         btnSyncNow.disabled = disabled || !connected || needsLocalReauth;
         btnBackfill.disabled = disabled || !connected || needsLocalReauth;
@@ -363,6 +369,16 @@ export function mountCloudVaultPanel(callbacks: {
         });
     };
 
+    const onIncludeDetailChange = (): void => {
+        const desired = includeDetailToggle.checked;
+        void runAction(async () => {
+            await defaultCloudSyncEngine.setIncludeDetail(desired);
+            setModalFeedback(desired
+                ? text('Full message body backup enabled for future updates', '已开启完整聊天正文加密备份（对后续更新生效）')
+                : text('Switched to privacy-minimal Index-only mode', '已切换为隐私最小化的仅目录（Index）同步模式'));
+        });
+    };
+
     const selectLocal = () => onSelectTab('local-folder');
     const selectCloud = () => onSelectTab('cloud-server');
 
@@ -372,6 +388,7 @@ export function mountCloudVaultPanel(callbacks: {
     btnLocalChangeDir.addEventListener('click', onPickLocalFolder);
     btnLocalReauth.addEventListener('click', onReauthLocalFolder);
     toggle.addEventListener('change', onToggleChange);
+    includeDetailToggle.addEventListener('change', onIncludeDetailChange);
     btnManage.addEventListener('click', onOpenModal);
     btnCloseModal.addEventListener('click', onCloseModal);
     btnConnect.addEventListener('click', onConnectCloud);
@@ -405,6 +422,7 @@ export function mountCloudVaultPanel(callbacks: {
             btnLocalChangeDir.removeEventListener('click', onPickLocalFolder);
             btnLocalReauth.removeEventListener('click', onReauthLocalFolder);
             toggle.removeEventListener('change', onToggleChange);
+            includeDetailToggle.removeEventListener('change', onIncludeDetailChange);
             btnManage.removeEventListener('click', onOpenModal);
             btnCloseModal.removeEventListener('click', onCloseModal);
             btnConnect.removeEventListener('click', onConnectCloud);

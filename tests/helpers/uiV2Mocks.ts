@@ -107,7 +107,7 @@ export function installUiV2Mocks(): void {
     stub('../../src/application/cloud/cloudSyncEngine.js', {
         defaultCloudSyncEngine: {
             getStatusSnapshot: async () => ({
-                enabled: false, connected: false, pulledSeq: 0,
+                enabled: false, includeDetail: false, connected: false, pulledSeq: 0,
                 pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: false,
             }),
             exportRecoveryKey: async () => null,
@@ -116,6 +116,7 @@ export function installUiV2Mocks(): void {
             connectWithGoogleIdToken: () => unconfigured('Application.cloudSync.connect'),
             disconnect: async () => {},
             setAutoSyncEnabled: async () => {},
+            setIncludeDetail: async () => {},
             enqueueAllExistingHistory: async () => 0,
             flushOutbox: async () => ({ uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 }),
             pullChanges: async () => ({ downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 }),
