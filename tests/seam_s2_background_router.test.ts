@@ -29,6 +29,7 @@ function load(file: string, stubs: Record<string, unknown> = {}) {
                     enabled: false, includeDetail: false, connected: false, pulledSeq: 0,
                     pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: false,
                 }),
+                resetVaultWithCurrentKey: async () => {},
             },
         },
         'src/l2/conversationKey.js': mockConversationKey([A, B]), ...stubs };

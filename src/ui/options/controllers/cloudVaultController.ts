@@ -6,6 +6,7 @@ import {
 import { getSettings, updateSettings } from '../../../application/settings/index.js';
 import { launchGoogleOidcIdTokenFlow } from '../../../runtime/capabilities/googleCloudAuth.js';
 import { pickVaultDirectoryHandle, reauthorizeVaultDirectoryHandle } from '../../../runtime/capabilities/vaultFolderAuth.js';
+import { OperationError } from '../../../shared/errors/operationError.js';
 import { elementById as el, requiredElement as control } from '../../shared/elements.js';
 import { errorText, text } from '../../shared/settings.js';
 import type { UiMessage } from '../state/foregroundTask.js';
@@ -49,12 +50,15 @@ export function mountCloudVaultPanel(callbacks: {
     const btnCopyKey = control('button', 'btnCloudCopyKey');
     const importKeyInput = control('input', 'cloudImportKeyInput');
     const btnImportKey = control('button', 'btnCloudImportKey');
+    const keyMismatchBox = el('cloudKeyMismatchBox');
+    const btnResetVault = control('button', 'btnCloudResetVault');
     const btnCloseModal = control('button', 'btnCloudModalClose');
     const modalFeedback = el('cloudModalFeedback');
 
     let externalBusy = false;
     let internalBusy = false;
     let keyRevealed = false;
+    let resetArmed = false;
     let selectedTab: CloudVaultBackendType = 'local-folder';
     let userPickedTab = false;
     let latestSnapshot: CloudSyncStatusSnapshot | null = null;
@@ -64,7 +68,7 @@ export function mountCloudVaultPanel(callbacks: {
 
     const silentAutoSync = async (): Promise<void> => {
         const snap = await defaultCloudSyncEngine.getStatusSnapshot();
-        if (!snap.enabled || !snap.connected || snap.folderPermissionRequired) return;
+        if (!snap.enabled || !snap.connected || snap.folderPermissionRequired || snap.keyMismatch) return;
         const outcome = await defaultCloudSyncEngine.syncNow();
         if (outcome.pull.changed > 0) {
             await callbacks.onRestored();
@@ -112,6 +116,11 @@ export function mountCloudVaultPanel(callbacks: {
                 `Folder "${snap.folderName ?? ''}" needs permission — click Manage to re-authorize`,
                 `加密文件夹“${snap.folderName ?? ''}”需重新授权 — 请点击“管理”`,
             );
+        } else if (snap?.keyMismatch) {
+            summaryEl.textContent = text(
+                'Key mismatch (paused) — click Manage to import original Recovery Key',
+                '密钥不匹配（已暂停防覆盖）— 请点击“管理”导入原恢复密钥',
+            );
         } else {
             const targetDesc = snap?.backend === 'local-folder'
                 ? `📁 ${snap.folderName ?? 'Local Vault'}`
@@ -150,6 +159,11 @@ export function mountCloudVaultPanel(callbacks: {
         btnCopyKey.disabled = disabled || !cachedRecoveryKey;
         btnImportKey.disabled = disabled || !connected;
         importKeyInput.disabled = disabled || !connected;
+        keyMismatchBox.hidden = !(connected && snap?.keyMismatch);
+        btnResetVault.disabled = disabled || !connected;
+        btnResetVault.textContent = resetArmed
+            ? text('Confirm Erase & Reset Vault', '确认清空旧密文并重置')
+            : text('Reset Vault with Current Key', '用当前密钥重置保险箱');
 
         if (connected) {
             connectedLabel.textContent = activeBackend === 'local-folder'
@@ -202,11 +216,15 @@ export function mountCloudVaultPanel(callbacks: {
             await work();
             await refresh();
         } catch (error) {
+            await refresh().catch(() => {});
             if (error instanceof DOMException && error.name === 'AbortError') {
                 return;
             }
             const msg = errorText(error);
             setModalFeedback(msg, true);
+            if (error instanceof OperationError && error.code === 'CLOUD_KEY_MISMATCH') {
+                importKeyInput.focus();
+            }
             callbacks.onStatus(() => errorText(error), 'error');
         } finally {
             internalBusy = false;
@@ -274,13 +292,16 @@ export function mountCloudVaultPanel(callbacks: {
     const onOpenModal = (): void => {
         setModalFeedback('');
         keyRevealed = false;
+        resetArmed = false;
         void refresh().then(() => {
             if (isDialog(modal) && !modal.open) modal.showModal();
+            if (latestSnapshot?.keyMismatch) importKeyInput.focus();
         });
     };
 
     const onCloseModal = (): void => {
         keyRevealed = false;
+        resetArmed = false;
         if (isDialog(modal) && modal.open) modal.close();
         paint();
     };
@@ -353,13 +374,37 @@ export function mountCloudVaultPanel(callbacks: {
     const onImportKey = (): void => {
         const candidate = importKeyInput.value.trim();
         if (!candidate) return;
+        resetArmed = false;
         void runAction(async () => {
-            await defaultCloudSyncEngine.importRecoveryKey(candidate);
+            const imported = await defaultCloudSyncEngine.importRecoveryKey(candidate);
+            cachedRecoveryKey = await defaultCloudSyncEngine.exportRecoveryKey();
             importKeyInput.value = '';
             const synced = await runSyncAndNotify();
+            setModalFeedback(imported.resolution === 'rekeyed'
+                ? text(
+                    `Switched Master Key & re-encrypted vault · Saved ${synced.saved} conversations`,
+                    `已切换为新恢复密钥并重新加密同步（保存 ${synced.saved} 条会话）`,
+                )
+                : text(
+                    `Recovery key verified · Restored ${synced.restored}, Saved ${synced.saved}`,
+                    `恢复密钥已验证解锁并完成同步（恢复 ${synced.restored} 条，保存 ${synced.saved} 条）`,
+                ));
+        });
+    };
+
+    const onResetVault = (): void => {
+        if (!resetArmed) {
+            resetArmed = true;
+            paint();
+            return;
+        }
+        resetArmed = false;
+        void runAction(async () => {
+            await defaultCloudSyncEngine.resetVaultWithCurrentKey();
+            const synced = await runSyncAndNotify();
             setModalFeedback(text(
-                `Recovery key verified · Restored ${synced.restored}, Saved ${synced.saved}`,
-                `恢复密钥校验通过并已自动同步（恢复 ${synced.restored} 条，保存 ${synced.saved} 条）`,
+                `Vault reset with current key · Saved ${synced.saved} conversations`,
+                `已使用当前浏览器密钥重置保险箱并备份 ${synced.saved} 条会话`,
             ));
         });
     };
@@ -400,6 +445,7 @@ export function mountCloudVaultPanel(callbacks: {
     btnRevealKey.addEventListener('click', onRevealKey);
     btnCopyKey.addEventListener('click', onCopyKey);
     btnImportKey.addEventListener('click', onImportKey);
+    btnResetVault.addEventListener('click', onResetVault);
 
     void refresh().then(() => silentAutoSync()).catch(() => {});
 
@@ -433,6 +479,7 @@ export function mountCloudVaultPanel(callbacks: {
             btnRevealKey.removeEventListener('click', onRevealKey);
             btnCopyKey.removeEventListener('click', onCopyKey);
             btnImportKey.removeEventListener('click', onImportKey);
+            btnResetVault.removeEventListener('click', onResetVault);
         },
     };
 }

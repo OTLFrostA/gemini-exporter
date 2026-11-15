@@ -9,7 +9,7 @@ import { createCloudVaultClient } from '../src/l1/cloud/vaultClient.js';
 import { ingestDetail, ingestIndexes } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { getDetail, getIndex } from '../src/l3a/storageService.js';
-import { deriveVaultKeyring, parseRecoveryKey } from '../src/shared/crypto/index.js';
+import { deriveVaultKeyring, formatRecoveryKey, generateMasterKeyBytes, parseRecoveryKey } from '../src/shared/crypto/index.js';
 import {
     createGoogleOidcVerifier,
     encodeBase64UrlBytes,
@@ -270,5 +270,85 @@ test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-r
         }
     } finally {
         env.restore();
+    }
+});
+
+test('Key conflict resolution: blocks split-brain writes when a second browser auto-generates Key B against a Key A vault, rejects unrelated Key C, unlocks & merges upon importing Key A, and supports lossless Auto-Rekey', async () => {
+    const sharedFolder = createMemoryDirectoryHandle('SharedSyncedFolder');
+    let keyARecovery = '';
+
+    // 1. Browser 1 initializes SharedSyncedFolder with Key A and backs up "Chat From Browser 1"
+    const env1 = indexStorage();
+    try {
+        await env1.ready;
+        const engine1 = createCloudSyncEngine();
+        const conn1 = await engine1.connectLocalFolderVault(sharedFolder.handle);
+        keyARecovery = conn1.recoveryKey;
+        const acc1 = await getOrCreateAccount('gemini', 'gaia-user-conflict');
+        await ingestIndexes(acc1.id, [{
+            conversationId: 'c_from_browser_1',
+            fields: { title: 'Chat From Browser 1', titleSource: 'provider', updatedAt: 10_000 },
+        }]);
+        await engine1.setAutoSyncEnabled(true);
+        await engine1.waitForIdle();
+        assert.equal(sharedFolder.subdirs.get('records')?.files.size, 1);
+    } finally {
+        env1.restore();
+    }
+
+    // 2. Browser 2 (separate browser without Chrome Sync) auto-generates its own Key B first,
+    //    has a local conversation "Chat From Browser 2", and then connects to SharedSyncedFolder!
+    const env2 = indexStorage();
+    try {
+        await env2.ready;
+        const engine2 = createCloudSyncEngine();
+        const acc2 = await getOrCreateAccount('gemini', 'gaia-user-conflict');
+        await ingestIndexes(acc2.id, [{
+            conversationId: 'c_from_browser_2',
+            fields: { title: 'Chat From Browser 2', titleSource: 'provider', updatedAt: 20_000 },
+        }]);
+
+        const conn2 = await engine2.connectLocalFolderVault(sharedFolder.handle);
+        assert.notEqual(conn2.recoveryKey, keyARecovery, 'Browser 2 generated a different local Key B');
+        await engine2.setAutoSyncEnabled(true);
+        await engine2.waitForIdle();
+
+        // Sync must halt with CLOUD_KEY_MISMATCH and NEVER pollute SharedSyncedFolder with Key B ciphertexts!
+        await assert.rejects(
+            engine2.syncNow(),
+            (err: unknown) => err instanceof OperationError && err.code === 'CLOUD_KEY_MISMATCH',
+        );
+        assert.equal((await engine2.getStatusSnapshot()).keyMismatch, true);
+        assert.equal(sharedFolder.subdirs.get('records')?.files.size, 1, 'Split-brain prevented: zero Key B files written into Key A vault');
+
+        // Pasting an unrelated 3rd Key C must be rejected without mutating Browser 2's state
+        const unrelatedKeyC = await formatRecoveryKey(generateMasterKeyBytes());
+        await assert.rejects(
+            engine2.importRecoveryKey(unrelatedKeyC),
+            (err: unknown) => err instanceof OperationError && err.code === 'CLOUD_KEY_MISMATCH',
+        );
+
+        // Importing the true Key A unlocks the vault, pulls Browser 1's chat, AND pushes Browser 2's chat encrypted under Key A!
+        const unlockRes = await engine2.importRecoveryKey(keyARecovery);
+        assert.equal(unlockRes.resolution, 'unlocked');
+        const mergedSync = await engine2.syncNow();
+        assert.equal(mergedSync.pull.accepted, 1);
+        assert.equal(mergedSync.push.uploaded, 1);
+        assert.equal((await engine2.getStatusSnapshot()).keyMismatch, undefined);
+        assert.equal(sharedFolder.subdirs.get('records')?.files.size, 2, 'Both conversations now cleanly stored under Key A');
+        assert.equal((await getIndex({ accountId: acc2.id, conversationId: 'c_from_browser_1' }))?.title, 'Chat From Browser 1');
+        assert.equal((await getIndex({ accountId: acc2.id, conversationId: 'c_from_browser_2' }))?.title, 'Chat From Browser 2');
+
+        // 3. Auto-Rekey scenario: user already owns SharedSyncedFolder with Key A, and now wants to switch the vault to a fresh Key D!
+        const newKeyD = await formatRecoveryKey(generateMasterKeyBytes());
+        const newKeyringD = await deriveVaultKeyring(await parseRecoveryKey(newKeyD));
+        const rekeyRes = await engine2.importRecoveryKey(newKeyD);
+        assert.equal(rekeyRes.resolution, 'rekeyed');
+        const rekeyPush = await engine2.syncNow();
+        assert.equal(rekeyPush.push.uploaded, 2, 'All conversations automatically re-encrypted under new Key D');
+        const manifestAfterRekey = JSON.parse(new TextDecoder().decode(sharedFolder.files.get('vault-manifest.json'))) as { keyFingerprint?: string };
+        assert.equal(manifestAfterRekey.keyFingerprint, newKeyringD.keyFingerprint);
+    } finally {
+        env2.restore();
     }
 });

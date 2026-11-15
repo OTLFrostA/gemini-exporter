@@ -125,6 +125,7 @@ export function installUiV2Mocks(): void {
                 push: { uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 },
             }),
             importRecoveryKey: () => unconfigured('Application.cloudSync.importRecoveryKey'),
+            resetVaultWithCurrentKey: async () => {},
             reconcilePostToggleAccount: async () => {},
             waitForIdle: async () => {},
         },

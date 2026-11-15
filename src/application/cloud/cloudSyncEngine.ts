@@ -1,5 +1,12 @@
 import { OperationError, operationIssue } from '../../shared/errors/operationError.js';
-import { bytesToHex, deriveBlindRecordId, toOwnedBytes, type VaultKeyring } from '../../shared/crypto/index.js';
+import {
+    bytesToHex,
+    deriveBlindRecordId,
+    deriveVaultKeyring,
+    parseRecoveryKey,
+    toOwnedBytes,
+    type VaultKeyring,
+} from '../../shared/crypto/index.js';
 import { calculateBackoff } from '../../shared/utils/retryUtils.js';
 import { mapWithConcurrency } from '../../shared/utils/concurrency.js';
 import { DEFAULT_ACCOUNT_KEY } from '../../l2/accountRegistry.js';
@@ -10,6 +17,7 @@ import { readConversation } from '../../l2/readConversation.js';
 import { getAccount, listAccounts, getDetail, getIndex, listIndexes } from '../../l3a/storageService.js';
 import {
     clearCloudSyncSession,
+    clearSyncedCloudRecordsForOwner,
     countCloudOutbox,
     countOversizedCloudRecords,
     enqueueCloudOutboxKeys,
@@ -74,6 +82,7 @@ export interface CloudSyncStatusSnapshot {
     readonly email?: string;
     readonly folderName?: string;
     readonly folderPermissionRequired?: boolean;
+    readonly keyMismatch?: boolean;
     readonly pulledSeq: number;
     readonly pendingOutbox: number;
     readonly failedOutbox: number;
@@ -115,7 +124,11 @@ export interface CloudSyncEngine {
     syncNow(signal?: AbortSignal): Promise<{ pull: CloudPullResult; push: CloudFlushResult }>;
     getStatusSnapshot(): Promise<CloudSyncStatusSnapshot>;
     exportRecoveryKey(): Promise<string | null>;
-    importRecoveryKey(recoveryKeyInput: string): Promise<{ keyFingerprint: string }>;
+    importRecoveryKey(recoveryKeyInput: string): Promise<{
+        keyFingerprint: string;
+        resolution: 'unlocked' | 'rekeyed';
+    }>;
+    resetVaultWithCurrentKey(): Promise<void>;
     reconcilePostToggleAccount(accountId: string): Promise<void>;
     installAutoEnqueueListener(): () => void;
     waitForIdle(): Promise<void>;
@@ -143,6 +156,7 @@ export function createCloudSyncEngine(deps: {
         session.backend === 'local-folder' ? localClient : remoteClient;
     let activeFlush: Promise<CloudFlushResult> | null = null;
     let activePull: Promise<CloudPullResult> | null = null;
+    let activeSyncNow: Promise<{ pull: CloudPullResult; push: CloudFlushResult }> | null = null;
     const backgroundTasks = new Set<Promise<void>>();
     let suppressAutoEnqueueDepth = 0;
 
@@ -175,6 +189,35 @@ export function createCloudSyncEngine(deps: {
     const resolveKeyring = async (ownerSubject: string): Promise<VaultKeyring> => {
         const loaded = await loadOrProvisionVaultKeyring(ownerSubject);
         return loaded.keyring;
+    };
+
+    const markSessionKeyMismatch = async (session: CloudSyncSessionState, mismatch: boolean): Promise<CloudSyncSessionState> => {
+        if (Boolean(session.keyMismatch) === mismatch) return session;
+        const { keyMismatch: _prev, ...rest } = session;
+        const updated: CloudSyncSessionState = mismatch ? { ...rest, keyMismatch: true } : rest;
+        await putCloudSyncSession(updated);
+        return updated;
+    };
+
+    const verifyVaultKeyCompatibility = async (
+        session: CloudSyncSessionState,
+        keyring: VaultKeyring,
+        signal?: AbortSignal,
+    ): Promise<{ session: CloudSyncSessionState; hasVerifiedFingerprint: boolean }> => {
+        const activeClient = clientForSession(session);
+        const status = await activeClient.getVaultStatus(session.serverUrl, session.sessionToken, signal);
+        if (status.recordCount > 0 && status.keyFingerprint && status.keyFingerprint !== keyring.keyFingerprint) {
+            await markSessionKeyMismatch(session, true);
+            throw new OperationError(
+                'CLOUD_KEY_MISMATCH',
+                'This vault is encrypted with a different Master Key. Import the original Recovery Key to unlock it.',
+            );
+        }
+        const cleaned = await markSessionKeyMismatch(session, false);
+        return {
+            session: cleaned,
+            hasVerifiedFingerprint: Boolean(status.keyFingerprint && status.keyFingerprint === keyring.keyFingerprint),
+        };
     };
 
     const readLocalSyncSource = async (
@@ -292,6 +335,7 @@ export function createCloudSyncEngine(deps: {
                     expectedRevision,
                     envelope: sealed.envelope,
                     sha256: envelopeSha256,
+                    keyFingerprint: keyring.keyFingerprint,
                     signal,
                 });
 
@@ -354,6 +398,10 @@ export function createCloudSyncEngine(deps: {
                 currentSource = mergedLocal;
             } catch (error) {
                 if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;
+                if (error instanceof OperationError && error.code === 'CLOUD_KEY_MISMATCH') {
+                    await markSessionKeyMismatch(session, true);
+                    throw error;
+                }
                 // Auth, folder permission, or quota errors bubble up to halt the batch cleanly while keeping items queued
                 if (error instanceof OperationError
                     && (error.code === 'CLOUD_AUTH_REQUIRED'
@@ -424,6 +472,9 @@ export function createCloudSyncEngine(deps: {
             try {
                 let session = await requireActiveSession();
                 const keyring = await resolveKeyring(session.ownerSubject);
+                const compat = await verifyVaultKeyCompatibility(session, keyring, signal);
+                session = compat.session;
+                const hasVerifiedFingerprint = compat.hasVerifiedFingerprint;
                 let downloaded = 0;
                 let accepted = 0;
                 let changed = 0;
@@ -474,13 +525,29 @@ export function createCloudSyncEngine(deps: {
                             signal,
                         });
                         if (!blob) return null;
-                        const portable = await openWithPortableFallback(
-                            keyring,
-                            session,
-                            meta.blindRecordId,
-                            blob.revision,
-                            blob.envelope,
-                        );
+                        let portable: PortableCloudConversation;
+                        try {
+                            portable = await openWithPortableFallback(
+                                keyring,
+                                session,
+                                meta.blindRecordId,
+                                blob.revision,
+                                blob.envelope,
+                            );
+                        } catch (decryptErr) {
+                            if (!hasVerifiedFingerprint
+                                && decryptErr instanceof OperationError
+                                && decryptErr.code === 'CLOUD_DECRYPT_AUTH_FAILED') {
+                                await markSessionKeyMismatch(session, true);
+                                throw new OperationError(
+                                    'CLOUD_KEY_MISMATCH',
+                                    'This vault is encrypted with a different Master Key. Import the original Recovery Key to unlock it.',
+                                    undefined,
+                                    { cause: decryptErr },
+                                );
+                            }
+                            throw decryptErr;
+                        }
                         downloaded++;
                         // Compute canonical JSON hash so auto-enqueue recognizes this exact state as already synced
                         const tempAccountId = '00000000-0000-4000-8000-000000000000';
@@ -574,14 +641,30 @@ export function createCloudSyncEngine(deps: {
         return unsynced.length;
     };
 
-    const syncNow = async (signal?: AbortSignal): Promise<{ pull: CloudPullResult; push: CloudFlushResult }> => {
-        const pull = await pullChanges(signal);
-        const settings = await getSettings();
-        if (settings.cloudSyncEnabled) {
-            await enqueueUnsyncedLocalConversations();
-        }
-        const push = await flushOutbox(signal);
-        return { pull, push };
+    const CLOUD_SYNC_CROSS_CONTEXT_LOCK = 'gemini_exporter_cloud_sync_op_lock';
+
+    const syncNow = (signal?: AbortSignal): Promise<{ pull: CloudPullResult; push: CloudFlushResult }> => {
+        if (activeSyncNow) return activeSyncNow;
+        const runSyncBody = async () => {
+            const pull = await pullChanges(signal);
+            const settings = await getSettings();
+            if (settings.cloudSyncEnabled) {
+                await enqueueUnsyncedLocalConversations();
+            }
+            const push = await flushOutbox(signal);
+            return { pull, push };
+        };
+        activeSyncNow = (async () => {
+            try {
+                if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+                    return await navigator.locks.request(CLOUD_SYNC_CROSS_CONTEXT_LOCK, () => runSyncBody());
+                }
+                return await runSyncBody();
+            } finally {
+                activeSyncNow = null;
+            }
+        })();
+        return activeSyncNow;
     };
 
     return {
@@ -735,6 +818,7 @@ export function createCloudSyncEngine(deps: {
                 ...(session?.email ? { email: session.email } : {}),
                 ...(session?.folderName ? { folderName: session.folderName } : {}),
                 ...(folderPermissionRequired ? { folderPermissionRequired: true } : {}),
+                ...(session?.keyMismatch ? { keyMismatch: true } : {}),
                 pulledSeq: session?.pulledSeq ?? 0,
                 pendingOutbox: outboxCounts.total,
                 failedOutbox: outboxCounts.failed,
@@ -751,39 +835,133 @@ export function createCloudSyncEngine(deps: {
 
         async importRecoveryKey(recoveryKeyInput) {
             const session = await requireActiveSession();
-            const imported = await importVaultRecoveryKey(session.ownerSubject, recoveryKeyInput);
-            await putCloudSyncSession({ ...session, pulledSeq: 0 });
-            return { keyFingerprint: imported.keyring.keyFingerprint };
+            // 1. Verify checksum & derive candidate keyring in memory BEFORE mutating stored keys
+            const rawBytes = await parseRecoveryKey(recoveryKeyInput);
+            let candidateKeyring: VaultKeyring;
+            try {
+                candidateKeyring = await deriveVaultKeyring(rawBytes);
+            } finally {
+                rawBytes.fill(0);
+            }
+
+            const activeClient = clientForSession(session);
+            const [previousKeyring, vaultStatus] = await Promise.all([
+                resolveKeyring(session.ownerSubject),
+                activeClient.getVaultStatus(session.serverUrl, session.sessionToken),
+            ]);
+
+            // Case 1: Vault is empty OR candidate key matches the existing vault's keyFingerprint
+            if (vaultStatus.recordCount === 0
+                || (vaultStatus.keyFingerprint !== undefined && vaultStatus.keyFingerprint === candidateKeyring.keyFingerprint)) {
+                const imported = await importVaultRecoveryKey(session.ownerSubject, recoveryKeyInput);
+                await clearSyncedCloudRecordsForOwner(session.ownerSubject);
+                const { keyMismatch: _cleared, ...cleanSession } = session;
+                await putCloudSyncSession({ ...cleanSession, pulledSeq: 0 });
+                return { keyFingerprint: imported.keyring.keyFingerprint, resolution: 'unlocked' };
+            }
+
+            // Legacy fallback when vault has records without a stored keyFingerprint: probe first record with candidateKeyring
+            if (vaultStatus.keyFingerprint === undefined) {
+                const probeFeed = await activeClient.listChanges({
+                    serverUrl: session.serverUrl,
+                    sessionToken: session.sessionToken,
+                    sinceSeq: 0,
+                    limit: 1,
+                });
+                const firstMeta = probeFeed.items[0];
+                if (firstMeta) {
+                    const firstBlob = await activeClient.getEncryptedRecord({
+                        serverUrl: session.serverUrl,
+                        sessionToken: session.sessionToken,
+                        blindRecordId: firstMeta.blindRecordId,
+                    });
+                    if (firstBlob) {
+                        try {
+                            await openWithPortableFallback(
+                                candidateKeyring,
+                                session,
+                                firstMeta.blindRecordId,
+                                firstBlob.revision,
+                                firstBlob.envelope,
+                            );
+                            const imported = await importVaultRecoveryKey(session.ownerSubject, recoveryKeyInput);
+                            await clearSyncedCloudRecordsForOwner(session.ownerSubject);
+                            const { keyMismatch: _cleared, ...cleanSession } = session;
+                            await putCloudSyncSession({ ...cleanSession, pulledSeq: 0 });
+                            return { keyFingerprint: imported.keyring.keyFingerprint, resolution: 'unlocked' };
+                        } catch {
+                            // Candidate did not decrypt legacy vault; check if previousKeyring owns it below
+                        }
+                    }
+                }
+            }
+
+            // Case 2 (Auto-Rekey): Current vault was created by THIS browser's auto-generated previousKeyring,
+            // and the user is now importing their preferred key from another place!
+            if (vaultStatus.keyFingerprint === previousKeyring.keyFingerprint) {
+                await pullChanges();
+                await activeClient.purgeVault(session.serverUrl, session.sessionToken);
+                const imported = await importVaultRecoveryKey(session.ownerSubject, recoveryKeyInput);
+                await clearSyncedCloudRecordsForOwner(session.ownerSubject);
+                const { keyMismatch: _cleared, ...cleanSession } = session;
+                await putCloudSyncSession({ ...cleanSession, pulledSeq: 0 });
+                return { keyFingerprint: imported.keyring.keyFingerprint, resolution: 'rekeyed' };
+            }
+
+            // Case 3: Vault is locked by Key A, browser holds Key B, and user pasted unrelated Key C -> reject safely!
+            throw new OperationError(
+                'CLOUD_KEY_MISMATCH',
+                'The entered Recovery Key does not match the key that encrypted this vault.',
+            );
+        },
+
+        async resetVaultWithCurrentKey() {
+            const session = await requireActiveSession();
+            const activeClient = clientForSession(session);
+            await activeClient.purgeVault(session.serverUrl, session.sessionToken);
+            await clearSyncedCloudRecordsForOwner(session.ownerSubject);
+            const { keyMismatch: _cleared, ...cleanSession } = session;
+            await putCloudSyncSession({ ...cleanSession, pulledSeq: 0 });
         },
 
         async reconcilePostToggleAccount(accountId) {
-            if (suppressAutoEnqueueDepth > 0 || !accountId) return;
-            const [settings, session, acc] = await Promise.all([
-                getSettings(),
-                getCloudSyncSession(),
-                getAccount(accountId),
-            ]);
-            if (!settings.cloudSyncEnabled || !session || session.expiresAt <= now()) return;
-            if (!acc || acc.providerAccountId === DEFAULT_ACCOUNT_KEY) return;
-            const includeDetail = settings.cloudSyncIncludeDetail === true;
-            const cutoff = session.enabledSinceAt ?? 0;
-            const indexes = await listIndexes(accountId);
-            const candidates: ConversationKey[] = [];
-            for (const idx of indexes) {
-                const synced = await getSyncedCloudRecord(session.ownerSubject, idx.key);
-                const activity = idx.updatedAt ?? idx.activityAt ?? idx.createdAt ?? 0;
-                if (!synced && activity > 0 && activity < cutoff) continue;
-                const detail = includeDetail ? await getDetail(idx.key) : null;
-                const source: PortableConversationSource = detail ? { index: idx, detail } : { index: idx };
-                const json = encodePortableCloudConversation(acc, source);
-                const sha = await sha256Utf8Hex(json);
-                if (synced && synced.payloadSha256 === sha) continue;
-                candidates.push(idx.key);
+            if (suppressAutoEnqueueDepth > 0 || activeSyncNow !== null || !accountId) return;
+            const runReconcile = async () => {
+                const [settings, session, acc] = await Promise.all([
+                    getSettings(),
+                    getCloudSyncSession(),
+                    getAccount(accountId),
+                ]);
+                if (!settings.cloudSyncEnabled || !session || session.expiresAt <= now() || session.keyMismatch) return;
+                if (!acc || acc.providerAccountId === DEFAULT_ACCOUNT_KEY) return;
+                const includeDetail = settings.cloudSyncIncludeDetail === true;
+                const cutoff = session.enabledSinceAt ?? 0;
+                const indexes = await listIndexes(accountId);
+                const candidates: ConversationKey[] = [];
+                for (const idx of indexes) {
+                    const synced = await getSyncedCloudRecord(session.ownerSubject, idx.key);
+                    const activity = idx.updatedAt ?? idx.activityAt ?? idx.createdAt ?? 0;
+                    if (!synced && activity > 0 && activity < cutoff) continue;
+                    const detail = includeDetail ? await getDetail(idx.key) : null;
+                    const source: PortableConversationSource = detail ? { index: idx, detail } : { index: idx };
+                    const json = encodePortableCloudConversation(acc, source);
+                    const sha = await sha256Utf8Hex(json);
+                    if (synced && synced.payloadSha256 === sha) continue;
+                    candidates.push(idx.key);
+                }
+                if (candidates.length > 0) {
+                    await enqueueCloudOutboxKeys(candidates, now());
+                }
+                await flushOutbox();
+            };
+            if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+                await navigator.locks.request(CLOUD_SYNC_CROSS_CONTEXT_LOCK, { ifAvailable: true }, async lock => {
+                    if (!lock) return;
+                    await runReconcile();
+                });
+                return;
             }
-            if (candidates.length > 0) {
-                await enqueueCloudOutboxKeys(candidates, now());
-            }
-            await flushOutbox();
+            await runReconcile();
         },
 
         installAutoEnqueueListener() {

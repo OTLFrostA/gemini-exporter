@@ -15,12 +15,14 @@ const MANIFEST_FILENAME = 'vault-manifest.json';
 const RECORDS_SUBDIR = 'records';
 const LOCAL_VAULT_LOCK = 'gemini_exporter_local_vault_fs_lock';
 const BLIND_ID_PATTERN = /^[0-9a-f]{64}$/;
+const KEY_FP_PATTERN = /^[0-9a-f]{32}$/;
 const MIN_GEE1_BYTES = 4 + 12 + 16;
 
 interface LocalVaultManifest {
     readonly schema: 'e2ee-vault-manifest';
     readonly version: 1;
     readonly ownerSubject: string;
+    readonly keyFingerprint?: string;
     readonly nextSeq: number;
     readonly usedBytes: number;
     readonly records: Record<string, CloudRecordMeta>;
@@ -108,10 +110,14 @@ async function readManifestFromDir(rootDir: DirectoryHandle): Promise<LocalVault
         records[key] = meta;
         computedBytes += meta.byteLength;
     }
+    const keyFingerprint = typeof parsed.keyFingerprint === 'string' && KEY_FP_PATTERN.test(parsed.keyFingerprint)
+        ? parsed.keyFingerprint
+        : undefined;
     return {
         schema: 'e2ee-vault-manifest',
         version: 1,
         ownerSubject: LOCAL_VAULT_OWNER_SUBJECT,
+        ...(keyFingerprint ? { keyFingerprint } : {}),
         nextSeq: parsed.nextSeq,
         usedBytes: computedBytes,
         records,
@@ -183,6 +189,7 @@ export function createLocalFolderVaultClient(
                     usedBytes: manifest.usedBytes,
                     quotaBytes: Number.MAX_SAFE_INTEGER,
                     headSeq: manifest.nextSeq - 1,
+                    ...(manifest.keyFingerprint ? { keyFingerprint: manifest.keyFingerprint } : {}),
                 };
             });
         },
@@ -206,6 +213,12 @@ export function createLocalFolderVaultClient(
                 input.signal?.throwIfAborted();
                 const rootDir = await requireWritableDirectory();
                 const manifest = await readManifestFromDir(rootDir);
+                if (manifest.keyFingerprint && input.keyFingerprint && manifest.keyFingerprint !== input.keyFingerprint) {
+                    throw new OperationError(
+                        'CLOUD_KEY_MISMATCH',
+                        'This vault is encrypted with a different Master Key. Import the original Recovery Key to unlock it.',
+                    );
+                }
                 const existing = manifest.records[input.blindRecordId];
                 const currentRevision = existing?.revision ?? 0;
                 if (currentRevision !== input.expectedRevision) {
@@ -230,8 +243,10 @@ export function createLocalFolderVaultClient(
                     [input.blindRecordId]: meta,
                 };
                 const nextUsedBytes = manifest.usedBytes - (existing?.byteLength ?? 0) + meta.byteLength;
+                const lockedFp = manifest.keyFingerprint ?? input.keyFingerprint;
                 await writeManifestToDir(rootDir, {
                     ...manifest,
+                    ...(lockedFp ? { keyFingerprint: lockedFp } : {}),
                     nextSeq: changeSeq + 1,
                     usedBytes: nextUsedBytes,
                     records: nextRecords,

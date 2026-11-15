@@ -27,6 +27,8 @@ export interface CloudVaultStatusResponse {
     readonly usedBytes: number;
     readonly quotaBytes: number;
     readonly headSeq: number;
+    /** 32-char hex HKDF fingerprint of the Master Key currently locking this vault, if initialized. */
+    readonly keyFingerprint?: string;
 }
 
 export interface CloudRecordMeta {
@@ -54,10 +56,12 @@ export interface CloudErrorResponse {
             | 'RECORD_TOO_LARGE'
             | 'QUOTA_EXCEEDED'
             | 'REVISION_CONFLICT'
+            | 'KEY_FINGERPRINT_MISMATCH'
             | 'NOT_FOUND'
             | 'RATE_LIMITED'
             | 'INTERNAL_ERROR';
         readonly message: string;
         readonly currentRevision?: number;
+        readonly vaultKeyFingerprint?: string;
     };
 }

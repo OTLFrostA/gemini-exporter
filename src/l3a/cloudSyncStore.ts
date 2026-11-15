@@ -16,6 +16,7 @@ export interface CloudSyncSessionState {
     readonly expiresAt: number;
     readonly email?: string;
     readonly folderName?: string;
+    readonly keyMismatch?: boolean;
     readonly pulledSeq: number;
     readonly enabledSinceAt?: number;
 }
@@ -174,6 +175,7 @@ function parseSessionState(raw: unknown): CloudSyncSessionState | null {
         pulledSeq: raw.pulledSeq,
         ...(typeof raw.email === 'string' && raw.email ? { email: raw.email } : {}),
         ...(typeof raw.folderName === 'string' && raw.folderName ? { folderName: raw.folderName } : {}),
+        ...(raw.keyMismatch === true ? { keyMismatch: true } : {}),
         ...(typeof raw.enabledSinceAt === 'number' && Number.isSafeInteger(raw.enabledSinceAt)
             ? { enabledSinceAt: raw.enabledSinceAt }
             : {}),
@@ -390,6 +392,14 @@ export function countOversizedCloudRecords(ownerSubject: string): Promise<number
             }
             done(count);
         };
+    });
+}
+
+export function clearSyncedCloudRecordsForOwner(ownerSubject: string): Promise<void> {
+    return inCloudStores(['syncedRecords'], 'readwrite', (tx, done) => {
+        const range = IDBKeyRange.bound([ownerSubject], [ownerSubject, []]);
+        tx.objectStore('syncedRecords').delete(range);
+        done(undefined);
     });
 }
 

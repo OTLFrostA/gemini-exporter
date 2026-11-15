@@ -309,3 +309,125 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
     await expect(page.locator('#list')).toContainText(localTitle);
     await expect(page.locator('#list')).toContainText(preExistingTitle);
 });
+
+test('Vault UI handles pre-generated wrong browser key gracefully: pauses sync without overwriting, guides importing original key, and supports two-step Reset Vault escape hatch', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const page = await openOptions(context, extensionId);
+
+    await page.evaluate(() => {
+        const proto = FileSystemDirectoryHandle.prototype as unknown as Record<string, unknown>;
+        proto.queryPermission = async () => 'granted';
+        proto.requestPermission = async () => 'granted';
+        Object.defineProperty(window, 'showDirectoryPicker', {
+            configurable: true,
+            value: async () => {
+                const opfsRoot = await navigator.storage.getDirectory();
+                return opfsRoot.getDirectoryHandle('ConflictVaultFolder', { create: true });
+            },
+        });
+    });
+
+    // 1. Seed a conversation and initialize ConflictVaultFolder with original Key A
+    await page.evaluate(async ({ accountId }) => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        await api.ingestIndexes(accountId, [{
+            conversationId: 'c_key_a_chat',
+            fields: { title: 'Protected By Original Key A', titleSource: 'provider', updatedAt: 1710000000000 },
+        }]);
+    }, { accountId });
+
+    await page.locator('#btnCloudVaultSetup').click();
+    await page.locator('#btnLocalVaultPick').click();
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Saved 1');
+    await page.locator('#btnCloudRevealKey').click();
+    const keyA = await page.locator('#cloudRecoveryKeyDisplay').inputValue();
+    await page.locator('#btnCloudDisconnect').click();
+    await page.locator('#btnCloudModalClose').click();
+
+    // 2. Wipe local conversation list AND replace browser's stored key with a different auto-generated Key B
+    await page.locator('#btnMoreActions').click();
+    await page.locator('#btnClearScan').click();
+    await page.locator('#btnCleanupConfirm').click();
+    await expect(page.locator('#list .item')).toHaveCount(0);
+
+    await page.evaluate(async () => {
+        // Seed a local conversation on "new browser" and overwrite Chrome Sync + IDB key slot with a different valid GEK1 key
+        await chrome.storage.sync.clear();
+        await new Promise<void>((resolve, reject) => {
+            const req = indexedDB.open('gemini_exporter_cloud_v1', 2);
+            req.onsuccess = () => {
+                const db = req.result;
+                const tx = db.transaction(['localKeys', 'syncedRecords'], 'readwrite');
+                tx.objectStore('localKeys').clear();
+                tx.objectStore('syncedRecords').clear();
+                tx.oncomplete = () => { db.close(); resolve(); };
+                tx.onerror = () => reject(tx.error);
+            };
+        });
+    });
+
+    // Add a new local conversation on this "new browser" so we verify it does NOT pollute the Key A folder before unlock
+    await page.evaluate(async ({ accountId }) => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        await api.ingestIndexes(accountId, [{
+            conversationId: 'c_new_browser_chat',
+            fields: { title: 'Authored On Second Browser', titleSource: 'provider', updatedAt: 1720000000000 },
+        }]);
+    }, { accountId });
+
+    // 3. Connect to ConflictVaultFolder -> browser auto-generates fresh Key B -> detects mismatch immediately!
+    await page.locator('#btnCloudVaultSetup').click();
+    await page.locator('#btnLocalVaultPick').click();
+    await expect(page.locator('#cloudKeyMismatchBox')).toBeVisible();
+    await expect(page.locator('#cloudVaultSummary')).toContainText('Key mismatch');
+
+    // Verify ConflictVaultFolder still has ONLY the 1 original file (zero split-brain overwrite!)
+    const recordCountDuringLock = await page.evaluate(async () => {
+        const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('ConflictVaultFolder');
+        const text = await (await (await root.getFileHandle('vault-manifest.json')).getFile()).text();
+        return Object.keys(JSON.parse(text).records ?? {}).length;
+    });
+    expect(recordCountDuringLock).toBe(1);
+
+    // 4. Paste original Key A and click Import -> unlocks, restores Key A chat, AND backs up new browser chat under Key A!
+    await page.locator('#cloudImportKeyInput').fill(keyA);
+    await page.locator('#btnCloudImportKey').click();
+    await expect(page.locator('#cloudKeyMismatchBox')).toBeHidden();
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Restored 1, Saved 1');
+    await page.locator('#btnCloudModalClose').click();
+
+    await expect(page.locator('#list .item')).toHaveCount(2);
+    await expect(page.locator('#list')).toContainText('Protected By Original Key A');
+    await expect(page.locator('#list')).toContainText('Authored On Second Browser');
+
+    // 5. Simulate lost old key escape hatch: generate fresh browser key -> mismatch -> 2-step Reset Vault with Current Key!
+    await page.locator('#btnCloudVaultSetup').click();
+    await page.locator('#btnCloudDisconnect').click();
+    await page.locator('#btnCloudModalClose').click();
+
+    await page.evaluate(async () => {
+        await chrome.storage.sync.clear();
+        await new Promise<void>((resolve, reject) => {
+            const req = indexedDB.open('gemini_exporter_cloud_v1', 2);
+            req.onsuccess = () => {
+                const db = req.result;
+                const tx = db.transaction(['localKeys', 'syncedRecords'], 'readwrite');
+                tx.objectStore('localKeys').clear();
+                tx.objectStore('syncedRecords').clear();
+                tx.oncomplete = () => { db.close(); resolve(); };
+                tx.onerror = () => reject(tx.error);
+            };
+        });
+    });
+
+    await page.locator('#btnCloudVaultSetup').click();
+    await page.locator('#btnLocalVaultPick').click();
+    await expect(page.locator('#cloudKeyMismatchBox')).toBeVisible();
+    // First click arms confirmation without erasing
+    await page.locator('#btnCloudResetVault').click();
+    await expect(page.locator('#btnCloudResetVault')).toContainText('Confirm Erase');
+    // Second click resets vault and backs up both local conversations under the new key
+    await page.locator('#btnCloudResetVault').click();
+    await expect(page.locator('#cloudKeyMismatchBox')).toBeHidden();
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Saved 2');
+});
