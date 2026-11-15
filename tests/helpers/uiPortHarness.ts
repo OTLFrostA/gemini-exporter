@@ -42,12 +42,14 @@ export const requestPlatformAuthorization = async platforms => {
 export const openPlatformSignIn = async (platform,active=true) => {(h.signInRequests??=[]).push({platform,active});await chrome.tabs.create({url:({gemini:'https://gemini.google.com/',chatgpt:'https://chatgpt.com/',claude:'https://claude.ai/',grok:'https://grok.com/'})[platform]});};
 export const activatePlatformAccess = async platforms => {h.activatedPlatforms=platforms;return !h.activationFailure;};
 export const findAuthorizedAccount = async platforms => {
+ (h.discoveryRequests??=[]).push(platforms);
+ if(platforms.length===1 && h.holdDiscoveryPlatforms?.includes(platforms[0]))return new Promise(resolve=>(h.finishPlatformDiscovery??={})[platforms[0]]=resolve);
  if(h.holdDiscovery) return new Promise(resolve=>h.finishDiscovery=resolve);
  for(const platform of platforms){
-  if(!(h.tabs??[]).some(tab=>tab.url?.includes(platform==='gemini'?'gemini.google.com':platform==='chatgpt'?'chatgpt.com':platform==='grok'?'grok.com':'claude.ai')))continue;
+  if(!(h.tabs??[{id:1,url:'https://gemini.google.com/app/a'}]).some(tab=>tab.url?.includes(platform==='gemini'?'gemini.google.com':platform==='chatgpt'?'chatgpt.com':platform==='grok'?'grok.com':'claude.ai')))continue;
   if(platform!=='gemini')h.discoveryCalls.push(platform);
   if(h.discoveryError)continue;
-  const context=platform==='gemini'?h.contextReply?.accountContext:null;
+  const context=platform==='gemini'?(Object.hasOwn(h,'contextReply')?h.contextReply?.accountContext:h.noContext?null:{accountId:h.source,providerId:'gemini'}):null;
   const account=platform==='gemini'?h.accounts.find(a=>a.id===context?.accountId&&context.providerId==='gemini'&&a.providerId==='gemini'&&a.providerAccountId!=='default'):h[platform+'Accounts']?.[0];
   if(account)return account.id;
  }
@@ -128,7 +130,7 @@ export const runExport = async (request,options={}) => {h.exports.push(request);
  for(const key of failed) options.onItemUpdate?.({key,status:'failed',diagnostic:{key,stage:'export',code:'EXPORT_FAILED',severity:'error',issue:{code:'FILE_WRITE_FAILED',message:h.exportError ?? 'Injected export failure'},message:h.exportError ?? 'Injected export failure'}});
  const exported = aborted ? 0 : request.keys.length - failed.length;
  return {exported,partial:h.partial && exported > 0 ? 1 : 0,skipped:0,failed,aborted};};
-export const resolveScanTarget = async () => {const failure=h.connectionFailure,source=h.source;if(h.holdConnectionCheck)await new Promise(resolve=>h.finishConnectionCheck=resolve);if(failure)throw new h.ScanConnectionError(failure, 'Open ChatGPT, log in and connect the selected account before scanning.');return source;};
+export const resolveScanTarget = async preferred => {const failure=h.connectionFailure,source=h.connectedAccountIds?.includes(preferred)?preferred:h.source;if(h.holdConnectionCheck)await new Promise(resolve=>h.finishConnectionCheck=resolve);if(failure)throw new h.ScanConnectionError(failure, 'Open ChatGPT, log in and connect the selected account before scanning.');return source;};
 export const sendTabMessage = (tabId,message,timeoutMs) => {
  h.tabRequests.push({tabId,message,timeoutMs});
  return chrome.tabs.sendMessage(tabId,message);

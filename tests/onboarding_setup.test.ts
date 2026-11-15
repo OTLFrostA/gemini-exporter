@@ -7,6 +7,29 @@ before(async () => { browser = await chromium.launch({ chromiumSandbox: true, he
 afterEach(async () => { await page?.close(); });
 after(async () => { await browser?.close(); });
 
+async function waitForAccountSuccess(platform: 'gemini' | 'chatgpt') {
+    await page.waitForFunction(platform => document.getElementById(`btnConnectPlatform-${platform}`)?.dataset.connectionState === 'success', platform);
+}
+
+async function observeSuccessPause(buttonId = 'btnConnectPlatform-gemini') {
+    await page.evaluate(buttonId => {
+        const timing = { success: 0, advanced: 0 };
+        Reflect.get(window, 'harness').feedbackTimings = timing;
+        const observer = new MutationObserver(() => {
+            if (!timing.success && document.getElementById(buttonId)?.dataset.connectionState === 'success') timing.success = performance.now();
+            if (document.querySelector('.tour-title')?.textContent === 'Switch platforms and accounts') {
+                timing.advanced = performance.now();
+                observer.disconnect();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-connection-state'] });
+    }, buttonId);
+}
+async function assertSuccessPause() {
+    const timing = await read(page, 'feedbackTimings');
+    assert.ok(timing.success > 0 && timing.advanced - timing.success >= 480, 'success feedback remains visible for 500ms before advancing');
+}
+
 for (const language of ['en', 'zh']) test(`authorization opens first with two separate explanations (${language})`, async () => {
     page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     await mount(page, 'options', { accounts: [], tabs: [], geminiAccess: false, manifestVersion: '2.1.0', settings: { language } }, '?startTour=1');
@@ -50,6 +73,8 @@ test('no accounts: visit only an authorized site, detect on return, then explain
     await page.evaluate(({ B }) => {
         Reflect.get(window, 'harness').accounts = [{ id: B, providerId: 'chatgpt', providerAccountId: 'signed-in-user' }];
         Reflect.get(window, 'harness').source = B;
+        Reflect.get(window, 'harness').tabs = [{id: 2, url: 'https://chatgpt.com/'}];
+        Reflect.get(window, 'harness').chatgptAccounts = Reflect.get(window, 'harness').accounts;
     }, { B });
     await page.getByRole('heading', { name: 'Switch platforms and accounts', exact: true }).waitFor();
     assert.equal(await page.locator('#accountIdSelect').inputValue(), B);
@@ -73,8 +98,7 @@ test('closing during detection discards late results; revoking all access return
     await page.locator('#tourNextBtn:enabled').waitFor();
     await page.locator('#tourNextBtn').click();
     await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishDiscovery === 'function');
-    assert.equal(await page.locator('.tour-status-loading').isVisible(), true);
-    assert.equal(await page.locator('.tour-action-box').getAttribute('aria-busy'), 'true');
+    assert.equal(await page.locator('#tourNextBtn').isDisabled(), true);
     await page.locator('#tourCloseBtn').click();
     await page.evaluate(({ B }) => Reflect.get(window, 'harness').finishDiscovery(B), { B });
     assert.equal(await page.locator('.tour-popover').count(), 0);
@@ -99,17 +123,18 @@ test('existing recognized accounts wait for a user action before advancing conne
     await page.locator('#btnDetectAccount:enabled').waitFor();
     assert.equal(await page.locator('.tour-title').innerText(), 'Connect an account');
     assert.equal(await page.locator('#tourNextBtn').isEnabled(), true);
+    await observeSuccessPause();
     await page.locator('#btnDetectAccount').click();
-    await page.locator('.tour-status-ok').filter({ hasText: 'Successfully loaded:' }).waitFor();
-    const loadedAt = Date.now();
+    const connectedButton = page.locator('#btnConnectPlatform-gemini');
+    await waitForAccountSuccess('gemini');
     assert.equal(await page.locator('.tour-title').innerText(), 'Connect an account');
     const expectedLabel = await page.evaluate(({ B }) => {
         const account = Reflect.get(window, 'harness').accounts.find((account: { id: string }) => account.id === B);
         return account.displayName || account.email || account.providerAccountId;
     }, { B });
-    assert.equal(await page.locator('.tour-status-ok').innerText(), `Successfully loaded: ${expectedLabel}`);
+    assert.equal(await connectedButton.innerText(), `Gemini · Identified: ${expectedLabel}`);
     await page.getByRole('heading', { name: 'Switch platforms and accounts', exact: true }).waitFor();
-    assert.ok(Date.now() - loadedAt >= 400, 'success feedback remains visible before advancing');
+    await assertSuccessPause();
     assert.equal(await page.locator('#accountIdSelect').inputValue(), B);
     assert.equal(await page.locator('#btnDetectAccount').count(), 0);
     assert.deepEqual(await read(page, 'openedUrls'), undefined);
@@ -194,9 +219,188 @@ test('a stored ChatGPT account cannot advance connection until the scan source i
     await page.locator('#btnDetectAccount:enabled').waitFor();
     assert.equal(await page.locator('#tourNextBtn').isEnabled(),false);
     await page.locator('#btnConnectPlatform-chatgpt').click();
-    await page.locator('#btnDetectAccount:enabled').waitFor();
+    assert.equal(await page.locator('#btnConnectPlatform-chatgpt').getAttribute('data-connection-state'), 'loading');
     assert.equal(await page.locator('.tour-title').innerText(),'Connect an account');
-    await page.evaluate(()=>{Reflect.get(window,'harness').connectionFailure=null;});
+    await page.evaluate(()=>{
+        const h=Reflect.get(window,'harness');
+        h.connectionFailure=null;
+        h.tabs=[{id:2,url:'https://chatgpt.com/'}];
+        h.chatgptAccounts=h.accounts;
+    });
     await page.getByRole('heading',{name:'Switch platforms and accounts',exact:true}).waitFor();
     assert.equal(await page.locator('#accountIdSelect').inputValue(),A);
+});
+
+async function openAccountLesson(patch: Record<string, unknown> = {}) {
+    page = await browser.newPage();
+    await mount(page, 'options', patch, '?startTour=1');
+    await page.locator('#tourNextBtn:enabled').click();
+    await page.locator('#btnDetectAccount:enabled').waitFor();
+}
+
+test('a cached account still paints loading and success inside its own connection button', async () => {
+    await openAccountLesson({ settings: { language: 'zh' } });
+    const button = page.locator('#btnConnectPlatform-gemini');
+    const clickedAt = Date.now();
+    await button.click();
+    assert.equal(await button.getAttribute('data-connection-state'), 'loading');
+    assert.equal(await button.getAttribute('aria-busy'), 'true');
+    assert.match(await button.innerText(), /正在连接 Gemini/);
+    assert.equal(await button.locator('.tour-account-icon').evaluate(el => getComputedStyle(el).animationName), 'tour-account-spin');
+    await waitForAccountSuccess('gemini');
+    assert.ok(Date.now() - clickedAt >= 350, 'cached success must not erase loading before it paints');
+    assert.match(await button.innerText(), /成功识别：A/);
+    assert.equal(await button.getAttribute('aria-busy'), 'false');
+    await page.screenshot({path:'tests/output/visual_audit/onboarding-account-button-success.png'});
+    await page.getByRole('heading', { name: '切换平台与账号', exact: true }).waitFor();
+});
+
+test('concurrent platform links wait for the last requested platform and retain separate identities', async () => {
+    await openAccountLesson({ accounts: [
+        {id:A,providerId:'gemini',providerAccountId:'gemini-user',displayName:'Gemini Alice'},
+        {id:B,providerId:'chatgpt',providerAccountId:'chatgpt-user',displayName:'ChatGPT Bob'},
+    ], chatgptAccess:true, connectedAccountIds:[A,B] });
+    await page.evaluate(() => { Reflect.get(window,'harness').holdDiscoveryPlatforms=['gemini','chatgpt']; });
+    await page.locator('#btnConnectPlatform-gemini').click();
+    await page.locator('#btnConnectPlatform-chatgpt').click();
+    await page.waitForFunction(() => {
+        const finish=Reflect.get(window,'harness').finishPlatformDiscovery;
+        return finish?.gemini && finish?.chatgpt;
+    });
+    await page.evaluate(({A}) => Reflect.get(window,'harness').finishPlatformDiscovery.gemini(A), {A});
+    await waitForAccountSuccess('gemini');
+    assert.match(await page.locator('#btnConnectPlatform-gemini').innerText(), /Gemini Alice/);
+    assert.equal(await page.locator('#btnConnectPlatform-chatgpt').getAttribute('data-connection-state'), 'loading');
+    await page.waitForTimeout(650);
+    assert.equal(await page.locator('.tour-title').innerText(), 'Connect an account');
+    assert.equal(await page.locator('#tourNextBtn').isDisabled(), true);
+    await observeSuccessPause('btnConnectPlatform-chatgpt');
+    await page.evaluate(({B}) => Reflect.get(window,'harness').finishPlatformDiscovery.chatgpt(B), {B});
+    await waitForAccountSuccess('chatgpt');
+    assert.match(await page.locator('#btnConnectPlatform-chatgpt').innerText(), /ChatGPT Bob/);
+    await page.getByRole('heading', {name:'Switch platforms and accounts',exact:true}).waitFor();
+    await assertSuccessPause();
+});
+
+test('starting another link during success feedback cancels the pending automatic advance', async () => {
+    await openAccountLesson({chatgptAccess:true,accounts:[
+        {id:A,providerId:'gemini',providerAccountId:'gemini-user'},
+        {id:B,providerId:'chatgpt',providerAccountId:'chatgpt-user'},
+    ],connectedAccountIds:[A,B]});
+    await page.evaluate(() => { Reflect.get(window,'harness').holdDiscoveryPlatforms=['chatgpt']; });
+    await page.locator('#btnConnectPlatform-gemini').click();
+    await waitForAccountSuccess('gemini');
+    await page.locator('#btnConnectPlatform-chatgpt').click();
+    await page.waitForTimeout(650);
+    assert.equal(await page.locator('.tour-title').innerText(), 'Connect an account');
+    assert.equal(await page.locator('#btnConnectPlatform-chatgpt').getAttribute('data-connection-state'),'loading');
+    await page.evaluate(({B})=>Reflect.get(window,'harness').finishPlatformDiscovery.chatgpt(B),{B});
+    await page.getByRole('heading',{name:'Switch platforms and accounts',exact:true}).waitFor();
+});
+
+test('an unrecognized ChatGPT account times out without borrowing Gemini and can be retried in place', async () => {
+    await openAccountLesson({chatgptAccess:true,accounts:[
+        {id:A,providerId:'gemini',providerAccountId:'gemini-user'},
+        {id:B,providerId:'chatgpt',providerAccountId:'chatgpt-user'},
+    ],connectedAccountIds:[A,B]});
+    await page.clock.install();
+    await page.locator('#btnConnectPlatform-gemini').click();
+    await waitForAccountSuccess('gemini');
+    await page.locator('#btnConnectPlatform-chatgpt').click();
+    await page.clock.fastForward(15001);
+    const chatgpt = page.locator('#btnConnectPlatform-chatgpt');
+    await page.locator('#btnConnectPlatform-chatgpt[data-connection-state=error]').waitFor();
+    assert.match(await chatgpt.innerText(), /Account not identified/);
+    assert.equal(await page.locator('#tourNextBtn').isDisabled(),true);
+    assert.equal(await page.locator('#btnConnectPlatform-gemini').getAttribute('data-connection-state'),'success');
+    await page.evaluate(({B})=>{
+        const h=Reflect.get(window,'harness');
+        h.tabs=[{id:2,url:'https://chatgpt.com/'}];
+        h.chatgptAccounts=h.accounts.filter((account:{id:string})=>account.id===B);
+    },{B});
+    await chatgpt.click();
+    await waitForAccountSuccess('chatgpt');
+    assert.match(await chatgpt.innerText(),/chatgpt-user/);
+    assert.deepEqual(await read(page,'openedUrls'),['https://gemini.google.com/','https://chatgpt.com/']);
+    await page.getByRole('heading',{name:'Switch platforms and accounts',exact:true}).waitFor();
+});
+
+test('a hung account probe reaches its deadline and late success cannot overwrite the failed attempt', async () => {
+    await openAccountLesson({chatgptAccess:true,accounts:[
+        {id:A,providerId:'gemini',providerAccountId:'gemini-user'},
+        {id:B,providerId:'chatgpt',providerAccountId:'chatgpt-user'},
+    ],connectedAccountIds:[A,B]});
+    await page.clock.install();
+    await page.evaluate(()=>{Reflect.get(window,'harness').holdDiscoveryPlatforms=['chatgpt'];});
+    await page.locator('#btnConnectPlatform-chatgpt').click();
+    await page.waitForFunction(()=>Reflect.get(window,'harness').finishPlatformDiscovery?.chatgpt);
+    await page.clock.fastForward(15001);
+    await page.locator('#btnConnectPlatform-chatgpt[data-connection-state=error]').waitFor();
+    await page.evaluate(({B})=>Reflect.get(window,'harness').finishPlatformDiscovery.chatgpt(B),{B});
+    await page.waitForTimeout(650);
+    assert.equal(await page.locator('#btnConnectPlatform-chatgpt').getAttribute('data-connection-state'),'error');
+    assert.equal(await page.locator('#tourNextBtn').isDisabled(),true);
+    assert.equal(await page.locator('.tour-title').innerText(),'Connect an account');
+});
+
+test('revoking a requested platform stops its pending identity check and blocks continuation', async () => {
+    await openAccountLesson({chatgptAccess:true,accounts:[
+        {id:A,providerId:'gemini',providerAccountId:'gemini-user'},
+        {id:B,providerId:'chatgpt',providerAccountId:'chatgpt-user'},
+    ],connectedAccountIds:[A,B]});
+    await page.evaluate(()=>{Reflect.get(window,'harness').holdDiscoveryPlatforms=['chatgpt'];});
+    await page.locator('#btnConnectPlatform-chatgpt').click();
+    await page.waitForFunction(()=>Reflect.get(window,'harness').finishPlatformDiscovery?.chatgpt);
+    await page.evaluate(()=>{
+        const h=Reflect.get(window,'harness');
+        h.chatgptAccess=false;
+        h.accessListener();
+    });
+    await page.locator('#btnConnectPlatform-chatgpt[data-connection-state=error]').waitFor();
+    await page.evaluate(({B})=>Reflect.get(window,'harness').finishPlatformDiscovery.chatgpt(B),{B});
+    assert.match(await page.locator('#btnConnectPlatform-chatgpt').innerText(),/Site access required/);
+    assert.equal(await page.locator('#tourNextBtn').isDisabled(),true);
+    assert.equal(await page.locator('#btnConnectPlatform-gemini').getAttribute('data-connection-state'),'idle');
+});
+
+test('closing while a platform is connecting cancels its timers and ignores late account results', async () => {
+    await openAccountLesson({chatgptAccess:true,accounts:[
+        {id:A,providerId:'gemini',providerAccountId:'gemini-user'},
+        {id:B,providerId:'chatgpt',providerAccountId:'chatgpt-user'},
+    ],connectedAccountIds:[A,B]});
+    await page.clock.install();
+    await page.evaluate(()=>{Reflect.get(window,'harness').holdDiscoveryPlatforms=['chatgpt'];});
+    await page.locator('#btnConnectPlatform-chatgpt').click();
+    await page.waitForFunction(()=>Reflect.get(window,'harness').finishPlatformDiscovery?.chatgpt);
+    await page.locator('#tourCloseBtn').click();
+    await page.evaluate(({B})=>Reflect.get(window,'harness').finishPlatformDiscovery.chatgpt(B),{B});
+    await page.clock.fastForward(16000);
+    assert.equal(await page.locator('.tour-popover').count(),0);
+    assert.equal(await page.locator('#accountIdSelect').inputValue(),A);
+});
+
+test('a platform page that cannot be opened fails only its own button and stays retryable', async () => {
+    await openAccountLesson({chatgptAccess:true});
+    await page.evaluate(()=>{ chrome.tabs.create = async () => { throw new Error('Tab creation failed'); }; });
+    await page.locator('#btnConnectPlatform-chatgpt').click();
+    await page.locator('#btnConnectPlatform-chatgpt[data-connection-state=error]').waitFor();
+    assert.match(await page.locator('#btnConnectPlatform-chatgpt').innerText(),/Could not open platform/);
+    assert.equal(await page.locator('#btnConnectPlatform-chatgpt').isEnabled(),true);
+    assert.equal(await page.locator('#btnConnectPlatform-gemini').getAttribute('data-connection-state'),'idle');
+    assert.equal(await page.locator('#tourNextBtn').isDisabled(),true);
+});
+
+test('revoking an untouched platform does not turn it into a requested failed link', async () => {
+    await openAccountLesson({chatgptAccess:true});
+    await page.evaluate(()=>{ Reflect.get(window,'harness').holdDiscoveryPlatforms=['gemini']; });
+    await page.locator('#btnConnectPlatform-gemini').click();
+    await page.waitForFunction(()=>Reflect.get(window,'harness').finishPlatformDiscovery?.gemini);
+    await page.evaluate(()=>{
+        const h=Reflect.get(window,'harness');
+        h.chatgptAccess=false;
+        h.accessListener();
+    });
+    await page.locator('#btnConnectPlatform-chatgpt').waitFor({state:'detached'});
+    await page.evaluate(({A})=>Reflect.get(window,'harness').finishPlatformDiscovery.gemini(A),{A});
+    await page.getByRole('heading',{name:'Switch platforms and accounts',exact:true}).waitFor();
 });
