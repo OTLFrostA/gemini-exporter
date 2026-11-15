@@ -207,6 +207,12 @@ export const defaultCloudSyncEngine = {
   h.cloudStatus = { enabled: true, includeDetail: false, connected: true, backend: 'local-folder', folderName: handle.name, ownerSubject: 'local:vault', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true };
   return { session: { id: 'active', backend: 'local-folder', serverUrl: 'local-vault://directory', ownerSubject: 'local:vault', sessionToken: 'local', folderName: handle.name, expiresAt: Number.MAX_SAFE_INTEGER, pulledSeq: 0 }, recoveryKey: h.cloudRecoveryKey, createdNewKey: true };
  },
+ connectCloudVault: async (serverUrl, accessCode) => {
+  (h.cloudConnectCalls ??= []).push({ serverUrl, accessCode });
+  h.cloudRecoveryKey ??= 'GEK1-01234-56789-ABCDE-FGHJK-MNPQR-STVWX-YZ012-34567-89ABC-DEFGH-JKMNP';
+  h.cloudStatus = { enabled: true, includeDetail: false, connected: true, backend: 'cloud-server', serverUrl, ownerSubject: 'vault:0123456789abcdef0123456789abcdef', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true };
+  return { session: { id: 'active', backend: 'cloud-server', serverUrl, ownerSubject: 'vault:0123456789abcdef0123456789abcdef', sessionToken: 'tok', expiresAt: Date.now() + 3600000, pulledSeq: 0 }, recoveryKey: h.cloudRecoveryKey, createdNewKey: true };
+ },
  connectWithGoogleIdToken: async (serverUrl, idToken) => {
   (h.cloudConnectCalls ??= []).push({ serverUrl, idToken });
   h.cloudRecoveryKey ??= 'GEK1-01234-56789-ABCDE-FGHJK-MNPQR-STVWX-YZ012-34567-89ABC-DEFGH-JKMNP';

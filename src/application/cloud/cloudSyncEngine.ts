@@ -110,6 +110,11 @@ export interface CloudSyncEngine {
         recoveryKey: string;
         createdNewKey: boolean;
     }>;
+    connectCloudVault(serverUrl: string, accessCode?: string): Promise<{
+        session: CloudSyncSessionState;
+        recoveryKey: string;
+        createdNewKey: boolean;
+    }>;
     connectWithGoogleIdToken(serverUrl: string, idToken: string): Promise<{
         session: CloudSyncSessionState;
         recoveryKey: string;
@@ -178,10 +183,27 @@ export function createCloudSyncEngine(deps: {
     const requireActiveSession = async (): Promise<CloudSyncSessionState> => {
         const session = await getCloudSyncSession();
         if (!session) {
-            throw new OperationError('CLOUD_AUTH_REQUIRED', 'Sign in with Google to use Cloud Sync');
+            throw new OperationError('CLOUD_AUTH_REQUIRED', 'Connect to Encrypted Vault before syncing');
         }
         if (session.expiresAt <= now()) {
-            throw new OperationError('CLOUD_AUTH_REQUIRED', 'Cloud Sync session has expired; please sign in again');
+            // Auto-renew stateless session token seamlessly for zero-config key-derived Cloud Vault sessions!
+            if (session.backend === 'cloud-server' && session.ownerSubject.startsWith('vault:')) {
+                const keyring = await resolveKeyring(session.ownerSubject);
+                const renewed = await remoteClient.authenticateKey({
+                    serverUrl: session.serverUrl,
+                    keyFingerprint: keyring.keyFingerprint,
+                    authToken: keyring.authToken,
+                    accessCode: session.accessCode,
+                });
+                const refreshed: CloudSyncSessionState = {
+                    ...session,
+                    sessionToken: renewed.sessionToken,
+                    expiresAt: renewed.expiresAt,
+                };
+                await putCloudSyncSession(refreshed);
+                return refreshed;
+            }
+            throw new OperationError('CLOUD_AUTH_REQUIRED', 'Cloud Sync session has expired; please reconnect');
         }
         return session;
     };
@@ -700,6 +722,46 @@ export function createCloudSyncEngine(deps: {
             };
         },
 
+        async connectCloudVault(serverUrl, accessCode) {
+            const normalizedUrl = normalizeCloudServerUrl(serverUrl);
+            const trimmedCode = accessCode?.trim() || undefined;
+            const provisioned = await loadOrProvisionVaultKeyring(LOCAL_VAULT_OWNER_SUBJECT);
+            const auth = await remoteClient.authenticateKey({
+                serverUrl: normalizedUrl,
+                keyFingerprint: provisioned.keyring.keyFingerprint,
+                authToken: provisioned.keyring.authToken,
+                ...(trimmedCode ? { accessCode: trimmedCode } : {}),
+            });
+            // Mirror canonical key under `vault:<fp>` as well so `resolveKeyring(session.ownerSubject)` finds it immediately
+            await importVaultRecoveryKey(auth.ownerSubject, provisioned.recoveryKey);
+            const existingSession = await getCloudSyncSession();
+            const pulledSeq = existingSession?.ownerSubject === auth.ownerSubject
+                && existingSession.serverUrl === normalizedUrl
+                ? existingSession.pulledSeq
+                : 0;
+            const session: CloudSyncSessionState = {
+                id: 'active',
+                backend: 'cloud-server',
+                serverUrl: normalizedUrl,
+                ownerSubject: auth.ownerSubject,
+                sessionToken: auth.sessionToken,
+                expiresAt: auth.expiresAt,
+                pulledSeq,
+                enabledSinceAt: existingSession?.enabledSinceAt ?? now(),
+                ...(trimmedCode ? { accessCode: trimmedCode } : {}),
+            };
+            await putCloudSyncSession(session);
+            await updateSettings({
+                cloudSyncServerUrl: normalizedUrl,
+                ...(trimmedCode !== undefined ? { cloudSyncAccessCode: trimmedCode } : {}),
+            });
+            return {
+                session,
+                recoveryKey: provisioned.recoveryKey,
+                createdNewKey: provisioned.createdNew,
+            };
+        },
+
         async connectWithGoogleIdToken(serverUrl, idToken) {
             const normalizedUrl = normalizeCloudServerUrl(serverUrl);
             const auth = await remoteClient.authenticateGoogle(normalizedUrl, idToken);
@@ -842,6 +904,36 @@ export function createCloudSyncEngine(deps: {
                 candidateKeyring = await deriveVaultKeyring(rawBytes);
             } finally {
                 rawBytes.fill(0);
+            }
+
+            // Key-derived Cloud Vault (`vault:<fp>`): each Master Key owns its own isolated cryptographic tenant!
+            // Importing Key A seamlessly authenticates into `vault:<fpA>`, cleans up any temporary auto-generated `vault:<fpB>`,
+            // and restores + merges all conversations under Key A!
+            if (session.backend === 'cloud-server' && session.ownerSubject.startsWith('vault:')) {
+                const targetSubject = `vault:${candidateKeyring.keyFingerprint}`;
+                if (session.ownerSubject !== targetSubject) {
+                    await pullChanges().catch(() => {});
+                    await remoteClient.purgeVault(session.serverUrl, session.sessionToken).catch(() => {});
+                    await clearSyncedCloudRecordsForOwner(session.ownerSubject);
+                }
+                const auth = await remoteClient.authenticateKey({
+                    serverUrl: session.serverUrl,
+                    keyFingerprint: candidateKeyring.keyFingerprint,
+                    authToken: candidateKeyring.authToken,
+                    ...(session.accessCode ? { accessCode: session.accessCode } : {}),
+                });
+                await importVaultRecoveryKey(LOCAL_VAULT_OWNER_SUBJECT, recoveryKeyInput);
+                const imported = await importVaultRecoveryKey(auth.ownerSubject, recoveryKeyInput);
+                await clearSyncedCloudRecordsForOwner(auth.ownerSubject);
+                const { keyMismatch: _cleared, ...cleanSession } = session;
+                await putCloudSyncSession({
+                    ...cleanSession,
+                    ownerSubject: auth.ownerSubject,
+                    sessionToken: auth.sessionToken,
+                    expiresAt: auth.expiresAt,
+                    pulledSeq: 0,
+                });
+                return { keyFingerprint: imported.keyring.keyFingerprint, resolution: 'unlocked' };
             }
 
             const activeClient = clientForSession(session);

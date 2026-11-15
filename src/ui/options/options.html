@@ -517,15 +517,15 @@
 
   <div id="vaultPanelCloud" hidden>
     <div class="cloud-modal-field">
-      <label for="cloudServerUrlInput" data-ui-en="Cloud Vault HTTPS URL" data-ui-zh="云同步服务器 HTTPS 地址">云同步服务器 HTTPS 地址</label>
-      <input id="cloudServerUrlInput" class="cloud-modal-input" type="url" placeholder="https://gemini-exporter-cloud-vault.your-domain.workers.dev">
+      <label for="cloudServerUrlInput" data-ui-en="Cloud Vault Server URL" data-ui-zh="云同步服务器地址">云同步服务器地址</label>
+      <input id="cloudServerUrlInput" class="cloud-modal-input" type="url" placeholder="https://your-vault.workers.dev">
     </div>
     <div class="cloud-modal-field">
-      <label for="cloudGoogleClientIdInput" data-ui-en="Google OAuth Client ID" data-ui-zh="Google OAuth Client ID">Google OAuth Client ID</label>
-      <input id="cloudGoogleClientIdInput" class="cloud-modal-input" type="text" placeholder="1234567890-xxx.apps.googleusercontent.com">
+      <label for="cloudAccessCodeInput" data-ui-en="Server Access Code (Optional)" data-ui-zh="服务器访问口令（选填）">服务器访问口令（选填）</label>
+      <input id="cloudAccessCodeInput" class="cloud-modal-input" type="password" autocomplete="off" placeholder="••••••••">
     </div>
     <div class="cloud-modal-row">
-      <button id="btnCloudConnectGoogle" type="button" class="primary" style="width:100%;" data-ui-en="Sign in with Google & Enable E2EE Sync" data-ui-zh="使用 Google 账号登录并开启加密同步">使用 Google 账号登录并开启加密同步</button>
+      <button id="btnCloudConnect" type="button" class="primary" style="width:100%;" data-ui-en="Connect Server & Enable Auto Encrypted Sync" data-ui-zh="连接服务器并开启自动加密同步">连接服务器并开启自动加密同步</button>
     </div>
   </div>
 

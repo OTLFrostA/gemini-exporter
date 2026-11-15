@@ -12,13 +12,17 @@ import { sha256Hex, type VaultStore } from './storage/vaultStore.js';
 
 const BLIND_RECORD_ID_PATTERN = /^[0-9a-f]{64}$/;
 const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/;
+const AUTH_TOKEN_HEX_PATTERN = /^[0-9a-f]{64}$/;
 const KEY_FINGERPRINT_PATTERN = /^[0-9a-f]{32}$/;
+const CHROME_EXT_ORIGIN_PATTERN = /^chrome-extension:\/\/[a-p]{32}$/;
 const MIN_GEE1_ENVELOPE_BYTES = 4 + 12 + 16; // Magic(4) + IV(12) + Tag(16)
 
 export interface CloudServerConfig {
     readonly sessionHmacSecret: string;
-    readonly googleClientIds: readonly string[];
-    /** Comma-separated or explicit list of allowed Origins (e.g., `chrome-extension://<id>`). Empty allows only Origin-less or explicit extension origins if `*` is set. */
+    readonly googleClientIds?: readonly string[];
+    /** Optional shared invite/access code guarding key-derived tenant authentication. */
+    readonly serverAccessCode?: string;
+    /** Comma-separated or explicit list of allowed Origins (supports `chrome-extension://*` for unpacked/store Chrome extensions). */
     readonly allowedOrigins?: readonly string[];
     readonly defaultQuotaBytes?: number;
     readonly maxRecordBytes?: number;
@@ -29,7 +33,7 @@ export interface CloudServerConfig {
 
 export interface CloudServerDependencies {
     readonly store: VaultStore;
-    readonly oidcVerifier: GoogleOidcVerifier;
+    readonly oidcVerifier?: GoogleOidcVerifier;
     readonly config: CloudServerConfig;
     readonly rateLimiter?: RateLimiter;
 }
@@ -54,7 +58,23 @@ function resolveAllowedCorsOrigin(requestOrigin: string | null, allowedOrigins?:
     if (!requestOrigin) return null;
     if (!allowedOrigins || allowedOrigins.length === 0) return null;
     if (allowedOrigins.includes('*')) return requestOrigin;
+    if (allowedOrigins.includes('chrome-extension://*') && CHROME_EXT_ORIGIN_PATTERN.test(requestOrigin)) {
+        return requestOrigin;
+    }
     return allowedOrigins.includes(requestOrigin) ? requestOrigin : null;
+}
+
+async function constantTimeStringMatch(expected: string, actual: string): Promise<boolean> {
+    const enc = new TextEncoder();
+    const [left, right] = await Promise.all([
+        sha256Hex(new Uint8Array(enc.encode(expected))),
+        sha256Hex(new Uint8Array(enc.encode(actual))),
+    ]);
+    let diff = expected.length ^ actual.length;
+    for (let i = 0; i < left.length; i++) {
+        diff |= left.charCodeAt(i) ^ right.charCodeAt(i);
+    }
+    return diff === 0;
 }
 
 function jsonResponse(
@@ -162,8 +182,73 @@ export function createCloudServerHandler(deps: CloudServerDependencies): (reques
                 return jsonResponse(200, { ok: true, service: 'gemini-exporter-e2ee-vault', version: 1 }, corsOrigin);
             }
 
-            // 1. Google OIDC login -> stateless epoch-bound session token
+            // 1a. Zero-config Master-Key-derived authentication (no OAuth or PII required)
+            if (method === 'POST' && path === '/v1/auth/key') {
+                const ip = clientIpFromHeaders(request);
+                const rate = rateLimiter.allow(`auth:${ip}`, authLimit, 60_000, now());
+                if (!rate.allowed) {
+                    return errorResponse(429, 'RATE_LIMITED', 'Too many authentication attempts', corsOrigin, {
+                        retryAfterSec: rate.retryAfterSec,
+                    });
+                }
+                const contentLength = Number(request.headers.get('content-length') ?? '0');
+                if (contentLength > 8192) {
+                    return errorResponse(413, 'RECORD_TOO_LARGE', 'Auth payload too large', corsOrigin);
+                }
+                let rawBody: unknown;
+                try {
+                    rawBody = await request.json();
+                } catch {
+                    return errorResponse(400, 'INVALID_REQUEST', 'Expected JSON body with keyFingerprint and authToken', corsOrigin);
+                }
+                const keyFp: unknown = rawBody && typeof rawBody === 'object' ? Reflect.get(rawBody, 'keyFingerprint') : undefined;
+                const authToken: unknown = rawBody && typeof rawBody === 'object' ? Reflect.get(rawBody, 'authToken') : undefined;
+                const accessCode: unknown = rawBody && typeof rawBody === 'object' ? Reflect.get(rawBody, 'accessCode') : undefined;
+
+                const requiredAccessCode = deps.config.serverAccessCode?.trim();
+                if (requiredAccessCode) {
+                    const candidateCode = typeof accessCode === 'string' ? accessCode.trim() : '';
+                    if (!candidateCode || !(await constantTimeStringMatch(requiredAccessCode, candidateCode))) {
+                        return errorResponse(401, 'ACCESS_CODE_REQUIRED', 'Valid server access code is required', corsOrigin);
+                    }
+                }
+
+                if (typeof keyFp !== 'string' || !KEY_FINGERPRINT_PATTERN.test(keyFp)
+                    || typeof authToken !== 'string' || !AUTH_TOKEN_HEX_PATTERN.test(authToken)) {
+                    return errorResponse(400, 'INVALID_REQUEST', 'Invalid keyFingerprint or derived authToken format', corsOrigin);
+                }
+
+                const ownerSubject = `vault:${keyFp}`;
+                const verifierHash = await sha256Hex(new Uint8Array(new TextEncoder().encode(`ge-auth-v1:${ownerSubject}:${authToken}`)));
+                const user = await deps.store.authenticateKeyTenant({
+                    ownerSubject,
+                    keyFingerprint: keyFp,
+                    authVerifierHash: verifierHash,
+                    defaultQuotaBytes,
+                    nowMs: now(),
+                });
+                if (!user) {
+                    return errorResponse(401, 'UNAUTHORIZED', 'Derived authentication token verification failed', corsOrigin);
+                }
+                const issued = await issueSessionToken({
+                    secret: deps.config.sessionHmacSecret,
+                    ownerSubject: user.ownerSubject,
+                    tokenEpoch: user.tokenEpoch,
+                    nowMs: now(),
+                });
+                const response: CloudAuthSessionResponse = {
+                    sessionToken: issued.sessionToken,
+                    ownerSubject: user.ownerSubject,
+                    expiresAt: issued.expiresAt,
+                };
+                return jsonResponse(200, response, corsOrigin);
+            }
+
+            // 1b. Optional Google OIDC login -> stateless epoch-bound session token
             if (method === 'POST' && path === '/v1/auth/google') {
+                if (!deps.oidcVerifier || !deps.config.googleClientIds || deps.config.googleClientIds.length === 0) {
+                    return errorResponse(404, 'NOT_FOUND', 'Google OIDC authentication is not enabled on this server', corsOrigin);
+                }
                 const ip = clientIpFromHeaders(request);
                 const rate = rateLimiter.allow(`auth:${ip}`, authLimit, 60_000, now());
                 if (!rate.allowed) {

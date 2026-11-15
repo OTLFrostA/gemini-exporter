@@ -95,7 +95,7 @@ export async function verifySessionToken(
     const iat: unknown = Reflect.get(parsed, 'iat');
     const exp: unknown = Reflect.get(parsed, 'exp');
 
-    if (typeof sub !== 'string' || !sub.startsWith('google:')
+    if (typeof sub !== 'string' || !(sub.startsWith('vault:') || sub.startsWith('google:'))
         || typeof epoch !== 'number' || !Number.isSafeInteger(epoch) || epoch < 1
         || typeof iat !== 'number' || !Number.isSafeInteger(iat)
         || typeof exp !== 'number' || !Number.isSafeInteger(exp)) {

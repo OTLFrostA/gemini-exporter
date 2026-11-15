@@ -20,8 +20,10 @@ export interface GlobalSettings {
     cloudSyncEnabled?: boolean;
     /** When false or omitted (default), only conversation Index metadata is synced; message bodies stay local. */
     cloudSyncIncludeDetail?: boolean;
-    /** Configured zero-knowledge Cloud Vault endpoint origin (HTTPS). */
+    /** Configured zero-knowledge Cloud Vault endpoint origin (HTTPS or local loopback). */
     cloudSyncServerUrl?: string;
-    /** Configured Google OAuth 2.0 Web Client ID used for OIDC authentication. */
+    /** Optional shared access/invite code for self-hosted Cloud Vault servers. */
+    cloudSyncAccessCode?: string;
+    /** Legacy optional Google OAuth 2.0 Web Client ID. */
     cloudSyncGoogleClientId?: string;
 }
