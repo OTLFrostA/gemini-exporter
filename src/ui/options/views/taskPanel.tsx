@@ -11,6 +11,7 @@ export interface TaskPanelProps {
     scanning: boolean;
     scanMessage: string | null;
     scanSlow: boolean;
+    onTakeout?: () => void;
     groups: readonly ExportIssueGroup[];
     failedCount: number;
     dismissed: boolean;
@@ -84,7 +85,9 @@ export function TaskPanel({ failureHost, ...props }: TaskPanelProps & { failureH
                         ? text('Refreshing history…', '正在刷新记录…') : text('Abort Export', '终止导出')}</button>
         </div>
         <p id="scanStatus" role="status" aria-live="polite" className="stat" hidden={scanMessage === null}
-            style={{ margin: 0, textAlign: 'center', lineHeight: 1.5, overflowWrap: 'anywhere' }}>{scanMessage ?? ''}</p>
+            style={{ margin: 0, textAlign: 'center', lineHeight: 1.5, overflowWrap: 'anywhere' }}>{props.onTakeout && scanMessage?.includes('Takeout')
+                ? <>{scanMessage.slice(0, scanMessage.indexOf('Takeout'))}<a href="#takeout" onClick={event => { event.preventDefault(); props.onTakeout?.(); }}>Takeout</a>{scanMessage.slice(scanMessage.indexOf('Takeout') + 7)}</>
+                : scanMessage ?? ''}</p>
         <div id="scanSlowHint" className="stat" role="note" style={{ display: scanSlow ? 'block' : 'none', textAlign: 'center', lineHeight: 1.5, overflowWrap: 'anywhere', padding: '2px 0' }}>
             {text('As conversation history grows, Gemini scans may take significantly longer.', '随着对话历史增加，Gemini 的扫描时间可能会显著变长。')}
         </div>

@@ -1000,6 +1000,10 @@ class ScanAndImportTests(unittest.TestCase):
                                      ('Imported 6 conversations (partial)', 'partial'),
                                      ('已提交 6 条对话（完成）', 'ok'),
                                      ('已提交 6 条对话（部分完成）', 'partial'),
+                                     ('Read 6 conversation records, added 2, total 533', 'ok'),
+                                     ('Read 6 conversation records, added 0, total 533. Some content or attachments are incomplete.', 'partial'),
+                                     ('已读取到 6 条会话记录，新增 2 条，一共 533 条', 'ok'),
+                                     ('已读取到 6 条会话记录，新增 0 条，一共 533 条。部分内容或附件不完整。', 'partial'),
                                      ('已提交 6 条对话（未知）', None), ('Import failed', None)]:
                 with self.subTest(status=status), patch('scripts.framework.actions.install_probe'):
                     cdp = MagicMock()

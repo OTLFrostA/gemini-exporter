@@ -363,7 +363,7 @@ test('UI v2: Takeout file input directly imports into current account and report
     await page.locator('#btnImportTakeout').click();
     const chooser = await chooserPromise;
     await chooser.setFiles({name:'Takeout.zip',mimeType:'application/zip',buffer:Buffer.from('fixture')});
-    await expect(page.locator('#status')).toHaveText('Imported 2 conversations (partial)');
+    await expect(page.locator('#status')).toHaveText('Read 2 conversation records, added 0, total 1. Some content or attachments are incomplete.');
     expect(await read(page,'imports')).toEqual([B]); expect(await read(page,'patches')).toContainEqual({takeoutPromptCompleted:true});
 });
 test('UI v2: real Tour hit testing, stale delays, feedback close, and no persistent Tour fields', async ({ page }) => {

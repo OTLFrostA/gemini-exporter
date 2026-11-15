@@ -15,7 +15,7 @@ test('Shared ZIP import follows the selected ChatGPT account', async ({ page }) 
     await page.locator('#btnImportTakeout').click();
     expect((await chooser).isMultiple()).toBe(false);
     await page.locator('#takeoutFileInput').setInputFiles(archive);
-    await expect(page.locator('#status')).toHaveText('Imported 2 conversations; skipped 0; unavailable attachments 0.');
+    await expect(page.locator('#status')).toHaveText('Read 2 conversation records, added 0, total 1. Skipped 0; unavailable attachments 0.');
     expect(await read(page, 'imports')).toEqual([A]);
     expect(await read(page, 'patches')).not.toContainEqual({ takeoutPromptCompleted: true });
     await expect(page.locator('#takeoutFileInput')).toHaveValue('');
@@ -36,10 +36,10 @@ test('switching accounts routes the same ZIP input to the selected platform', as
         { id: B, providerId: 'gemini', providerAccountId: 'default' },
         { id: 'claude-account', providerId: 'claude', providerAccountId: 'claude-user' }] });
     await page.locator('#takeoutFileInput').setInputFiles(archive);
-    await expect(page.locator('#status')).toContainText('skipped 0');
+    await expect(page.locator('#status')).toContainText('Skipped 0');
     await page.locator('#accountIdSelect').selectOption(B);
     await page.locator('#takeoutFileInput').setInputFiles(archive);
-    await expect(page.locator('#status')).toHaveText('Imported 2 conversations (partial)');
+    await expect(page.locator('#status')).toHaveText('Read 2 conversation records, added 0, total 1. Some content or attachments are incomplete.');
     expect(await read(page, 'imports')).toEqual([A, B]);
     await page.locator('#accountIdSelect').selectOption('claude-account');
     await expect(page.locator('#btnImportTakeout')).toBeDisabled();

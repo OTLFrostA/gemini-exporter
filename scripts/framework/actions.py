@@ -69,7 +69,16 @@ SCAN_OBSERVER = r"""(() => {
             'Local page budget reached':'max_pages', '已达到本地页数预算':'max_pages',
             'Scan cancelled':'aborted', '扫描已取消':'aborted', 'Scan failed':'error', '扫描失败':'error'
         };
-        if (/^(Sync complete|同步完成)(?: · |$)/.test(text) && evidence.progress) evidence.response = {
+        const summary = text.match(/^Read (\d+) conversation records?, added \d+, total \d+/)
+            || text.match(/^已读取到 (\d+) 条会话记录，新增 \d+ 条，一共 \d+ 条/);
+        if (summary && evidence.progress) evidence.response = {
+            status: /online API limit|在线接口上限/.test(text) ? 'provider_limit'
+                : /Local page budget|本地页数预算|Claude list coverage|Claude 列表完整性/.test(text) ? 'max_pages'
+                : /Scan cancelled|扫描已取消/.test(text) ? 'aborted'
+                : /Scan failed|扫描失败/.test(text) ? 'error' : 'complete',
+            ...evidence.progress, conversationsFetched:Number(summary[1])
+        };
+        else if (/^(Sync complete|同步完成)(?: · |$)/.test(text) && evidence.progress) evidence.response = {
             status:'complete', ...evidence.progress
         };
         else if (matched && statuses[matched[1]]) evidence.response = {
@@ -475,11 +484,13 @@ class ExtensionActions:
             if result.get('busy') is False:
                 match = re.fullmatch(r'Imported (\d+) conversations \((ok|partial)\)', result.get('status', ''))
                 match = match or re.fullmatch(r'已提交 (\d+) 条对话（(完成|部分完成)）', result.get('status', ''))
-                if not match:
+                summary = re.fullmatch(r'Read (\d+) conversation records?, added \d+, total \d+([.] Some content or attachments are incomplete[.])?', result.get('status', ''))
+                summary = summary or re.fullmatch(r'已读取到 (\d+) 条会话记录，新增 \d+ 条，一共 \d+ 条(。部分内容或附件不完整。)?', result.get('status', ''))
+                if not match and not summary:
                     return {'success': False, 'error': result.get('status') or 'No import result'}
                 source = cdp_opt.eval(f'globalThis.__tier2V2.inspectTakeout({json.dumps(zip_b64)}, {json.dumps(media_paths or [])})', await_promise=True)
-                return {'success': True, 'status': 'partial' if match[2] in ('partial', '部分完成') else 'ok',
-                        'imported': int(match[1]),
+                return {'success': True, 'status': ('partial' if summary[2] else 'ok') if summary else ('partial' if match[2] in ('partial', '部分完成') else 'ok'),
+                        'imported': int((summary or match)[1]),
                         'importedIds': source['ids'], 'mediaDigests': source['mediaDigests'], 'sourceResources': source['resources'],
                         'sourceFacts': source['sourceFacts'],
                         'uiStatus': result['status']}

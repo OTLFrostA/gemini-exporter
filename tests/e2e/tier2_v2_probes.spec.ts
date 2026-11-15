@@ -189,9 +189,9 @@ test('Tier 2 Scan observer preserves provider and local page limit reasons and r
                 if (kind === 'resolved') (document.getElementById('accountIdSelect') as HTMLSelectElement).value = 'other';
                 document.getElementById('scanStatus')!.textContent = 'Committed 1 pages, 2 source entries';
                 queueMicrotask(() => {
-                    document.getElementById('scanStatus')!.textContent = kind === 'provider_limit' ? 'Source online access limit · 1 / 2'
-                        : kind === 'max_pages' ? 'Local page budget reached · 1 / 2'
-                        : 'Sync complete · 1 new conversations · 1 conversations updated';
+                    document.getElementById('scanStatus')!.textContent = kind === 'provider_limit' ? 'Read 2 conversation records, added 1, total 2. The online API limit has been reached. Import earlier history with Takeout.'
+                        : kind === 'max_pages' ? 'Read 2 conversation records, added 1, total 2. Local page budget reached'
+                        : 'Read 2 conversation records, added 1, total 2';
                     document.body.dataset.scanning = 'false';
                 });
             };
