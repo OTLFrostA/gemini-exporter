@@ -185,10 +185,23 @@ test('a missing document body remains retryable and an owned packet supplies the
     const record = await getExportRecord(exportKey(source.conversationId));
     assert.equal(record?.otherContentMissing, true);
     assert.equal(shouldSkipExport(record, source.sourceVersion, request), false);
-    for (const file of await readDeliveredFiles(host)) {
+    const missingFiles = await readDeliveredFiles(host);
+    for (const file of missingFiles) {
         const text = await file.async('string');
         assert.ok(typeof text === 'string' && !text.includes('This body belongs to another document.'));
     }
+    const missingBodyMarkdown = missingFiles.find(file => !file.name.startsWith('files/') && file.name.endsWith('.md'));
+    assert.ok(missingBodyMarkdown);
+    const missingText = await missingBodyMarkdown.async('string');
+    assert.ok(typeof missingText === 'string');
+    assert.match(missingText, /See the report\./);
+    assert.match(missingText, /Owned report/);
+    assert.match(missingText, /Attachment download location unavailable/);
+    assert.doesNotMatch(missingText, /Unknown error/);
+    assert.ok(!missingFiles.some(file => file.name.startsWith('files/') && file.name.endsWith('.md')),
+        'an unresolved chip must not create an empty or fabricated report');
+    assert.equal(record?.contentRepair, undefined, 'missing document bodies retain ordinary retry behavior');
+    assert.ok(record?.attachmentIssues?.some(issue => issue.code === 'RESOURCE_LOCATOR_UNAVAILABLE'));
     const beforeRetry = refreshes;
     await runExport(request);
     assert.equal(refreshes, beforeRetry + 1);

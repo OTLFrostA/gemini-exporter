@@ -174,7 +174,9 @@ export class GeminiProvider implements GeminiProviderContract {
         const remote = async () => {
             if (!/^https:\/\//i.test(asset.sourceUri ?? '') && asset.document?.contentMarkdown) return { bytes: new TextEncoder().encode(asset.document.contentMarkdown),
                 mediaType: asset.mediaType ?? 'text/markdown', ...(asset.name ? { name: asset.name } : {}) };
-            if (!asset.sourceUri?.startsWith('data:')) await this.context(key.accountId);
+            // Missing/unsupported locators cannot become usable by finding a
+            // source tab. Let acquisition report that fact before route lookup.
+            if (/^https:\/\//i.test(asset.sourceUri ?? '')) await this.context(key.accountId);
             return acquireSourceResource(asset, signal, onDiagnostic);
         };
         return this.resources ? this.resources.acquire(key, asset, signal, remote, onDiagnostic) : remote();

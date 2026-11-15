@@ -17,6 +17,12 @@ without deleting content. It processes one account and one Detail/ExportRecord
 cursor at a time, waiting for each update before continuing. It never loads a
 whole account's bodies with `getAll()`. An aborted upgrade rolls back all writes;
 the failed pooled connection is evicted so the next storage read can retry.
+Native Chromium extension-origin tests exercise the production upgrade across
+6,144 full histories (two Gemini accounts and another provider), reject bulk
+reads, and compare every stored body, source version, receipt and Index. A
+separate mid-upgrade abort checks v1 rollback and recovery through the same
+failed pooled API. These tests do not measure process peak memory or simulate
+OS termination, disk exhaustion or quota failures.
 
 L2 owns identity, Index merging, Detail selection and Coverage admission.
 Application owns defaults, Skip, export records and user record cleanup. Runtime

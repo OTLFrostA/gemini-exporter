@@ -11,7 +11,28 @@ import { getDetail } from '../src/l3a/storageService.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
+import { attemptResource, resourceFailureText } from '../src/shared/resources/resourceResult.js';
 useIndexStorage();
+
+test('missing document bodies report unavailable locators without requiring an account route', async () => {
+    let routes = 0;
+    const provider = new GeminiProvider(undefined, async () => { routes++; throw new Error('No source tab'); });
+    const key = { accountId: ACCOUNT_UUID, conversationId: 'missing-document' };
+    const asset = { id: 'report', kind: 'file' as const, name: 'Research report', document: { id: 'native-report' } };
+    for (const sourceUri of [undefined, 'http://immersive_entry_chip/report']) {
+        const result = await attemptResource(asset.id, () => provider.acquireResource(key, { ...asset, sourceUri }));
+        assert.ok(!result.ok);
+        assert.equal(result.code, 'RESOURCE_LOCATOR_UNAVAILABLE');
+        assert.equal(result.httpStatus, undefined, 'absence of a locator does not prove a server 404');
+        assert.equal(resourceFailureText(result, 'zh'), '缺少可用的附件下载地址');
+    }
+    assert.equal(routes, 0);
+    const owned = { ...asset, document: { id: asset.document.id, contentMarkdown: '# Real owned body\n\nExact bytes.' } };
+    assert.equal(new TextDecoder().decode((await provider.acquireResource(key, owned)).bytes), owned.document.contentMarkdown);
+    assert.equal(routes, 0);
+    await assert.rejects(provider.acquireResource(key, { ...asset, sourceUri: 'https://example.test/report' }), /No source tab/);
+    assert.equal(routes, 1, 'authenticated remote resources retain route verification');
+});
 
 test('adapter: prefixed request IDs use the canonical source ID for admission and task resources', async () => {
     const raw = geminiDetailGen('G_PROVIDER_ADAPTER_01');

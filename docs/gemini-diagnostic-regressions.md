@@ -580,3 +580,61 @@ the production build, font verification and all 222 Playwright tests. The final
 physical-delivery/migration additions pass eight targeted tests, including failed
 pooled-open recovery. The focused parser/quality/retry checks and final strict
 type-check pass. Shipping manifest permissions are unchanged.
+
+## Native Chromium upgrade and unresolved-document export follow-up
+
+The cursor migration is now exercised using real Chromium IndexedDB in an
+isolated extension origin, with the production storage module and no fake IDB.
+The large-history case contains 6,144 conversations across two Gemini accounts
+and one ChatGPT account, with 204 MiB of body text. The fixture seeds bounded
+batches, rejects every `getAll()` during migration, and compares every body's
+exact bytes, identity, source version and quality, plus receipts, Index versions,
+accounts and Coverage. Existing partial Gemini bodies remain partial; only
+previously complete Gemini bodies are invalidated. The other provider is unchanged.
+An abort after body and receipt updates confirms the native upgrade rolls back
+the schema and every record; the same failed pooled storage API then reopens and
+upgrades successfully. Measurements are attached to the Playwright results.
+This is a native transaction/disk-storage test, not a proof of peak process
+memory, quota behavior or recovery after OS-level termination.
+
+Physical missing-packet export assertions exposed an additional failure-label
+problem: an unavailable document locator first attempted to locate a Gemini
+account tab, producing `SOURCE_PAGE_UNAVAILABLE` and an unknown-error marker in
+Markdown. Gemini resource acquisition now resolves inline owned bodies first,
+checks the account route only for supported remote HTTPS locators, and lets the
+resource boundary classify absent/unsupported locators. These failures carry
+`RESOURCE_LOCATOR_UNAVAILABLE` without an invented HTTP status. Rendered files
+and developer summaries name the unavailable download location; ordinary network
+and authentication failures retain their existing behavior. The counterexamples
+failed before this correction.
+
+The missing-packet fixture physically exports the surrounding conversation,
+document title/link and an explicit unavailable-location warning, without an
+empty or fabricated report file. The receipt remains partial and normally
+retryable. Supplying an owned packet later creates the exact Markdown document
+bytes and permits a complete receipt. This is a synthetic protocol counterexample,
+not a real Deep Research fidelity test.
+
+The saved full RPC captures were inventoried locally: 25 unique pages and 147
+turns contain no selected-candidate native document packets suitable for a real
+Deep Research acceptance test. Older warning-only diagnostics do not supply the
+missing packet or an independent complete-report oracle. **Real Deep Research
+long-document fidelity, resources, and the provider's actual behavior when the
+packet is absent remain unverified and pending before merge.** No source-wide
+body-scanning heuristic was restored to cover this evidence gap.
+
+The remaining retry-model boundary debt is explicit: the current persisted
+`ContentRepairPolicy` still places an L1 failure reason and parser revision in
+L2 quality. It is a narrow, tested allowlist, but it is not full layer separation.
+Moving acquisition/parser bookkeeping beside the snapshot and leaving policy in
+Application is a separate storage/admission refactor, not claimed by this
+follow-up. The PR remains draft with auto-merge disabled.
+
+Final follow-up verification passes `npm test`: 409 unit-test files and all
+224 Playwright tests, strict TypeScript/static gates, 12 production bundles with
+zero build warnings, and the bundled-font release check. Type-aware lint passes
+with no diagnostics in changed production files. The Popup HTML/Markdown/JSON
+physical packages assert the exact unavailable-location reason, no invented HTTP
+status in the failure report, and correct developer-mode visibility. Production
+optional permissions remain unchanged. The development worktree is rebuilt;
+real-account Tier 2 and real Deep Research fidelity remain unverified.
