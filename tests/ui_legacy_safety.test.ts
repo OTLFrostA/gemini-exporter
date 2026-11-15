@@ -25,14 +25,14 @@ test('export completion warns for attachment-only and mixed failures in both lan
 test('sync UI never announces completion for partial_limit, aborted or error, and keeps committed counters',async()=>{
     for(const status of ['partial_limit','aborted','error','complete','up_to_date']){
         await open({holdScan:true,scanCount:3,scanResult:{status,pagesFetched:2,conversationsFetched:3}});await page.locator('#btnSyncAll').click();assert.equal(await page.locator('#scanStatus').textContent(),'Committed 2 pages, 3 source entries');await page.evaluate(()=>Reflect.get(window,'harness').finishScan());await page.waitForFunction(()=>document.body.dataset.busy!=='true');
-        const final=await page.locator('#scanStatus').textContent()??'';if(['partial_limit','aborted','error'].includes(status)){assert.match(final,/2 \/ 3/);assert.doesNotMatch(final,/Sync complete/);}else{assert.equal(final,'Sync complete');assert.doesNotMatch(final,/2 \/ 3/);}assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);await page.close();
+        const final=await page.locator('#scanStatus').textContent()??'';if(['partial_limit','aborted','error'].includes(status)){assert.match(final,/Read 3 conversation records, added 0, total 1/);assert.doesNotMatch(final,/Sync complete/);}else{assert.equal(final,'Read 3 conversation records, added 0, total 1');assert.doesNotMatch(final,/2 \/ 3/);}assert.equal(await page.locator('#btnSyncAll').isEnabled(),true);await page.close();
     }
 });
 test('completed sync reports committed new and changed metadata counts in both languages',async()=>{
     for(const language of ['en','zh'])for(const [changes,en,zh] of [
-        [{added:12,updated:8}, 'Sync complete · 12 new conversations · 8 conversations updated', '同步完成 · 新发现 12 个对话 · 更新 8 个对话信息'],
-        [{added:1,updated:1}, 'Sync complete · 1 new conversation · 1 conversation updated', '同步完成 · 新发现 1 个对话 · 更新 1 个对话信息'],
-        [{added:0,updated:0}, 'Sync complete · All conversations are up to date', '同步完成 · 所有对话均为最新'],
+        [{added:12,updated:8}, 'Read 501 conversation records, added 12, total 1', '已读取到 501 条会话记录，新增 12 条，一共 1 条'],
+        [{added:1,updated:1}, 'Read 501 conversation records, added 1, total 1', '已读取到 501 条会话记录，新增 1 条，一共 1 条'],
+        [{added:0,updated:0}, 'Read 501 conversation records, added 0, total 1', '已读取到 501 条会话记录，新增 0 条，一共 1 条'],
     ] as const){
         await open({settings:{language,takeoutPromptCompleted:true},scanResult:{status:'complete',pagesFetched:6,conversationsFetched:501,indexChanges:changes}});
         await page.locator('#btnSyncAll').click();await page.waitForFunction(()=>document.body.dataset.busy!=='true');
@@ -96,7 +96,7 @@ test('Takeout guidance is neutral and independent of source-vs-local scan limit'
         await page.locator('#btnSyncAll').click();
         await page.waitForFunction(()=>document.body.dataset.busy!=='true');
         const status=await page.locator('#scanStatus').textContent()??'';
-        assert.match(status,reason==='provider_limit'?(language==='en'?/Source online access limit/:/来源在线访问范围限制/):(language==='en'?/Local page budget reached/:/本地页数预算/));
+        assert.match(status,reason==='provider_limit'?(language==='en'?/The online API limit has been reached/:/已达到在线接口上限/):(language==='en'?/Local page budget reached/:/本地页数预算/));
         assert.equal(await page.locator('.tour-popover').count(),1);
         const prompt=await page.locator('.tour-popover').textContent()??'';
         assert.match(prompt,language==='en'?/This scan fetched 620 conversations/:/本次扫描获取了 620 条对话/);

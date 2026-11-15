@@ -1,3 +1,4 @@
+import { listIndexes } from '../../application/conversations/catalogQueries.js';
 import { OperationError } from '../../shared/errors/operationError.js';
 import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { createBackoffNotice } from '../shared/backoffNotice.js';
@@ -39,7 +40,7 @@ import { mountCloudVaultPanel, type CloudVaultControllerHandle } from './control
 
 type Level = 'info' | 'warn' | 'error';
 type Action = 'export' | 'takeout' | 'cleanup';
-interface LogEntry { at: number; level: Level; message: string }
+interface LogEntry { at: number; level: Level; message: string; takeoutCount?: number }
 const resolveUiMessage = (message: UiMessage): string => typeof message === 'function' ? message() : message;
 
 export async function initWorkbench(): Promise<void> {
@@ -55,6 +56,7 @@ export async function initWorkbench(): Promise<void> {
     let scanController: AbortController | null = null;
     let advanceTutorialScan: (() => void) | undefined;
     let currentScanStatus: UiMessage | null = null;
+    let scanTakeoutCount: number | undefined;
     let presentationSaving = false;
     let themeToggle: ReturnType<typeof createOptimisticThemeToggle> | undefined;
     let lastRequest: UIExportRequest | null = null;
@@ -82,7 +84,21 @@ export async function initWorkbench(): Promise<void> {
             const matched = (entry.message + ' ' + entry.level).toLowerCase();
             return query.startsWith('-') ? !matched.includes(query.slice(1)) : matched.includes(query);
         });
-        el('log').textContent = rows.map(entry => `[${new Date(entry.at).toLocaleTimeString()}] [${entry.level}] ${entry.message}`).join('\n') || text('Ready', '就绪');
+        el('log').replaceChildren();
+        for (const entry of rows) {
+            el('log').append(document.createTextNode(`[${new Date(entry.at).toLocaleTimeString()}] [${entry.level}] `));
+            if (entry.takeoutCount !== undefined && entry.message.includes('Takeout')) {
+                const count = entry.takeoutCount;
+                const link = document.createElement('a');
+                link.href = '#takeout';
+                link.textContent = 'Takeout';
+                link.addEventListener('click', event => { event.preventDefault(); showTakeout(count); });
+                const split = entry.message.indexOf('Takeout');
+                el('log').append(entry.message.slice(0, split), link, entry.message.slice(split + 7));
+            } else el('log').append(document.createTextNode(entry.message));
+            el('log').append('\n');
+        }
+        if (!rows.length) el('log').textContent = text('Ready', '就绪');
         el('log').scrollTop = el('log').scrollHeight;
     };
     const status = (message: UiMessage, level: Level = 'info', rawLogMessage?: string) => {
@@ -99,7 +115,7 @@ export async function initWorkbench(): Promise<void> {
     const reportScan = (message: UiMessage, level: Level = 'info', rawLogMessage?: string) => {
         currentScanStatus = message;
         paintTaskPanel();
-        log.push({ at: Date.now(), level, message: rawLogMessage ?? resolveUiMessage(message) });
+        log.push({ at: Date.now(), level, message: rawLogMessage ?? resolveUiMessage(message), takeoutCount: scanTakeoutCount });
         if (log.length > 400) log.shift();
         renderLog();
     };
@@ -112,6 +128,7 @@ export async function initWorkbench(): Promise<void> {
     const failureGroups = () => currentIssues.groups();
     const paintTaskPanel = () => taskPanel.render({
         task: foreground, feedback, percent, scanning: scanController !== null,
+        onTakeout: scanTakeoutCount === undefined ? undefined : showTakeout.bind(undefined, scanTakeoutCount),
         scanMessage: currentScanStatus === null ? null : resolveUiMessage(currentScanStatus), scanSlow,
         groups: failureGroups(), failedCount: failed.length, dismissed: dismissedFailures,
         developerMode: settings?.developerMode ?? false, ready: !!settings,
@@ -323,9 +340,20 @@ export async function initWorkbench(): Promise<void> {
         finishTutorialExport?.(tutorialExportSucceeded);
         if (successfulExports > 0 && tutorialExportSucceeded) void showRatingPromptIfEligible().catch(error => console.warn('[Rating prompt]', error));
     };
+    const summary = (read: number, added: number, total: number) => text(
+        `Read ${read} conversation ${read === 1 ? 'record' : 'records'}, added ${added}, total ${total}`,
+        `已读取到 ${read} 条会话记录，新增 ${added} 条，一共 ${total} 条`);
+    const showTakeout = (count: number) => TourGuide.showTakeoutPrompt(count,
+        () => {}, () => { fileInput.click(); },
+        () => { window.open('https://takeout.google.com/settings/takeout/custom/gemini', '_blank', 'noopener,noreferrer'); },
+        () => {
+            settings = { ...settings, takeoutPromptCompleted: true };
+            void updateSettings({ takeoutPromptCompleted: true }).catch(e => statusError(e));
+        });
     const scan = async (forceFull = false) => {
         if (isBusy() || scanController) return;
         feedback = { kind: 'empty' };
+        scanTakeoutCount = undefined;
         const taskController = new AbortController();
         scanController = taskController;
         const signal = taskController.signal;
@@ -355,12 +383,18 @@ export async function initWorkbench(): Promise<void> {
             let scanProgressMessage = () => text('Resolving conversation source…', '正在确认会话来源…');
             const paintScanProgress = () => reportScan(() => scanProgressMessage() + (backoff.message() ? ` · ${backoff.message()}` : ''));
             const stopBackoffTicker = backoff.startTicker(paintScanProgress);
+            let targetAccountId = state.accountId;
+            let baselineIds = new Set<string>();
             const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
                 onDiagnostic: diagnostic => {
                     if (diagnostics.length < 1000) diagnostics.push(diagnostic);
                     if (backoff.observe(diagnostic)) paintScanProgress();
                 },
-                onTarget: select, onProgress: p => {
+                onTarget: async id => {
+                    targetAccountId = id;
+                    baselineIds = new Set((await listIndexes(id)).map(row => row.key.conversationId));
+                    await select(id);
+                }, onProgress: p => {
                     if (signal.aborted) return;
                     scanProgressMessage = () => text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
                         `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`);
@@ -378,7 +412,7 @@ export async function initWorkbench(): Promise<void> {
             scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result, diagnostics });
             if (scanRuns.length > 10) scanRuns.shift();
             const reasons = new Map(Object.entries({
-                provider_limit: () => text('Source online access limit', '来源在线访问范围限制'),
+                provider_limit: () => text('The online API limit has been reached. Import earlier history with Takeout.', '已达到在线接口上限，更早的历史可以通过 Takeout 导入。'),
                 max_pages: () => state.accounts.find(a => a.id === state.accountId)?.providerId === 'claude'
                     ? text('Claude list coverage cannot yet be verified', 'Claude 列表完整性尚无法验证')
                     : text('Local page budget reached', '已达到本地页数预算'),
@@ -387,31 +421,19 @@ export async function initWorkbench(): Promise<void> {
             }));
             const reason = result.diagnostics?.failure ?? result.reason ?? result.status;
             const succeeded = result.status === 'complete' || result.status === 'up_to_date';
-            const completionSummary = () => {
-                if (!result.indexChanges) return text('Sync complete', '同步完成');
-                const { added, updated } = result.indexChanges;
-                return added === 0 && updated === 0
-                    ? text('Sync complete · All conversations are up to date', '同步完成 · 所有对话均为最新')
-                    : text(`Sync complete · ${added} new ${added === 1 ? 'conversation' : 'conversations'} · ${updated} ${updated === 1 ? 'conversation' : 'conversations'} updated`,
-                        `同步完成 · 新发现 ${added} 个对话 · 更新 ${updated} 个对话信息`);
-            };
-            reportScan(() => succeeded ? completionSummary()
-                : `${reasons.get(reason)?.() ?? (result.status === 'error' ? text('Scan failed', '扫描失败') : text('Scan finished', '扫描已结束'))} · ${result.pagesFetched} / ${result.conversationsFetched}`,
+            const indexes = targetAccountId ? await listIndexes(targetAccountId) : [];
+            const added = result.indexChanges?.added ?? indexes.filter(row => !baselineIds.has(row.key.conversationId)).length;
+            const countsSummary = () => summary(result.conversationsFetched, added, indexes.length);
+            if (reason === 'provider_limit' && state.accounts.find(a => a.id === targetAccountId)?.providerId === 'gemini')
+                scanTakeoutCount = result.conversationsFetched;
+            reportScan(() => succeeded ? countsSummary()
+                : `${countsSummary()}${text('. ', '。')}${reasons.get(reason)?.() ?? (result.status === 'error' ? text('Scan failed', '扫描失败') : text('Scan finished', '扫描已结束'))}`,
                 result.status === 'error' ? 'error' : result.status === 'aborted' || result.status === 'partial_limit' ? 'warn' : 'info',
-                // Keep upstream diagnostic details in the log without exposing untranslated UI text.
-                result.status === 'error' ? `Scan failed (${result.reason ?? 'unknown'}) · ${result.pagesFetched} / ${result.conversationsFetched}` : undefined);
+                result.status === 'error' ? `${countsSummary()}. Scan failed (${result.reason ?? 'unknown'})` : undefined);
             settings = await readSettings();
             if (state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini'
                 && result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
-                TourGuide.showTakeoutPrompt(result.conversationsFetched,
-                    () => {},
-                    () => { fileInput.click(); },
-                    () => { window.open('https://takeout.google.com/settings/takeout/custom/gemini', '_blank', 'noopener,noreferrer'); },
-                    () => {
-                        // Mark only actual display, including a prompt deferred until the tutorial ends.
-                        settings = { ...settings, takeoutPromptCompleted: true };
-                        void updateSettings({ takeoutPromptCompleted: true }).catch(e => statusError(e));
-                    });
+                showTakeout(result.conversationsFetched);
             }
         } catch (error) {
             if (signal.aborted) reportScan(() => text('Sync stopped', '同步已停止'));
@@ -579,27 +601,35 @@ export async function initWorkbench(): Promise<void> {
         const account = state.accounts.find(a => a.id === accountId);
         return perform('takeout', async () => {
             try {
+                let targetAccountId = accountId;
+                let baselineIds = new Set(accountId ? (await listIndexes(accountId)).map(row => row.key.conversationId) : []);
                 const outcome = await handlePlatformArchiveImport(file, account, accountId, {
                     onStartKind: kind => status(() => kind === 'openai'
                         ? text('Importing OpenAI ZIP…', '正在导入 OpenAI ZIP…')
                         : text('Importing Takeout ZIP…', '正在导入 Takeout ZIP…')),
-                    onTarget: select,
+                    onTarget: async id => {
+                        targetAccountId = id;
+                        baselineIds = new Set((await listIndexes(id)).map(row => row.key.conversationId));
+                        await select(id);
+                    },
                     onProgress: percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent),
                     resources: importedResources,
                 });
+                const indexes = targetAccountId ? await listIndexes(targetAccountId) : [];
+                const added = indexes.filter(row => !baselineIds.has(row.key.conversationId)).length;
                 if (outcome.kind === 'openai') {
                     const { result } = outcome;
                     if (result.status === 'empty') status(() => text(
                         'This OpenAI ZIP contains no conversation bodies. No conversations were imported.',
                         '此 OpenAI ZIP 没有聊天正文，未导入任何会话。'), 'warn');
                     else status(() => text(
-                        `Imported ${result.imported} conversations; skipped ${result.skipped}; unavailable attachments ${result.missingAssets}.${result.status === 'partial' ? ' Import partially completed.' : ''}`,
-                        `已导入 ${result.imported} 条会话；跳过 ${result.skipped} 条；${result.missingAssets} 个附件不可用。${result.status === 'partial' ? '导入部分完成。' : ''}`),
+                        `${summary(result.imported + result.skipped, added, indexes.length)}. Skipped ${result.skipped}; unavailable attachments ${result.missingAssets}.`,
+                        `${summary(result.imported + result.skipped, added, indexes.length)}。跳过 ${result.skipped} 条；${result.missingAssets} 个附件不可用。`),
                         result.status === 'partial' ? 'warn' : 'info');
                 } else {
                     const { result } = outcome;
-                    status(() => text(`Imported ${result.imported} conversations (${result.status})`,
-                        `已提交 ${result.imported} 条对话（${result.status === 'ok' ? '完成' : result.status === 'partial' ? '部分完成' : '未知'}）`));
+                    status(() => summary(result.imported, added, indexes.length) + (result.status === 'partial'
+                        ? text('. Some content or attachments are incomplete.', '。部分内容或附件不完整。') : ''), result.status === 'partial' ? 'warn' : 'info');
                 }
             } finally { fileInput.value = ''; }
         });

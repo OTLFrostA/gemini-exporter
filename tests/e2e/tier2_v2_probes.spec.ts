@@ -189,9 +189,9 @@ test('Tier 2 Scan observer preserves provider and local page limit reasons and r
                 if (kind === 'resolved') (document.getElementById('accountIdSelect') as HTMLSelectElement).value = 'other';
                 document.getElementById('scanStatus')!.textContent = 'Committed 1 pages, 2 source entries';
                 queueMicrotask(() => {
-                    document.getElementById('scanStatus')!.textContent = kind === 'provider_limit' ? 'Source online access limit · 1 / 2'
-                        : kind === 'max_pages' ? 'Local page budget reached · 1 / 2'
-                        : 'Sync complete · 1 new conversations · 1 conversations updated';
+                    document.getElementById('scanStatus')!.textContent = kind === 'provider_limit' ? 'Read 2 conversation records, added 1, total 2. The online API limit has been reached. Import earlier history with Takeout.'
+                        : kind === 'max_pages' ? 'Read 2 conversation records, added 1, total 2. Local page budget reached'
+                        : 'Read 2 conversation records, added 1, total 2';
                     document.body.dataset.scanning = 'false';
                 });
             };
@@ -220,7 +220,7 @@ test('Tier 2 Takeout probe reads source-bound archive bytes and actual UI-import
     expect(source.ids.length).toBeGreaterThan(0);
     expect(Object.values(source.resources).flat().length).toBeGreaterThan(0);
     await page.locator('#takeoutFileInput').setInputFiles({name:'source-fixture.zip',mimeType:'application/zip',buffer:Buffer.from(encoded,'base64')});
-    await expect(page.locator('#status')).toContainText(/Imported .*\((ok|partial)\)/);
+    await expect(page.locator('#status')).toHaveText('Read 1 conversation record, added 1, total 1. Some content or attachments are incomplete.');
     await expect(page.locator('body')).toHaveAttribute('data-busy','false');
     const persisted = await page.evaluate(ids => Reflect.get(globalThis,'__tier2V2').conversations(ids),source.ids);
     for (const record of persisted) {

@@ -239,7 +239,7 @@ test('zero-account Takeout creates the first Gemini default only after ZIP selec
     const chooser = await chooserPromise;
     assert.equal((await read(page, 'events')).includes('create'), false, 'Opening the picker must not create an account');
     await chooser.setFiles({ name: 'Takeout.zip', mimeType: 'application/zip', buffer: Buffer.from('fixture') });
-    await page.waitForFunction(() => document.getElementById('status')?.textContent?.includes('Imported 2'));
+    await page.waitForFunction(() => document.getElementById('status')?.textContent === 'Read 2 conversation records, added 0, total 0. Some content or attachments are incomplete.');
     assert.deepEqual(await read(page, 'imports'), [A]);
     assert.equal((await read(page, 'events')).filter((value: string) => value === 'create').length, 1);
     assert.equal((await read(page, 'accounts')).length, 1);
