@@ -338,19 +338,24 @@
 /* The onboarding export demonstrates one conversation. */
 body[data-guided-selection="true"] #btnSelectAll { display: none; }
 
-/* Account discovery keeps progress visible until the verified identity is ready. */
-.tour-status-loading::before {
-  content: '';
-  width: 12px;
-  height: 12px;
+/* Account connection feedback belongs to the platform that was clicked. */
+.tour-account-button { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.tour-account-label { min-width: 0; overflow-wrap: anywhere; }
+.tour-account-button[data-connection-state="loading"],
+.tour-account-button[data-connection-state="success"] { opacity: 1; }
+.tour-account-button[data-connection-state="loading"] .tour-account-icon {
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
   border: 2px solid currentColor;
   border-right-color: transparent;
   border-radius: 50%;
   animation: tour-account-spin .8s linear infinite;
 }
-.tour-action-box .tour-status-ok::before { content: '✓'; font-weight: 700; }
+.tour-account-button[data-connection-state="success"] { color: var(--tour-success, #34d399); }
+.tour-account-button[data-connection-state="success"] .tour-account-icon::before { content: '✓'; }
+.tour-account-button[data-connection-state="error"] .tour-account-icon::before { content: '!'; }
 @keyframes tour-account-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .tour-status-loading::before { animation: none; }
+  .tour-account-button .tour-account-icon { animation: none !important; }
 }
