@@ -10,7 +10,7 @@ import { ingestDetail } from '../src/l2/ingestion.js';
 import { runExport, shouldSkipExport } from '../src/application/export/runExport.js';
 import { getExportRecord } from '../src/l3a/storageService.js';
 import { invalidSourceRangeNodes } from './fixtures/providers/gemini/detail/remainingSourceRanges.js';
-import { coverageWire, citationText, citationField } from './fixtures/providers/gemini/detail/content.js';
+import { coverageWire, citationText, citationField, sourceReplayFixture } from './fixtures/providers/gemini/detail/content.js';
 import { __getZipConstructor, __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 
 const account = fixtureAccount('gemini');
@@ -56,7 +56,7 @@ test('native content loss produces physical fallback plus partial receipt; same 
     assert.equal(refreshes, beforeSkip);
 });
 
-test('source-coordinate degradation writes native code and known sources to disk and remains retryable', async t => {
+test('unversioned source-coordinate degradation writes native code and known sources and remains retryable', async t => {
     const host = v2ExportHost(t);
     const source = parse('G_REMAINING_RANGES_INVALID');
     let refreshes = 0;
@@ -70,6 +70,7 @@ test('source-coordinate degradation writes native code and known sources to disk
     const record = await getExportRecord(exportKey(source.conversationId));
     assert.equal(record?.status, 'partial');
     assert.equal(record?.otherContentMissing, true);
+    assert.equal(record?.chatTime, undefined, 'an unknown source version cannot establish unchanged input');
     const markdown = await host.blobs[0].text();
     assert.ok(!markdown.includes('Fallback body remains available.'));
     assert.ok(markdown.includes('https://example.com/spp_fixture_'));
@@ -79,6 +80,36 @@ test('source-coordinate degradation writes native code and known sources to disk
     const before = refreshes;
     assert.equal((await runExport(request)).skipped, 0);
     assert.equal(refreshes, before + 1);
+});
+
+test('versioned source-only loss persists a partial receipt and avoids duplicate HTTP requests after physical delivery', async t => {
+    const host = v2ExportHost(t);
+    const frames: unknown[] = JSON.parse(sourceReplayFixture().wire);
+    frames.unshift(['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+        ['c_source_replay', 'Unresolved source fixture', null, null, null, [1700000001, 0]],
+    ]])]);
+    const source = mergeConversationPages([parseGeminiRpcConversation(JSON.stringify(frames), {
+        account, providerId: 'gemini',
+    })], undefined, true);
+    let refreshes = 0;
+    t.mock.method(GeminiProvider.prototype, 'fetchConversationDetail', async (accountId: string, id: string) => {
+        refreshes++;
+        await ingestDetail(accountId, id, source.conversation.detail, source.conversation.index);
+    });
+    await ingestDetail(account.id, source.conversationId, source.conversation.detail, source.conversation.index);
+    const request = exportRequest([source.conversationId], { skipUnchanged: true });
+    assert.equal((await runExport(request)).partial, 1);
+    const record = await getExportRecord(exportKey(source.conversationId));
+    assert.equal(record?.status, 'partial');
+    assert.deepEqual(record?.contentRepair, source.conversation.detail.quality.repair);
+    assert.match(await host.blobs[0].text(), /Native source diagnostic\./);
+    const deliveries = host.blobs.length;
+    assert.equal((await runExport(request)).skipped, 1);
+    assert.equal(refreshes, 0);
+    assert.equal(host.blobs.length, deliveries);
+    assert.equal((await getExportRecord(exportKey(source.conversationId)))?.status, 'partial');
+    assert.equal((await runExport(request, { refreshDetail: true })).partial, 1);
+    assert.equal(refreshes, 1);
 });
 
 test('interaction cleanup and a partial-code quote produce complete physical Markdown and a truthful receipt', async t => {
@@ -131,7 +162,8 @@ test('a missing document body remains retryable and an owned packet supplies the
     const raw = [[[citationText('See the report.'), citationField(24, [[
         ['http://immersive_entry_chip/report'], 'c_coverage_report', null, 'Owned report', null, null, null, 1,
     ]])]]];
-    const candidate: unknown[] = ['rc_primary', [['See the report.']]];
+    const foreignBody = '# Foreign body\n\n' + 'This body belongs to another document. '.repeat(8);
+    const candidate: unknown[] = ['rc_primary', [['See the report.']], ['c_coverage_report', [[foreignBody]]]];
     const read = () => {
         const frames: unknown[] = JSON.parse(coverageWire(raw, [candidate]));
         frames.unshift(['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
@@ -153,6 +185,10 @@ test('a missing document body remains retryable and an owned packet supplies the
     const record = await getExportRecord(exportKey(source.conversationId));
     assert.equal(record?.otherContentMissing, true);
     assert.equal(shouldSkipExport(record, source.sourceVersion, request), false);
+    for (const file of await readDeliveredFiles(host)) {
+        const text = await file.async('string');
+        assert.ok(typeof text === 'string' && !text.includes('This body belongs to another document.'));
+    }
     const beforeRetry = refreshes;
     await runExport(request);
     assert.equal(refreshes, beforeRetry + 1);

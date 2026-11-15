@@ -46,6 +46,14 @@ saves are serialized with coalesced trailing events so later replies are retaine
 A transient refresh failure may export usable cached Detail as partial; confirmed
 remote deletion never falls back. Application owns workflow and record decisions.
 
+A fully acquired source-only parser gap remains partial, with a separate repair
+reason, parser revision and retry trigger. At comparable unchanged source versions,
+Application can reuse that snapshot and skip its delivered partial receipt under
+`skipUnchanged`. A parser/source change or `refreshDetail` retries it. Unversioned
+snapshots, acquisition failures, missing bodies, format omissions and transient
+attachment failures do not gain that exemption. A plain forced delivery reuses a
+current snapshot; an explicit source refresh requests new source evidence.
+
 `python3 tests/run_tests.py --filter application` runs workflow unit tests with
 external IO doubles. `npm test` also runs cross-module suites and production
 browser integration, including real downloads, ZIP, PDF sandbox and a stored

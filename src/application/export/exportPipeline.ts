@@ -1,5 +1,7 @@
 import { OperationError, operationIssue, operationError } from '../../shared/errors/operationError.js';
 import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
+import { CONTENT_PARSER_REVISION } from '../../shared/parserRevision.js';
+import type { ContentRepairPolicy } from '../../l2/quality.js';
 import { createSemaphore } from '../../shared/utils/concurrency.js';
 import { ConfirmedSourceEmptyError } from '../../l1/client/sourceErrors.js';
 import { readConversation } from '../../l2/readConversation.js';
@@ -74,12 +76,19 @@ export function shouldSkipExport(record: ExportRecord | null, updatedAt: number 
     const expiredOnly = record.status === 'partial' && record.otherContentMissing !== true
         && issues !== undefined && issues.length > 0
         && issues.every(issue => resourceIssueKind(issue) === 'expired' && issue.httpStatus === 404);
-    return (record.status === 'ok' || expiredOnly) && comparable(record.chatTime)
+    const stableParserGap = record.status === 'partial' && record.otherContentMissing === true
+        && record.contentRepair?.retry === 'source_or_parser_change'
+        && record.contentRepair.parserRevision === CONTENT_PARSER_REVISION
+        && (!issues?.length || issues.every(issue => resourceIssueKind(issue) === 'expired' && issue.httpStatus === 404));
+    return (record.status === 'ok' || expiredOnly || stableParserGap) && comparable(record.chatTime)
         && comparable(updatedAt) && record.chatTime >= updatedAt;
 }
 
 function isFresh(conversation: ReadonlyDomain): boolean {
-    return conversation.detail.quality.status === 'complete'
+    const quality = conversation.detail.quality;
+    const reusable = quality.status === 'complete' || quality.status === 'partial'
+        && quality.repair?.retry === 'source_or_parser_change' && quality.repair.parserRevision === CONTENT_PARSER_REVISION;
+    return reusable
         && (!conversation.detail.quality.sourceTurn || ['finished', 'interrupted'].includes(conversation.detail.quality.sourceTurn))
         && comparable(conversation.detail.savedAt)
         && comparable(conversation.index.updatedAt) && conversation.detail.savedAt >= conversation.index.updatedAt;
@@ -221,7 +230,8 @@ export async function executeExportWithSession(
         }
     };
     const recordFor = (item: PendingExport, plan: ExportPathPlan,
-        failures: Readonly<Record<string, ResourceFailure>>, otherContentMissing: boolean): Omit<ExportRecord, 'exportedAt'> => {
+        failures: Readonly<Record<string, ResourceFailure>>, otherContentMissing: boolean,
+        contentRepair?: ContentRepairPolicy): Omit<ExportRecord, 'exportedAt'> => {
         const { conversation } = item;
         const partial = otherContentMissing || Object.keys(failures).length > 0;
         return { format: request.format, status: partial ? 'partial' : 'ok',
@@ -230,6 +240,7 @@ export async function executeExportWithSession(
                 : item.folderBaseName ? { folderBaseName: item.folderBaseName } : {}),
             ...(conversation.detail.quality.sourceTurn ? { sourceTurn: conversation.detail.quality.sourceTurn } : {}),
             ...(partial ? { otherContentMissing } : {}),
+            ...(contentRepair ? { contentRepair } : {}),
             ...(Object.keys(failures).length ? { attachmentIssues: Object.values(failures).map(failure => {
                 const asset = conversation.detail.assets.find(asset => asset.id === failure.resourceId);
                 const sourceUri = asset?.sourceUri;
@@ -279,7 +290,8 @@ export async function executeExportWithSession(
         if (rendered.otherContentMissing) otherContentMissing = true;
         signal.throwIfAborted();
         return { key, files: buildExportFiles(request.format, plan, rendered.content, prepared),
-            record: recordFor(item, plan, failures, otherContentMissing) };
+            record: recordFor(item, plan, failures, otherContentMissing,
+                !item.refreshFailed && !rendered.otherContentMissing ? conversation.detail.quality.repair : undefined) };
     };
     try {
         signal.throwIfAborted();
@@ -667,7 +679,7 @@ export async function executeExportWithSession(
                             ? await renderGroup(item, { ...finalPlan,
                                 resources: Object.fromEntries(Object.entries(finalPlan.resources).filter(([id]) => prepared.get(id)?.ok || item.reused.has(id))),
                                 externalResourceIds: new Set() }) : undefined;
-                        const record = correction?.record ?? recordFor(item, finalPlan, failures, body.record.otherContentMissing ?? false);
+                        const record = correction?.record ?? recordFor(item, finalPlan, failures, body.record.otherContentMissing ?? false, body.record.contentRepair);
                         const availablePlan = { ...finalPlan, externalResourceIds: new Set([...finalPlan.externalResourceIds]
                             .filter(id => prepared.get(id)?.ok)) };
                         const files = [...(correction?.files ?? []), ...buildResourceFiles(availablePlan, prepared)];

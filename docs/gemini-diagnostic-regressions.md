@@ -526,3 +526,57 @@ With this diagnostic increment, `npm test` passes all 408 unit-test files and
 bundled-font verification. All 106 frozen parser outputs and asset registries
 are identical to the preceding ownership repair. Live Tier 2 and a fresh export
 from the affected personal account remain unverified.
+
+## Review follow-up: ownership, migration, retry and evidence lifetime
+
+An independently authored mixed-container counterexample placed an exact target
+document ID beside a foreign body and URL. The old response-wide section scanner
+attached that content and certified completeness. This reproduces a code-level
+risk, not an observed RPC incident. The scanner, substring/title fallback, and its
+reader contract have been removed. Only the selected candidate's typed artifact
+packet binds a native document ID to its body. Chips without that binding retain
+their identity, missing-body warning and partial quality. Physical delivery tests
+verify that the foreign prose never reaches an exported file and that a later
+owned packet supplies the exact document bytes. Tests that certified the removed
+heuristics were replaced with public-parser rejection and protocol-body assertions.
+
+The schema upgrade now uses serial cursors, including accounts, with no unbounded
+`getAll()`. Each update settles before the cursor advances. A two-provider fixture
+with 1,024 full conversation records rejects every bulk read during upgrade; it
+checks Gemini invalidation and preservation of the other provider. An injected
+mid-upgrade abort verifies atomic rollback, unchanged v1 receipts/bodies, eviction
+of a failed pooled open, and successful retry.
+
+`ContentQuality.status` remains the completeness result. A separate typed repair
+policy names unresolved source annotations, `source_or_parser_change`, and the
+parser revision. It is valid only on partial snapshots, after complete pagination
+with no detected source-version change, rejected turns, uncertain document bodies
+or other content loss. Reuse separately requires comparable source versions.
+L2 validates and compares that policy. Application copies it
+into a delivered partial receipt only if refresh and rendering did not add loss.
+Current versioned source-only snapshots can be reused and skipped, while the
+receipt remains partial. Parser/source changes or explicit refresh retry; unknown
+versions, truncated pagination, body/format failures and transient attachments
+retain ordinary retry behavior. This is a narrow allowlist of proved source-only
+gaps, not a blanket exemption for partial results. An end-to-end module test checks
+real L1 parsing, L2 admission, IndexedDB, Markdown bytes and receipt reuse; workflow
+counterexamples cover revision/source changes, forced refresh and other failures.
+
+Successful decoded messages no longer construct `candidateEvidence` or retain
+raw document arrays. They keep only the selected source text needed for exact
+range recovery. Failure diagnostics materialize candidate fields from the current
+response after the failure occurs. A getter-trap counterexample verifies that a
+successful structured decode does not traverse an unrelated document merely to
+validate diagnostic portability. Failure replay/download coverage remains intact.
+
+The 106-input frozen output corpus remains identical, including all messages and
+asset registries. Fresh-report replay remains 21 complete, seven source-only
+partial and zero whole-body fallback; these changes do not resolve the seven
+remaining citation occurrences. New personal-account evidence and live Tier 2
+remain unverified.
+
+Local verification passes `npm test`: 409 unit-test files, type/static gates,
+the production build, font verification and all 222 Playwright tests. The final
+physical-delivery/migration additions pass eight targeted tests, including failed
+pooled-open recovery. The focused parser/quality/retry checks and final strict
+type-check pass. Shipping manifest permissions are unchanged.

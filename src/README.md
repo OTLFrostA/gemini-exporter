@@ -61,6 +61,12 @@ text, URLs and file tokens; they stay in diagnostic evidence beside the parse
 result, never in Domain/Document AST fields. Successful native parses do not
 collect these raw samples. Existing diagnostic count limits still apply.
 
+Successful decoded messages retain neither per-candidate replay metadata nor raw
+document arrays. After a content failure, the adapter finds that selected candidate
+in the current response and materializes only the diagnostic fields it needs.
+Native document bodies are admitted only through typed, selected-candidate artifact
+packets; an ID, substring or heading in a surrounding container cannot claim prose.
+
 Unresolved Gemini source annotations additionally report each affected native text
 node, the rejected coordinates, coordinate validity, and unbound source IDs.
 `GEMINI_SOURCE_REPLAY_EVIDENCE` retains the complete decoded `hNvQHb` payload once
@@ -91,6 +97,16 @@ These observations stay outside Domain and do not add duplicate UI failure group
 Export-run evidence lives in the current Options page: reproduce the export and
 download diagnostics before reloading or closing that page. Stored partial records
 alone cannot reconstruct an earlier run's source responses or failure causes.
+
+Coverage quality stays separate from retry policy. Fully paginated, versioned
+snapshots with only unresolved source annotations remain partial and can carry a
+`quality.repair` reason, retry trigger and parser revision. Their delivered receipts
+retain `contentRepair`; unchanged input at the same parser revision can be skipped
+without certifying completeness. Source/parser changes or explicit source refresh
+retry the snapshot. Unknown versions, incomplete pagination, missing document bodies,
+refresh failures, format omissions and transient attachments keep their existing
+retry behavior. Parser changes that can repair these gaps must bump
+`shared/parserRevision.ts`, independently of unrelated extension releases.
 
 `build.js` maps the relocated source entrypoints to the existing `dist/content`,
 `dist/background` and `dist/ui` bundle names. Manifest paths and sandbox resource

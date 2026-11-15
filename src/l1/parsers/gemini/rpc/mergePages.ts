@@ -1,5 +1,6 @@
 import type { Diagnostic } from '../../../../shared/diagnostics/diagnostic.js';
 import { contentQuality } from '../../qualityEvidence.js';
+import { CONTENT_PARSER_REVISION } from '../../../../shared/parserRevision.js';
 import type { DomainAsset, DomainMessage } from '../../../../l2/conversationDetail.js';
 import { mapContentAssetReferences } from '../../../../l2/content/assetReferences.js';
 import type { SourceConversationParseResult } from '../../parsingResult.js';
@@ -52,12 +53,20 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
     const truncation = truncatedReason ?? pages.map(page => page.evidence?.truncation).find(reason => reason && reason !== 'pagination_pending');
     const sourcePartial = pages.some(page => page.conversation.detail.quality.status === 'partial' && page.evidence?.truncation !== 'pagination_pending');
     const sourceVersion = versionChanged ? undefined : pages[0].sourceVersion;
+    const sourceOnlyFailure = coverageComplete && !truncation && !versionChanged && !rejectedTurns && !heuristicDocumentIds.length
+        && pages.some(page => page.evidence?.sourceOnlyFailure)
+        && pages.every(page => (!page.evidence?.unrepresentedContent || page.evidence.sourceOnlyFailure)
+            && (page.conversation.detail.quality.status !== 'partial' || page.evidence?.sourceOnlyFailure
+                || page.evidence?.truncation === 'pagination_pending'));
     const conversation = { index: first.index, detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), messages, assets: [...assets.values()],
-        quality: contentQuality({ status: sourcePartial || versionChanged ? 'partial' : coverageComplete ? 'complete' : 'unknown', rejectedTurns, truncation, heuristicDocumentIds, unrepresentedContent }) } };
+        quality: contentQuality({ rejectedTurns, truncation, heuristicDocumentIds, unrepresentedContent,
+            ...(sourceOnlyFailure ? { status: 'partial', repair: { reason: 'source_annotations_unrepresented', retry: 'source_or_parser_change', parserRevision: CONTENT_PARSER_REVISION } }
+                : { status: sourcePartial || versionChanged ? 'partial' : coverageComplete ? 'complete' : 'unknown' }) }) } };
     const warnings: Diagnostic[] = [];
     if (truncatedReason) warnings.push({ severity: 'warning', code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason });
     if (versionChanged) warnings.push({ severity: 'warning', code: 'CONVERSATION_VERSION_CHANGED', message: 'Conversation version changed or became unknown during pagination' });
-    return { conversationId: pages[0].conversationId, evidence: { rejectedTurns, truncation, heuristicDocumentIds: [...new Set(heuristicDocumentIds)], unrepresentedContent }, ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
+    return { conversationId: pages[0].conversationId, evidence: { rejectedTurns, truncation, heuristicDocumentIds: [...new Set(heuristicDocumentIds)], unrepresentedContent,
+        ...(sourceOnlyFailure ? { sourceOnlyFailure: true } : {}) }, ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
         { severity: 'info', code: 'GEMINI_DETAIL_PAGES', message: 'Source Detail pagination evidence', details: {
             pageCount: pages.length, coverageComplete, truncation: truncation ?? null,
             sourcePartial, versionMismatch, versionChanged,

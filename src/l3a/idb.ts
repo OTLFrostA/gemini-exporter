@@ -21,11 +21,16 @@ interface StoreValueMap {
 }
 type StoreName = keyof StoreValueMap;
 
-interface TypedObjectStore<V> extends Omit<IDBObjectStore, 'get' | 'getAll' | 'index' | 'put' | 'add'> {
+interface TypedValueCursor<V> extends Omit<IDBCursorWithValue, 'value' | 'update'> {
+    readonly value: V;
+    update(value: V): IDBRequest<IDBValidKey>;
+}
+interface TypedObjectStore<V> extends Omit<IDBObjectStore, 'get' | 'getAll' | 'index' | 'put' | 'add' | 'openCursor'> {
     get(query: IDBValidKey | IDBKeyRange): IDBRequest<V | undefined>;
     getAll(query?: IDBValidKey | IDBKeyRange | null, count?: number): IDBRequest<V[]>;
     put(value: V, key?: IDBValidKey): IDBRequest<IDBValidKey>;
     add(value: V, key?: IDBValidKey): IDBRequest<IDBValidKey>;
+    openCursor(query?: IDBValidKey | IDBKeyRange | null, direction?: IDBCursorDirection): IDBRequest<TypedValueCursor<V> | null>;
     index(name: string): Omit<IDBIndex, 'get'> & {
         get(query: IDBValidKey | IDBKeyRange): IDBRequest<V | undefined>;
     };
@@ -50,26 +55,32 @@ type StoreQueryResult = void | boolean | string | Account | Account[] | DomainCo
  * No persisted evidence identifies those bodies. Recheck that provider once, retaining
  * all body bytes, source versions, attachment results and stable destination names. */
 function revokeUnverifiedGeminiCompleteness(tx: TypedIDBTransaction): void {
-    const accounts = tx.objectStore('accounts').getAll();
+    const accounts = tx.objectStore('accounts').openCursor();
     accounts.onsuccess = () => {
-        for (const account of accounts.result) {
-            if (account.providerId !== 'gemini') continue;
-            const range = IDBKeyRange.bound([account.id], [account.id, []]);
-            const details = tx.objectStore('details');
-            const bodies = details.getAll(range);
-            bodies.onsuccess = () => {
-                for (const detail of bodies.result) {
-                    if (detail.quality.status === 'complete') details.put({ ...detail,
-                        quality: { ...detail.quality, status: 'unknown' } });
-                }
-            };
-            const exports = tx.objectStore('exportRecords');
-            const receipts = exports.getAll(range);
+        const account = accounts.result;
+        if (!account) return;
+        if (account.value.providerId !== 'gemini') { account.continue(); return; }
+        const range = IDBKeyRange.bound([account.value.id], [account.value.id, []]);
+        const bodies = tx.objectStore('details').openCursor(range);
+        bodies.onsuccess = () => {
+            const cursor = bodies.result;
+            if (cursor) {
+                const detail = cursor.value;
+                if (detail.quality.status === 'complete') {
+                    cursor.update({ ...detail, quality: { ...detail.quality, status: 'unknown' } })
+                        .onsuccess = () => cursor.continue();
+                } else cursor.continue();
+                return;
+            }
+            const receipts = tx.objectStore('exportRecords').openCursor(range);
             receipts.onsuccess = () => {
-                for (const row of receipts.result) exports.put({ ...row,
-                    value: { ...row.value, status: 'partial', otherContentMissing: true } });
+                const cursor = receipts.result;
+                if (!cursor) { account.continue(); return; }
+                const row = cursor.value;
+                cursor.update({ ...row, value: { ...row.value, status: 'partial', otherContentMissing: true } })
+                    .onsuccess = () => cursor.continue();
             };
-        }
+        };
     };
 }
 

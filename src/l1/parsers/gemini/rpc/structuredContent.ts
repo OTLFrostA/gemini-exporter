@@ -829,7 +829,7 @@ export function decodeGeminiStructuredPayload(raw: unknown, issues?: DecodeIssue
 }
 
 export type GeminiStructuredExtraction =
-    | { status: 'decoded'; document: GeminiStructuredDocument; rawDocument?: JsonValue }
+    | { status: 'decoded'; document: GeminiStructuredDocument }
     | { status: 'missing' | 'candidate_unmatched' }
     | { status: 'decode_rejected'; issue: GeminiStructuredDecodeIssue; rawDocument?: JsonValue };
 
@@ -870,8 +870,7 @@ export function inspectStructuredContent(input: GeminiStructuredEvidenceInput): 
     // Diagnostics retain original indices so a nonprimary candidate can be
     // replayed with its original candidateIndex, including after rejection.
     const rawDocument = input.turnDocument;
-    if (document) return { status: 'decoded', document,
-        ...(isJsonValue(rawDocument) ? { rawDocument } : {}) };
+    if (document) return { status: 'decoded', document };
     const issue = issues[0] ?? { kind: 'payload' };
     if (!isJsonValue(rawDocument)) return { status: 'decode_rejected', issue };
     if (!issues.length) { issue.rawValue = rawDocument; issue.path = ''; }

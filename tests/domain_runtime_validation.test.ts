@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { acceptDetailFacts, validateParserDomain, restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
+import type { ContentRepairPolicy } from '../src/l2/quality.js';
 
 function valid(): DomainConversationWithDetail {
     return { index: { key: fixtureKey(String('independent'), 'future'),   titleSource: "derived",   title: 'Fixture' }, detail: { key: fixtureKey(String('independent'), 'future'), quality: { status: 'unknown' }, assets: [{ id: 'image', kind: 'image' }], messages: [{ role: 'assistant',
@@ -10,6 +11,18 @@ function valid(): DomainConversationWithDetail {
             content: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }, { type: 'citationRef', citationId: 'cite' }] },
                 { type: 'unknown', sourceType: 'future', text: 'preserved' }] }] } };
 }
+test('retry policies validate their reason, trigger and association with partial quality at the storage boundary', () => {
+    const repair: ContentRepairPolicy = { reason: 'source_annotations_unrepresented', retry: 'source_or_parser_change', parserRevision: 'parser-1' };
+    const input = valid(); input.detail.quality = { status: 'partial', repair };
+    assert.deepEqual(restoreDomainSnapshot(input).detail.quality, input.detail.quality);
+    for (const quality of [
+        { status: 'complete', repair }, { status: 'unknown', repair },
+        { status: 'partial', repair: { ...repair, retry: 'never' } },
+        { status: 'partial', repair: { ...repair, reason: 'network' } },
+        { status: 'partial', repair: { ...repair, parserRevision: 2 } },
+        { status: 'partial', repair: { ...repair, rawPayload: [] } },
+    ]) assert.throws(() => restoreDomainSnapshot({ ...input, detail: { ...input.detail, quality } }));
+});
 test('parser validation and recovery validate without redundant JSON copies', () => {
     const input = valid();
     const json = JSON.stringify(input);

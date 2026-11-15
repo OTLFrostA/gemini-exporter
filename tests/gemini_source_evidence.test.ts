@@ -8,9 +8,9 @@ import { boundaryTop } from './fixtures/providers/gemini/detail/protocol.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { extractSourceAttributions } from '../src/l1/parsers/gemini/rpc/sourceAttributions.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
-import { createDocumentReader } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
+import { CONTENT_PARSER_REVISION } from '../src/shared/parserRevision.js';
 import { recoverGeminiSourceRanges } from '../src/l1/parsers/gemini/shared/sourceRanges.js';
-import type { GeminiStructuredDocument } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
+import { inspectStructuredContent, type GeminiStructuredDocument } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 
 const target = 'https://example.com/owned-source';
 const table = (id: string, url = target) => [null, [[['`code`'], [1], [[url, 'Owned source']], id]]];
@@ -75,6 +75,21 @@ test('zero-width source ID zero cannot be inferred from a source record position
     assert.ok(JSON.stringify(result.conversation.detail.messages[1].content).includes('Native body.'));
     assert.ok(!JSON.stringify(result.conversation.detail.messages[1].content).includes('citationRef'));
     assertDomainClosure(result.conversation.detail);
+});
+
+test('only fully acquired source-only failures receive a deferred retry policy', () => {
+    const partial = parse(rawBody('spp_unbound'));
+    assert.deepEqual(partial.conversation.detail.quality.repair, { reason: 'source_annotations_unrepresented',
+        retry: 'source_or_parser_change', parserRevision: CONTENT_PARSER_REVISION });
+    assert.equal(partial.conversation.detail.quality.status, 'partial');
+    for (const merged of [
+        mergeConversationPages([partial], 'page_failed', false),
+        mergeConversationPages([partial], undefined, false),
+        mergeConversationPages([partial, { ...partial, sourceVersion: (partial.sourceVersion ?? 0) + 1 }], undefined, true),
+        mergeConversationPages([partial, { ...partial, evidence: { rejectedTurns: 1 } }], undefined, true),
+        mergeConversationPages([partial, parse([[[citationText('Body'), { unsupported: true }]]])], undefined, true),
+    ]) assert.equal(merged.conversation.detail.quality.repair, undefined);
+    assert.equal(parse(rawBody('owned'), table('owned')).conversation.detail.quality.repair, undefined);
 });
 
 test('direct-citation binding rejects foreign candidates, conflicting targets and malformed entries', () => {
@@ -265,6 +280,24 @@ test('uncertain document binding retains the native document and selected packet
     });
 });
 
+test('an exact document ID in a mixed container cannot claim neighboring prose or links', () => {
+    const raw = [[[citationText('See the report.'), Object.assign(Array(25).fill(null), { 24: [[
+        ['http://immersive_entry_chip/target'], 'owned-document-id', null, 'Target report', null, null, null, 1,
+    ]] })]]];
+    const foreign = '# Foreign report\n\n' + 'This independently owned document must never become the target body. '.repeat(5);
+    for (const container of [
+        ['owned-document-id', [['foreign-document-id', [[foreign, 'https://example.com/foreign']]]]],
+        ['owned-document-id', [[foreign, 'https://example.com/foreign']]],
+    ]) {
+        const result = parse(raw, container);
+        assert.equal(result.conversation.detail.quality.status, 'partial');
+        assert.equal(result.conversation.detail.assets[0].document?.contentMarkdown, undefined);
+        assert.ok(!JSON.stringify(result.conversation).includes('independently owned document'));
+        assert.ok(!JSON.stringify(result.conversation).includes('https://example.com/foreign'));
+        assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_DOCUMENT_BINDING_FALLBACK'));
+    }
+});
+
 test('native document packets retain their owned body while foreign same-title packets cannot fill a chip', () => {
     const candidateText = '# Narrative\n\n' + 'This is the assistant narrative. '.repeat(12);
     const raw = [[[citationText('See the owned report.'), Object.assign(Array(25).fill(null), { 24: [[
@@ -310,15 +343,6 @@ test('one owned document packet cannot hide another chip whose body is missing',
     assert.equal(documents.find(doc => doc?.id === 'c_coverage_second')?.contentMarkdown, undefined);
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_DOCUMENT_BINDING_FALLBACK'));
     assertDomainClosure(result.conversation.detail);
-});
-
-test('document IDs prefer exact evidence and reject two conflicting exact bodies', () => {
-    const one = 'First document paragraph with enough content to be a complete native section. '.repeat(3);
-    const two = 'Second document paragraph with different independently authored source content. '.repeat(3);
-    const reader = createDocumentReader([['prefix-doc1-suffix', [[one]]], ['doc1', [[two]]]]);
-    assert.equal(reader.byId('doc1')?.contentMarkdown, two);
-    assert.equal(createDocumentReader([['doc1', [[one]]], ['doc1', [[two]]]]).byId('doc1'), null);
-    assert.equal(createDocumentReader([['doc1', [[one]]], ['doc1', [[one]]]]).byId('doc1')?.contentMarkdown, one);
 });
 
 test('selected native document keeps punctuation adjacent to a composite citation', () => {
@@ -396,6 +420,22 @@ test('successful source parsing does not retain complete Detail payload samples'
     const parsed = parseGeminiRpcConversation(wire, { account: fixtureAccount('gemini'), providerId: 'gemini' });
     assert.ok(!parsed.diagnostics.some(d => d.code === 'GEMINI_SOURCE_REPLAY_EVIDENCE'));
     assert.ok(!JSON.stringify(parsed.diagnostics).includes('UNPARSED_'));
+});
+
+test('successful decoded messages retain no per-candidate replay fields or raw documents', () => {
+    const decoded = decodeGeminiDetail(sourceReplayFixture(false).wire);
+    const model = decoded.messages.find(message => message.role === 'model');
+    assert.ok(model);
+    assert.equal(Object.hasOwn(model, 'candidateEvidence'), false);
+    assert.equal(Object.hasOwn(model.structuredExtraction ?? {}, 'rawDocument'), false);
+});
+
+test('successful structured decoding does not traverse foreign documents for diagnostic portability', () => {
+    const foreign = Object.defineProperty([null], 0, { enumerable: true,
+        get() { throw new Error('Unneeded diagnostic traversal'); } });
+    const decoded = inspectStructuredContent({ turnDocument: [[[citationText('Owned body.')]], foreign], candidateIndex: 0 });
+    assert.equal(decoded.status, 'decoded');
+    assert.equal(Object.hasOwn(decoded, 'rawDocument'), false);
 });
 
 test('source replay evidence explicitly reports when a decoded-only input has no original payload', () => {

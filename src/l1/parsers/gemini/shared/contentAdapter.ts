@@ -10,17 +10,14 @@ import { geminiStructuredToContent, type GeminiSourceCitations, type GeminiSourc
 import type { InlineNode } from '../../../../l2/content/inline.js';
 import { normalizeTextUnderscores } from '../../../../shared/utils/latexCompatibility.js';
 import { hasLiteralMathText, recoverLiteralMath } from './literalMathRecovery.js';
-import type { GeminiCandidateDiagnosticEvidence } from '../rpc/detailEvidence.js';
-import type { JsonValue } from '../../../../shared/utils/jsonTypes.js';
 import type { GeminiSourceAttribution } from '../rpc/sourceAttributions.js';
 import { recoverGeminiSourceRanges } from './sourceRanges.js';
 
 interface GeminiBodyParseContext extends MarkdownParseContext {
     sourceCitations?: GeminiSourceCitations;
     recoverLiteralMath?: boolean;
-    onStructuredFallback?: () => void;
-    rawDocument?: JsonValue;
-    candidateEvidence?: GeminiCandidateDiagnosticEvidence;
+    onStructuredFallback?: (reason: 'source_annotations' | 'body') => void;
+    candidateText?: string;
     sourceAttributions?: readonly GeminiSourceAttribution[];
 }
 
@@ -72,12 +69,8 @@ export function parseGeminiBody(
 ): BlockNode[] {
     const cleaned = cleanGeminiBody(content);
     if (structuredContent) {
-        const wireEvidence = {
-            ...(context.rawDocument !== undefined ? { rawDocument: context.rawDocument, documentSource: 'turn[3][12]' } : {}),
-            ...(context.candidateEvidence ? { candidateEvidence: { ...context.candidateEvidence } } : {}),
-        };
         const sourceFailures: GeminiSourceFailure[] = [];
-        const recovery = recoverGeminiSourceRanges(structuredContent, context.sourceAttributions ?? [], context.candidateEvidence?.candidateText);
+        const recovery = recoverGeminiSourceRanges(structuredContent, context.sourceAttributions ?? [], context.candidateText);
         const structured = geminiStructuredToContent(recovery.document, context.sourceCitations,
             { ...context, onSourceFallback: failure => { sourceFailures.push(failure); } });
         if (structured !== null && (structured.length > 0 || !cleaned.trim())) {
@@ -85,11 +78,11 @@ export function parseGeminiBody(
                 message: 'Recovered invalid source coordinates from verified selected-candidate quotes and unique native anchors', sourceRef: context.sourceRef,
                 details: { recovered: recovery.recovered, method: 'exact_selected_source_quote' } });
             if (sourceFailures.length) {
-                context.onStructuredFallback?.();
+                context.onStructuredFallback?.('source_annotations');
                 context.diagnostics.push({ severity: 'warning', code: 'GEMINI_SOURCE_ANNOTATION_FALLBACK',
                     message: 'Preserved native body and available sources; exact source anchoring is unverified',
                     sourceRef: context.sourceRef, details: { reason: 'source_annotations_unrepresented',
-                        sourceFailures, structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content, ...wireEvidence,
+                        sourceFailures, structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content,
                         ...(context.sourceCitations?.size ? { sourceCitationsJson: JSON.stringify([...context.sourceCitations]) } : {}) },
                 });
             }
@@ -104,12 +97,12 @@ export function parseGeminiBody(
             }
             return normalizeGeminiMath(structured);
         }
-        context.onStructuredFallback?.();
+        context.onStructuredFallback?.('body');
         context.diagnostics.push({
             severity: 'warning', code: 'GEMINI_STRUCTURED_FALLBACK',
             message: 'Structured body could not be adapted; using Markdown fallback',
             sourceRef: context.sourceRef, details: { reason: 'adapter_rejected',
-                structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content, ...wireEvidence,
+                structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content,
                 ...(context.sourceCitations?.size ? { sourceCitationsJson: JSON.stringify([...context.sourceCitations]) } : {}) },
         });
     }

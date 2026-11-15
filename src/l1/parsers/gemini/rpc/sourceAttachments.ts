@@ -2,6 +2,7 @@ import type { GeminiStructuredDocument, GeminiStructuredNode } from './structure
 import { isInternalChipUrl as canonicalIsInternalChipUrl } from "../../shared/chipUtils.js";
 import { isJsonValue, type JsonValue } from "../../../../shared/utils/jsonTypes.js";
 import { payloadToMs } from "./payload.js";
+import { decodeDocumentLinks } from './cardNodes.js';
 
 export interface ImageAttachment {
     /** JSON-serialized matched wire tuple; never an unvalidated runtime value. */
@@ -44,13 +45,6 @@ export interface DeepResearchDocMeta {
 export interface DocLink {
     title: string;
     url: string;
-}
-
-export interface DocSectionsResult {
-    sections: string[];
-    links: DocLink[];
-    contentMarkdown: string;
-    contentMatch?: "exact" | "substring";
 }
 
 import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extractors.js";
@@ -569,18 +563,18 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
                     const chip = fields[doc.CHIP_URL];
                     const chipParts = isUnknownArray(chip) ? chip : null;
                     const chipUrl = chipParts?.[0];
-                    const id = fields[doc.ID];
+                    const linkedDocument = decodeDocumentLinks([fields]) !== null;
+                    const id = fields[linkedDocument ? 1 : doc.ID];
                     const rawTitle = fields[doc.TITLE];
                     if (typeof chipUrl !== "string" || !chipUrl.includes("immersive_entry_chip")
                         || typeof id !== "string" || typeof rawTitle !== "string") continue;
 
-                    const title = researchPrefixRe.test(rawTitle) ? "" : rawTitle;
                     const rawTimestamp = fields[doc.TIMESTAMP];
                     const createdAt = payloadToMs(isUnknownArray(rawTimestamp) ? rawTimestamp[0] : undefined) ?? undefined;
                     const rawContentId = fields[doc.CONTENT_ID];
-                    const contentId = typeof rawContentId === "string" && rawContentId.length > 10
+                    const contentId = !linkedDocument && typeof rawContentId === "string" && rawContentId.length > 10
                         ? rawContentId : undefined;
-                    pushMeta({ id, title, chipUrl, createdAt, contentId });
+                    pushMeta({ id, title: rawTitle, chipUrl, createdAt, contentId, source: 'strict' });
                 }
             }
         });
@@ -616,101 +610,6 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extra
         return out;
     }
 
-/** One lazy response scan shared by every Turn. Raw nodes never leave this decoder. */
-export interface GeminiDocumentReader {
-    byId(id: string): DocSectionsResult | null;
-    byTitle(meta: DeepResearchDocMeta): string;
-}
-export function createDocumentReader(root: unknown): GeminiDocumentReader {
-    const candidates: { node: unknown[]; identifiers: string[] }[] = [];
-    const markdown = new Map<string, Set<string>>();
-    const parsed = new Map<unknown[], DocSectionsResult>();
-    const matches = new Map<string, DocSectionsResult | null>();
-    let indexed = false;
-    function index() {
-        if (indexed) return;
-        indexed = true;
-        deepWalk(root, node => {
-            if (!isUnknownArray(node)) return;
-            const strings = node.filter((value): value is string => typeof value === 'string');
-            const hasSections = node.some(x => isUnknownArray(x) && x.some(y => isUnknownArray(y) && typeof y[0] === 'string' && y[0].length > 50));
-            const hasLongStr = strings.some(value => value.length > 200 && (value.includes('#') || value.includes('\n\n')));
-            if (hasSections || hasLongStr) candidates.push({ node, identifiers: strings });
-            for (const text of strings) {
-                if (text.length <= 200 || !(text.includes('# ') || text.includes('\n\n'))
-                    || text.includes('immersive_entry_chip') || text.includes('BardErrorInfo')) continue;
-                const heading = /^\s*#{1,6}[ \t]+([^\r\n]+)/.exec(text);
-                const title = heading?.[1].replace(/[ \t]+#+[ \t]*$/, '').trim();
-                if (!title) continue;
-                const values = markdown.get(title) ?? new Set<string>();
-                values.add(text);
-                markdown.set(title, values);
-            }
-        });
-    }
-    return {
-        byId(id) {
-            if (!id) return null;
-            index();
-            if (matches.has(id)) return matches.get(id) ?? null;
-            const target = id.replace(/^c_/, '');
-            for (const { node, identifiers } of candidates) {
-                // Preserve source order, including the established short substring fallback.
-                const value = identifiers.find(value => value === id || value === target
-                    || value.length < 80 && (value.includes(id) || value.includes(target)));
-                if (value === undefined) continue;
-                let sections = parsed.get(node);
-                if (!sections) { sections = parseDocSections(node); parsed.set(node, sections); }
-                const result: DocSectionsResult = { ...sections,
-                    ...(value !== id && value !== target ? { contentMatch: 'substring' } : {}) };
-                matches.set(id, result);
-                return result;
-            }
-            matches.set(id, null);
-            return null;
-        },
-        byTitle(meta) {
-            const title = meta.title.trim();
-            if (!title || title === 'Document') return '';
-            index();
-            const values = markdown.get(title);
-            return values?.size === 1 ? [...values][0] : '';
-        },
-    };
-}
-
-    function parseDocSections(docContentArr: unknown, contentMatch?: "substring"): DocSectionsResult {
-        let sections: string[] = [];
-        let links: DocLink[] = [];
-        let contentMarkdown = "";
-        // P1-9: provenance is explicitly passed from the matcher, never read
-        // as an ad hoc property on the raw wire array.
-        if (!isUnknownArray(docContentArr)) return { sections, links, contentMarkdown, contentMatch };
-
-        deepWalk(docContentArr, (node) => {
-            if (isUnknownArray(node)) {
-                if (node.length >= 2 && typeof node[0] === "string" && typeof node[1] === "string" && node[1].startsWith("http")) {
-                    links.push({
-                        title: node[0],
-                        url: node[1]
-                    });
-                }
-                if (node.length >= 1 && typeof node[0] === "string" && node[0].length > 50) {
-                    let text = node[0];
-                    if (!sections.includes(text)) sections.push(text);
-                }
-            }
-        });
-        if (sections.length) {
-            contentMarkdown = sections.join("\n\n");
-        }
-        return {
-            sections,
-            links,
-            contentMarkdown,
-            contentMatch
-        };
-    }
 
 
 export {
@@ -721,7 +620,6 @@ export {
     extractResponseImageEvidence,
     extractUserFiles,
     extractDocumentsMeta,
-    parseDocSections,
     itemMatchesFilename,
     extractFileNameFromUrl
 };

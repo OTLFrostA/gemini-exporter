@@ -2,7 +2,7 @@ import type { ConversationKey } from '../src/l2/conversationKey.js';
 import type { DomainConversationIndex } from '../src/l2/conversationIndex.js';
 import type { DomainConversationDetail, DomainMessage, DomainAsset, DomainCitation,
     DomainDocumentMetadata, DomainGeneratedMediaIdentity } from '../src/l2/conversationDetail.js';
-import type { ContentQuality } from '../src/l2/quality.js';
+import type { ContentQuality, ContentRepairPolicy } from '../src/l2/quality.js';
 import type { BlockNode, TableCell, TableColumn, TableRow, ListItem } from '../src/l2/content/blocks.js';
 import type { InlineNode } from '../src/l2/content/inline.js';
 
@@ -23,7 +23,8 @@ type ComparisonFieldCoverage = [
     RequireNever<FieldsNotCompared<DomainCitation, 'id' | 'url' | 'title'>>,
     RequireNever<FieldsNotCompared<DomainDocumentMetadata, 'id' | 'contentMarkdown'>>,
     RequireNever<FieldsNotCompared<DomainGeneratedMediaIdentity, 'providerRequestId' | 'time' | 'prompt' | 'generationOrdinal' | 'imageCount' | 'imageOrdinal'>>,
-    RequireNever<FieldsNotCompared<ContentQuality, 'status' | 'sourceTurn'>>,
+    RequireNever<FieldsNotCompared<ContentQuality, 'status' | 'sourceTurn' | 'repair'>>,
+    RequireNever<FieldsNotCompared<ContentRepairPolicy, 'reason' | 'retry' | 'parserRevision'>>,
     RequireNever<FieldsNotCompared<ListItem, 'blocks'>>,
     RequireNever<FieldsNotCompared<TableColumn, 'align'>>,
     RequireNever<FieldsNotCompared<TableCell, 'children' | 'colSpan' | 'rowSpan'>>,
@@ -50,3 +51,9 @@ type ComparisonFieldCoverage = [
     RequireNever<FieldsNotCompared<Inline<'citationRef'>, 'type' | 'citationId' | 'label'>>,
     RequireNever<FieldsNotCompared<Inline<'lineBreak'>, 'type' | 'kind'>>,
 ];
+
+const sourceRepair: ContentRepairPolicy = { reason: 'source_annotations_unrepresented', retry: 'source_or_parser_change', parserRevision: 'parser-1' };
+// @ts-expect-error A complete snapshot cannot have an unresolved parser repair policy.
+const completeWithRepair: ContentQuality = { status: 'complete', repair: sourceRepair };
+// @ts-expect-error Unknown coverage cannot certify a deterministic fully acquired gap.
+const unknownWithRepair: ContentQuality = { status: 'unknown', repair: sourceRepair };

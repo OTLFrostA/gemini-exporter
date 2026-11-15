@@ -128,7 +128,10 @@ function sameAsset(a: DomainAsset, b: DomainAsset): boolean {
         && sameOptional(a.document, b.document, sameDocument));
 }
 function sameQuality(a: ContentQuality, b: ContentQuality): boolean {
-    return a === b || (sameFields(a, b) && a.status === b.status && a.sourceTurn === b.sourceTurn);
+    return a === b || (sameFields(a, b) && a.status === b.status && a.sourceTurn === b.sourceTurn
+        && (a.repair === b.repair || !!a.repair && !!b.repair
+            && a.repair.reason === b.repair.reason && a.repair.retry === b.repair.retry
+            && a.repair.parserRevision === b.repair.parserRevision));
 }
 
 /** Index deduplication. Object field insertion order never changes the stored facts. */

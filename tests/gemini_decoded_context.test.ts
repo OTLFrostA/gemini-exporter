@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGeminiRequest } from '../src/l1/parsers/gemini/rpc/request.js';
-import { createDocumentReader } from '../src/l1/parsers/gemini/rpc/sourceAttachments.js';
 import { parseGeminiCredential } from '../src/l1/parsers/gemini/credentials.js';
 
 const body = (groups: unknown[]) => new URLSearchParams({ 'f.req': JSON.stringify(groups) }).toString();
@@ -35,24 +34,6 @@ test('duplicate RPC identity is rejected across groups without discarding unrela
     for (const raw of [null, {}, '', 'f.req=broken', body([null])]) {
         assert.deepEqual(parseGeminiRequest(raw), { list: null, detail: null, deletionId: null });
     }
-});
-
-test('document queries share one lazy response scan and parsed sections, preserving ambiguous title rejection', () => {
-    const section = 'Document source paragraph with sufficient content to count as a complete section. '.repeat(4);
-    const content = Object.freeze(['doc1', Object.freeze([Object.freeze([section, 'https://example.com/doc'])])]);
-    const one = '# Report\n\n' + 'first report body '.repeat(25);
-    const two = '# Report\n\n' + 'another report body '.repeat(25);
-    let scans = 0;
-    const source = { get evidence() { scans++; return [content, one, two]; } };
-    const reader = createDocumentReader(source);
-    assert.equal(scans, 0, 'responses without document queries do no document work');
-    const first = reader.byId('doc1');
-    assert.deepEqual(first?.sections, [section]);
-    assert.equal(reader.byId('c_doc1')?.sections, first?.sections, 'aliases reuse the same parsed node');
-    assert.equal(reader.byId('missing'), null);
-    assert.equal(reader.byTitle({ id: 'doc1', title: 'Report' }), '', 'two distinct bodies cannot establish one document');
-    assert.equal(scans, 1);
-    assert.equal(Object.hasOwn(content, 'contentMatch'), false);
 });
 
 test('credential boundary rejects wrong field types before bootstrap consumes them', () => {

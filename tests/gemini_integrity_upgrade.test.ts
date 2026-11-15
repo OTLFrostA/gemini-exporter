@@ -9,6 +9,7 @@ import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseCo
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { detailGen } from './fixtures/providers/geminiDetail.js';
 import type { DomainConversationDetail } from '../src/l2/conversationDetail.js';
+import { IDBObjectStore, IDBCursorWithValue } from 'fake-indexeddb';
 
 const account = fixtureAccount('gemini');
 const otherAccount = fixtureAccount('chatgpt');
@@ -21,7 +22,7 @@ const record = { format: 'markdown', status: 'ok', exportedAt: 123, chatTime: 17
     folderBaseName: 'Keep my filename' } as const;
 
 // Historical schema is intentional: opening production Storage must upgrade it.
-async function seedPreviousDatabase(): Promise<void> {
+async function seedPreviousDatabase(count = 1): Promise<void> {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open('gemini_exporter_v2', 1);
         request.onupgradeneeded = () => {
@@ -41,9 +42,15 @@ async function seedPreviousDatabase(): Promise<void> {
             const tx = db.transaction(['accounts', 'indexes', 'details', 'exportRecords', 'coverage'], 'readwrite');
             for (const owner of [account, otherAccount]) {
                 tx.objectStore('accounts').put(owner);
-                tx.objectStore('indexes').put({ key: { ...key, accountId: owner.id }, updatedAt: 1700000000000 });
-                tx.objectStore('details').put(body(owner.id));
-                tx.objectStore('exportRecords').put({ accountId: owner.id, conversationId: key.conversationId, value: record });
+                for (let i = 0; i < count; i++) {
+                    const conversationId = i === 0 ? key.conversationId : `history_${i}`;
+                    const detail = body(owner.id);
+                    detail.key.conversationId = conversationId;
+                    if (count > 1) detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'text', text: 'Historical body. '.repeat(1024) }] }];
+                    tx.objectStore('indexes').put({ key: detail.key, updatedAt: 1700000000000 });
+                    tx.objectStore('details').put(detail);
+                    tx.objectStore('exportRecords').put({ accountId: owner.id, conversationId, value: record });
+                }
             }
             tx.objectStore('coverage').put({ accountId: account.id, streamId: 'list', value: { range: null } });
             tx.oncomplete = () => resolve();
@@ -76,4 +83,55 @@ test('upgrade revokes old Gemini completeness receipts without deleting body, me
         assert.equal((await ingestDetail(account.id, key.conversationId, parsed.conversation.detail)).accepted, false,
             'current confirmed complete snapshots retain normal admission protection');
     } finally { env.restore(); }
+});
+
+test('large-history upgrade reads records by cursor without loading account-wide bodies', async () => {
+    const env = indexStorage({}, { seedAccounts: false });
+    const getAll = IDBObjectStore.prototype.getAll;
+    try {
+        await seedPreviousDatabase(512);
+        IDBObjectStore.prototype.getAll = function() { throw new Error(`Unbounded migration read: ${this.name}`); };
+        const db = await openStorageDB(); db.close();
+        for (const conversationId of [key.conversationId, 'history_511']) {
+            const geminiKey = { ...key, conversationId };
+            assert.equal((await getDetail(geminiKey))?.quality.status, 'unknown');
+            assert.equal((await getExportRecord(geminiKey))?.otherContentMissing, true);
+            assert.equal((await getDetail({ ...geminiKey, accountId: otherAccount.id }))?.quality.status, 'complete');
+        }
+    } finally { IDBObjectStore.prototype.getAll = getAll; env.restore(); }
+});
+
+test('aborted upgrade rolls back all changes and can be retried without losing historical bodies', async () => {
+    const env = indexStorage({}, { seedAccounts: false });
+    const update = IDBCursorWithValue.prototype.update;
+    try {
+        await seedPreviousDatabase(4);
+        let updates = 0;
+        IDBCursorWithValue.prototype.update = function(value: unknown) {
+            const request = update.call(this, value);
+            if (++updates === 2 && this.source instanceof IDBObjectStore) this.source.transaction.abort();
+            return request;
+        };
+        await assert.rejects(getDetail(key), { name: 'AbortError' });
+        IDBCursorWithValue.prototype.update = update;
+        const previous = await new Promise<IDBDatabase>((resolve, reject) => {
+            const request = indexedDB.open('gemini_exporter_v2', 1);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+        assert.equal(previous.version, 1);
+        await new Promise<void>((resolve, reject) => {
+            const tx = previous.transaction(['details', 'exportRecords'], 'readonly');
+            const detail = tx.objectStore('details').get([account.id, key.conversationId]);
+            detail.onsuccess = () => assert.equal(detail.result?.quality.status, 'complete');
+            const receipt = tx.objectStore('exportRecords').get([account.id, key.conversationId]);
+            receipt.onsuccess = () => assert.deepEqual(receipt.result?.value, record);
+            tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error);
+        });
+        previous.close();
+        const retried = await openStorageDB(); retried.close();
+        assert.equal((await getDetail(key))?.quality.status, 'unknown');
+        assert.equal((await getExportRecord(key))?.otherContentMissing, true);
+        assert.ok((await getDetail(key))?.messages.length);
+    } finally { IDBCursorWithValue.prototype.update = update; env.restore(); }
 });
