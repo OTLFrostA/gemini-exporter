@@ -106,6 +106,10 @@ const OPERATION_ERROR_MESSAGES: Readonly<Partial<Record<OperationErrorCode, read
         'Invalid recovery key format or checksum. Please verify every character.',
         '恢复密钥格式或校验和错误，请仔细核对每个字符。',
     ],
+    CLOUD_KEY_MISMATCH: [
+        'This vault was encrypted with another Recovery Key. Paste the original Recovery Key below to unlock it.',
+        '此保险箱由另一把密钥加密，请在下方粘贴导入原有的恢复密钥以解锁同步。',
+    ],
     CLOUD_DECRYPT_AUTH_FAILED: [
         'Decryption failed: recovery key does not match the encrypted cloud vault.',
         '解密验签失败：当前恢复密钥与云端加密库不匹配。',

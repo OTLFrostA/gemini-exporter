@@ -220,7 +220,8 @@ export const defaultCloudSyncEngine = {
  flushOutbox: async () => ({ uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 }),
  pullChanges: async () => ({ downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 }),
  syncNow: async () => ({ pull: { downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 }, push: { uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 } }),
- importRecoveryKey: async key => { h.cloudRecoveryKey = key; return { keyFingerprint: '0'.repeat(32) }; },
+ importRecoveryKey: async key => { h.cloudRecoveryKey = key; return { keyFingerprint: '0'.repeat(32), resolution: 'unlocked' }; },
+ resetVaultWithCurrentKey: async () => { if (h.cloudStatus) delete h.cloudStatus.keyMismatch; },
  reconcilePostToggleAccount: async () => {},
  waitForIdle: async () => {},
 };

@@ -12,6 +12,7 @@ import { sha256Hex, type VaultStore } from './storage/vaultStore.js';
 
 const BLIND_RECORD_ID_PATTERN = /^[0-9a-f]{64}$/;
 const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/;
+const KEY_FINGERPRINT_PATTERN = /^[0-9a-f]{32}$/;
 const MIN_GEE1_ENVELOPE_BYTES = 4 + 12 + 16; // Magic(4) + IV(12) + Tag(16)
 
 export interface CloudServerConfig {
@@ -42,7 +43,7 @@ function baseSecurityHeaders(corsOrigin: string | null): Record<string, string> 
         ...(corsOrigin ? {
             'Access-Control-Allow-Origin': corsOrigin,
             'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Expected-Revision, X-Content-SHA256',
+            'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Expected-Revision, X-Content-SHA256, X-Vault-Key-Fingerprint',
             'Access-Control-Expose-Headers': 'ETag, X-Record-Revision, X-Record-Change-Seq, X-Content-SHA256, Retry-After',
             'Access-Control-Max-Age': '86400',
         } : {}),
@@ -77,13 +78,14 @@ function errorResponse(
     code: CloudErrorResponse['error']['code'],
     message: string,
     corsOrigin: string | null,
-    options: { currentRevision?: number; retryAfterSec?: number } = {},
+    options: { currentRevision?: number; vaultKeyFingerprint?: string; retryAfterSec?: number } = {},
 ): Response {
     const payload: CloudErrorResponse = {
         error: {
             code,
             message,
             ...(options.currentRevision !== undefined ? { currentRevision: options.currentRevision } : {}),
+            ...(options.vaultKeyFingerprint !== undefined ? { vaultKeyFingerprint: options.vaultKeyFingerprint } : {}),
         },
     };
     return jsonResponse(
@@ -313,15 +315,30 @@ export function createCloudServerHandler(deps: CloudServerDependencies): (reques
                         }
                     }
 
+                    const rawKeyFp = request.headers.get('X-Vault-Key-Fingerprint');
+                    if (rawKeyFp !== null && !KEY_FINGERPRINT_PATTERN.test(rawKeyFp)) {
+                        return errorResponse(400, 'INVALID_REQUEST', 'X-Vault-Key-Fingerprint must be a 32-char lowercase hex HKDF digest', corsOrigin);
+                    }
+
                     const outcome = await deps.store.putRecord({
                         ownerSubject,
                         blindRecordId,
                         expectedRevision,
                         ciphertext,
                         sha256: actualSha256,
+                        ...(rawKeyFp ? { keyFingerprint: rawKeyFp } : {}),
                         nowMs: now(),
                     });
 
+                    if (outcome.status === 'key_mismatch') {
+                        return errorResponse(
+                            409,
+                            'KEY_FINGERPRINT_MISMATCH',
+                            'Vault is locked by a different Master Key; import the existing Recovery Key before syncing',
+                            corsOrigin,
+                            { vaultKeyFingerprint: outcome.vaultKeyFingerprint },
+                        );
+                    }
                     if (outcome.status === 'conflict') {
                         return errorResponse(
                             409,

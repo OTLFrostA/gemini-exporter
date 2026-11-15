@@ -63,6 +63,9 @@ function throwMappedHttpError(
     if (status === 401 || status === 403 || details.code === 'UNAUTHORIZED') {
         throw new OperationError('CLOUD_AUTH_REQUIRED', details.message, status);
     }
+    if (details.code === 'KEY_FINGERPRINT_MISMATCH') {
+        throw new OperationError('CLOUD_KEY_MISMATCH', details.message, status);
+    }
     if (details.code === 'QUOTA_EXCEEDED') {
         throw new OperationError('CLOUD_QUOTA_EXCEEDED', details.message, status);
     }
@@ -103,6 +106,7 @@ export interface CloudVaultClient {
         readonly expectedRevision: number;
         readonly envelope: Uint8Array<ArrayBuffer>;
         readonly sha256: string;
+        readonly keyFingerprint?: string;
         readonly signal?: AbortSignal;
     }): Promise<
         | { readonly status: 'committed'; readonly meta: CloudRecordMeta }
@@ -193,6 +197,9 @@ export function createCloudVaultClient(fetchFn: CloudFetchFn = globalThis.fetch.
                 usedBytes: raw.usedBytes,
                 quotaBytes: raw.quotaBytes,
                 headSeq: raw.headSeq,
+                ...(typeof raw.keyFingerprint === 'string' && raw.keyFingerprint
+                    ? { keyFingerprint: raw.keyFingerprint }
+                    : {}),
             };
         },
 
@@ -205,12 +212,16 @@ export function createCloudVaultClient(fetchFn: CloudFetchFn = globalThis.fetch.
                     'Content-Type': 'application/octet-stream',
                     'X-Expected-Revision': String(input.expectedRevision),
                     'X-Content-SHA256': input.sha256,
+                    ...(input.keyFingerprint ? { 'X-Vault-Key-Fingerprint': input.keyFingerprint } : {}),
                 },
                 body: input.envelope,
                 signal: input.signal,
             });
             if (res.status === 409) {
                 const details = await readErrorDetails(res);
+                if (details.code === 'KEY_FINGERPRINT_MISMATCH') {
+                    throw new OperationError('CLOUD_KEY_MISMATCH', details.message, 409);
+                }
                 if (details.currentRevision === undefined) {
                     throw new OperationError('CLOUD_SERVER_ERROR', 'Conflict response missing currentRevision', 409);
                 }
