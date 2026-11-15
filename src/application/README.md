@@ -16,11 +16,15 @@ Implements the frozen [Application design](https://app.notion.com/p/3fb5d4d759e1
 - `clearLocalScanRecords`: clear Index, Detail, Coverage and export history for the selected
   account, retaining accounts, files and directory handles.
 
-Initial source refresh/read runs sequentially, overlapping an ordered resource consumer with
-up to three in-flight attachment acquisitions. At most three conversation snapshots
-are queued, including the consuming item. Backpressure bounds task-owned readers;
-resource results and delivery retain request order. Cancellation drains active work
-before releasing readers. Attachment expiry recovery still refreshes once through L1.
+Initial source refresh/read runs sequentially, overlapping an ordered resource/render
+consumer with up to three in-flight attachment acquisitions. Folder commits run
+independently, with at most three active file groups and eight pending conversations
+(including their snapshots, readers and acquired bytes). Each group writes up to three
+files concurrently. Backpressure bounds the pending window; a slow commit does not
+block downloads within that window. Different keys can finish out of order, while
+duplicate keys and body corrections wait for their earlier writes. Cancellation drains
+started writes and acquisitions before releasing readers, without starting queued
+writes. Attachment expiry recovery still refreshes once through L1.
 
 Browser output with multiple physical files automatically becomes ZIP. Folder
 output writes each conversation group and finalizes its ExportRecord only after
