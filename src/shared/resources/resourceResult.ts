@@ -44,13 +44,14 @@ export async function attemptResource(resourceId: string, work: () => Promise<Re
 export class ResourceHttpError extends Error {
     constructor(readonly httpStatus: number) { super(`Resource request failed: HTTP ${httpStatus}`); }
 }
-type ResourceIssueKind = 'expired' | 'restricted' | 'download' | 'processing' | 'unknown';
+type ResourceIssueKind = 'expired' | 'unavailable' | 'restricted' | 'download' | 'processing' | 'unknown';
 export function resourceIssueKind(failure: Pick<ResourceFailure, 'code' | 'httpStatus' | 'issue'>): ResourceIssueKind {
     if (failure.code === 'RESOURCE_LOCATOR_UNAVAILABLE' && failure.httpStatus === 404) return 'expired';
     if (failure.code === 'SOURCE_HTTP_ERROR' || failure.code === 'RESOURCE_LOCATOR_UNAVAILABLE' && failure.httpStatus !== undefined) {
         const status = failure.httpStatus ?? failure.issue?.httpStatus;
         return status === 401 || status === 403 ? 'restricted' : 'download';
     }
+    if (failure.code === 'RESOURCE_LOCATOR_UNAVAILABLE') return 'unavailable';
     if (failure.code === 'RESOURCE_SOURCE_EXPIRED') return 'expired';
     if (failure.code === 'RESOURCE_ACCESS_RESTRICTED') return 'restricted';
     if (['RESOURCE_PROCESSING_FAILED', 'RESOURCE_SIZE_LIMIT', 'RESOURCE_SIZE_MISMATCH',
@@ -61,8 +62,8 @@ export function resourceIssueKind(failure: Pick<ResourceFailure, 'code' | 'httpS
 export function resourceFailureText(failure: ResourceFailure, locale: 'zh' | 'en'): string {
     const kind = resourceIssueKind(failure);
     const labels = locale === 'zh'
-        ? { expired: '来源附件无法获取', restricted: '附件访问受限', download: '附件下载失败，请稍后重试', processing: '附件无法处理', unknown: '附件失败：未知错误' }
-        : { expired: 'Source attachment unavailable', restricted: 'Attachment access restricted', download: 'Attachment download failed; please retry later', processing: 'Attachment could not be processed', unknown: 'Attachment failed: Unknown error' };
+        ? { expired: '来源附件无法获取', unavailable: '缺少可用的附件下载地址', restricted: '附件访问受限', download: '附件下载失败，请稍后重试', processing: '附件无法处理', unknown: '附件失败：未知错误' }
+        : { expired: 'Source attachment unavailable', unavailable: 'Attachment download location unavailable', restricted: 'Attachment access restricted', download: 'Attachment download failed; please retry later', processing: 'Attachment could not be processed', unknown: 'Attachment failed: Unknown error' };
     return labels[kind] + (failure.httpStatus ? ` (HTTP ${failure.httpStatus})` : '');
 }
 

@@ -2,6 +2,7 @@ import { deepWalk, GEMINI_JSPB_SCHEMA, type DecodedGeminiTurn, type DecodedGemin
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence, GeminiMessageEvidence } from './detailEvidence.js';
 import {
+    createDocumentReader,
     extractImageEvidence,
     extractResponseImageEvidence,
     extractUserFiles,
@@ -64,10 +65,7 @@ export function decodeGeminiCandidateResources(
 ): DecodedGeminiCandidateResources {
     const { source: cand, index: candidateIndex, body: answerBody, turnDocument } = candidate;
     const candidateBlock = answerBody || cand;
-    // Preserve the established ownership, fallback and ordering rules.
-    const structuredExtraction = inspectStructuredContent({
-        turnDocument, candidateIndex
-    });
+    const structuredExtraction = inspectStructuredContent({ turnDocument, candidateIndex });
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
     const groundingReferences: GeminiCitationReference[] = [];
     deepWalk(cand, node => {
@@ -77,19 +75,22 @@ export function decodeGeminiCandidateResources(
             if (reference) groundingReferences.push(reference);
         }
     });
-    const rawAnswerDocument = candidateIndex === 0 ? turnDocument : undefined;
+    const rawAnswerDocument = structuredExtraction.status === 'decoded' || structuredExtraction.status === 'decode_rejected'
+        ? wireArray(turnDocument) ? [turnDocument[candidateIndex]] : turnDocument : undefined;
     const { images: candImages, structuredImages } = extractResponseImageEvidence(
         cand, [answerBody, rawAnswerDocument], candidate.text, structuredContent
     );
     const filteredImages = filterNewImages(candImages, dedupSet);
 
     const { generatedFiles, nativeDocuments } = decodeCandidateArtifacts(cand, convId);
-    let docsMeta: DeepResearchDocMeta[] = nativeDocuments.length ? [] : extractDocumentsMeta(candidateBlock);
-    if (!nativeDocuments.length && !docsMeta.length) {
+    let docsMeta: DeepResearchDocMeta[] = extractDocumentsMeta(candidateBlock);
+    if (nativeDocuments.length || !docsMeta.length) {
         // The conversation envelope contains documents from other turns too.
         // Only the correlated answer document may supply missing chip metadata.
         docsMeta = extractDocumentsMeta([cand, rawAnswerDocument]);
     }
+    if (nativeDocuments.length) docsMeta = docsMeta.filter(meta => meta.source !== 'heuristic-flat'
+        && !nativeDocuments.some(document => document.id === meta.id));
     const docs = docsMeta.filter((docItem: DeepResearchDocMeta) => {
         if (generatedFiles.some(file => file.id === docItem.id)
             || generatedFiles.length > 0 && docItem.source === 'heuristic-flat') return false;
@@ -110,11 +111,24 @@ export function decodeGeminiCandidateResources(
     if (docs.length) {
         try {
             for (const metaItem of docs) {
-                const parsedPrimary = documents.byId(metaItem.id);
-                const parsedAlt = metaItem.contentId && metaItem.contentId !== metaItem.id ? documents.byId(metaItem.contentId) : null;
-                const md = parsedPrimary?.contentMarkdown || parsedAlt?.contentMarkdown || documents.byTitle(metaItem);
+                const strictChip = metaItem.source !== 'heuristic-flat';
+                const primary = documents.byId(metaItem.id);
+                const alternate = metaItem.contentId && metaItem.contentId !== metaItem.id ? documents.byId(metaItem.contentId) : null;
+                // Strict chip metadata never borrows a body by substring or heading title.
+                const parsedPrimary = strictChip && primary?.contentMatch === 'substring' ? null : primary;
+                const parsedAlt = strictChip && alternate?.contentMatch === 'substring' ? null : alternate;
+                const md = parsedPrimary?.contentMarkdown || parsedAlt?.contentMarkdown
+                    || (strictChip ? '' : documents.byTitle(metaItem));
                 const cleanMd = md ? stripInternalChipMarkdown(md).trim() : "";
-                if (!cleanMd) continue;
+                if (!cleanMd) {
+                    if (!strictChip) continue;
+                    docDetails.push({
+                        id: metaItem.id, title: metaItem.title || 'Document', createdAt: metaItem.createdAt,
+                        chipUrl: metaItem.chipUrl ?? '', sections: [], links: [], url: '', type: 'file',
+                        contentMissing: true,
+                    });
+                    continue;
+                }
 
                 let docTitle = metaItem.title || "";
                 if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle) || docTitle === "Document") {
@@ -127,14 +141,8 @@ export function decodeGeminiCandidateResources(
                     docTitle = `深度研究报告_${shortId(metaItem.id || "doc")}`;
                 }
 
-                // P1-9: 上游链任一 heuristic 标记 → 外层写 hasFabricatedText + 日志，
-                // 不得静默把拼凑结果转成正常可信结果
-                const heuristicChain = metaItem.source === "heuristic-flat"
-                    || parsedPrimary?.contentMatch === "substring"
-                    || parsedAlt?.contentMatch === "substring";
-                if (heuristicChain) {
-                    console.warn(`[GemExporter:parseDetail.ts] heuristic doc content for "${docTitle}" (id=${metaItem.id}); marked hasFabricatedText`);
-                }
+                // Response-level section recovery preserves legacy/unpacketized Deep Research
+                // bodies, while marking ownership unverified (partial) outside candidate[30].
                 docDetails.push({
                     id: metaItem.id,
                     title: docTitle,
@@ -145,7 +153,7 @@ export function decodeGeminiCandidateResources(
                     contentMarkdown: cleanMd,
                     url: "",
                     type: "file",
-                    ...(heuristicChain ? { hasFabricatedText: true } : {})
+                    hasFabricatedText: true,
                 });
             }
         } catch (er) {
@@ -347,6 +355,7 @@ function parseCandidateResponse(
         messageCount: 1,
         ...(structuredContent ? { structuredContent } : {}),
         structuredExtraction,
+        candidateText: candidate.text,
         structuredImages,
         ...(sourceAttributions.length ? { sourceAttributions } : {}),
         ...(groundingCitationMarkers.length ? { groundingCitationMarkers } : {}),
@@ -359,9 +368,9 @@ function parseCandidateResponse(
 export function decodeGeminiTurn(
     turn: DecodedGeminiTurn,
     rawTurn: unknown,
-    documents: GeminiDocumentReader,
-    dedupSet: Set<string>,
-    docDedupSet: Set<string>,
+    documents: GeminiDocumentReader = createDocumentReader(rawTurn),
+    dedupSet: Set<string> = new Set(),
+    docDedupSet: Set<string> = new Set(),
     convId?: string
 ): GeminiMessageEvidence[] {
     const messages: GeminiMessageEvidence[] = [];

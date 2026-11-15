@@ -60,7 +60,7 @@ before.databases.gemini_exporter_idb={version:1,stores:{handles:[{directoryHandl
 const facts=migrationFacts(before);
 const after=structuredClone(before);after.local.gemini_exporter_v2_initialized=true;
 after.local.gemini_exporter_v2_settings=facts.settings;
-after.databases.gemini_exporter_v2={version:1,stores:{accounts:facts.accounts,indexes:facts.indexes,exportRecords:facts.exportRecords,directoryHandles:facts.directoryHandles,details:[],coverage:[]}};
+after.databases.gemini_exporter_v2={version:2,stores:{accounts:facts.accounts,indexes:facts.indexes,exportRecords:facts.exportRecords,directoryHandles:facts.directoryHandles,details:[],coverage:[]}};
 await assertPersistedBaseline(before,after);
 for(const change of [
  a=>{delete a.local.gemini_exporter_v2_initialized;},

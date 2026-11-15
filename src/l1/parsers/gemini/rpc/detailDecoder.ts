@@ -190,10 +190,10 @@ function decodeGeminiDetail(text: string | GeminiResponseEnvelope, targetConvId?
         if (convId === "c_unknown" && targetConvId) convId = targetConvId;
 
         const allMsgs: GeminiMessageEvidence[] = [];
+        const documents = createDocumentReader(inner);
         const dedupSet = new Set<string>();
         const docDedupSet = new Set<string>();
         const rev = [...turns].reverse();
-        const documents = createDocumentReader(inner);
 
         let turnsRejected = 0;
         let turnsRecovered = 0;

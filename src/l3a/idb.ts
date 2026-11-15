@@ -6,7 +6,7 @@ import type { DetailIngestResult } from '../l2/ingestion.js';
 import type { ExportRecord } from '../l2/exportRecord.js';
 
 const DATABASE_NAME = 'gemini_exporter_v2';
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 
 interface CoverageRow { accountId: string; streamId: string; value: StreamCoverage }
 interface ExportRow { accountId: string; conversationId: string; value: ExportRecord }
@@ -21,11 +21,16 @@ interface StoreValueMap {
 }
 type StoreName = keyof StoreValueMap;
 
-interface TypedObjectStore<V> extends Omit<IDBObjectStore, 'get' | 'getAll' | 'index' | 'put' | 'add'> {
+interface TypedValueCursor<V> extends Omit<IDBCursorWithValue, 'value' | 'update'> {
+    readonly value: V;
+    update(value: V): IDBRequest<IDBValidKey>;
+}
+interface TypedObjectStore<V> extends Omit<IDBObjectStore, 'get' | 'getAll' | 'index' | 'put' | 'add' | 'openCursor'> {
     get(query: IDBValidKey | IDBKeyRange): IDBRequest<V | undefined>;
     getAll(query?: IDBValidKey | IDBKeyRange | null, count?: number): IDBRequest<V[]>;
     put(value: V, key?: IDBValidKey): IDBRequest<IDBValidKey>;
     add(value: V, key?: IDBValidKey): IDBRequest<IDBValidKey>;
+    openCursor(query?: IDBValidKey | IDBKeyRange | null, direction?: IDBCursorDirection): IDBRequest<TypedValueCursor<V> | null>;
     index(name: string): Omit<IDBIndex, 'get'> & {
         get(query: IDBValidKey | IDBKeyRange): IDBRequest<V | undefined>;
     };
@@ -46,6 +51,29 @@ type StoreQueryResult = void | boolean | string | Account | Account[] | DomainCo
     | FileSystemDirectoryHandle | DetailIngestResult | DetailIngestResult[]
     | { index: DomainConversationIndex | null; detail: DomainConversationDetail | null } | null;
 
+/** Before v2, Gemini pagination could certify a lossy structured fallback as complete.
+ * Withdraw unverified Detail completeness so later refreshes can admit repaired snapshots,
+ * while preserving all body bytes, source versions and existing ExportRecords untouched. */
+function revokeUnverifiedGeminiCompleteness(tx: TypedIDBTransaction): void {
+    const accounts = tx.objectStore('accounts').openCursor();
+    accounts.onsuccess = () => {
+        const account = accounts.result;
+        if (!account) return;
+        if (account.value.providerId !== 'gemini') { account.continue(); return; }
+        const range = IDBKeyRange.bound([account.value.id], [account.value.id, []]);
+        const bodies = tx.objectStore('details').openCursor(range);
+        bodies.onsuccess = () => {
+            const cursor = bodies.result;
+            if (!cursor) { account.continue(); return; }
+            const detail = cursor.value;
+            if (detail.quality.status === 'complete') {
+                cursor.update({ ...detail, quality: { ...detail.quality, status: 'unknown' } })
+                    .onsuccess = () => cursor.continue();
+            } else cursor.continue();
+        };
+    };
+}
+
 interface PooledConnectionEntry {
     readonly openFn: IDBFactory['open'];
     readonly promise: Promise<IDBDatabase>;
@@ -58,8 +86,12 @@ function openDatabaseOnFactory(factory: IDBFactory, onEvict?: () => void): Promi
         const request = factory === indexedDB
             ? indexedDB.open(DATABASE_NAME, DATABASE_VERSION)
             : factory.open(DATABASE_NAME, DATABASE_VERSION);
-        request.onupgradeneeded = () => {
+        request.onupgradeneeded = event => {
             const db = request.result;
+            if (event.oldVersion !== 0) {
+                if (request.transaction) revokeUnverifiedGeminiCompleteness(request.transaction);
+                return;
+            }
             db.createObjectStore('accounts', { keyPath: 'id' })
                 .createIndex('providerIdentity', ['providerId', 'providerAccountId'], { unique: true });
             db.createObjectStore('indexes', { keyPath: ['key.accountId', 'key.conversationId'] });

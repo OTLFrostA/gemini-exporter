@@ -97,3 +97,19 @@ test('chipUtils - internal UI cleanup preserves consecutive blank lines and code
     assert.strictEqual(stripInternalChipMarkdown(answer), `Explanation\n\n${code}\n\n\nConclusion`);
 });
 
+test('chipUtils - UI-shaped literals in code and escaped text survive cleanup', () => {
+    for (const literal of [
+        '`<FollowUp label="literal"/>`',
+        '```xml\n<ElicitationsGroup>\n<Elicitation query="literal"/>\n</ElicitationsGroup>\n```',
+        '~~~text\nhttps://googleusercontent.com/deep_research/literal\n~~~',
+        '    <GenerateWidget id="literal"/>',
+        '`[report](https://googleusercontent.com/deep_research/literal)`',
+        '\\<FollowUp label="literal"/>',
+        '<UnknownWidget>Visible content</UnknownWidget>',
+        '<FollowUp-extension>Visible content</FollowUp-extension>',
+    ]) {
+        assert.strictEqual(stripInternalChipMarkdown(literal), literal);
+        assert.strictEqual(stripInternalChipMarkdown(literal + '\n\n<FollowUp query="Next"/>'), literal + '\n\n');
+    }
+});
+

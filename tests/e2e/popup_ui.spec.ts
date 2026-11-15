@@ -53,16 +53,21 @@ for(const format of ['html','markdown','json'] as const)test(`Popup ${format} ph
     const JSZip=require(path.resolve(__dirname,'../../lib/jszip.min.js'));const zip=await JSZip.loadAsync(await readFile((await file.path())!));
     const documentPath=Object.keys(zip.files).find(name=>name.endsWith(format==='markdown'?'.md':'.'+format));expect(documentPath).toBeTruthy();
     const corrected=await zip.file(documentPath).async('string');expect(corrected).toContain('Body survives');
-    const report=Object.keys(zip.files).find(name=>name.endsWith('/report.json'));expect(report).toBeTruthy();expect(JSON.parse(await zip.file(report).async('string')).failures).toHaveLength(1);
+    const report=Object.keys(zip.files).find(name=>name.endsWith('/report.json'));expect(report).toBeTruthy();
+    const failures=JSON.parse(await zip.file(report).async('string')).failures;expect(failures).toHaveLength(1);
+    expect(failures[0].code).toBe('RESOURCE_LOCATOR_UNAVAILABLE');expect(failures[0].httpStatus).toBeUndefined();
     if(format==='json'){
         const archive=JSON.parse(corrected);expect(archive.transport).toBeUndefined();expect(archive.resources).toEqual({});expect(archive.version).toBe(1);expect(archive.conversation.detail.assets[0].id).toBe('image');
-    }else{expect(corrected).toMatch(/unavailable|gem-missing-asset|Attachment failed: Unknown error/);}
+    }else{expect(corrected).toContain('Attachment download location unavailable');expect(corrected).not.toContain('Unknown error');}
     await expect(popup.locator('#btnCurrent')).toBeEnabled();
     await expect(popup.locator('#status')).toContainText('Successfully downloaded: 1');
     await expect(popup.locator('#status')).not.toContainText('Attachment');
+    await expect(popup.locator('#status')).not.toContainText('Download location unavailable');
     await options.locator('#devToggle').check();
-    await expect(popup.locator('#status')).toContainText('Attachment failures with unknown cause: 1');
+    await expect(popup.locator('#status')).toContainText('Download location unavailable: 1 attachments');
+    await expect(popup.locator('#status')).not.toContainText('unknown cause');
     await expect(popup.locator('#status')).not.toContainText('Conversation export failed:');
     await options.locator('#devToggle').uncheck();
     await expect(popup.locator('#status')).not.toContainText('Attachment');
+    await expect(popup.locator('#status')).not.toContainText('Download location unavailable');
 });

@@ -61,6 +61,19 @@ text, URLs and file tokens; they stay in diagnostic evidence beside the parse
 result, never in Domain/Document AST fields. Successful native parses do not
 collect these raw samples. Existing diagnostic count limits still apply.
 
+Successful decoded messages retain neither per-candidate replay metadata nor raw
+document arrays. After a content failure, the adapter finds that selected candidate
+in the current response and materializes only the diagnostic fields it needs.
+Typed artifact packets in `candidate[30]` establish complete native document ownership;
+response-level document recovery excludes candidate narrative/citation metadata and
+nested identified containers, marking recovered fallback bodies as partial.
+
+Unresolved Gemini source annotations additionally report each affected native text
+node, the rejected coordinates, coordinate validity, and unbound source IDs.
+When developer mode is enabled, `GEMINI_SOURCE_REPLAY_EVIDENCE` retains the complete
+decoded `hNvQHb` payload once per affected Detail page for offline replay, without
+entering Domain or persistent conversation state.
+
 Diagnostic revision 4 includes the current browser online state and granted extension
 permissions, ChatGPT branch-coverage reasons and candidate admission outcomes,
 before/after persisted Detail versions, and resource request phases, origins,

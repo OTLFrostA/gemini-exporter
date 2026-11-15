@@ -6,8 +6,9 @@ import type { GeminiStructuredNode } from './structuredContent.js';
 import { contentQuality } from '../../qualityEvidence.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import { normId } from '../../../../shared/utils/pathUtils.js';
-import { decodeGeminiDetail } from './detailDecoder.js';
-import type { GeminiDetailDebugEvidence, GeminiMessageEvidence, GeminiDetailEvidence } from './detailEvidence.js';
+import { decodeGeminiDetail, findTurnsDeep } from './detailDecoder.js';
+import { decodeTurn } from './extractors.js';
+import type { GeminiDetailDebugEvidence, GeminiMessageEvidence, GeminiDetailEvidence, GeminiCandidateDiagnosticEvidence } from './detailEvidence.js';
 import type { DomainCitation, DomainMessage } from '../../../../l2/conversationDetail.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { Diagnostic } from '../../../../shared/diagnostics/diagnostic.js';
@@ -15,6 +16,8 @@ import { closeSourceCitations } from '../../shared/resources/domainCitationAdapt
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
 import { parseGeminiBody, parseGeminiPrompt, parseSourceReasoning, structuredBodyAttachments } from '../shared/contentAdapter.js';
 import type { SourceConversationParseResult } from '../../parsingResult.js';
+import { isJsonValue } from '../../../../shared/utils/jsonTypes.js';
+import { isDevMode } from '../../../../shared/utils/devMode.js';
 
 export interface GeminiRpcParseContext extends ConversationParseContext {
     targetConvId?: string;
@@ -108,10 +111,24 @@ export function parseGeminiRpcConversation(text: string | GeminiResponseEnvelope
 export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, context: GeminiRpcParseContext): GeminiRpcParseResult {
     if (context.providerId !== 'gemini') throw new TypeError('Gemini evidence adapter requires providerId gemini');
     const contentDiagnostics: Diagnostic[] = [];
+    let unrepresentedContent = false;
     const messages: DomainMessage[] = evidence.messages.map((message, index) => {
         const sourceRef = { providerId: 'gemini', providerMessageId: message.id, locator: `messages[${index}]` };
         const { citations, legacyCitations, sourceCitations } = citationsOf(message);
         const extraction = message.structuredExtraction;
+        const uncertainDocuments = message.documents?.filter(document => document.contentMissing || document.hasFabricatedText) ?? [];
+        if (uncertainDocuments.length) {
+            if (uncertainDocuments.some(document => document.contentMissing)) unrepresentedContent = true;
+            const rawDocument = extraction?.status === 'decode_rejected' ? extraction.rawDocument : undefined;
+            contentDiagnostics.push({ severity: 'warning', code: 'GEMINI_DOCUMENT_BINDING_FALLBACK',
+                message: 'Native document body is missing or cannot be bound with verified ownership', sourceRef,
+                details: { reason: uncertainDocuments.some(document => document.contentMissing) ? 'document_content_missing' : 'document_binding_unverified',
+                    documents: uncertainDocuments.map(document => ({ id: document.id, title: document.title,
+                        contentMissing: document.contentMissing === true, hasFabricatedText: document.hasFabricatedText === true })),
+                    ...(rawDocument !== undefined ? { rawDocument } : {}),
+                } });
+        }
+        if (extraction?.status === 'decode_rejected') unrepresentedContent = true;
         if (extraction && extraction.status !== 'decoded') contentDiagnostics.push({
             severity: extraction.status === 'decode_rejected' ? 'warning' : 'info',
             code: 'GEMINI_STRUCTURED_FALLBACK',
@@ -119,7 +136,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             sourceRef,
             details: { reason: extraction.status, ...(extraction.status === 'decode_rejected' ? {
                 issue: { ...extraction.issue }, rawDocument: extraction.rawDocument,
-                documentSource: 'turn[3][12]', candidateIndex: 0, fallbackMarkdown: message.content,
+                documentSource: 'turn[3][12]', fallbackMarkdown: message.content,
                 ...(sourceCitations.size ? { sourceCitationsJson: JSON.stringify([...sourceCitations]) } : {}),
             } : {}) },
         });
@@ -129,7 +146,10 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             role: message.role === 'model' ? 'assistant' : 'user',
             content: message.role === 'user' ? parseGeminiPrompt(message.content)
                 : parseGeminiBody(message.content, context.bodyRepresentation === 'markdown' ? undefined : message.structuredContent,
-                    { diagnostics: contentDiagnostics, sourceRef, sourceCitations, recoverLiteralMath: context.bodyRepresentation !== 'structured' }),
+                    { diagnostics: contentDiagnostics, sourceRef, sourceCitations, recoverLiteralMath: context.bodyRepresentation !== 'structured',
+                        candidateText: message.candidateText,
+                        sourceAttributions: message.sourceAttributions,
+                        onStructuredFallback: () => { unrepresentedContent = true; } }),
             ...(message.timestamp !== null && Number.isFinite(message.timestamp) ? { timestamp: message.timestamp } : {}),
             ...(message.model ? { model: message.model } : {}),
             ...(reasoning !== undefined ? { reasoning } : {}),
@@ -146,6 +166,34 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
         const allCitations = [...citations, ...(closed.citations ?? []).filter(item => !citations.some(c => c.id === item.id))];
         return { ...closed, ...(allCitations.length ? { citations: allCitations } : {}) };
     });
+    // Materialize raw replay fields only after an adapter/decoder has failed.
+    // Successful message evidence owns parsed facts, not raw source subgraphs.
+    const replayDiagnostics = contentDiagnostics.filter(diagnostic => diagnostic.severity === 'warning'
+        && ['GEMINI_STRUCTURED_FALLBACK', 'GEMINI_SOURCE_ANNOTATION_FALLBACK', 'GEMINI_DOCUMENT_BINDING_FALLBACK'].includes(diagnostic.code));
+    if (replayDiagnostics.length) for (const rawTurn of findTurnsDeep(evidence._raw) ?? []) {
+        const candidate = decodeTurn(rawTurn)?.candidate;
+        if (!candidate) continue;
+        const affected = replayDiagnostics.filter(diagnostic => diagnostic.sourceRef?.providerMessageId === candidate.id);
+        if (!affected.length) continue;
+        const candidateEvidence: GeminiCandidateDiagnosticEvidence = {
+            candidateIndex: candidate.index, candidateId: candidate.id, candidateText: candidate.text,
+        };
+        for (const [key, raw] of [
+            ['sourceMetadata', candidate.source[2]], ['artifactPackets', candidate.source[30]],
+            ['groundingReferences', candidate.source[44]],
+        ] satisfies Array<['sourceMetadata' | 'artifactPackets' | 'groundingReferences', unknown]>) {
+            if (isJsonValue(raw)) candidateEvidence[key] = raw;
+        }
+        const rawDocument = candidate.turnDocument;
+        for (const diagnostic of affected) {
+            const details = diagnostic.details;
+            if (details === null || typeof details !== 'object' || Array.isArray(details)) continue;
+            diagnostic.details = { ...details,
+                ...(isJsonValue(rawDocument) ? { rawDocument, documentSource: 'turn[3][12]' } : {}),
+                candidateEvidence: { ...candidateEvidence },
+                ...(details.reason === 'decode_rejected' ? { candidateIndex: candidate.index } : {}) };
+        }
+    }
     const resources = closeDomainResources('gemini', messages, evidence.messages.map(message => {
         // These resources were explicitly extracted from this turn; preserve its original token.
         const sourceGeneration = <T extends GeminiAttachmentEvidence | NonNullable<GeminiMessageEvidence['images']>[number]>(asset: T): T =>
@@ -171,7 +219,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
             ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length }),
         detail: { ...(updatedAt !== null ? { savedAt: updatedAt } : {}), quality: contentQuality({ status: evidence.turnsRecovered ? 'partial' : 'unknown', rejectedTurns: evidence.turnsRejected,
-            ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds }),
+            ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds, unrepresentedContent }),
             assets: resources.assets, messages: resources.messages },
     };
     const diagnostics: Diagnostic[] = (evidence.schemaDrift ?? []).map(message => ({ severity: 'warning', code: 'GEMINI_SCHEMA_DRIFT', message }));
@@ -180,8 +228,19 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
     if (newerMessages.length) diagnostics.push({ severity: 'info', code: 'CONVERSATION_VERSION_MISMATCH', message: 'Detail contains activity newer than its metadata version',
         details: { sourceVersion: updatedAt, newerMessages } });
     diagnostics.push(...contentDiagnostics);
+    const sourceFallbacks = contentDiagnostics.filter(diagnostic => diagnostic.code === 'GEMINI_SOURCE_ANNOTATION_FALLBACK');
+    if (sourceFallbacks.length && isDevMode()) diagnostics.push({ severity: 'info', code: 'GEMINI_SOURCE_REPLAY_EVIDENCE',
+        message: 'Detail response evidence for unresolved source annotations',
+        details: { rpcId: 'hNvQHb', conversationId: evidence.id,
+            providerMessageIds: [...new Set(sourceFallbacks.flatMap(diagnostic =>
+                diagnostic.sourceRef?.providerMessageId ? [diagnostic.sourceRef.providerMessageId] : []))],
+            // Capture once per affected page in developer mode before pagination drops transport payloads.
+            ...(evidence._raw != null && isJsonValue(evidence._raw)
+                ? { captureStatus: 'captured', payload: evidence._raw }
+                : { captureStatus: 'unavailable' }),
+        } });
     return {
-        evidence: { rejectedTurns: evidence.turnsRejected, ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds },
+        evidence: { rejectedTurns: evidence.turnsRejected, ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds, unrepresentedContent },
         ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}),
         conversationId: normId(evidence.id), conversation, acquisitionHints: resources.acquisitionHints,
         diagnostics,

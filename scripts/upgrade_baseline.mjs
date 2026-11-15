@@ -62,7 +62,7 @@ export async function assertPersistedBaseline(before, after) {
   const facts = migrationFacts(before);
   assert.equal(after.local.gemini_exporter_v2_initialized, true, 'Migration completion marker missing');
   const db = after.databases?.gemini_exporter_v2;
-  assert.equal(db?.version, 1, 'L3a v2 physical version');
+  assert.equal(db?.version, 2, 'L3a v2 physical version');
   assert.deepEqual(Object.keys(db.stores).sort(), ['accounts', 'indexes', 'details', 'coverage', 'exportRecords', 'directoryHandles'].sort(), 'L3a six stores');
   for (const name of ['accounts', 'indexes', 'exportRecords', 'directoryHandles'])
     assert.deepEqual(sorted(db.stores[name]), sorted(facts[name]), `Migrated ${name} lost or changed`);

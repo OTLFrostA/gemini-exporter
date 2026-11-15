@@ -431,7 +431,7 @@ test('Unknown annotation shape/type fails closed and is never coerced to bold', 
     );
 });
 
-test('Multi-candidate turn attaches structuredContent only to proven candidate 0', async () => {
+test('Multi-candidate turn cannot borrow a document when its parallel entry is absent', async () => {
     const wirePsi = loadProbeFixture('wire-turn-3-12-psi-table.json');
 
     const multiCandTurn = [
@@ -475,7 +475,7 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
         turnDocument: wirePsi,
         candidateIndex: 1
     });
-    assert.strictEqual(struct1.status, 'candidate_unmatched', 'Candidate 1+ must NOT receive turn[3][12] without proven evidence');
+    assert.strictEqual(struct1.status, 'candidate_unmatched', 'A missing parallel document must not borrow candidate zero’s document');
 
     const conv = {
         id: 'c_multicand',

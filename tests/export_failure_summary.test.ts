@@ -76,6 +76,15 @@ test('attachment locator 404 is a source-unavailable warning in diagnostics and 
     assert.doesNotMatch(summary, /Attachment download failed|retry later|Other incomplete/);
 });
 
+test('missing download locators have a known cause without claiming a server expiry', () => {
+    const summary = exportSummary({ exported: 1, partial: 1, skipped: 0, failed: [], aborted: false,
+        otherPartial: 1,
+        attachmentIssues: [{ code: 'RESOURCE_LOCATOR_UNAVAILABLE', resourceId: 'report', name: 'Research report' }] }, true);
+    assert.match(summary, /Download location unavailable: 1 attachments/);
+    assert.match(summary, /Other incomplete conversations: 1/);
+    assert.doesNotMatch(summary, /unknown cause|unavailable source attachments|retry later/);
+});
+
 test('normal mode hides attachment warnings while retaining body failures and cooldown', () => {
     const result = { exported: 1, partial: 1, skipped: 2, failed: [key('body')], aborted: true,
         expiredConversations: 1, otherPartial: 1, rateLimitedUntil: Date.now() + 3600000,
