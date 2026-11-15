@@ -61,6 +61,16 @@ text, URLs and file tokens; they stay in diagnostic evidence beside the parse
 result, never in Domain/Document AST fields. Successful native parses do not
 collect these raw samples. Existing diagnostic count limits still apply.
 
+Unresolved Gemini source annotations additionally report each affected native text
+node, the rejected coordinates, coordinate validity, and unbound source IDs.
+`GEMINI_SOURCE_REPLAY_EVIDENCE` retains the complete decoded `hNvQHb` payload once
+per affected Detail page, including currently unread candidate, model and envelope
+fields. `captureStatus` distinguishes a captured payload from an unavailable
+decoded-only input. The payload remains in task diagnostics through pagination;
+it does not enter Domain or persistent conversation state. Other RPC responses
+and request headers are not included. A saved diagnostic cannot restore fields
+omitted by an earlier build or bindings that the server never returned.
+
 Diagnostic revision 4 includes the current browser online state and granted extension
 permissions, ChatGPT branch-coverage reasons and candidate admission outcomes,
 before/after persisted Detail versions, and resource request phases, origins,

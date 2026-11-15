@@ -6,10 +6,23 @@ import type { ImageAttachment } from '../rpc/sourceAttachments.js';
 import { convertHtmlToMarkdown } from '../../shared/html/htmlToMarkdown.js';
 import { stripInternalChipMarkdown } from '../../shared/chipUtils.js';
 import { preprocessGeminiMarkdown, normalizeGeminiTexAliases } from './markdownCompatibility.js';
-import { geminiStructuredToContent, type GeminiSourceCitations } from './structuredContentAdapter.js';
+import { geminiStructuredToContent, type GeminiSourceCitations, type GeminiSourceFailure } from './structuredContentAdapter.js';
 import type { InlineNode } from '../../../../l2/content/inline.js';
 import { normalizeTextUnderscores } from '../../../../shared/utils/latexCompatibility.js';
 import { hasLiteralMathText, recoverLiteralMath } from './literalMathRecovery.js';
+import type { GeminiCandidateDiagnosticEvidence } from '../rpc/detailEvidence.js';
+import type { JsonValue } from '../../../../shared/utils/jsonTypes.js';
+import type { GeminiSourceAttribution } from '../rpc/sourceAttributions.js';
+import { recoverGeminiSourceRanges } from './sourceRanges.js';
+
+interface GeminiBodyParseContext extends MarkdownParseContext {
+    sourceCitations?: GeminiSourceCitations;
+    recoverLiteralMath?: boolean;
+    onStructuredFallback?: () => void;
+    rawDocument?: JsonValue;
+    candidateEvidence?: GeminiCandidateDiagnosticEvidence;
+    sourceAttributions?: readonly GeminiSourceAttribution[];
+}
 
 /** Work only on parsed math nodes; code, user prose and file names stay literal. */
 function normalizeGeminiMath(blocks: BlockNode[]): BlockNode[] {
@@ -55,20 +68,28 @@ function cleanGeminiBody(text: string): string {
 export function parseGeminiBody(
     content: string,
     structuredContent?: GeminiStructuredDocument,
-    context: MarkdownParseContext & { sourceCitations?: GeminiSourceCitations; recoverLiteralMath?: boolean; onStructuredFallback?: () => void } = { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'content' } },
+    context: GeminiBodyParseContext = { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'content' } },
 ): BlockNode[] {
     const cleaned = cleanGeminiBody(content);
     if (structuredContent) {
-        let sourceFallback = false;
-        const structured = geminiStructuredToContent(structuredContent, context.sourceCitations,
-            { ...context, onSourceFallback: () => { sourceFallback = true; } });
+        const wireEvidence = {
+            ...(context.rawDocument !== undefined ? { rawDocument: context.rawDocument, documentSource: 'turn[3][12]' } : {}),
+            ...(context.candidateEvidence ? { candidateEvidence: { ...context.candidateEvidence } } : {}),
+        };
+        const sourceFailures: GeminiSourceFailure[] = [];
+        const recovery = recoverGeminiSourceRanges(structuredContent, context.sourceAttributions ?? [], context.candidateEvidence?.candidateText);
+        const structured = geminiStructuredToContent(recovery.document, context.sourceCitations,
+            { ...context, onSourceFallback: failure => { sourceFailures.push(failure); } });
         if (structured !== null && (structured.length > 0 || !cleaned.trim())) {
-            if (sourceFallback) {
+            if (recovery.recovered) context.diagnostics.push({ severity: 'info', code: 'GEMINI_SOURCE_RANGE_RECOVERED',
+                message: 'Recovered invalid source coordinates from verified selected-candidate quotes and unique native anchors', sourceRef: context.sourceRef,
+                details: { recovered: recovery.recovered, method: 'exact_selected_source_quote' } });
+            if (sourceFailures.length) {
                 context.onStructuredFallback?.();
                 context.diagnostics.push({ severity: 'warning', code: 'GEMINI_SOURCE_ANNOTATION_FALLBACK',
                     message: 'Preserved native body and available sources; exact source anchoring is unverified',
                     sourceRef: context.sourceRef, details: { reason: 'source_annotations_unrepresented',
-                        structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content,
+                        sourceFailures, structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content, ...wireEvidence,
                         ...(context.sourceCitations?.size ? { sourceCitationsJson: JSON.stringify([...context.sourceCitations]) } : {}) },
                 });
             }
@@ -88,7 +109,7 @@ export function parseGeminiBody(
             severity: 'warning', code: 'GEMINI_STRUCTURED_FALLBACK',
             message: 'Structured body could not be adapted; using Markdown fallback',
             sourceRef: context.sourceRef, details: { reason: 'adapter_rejected',
-                structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content,
+                structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content, ...wireEvidence,
                 ...(context.sourceCitations?.size ? { sourceCitationsJson: JSON.stringify([...context.sourceCitations]) } : {}) },
         });
     }

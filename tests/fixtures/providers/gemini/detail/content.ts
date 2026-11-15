@@ -20,6 +20,31 @@ const citationFallback = 'UNRELATED_MARKDOWN_SENTINEL';
 
 export const citationText = (value: string, annotations: unknown[] = []): unknown[] => [null, [null, 0, value, annotations]];
 
+/** Unread source slots must remain available for failure replay without being
+ * interpreted as bindings. Includes two affected replies in one Detail page. */
+export function sourceReplayFixture(withUnboundSource = true) {
+    const model = (id: string): unknown[] => {
+        const candidate: unknown[] = Array(48).fill(null);
+        candidate[0] = id;
+        candidate[1] = [['Selected Markdown.']];
+        candidate[47] = ['UNPARSED_CANDIDATE_SOURCE_SLOT'];
+        const payload: unknown[] = Array(13).fill(null);
+        payload[0] = [candidate];
+        payload[7] = ['UNPARSED_MODEL_SOURCE_SLOT'];
+        payload[12] = [[[citationText('Native source diagnostic.', withUnboundSource
+            ? [[0, 0, [null, null, null, [[null, null, '0']]]]] : [])]]];
+        return payload;
+    };
+    const payload = [[
+        [['c_source_replay', 'r_source_new'], [1700000001, 0], [['Question']], model('rc_source_new')],
+        [['c_source_replay', 'r_source_old'], [1700000000, 0], [['Question']], model('rc_source_old')],
+    ], null, ['UNPARSED_DETAIL_SOURCE_SLOT']];
+    return { payload, wire: JSON.stringify([
+        ['wrb.fr', 'hNvQHb', JSON.stringify(payload)],
+        ['wrb.fr', 'OtherRpc', JSON.stringify(['UNRELATED_RPC_SAMPLE'])],
+    ]) };
+}
+
 export const citationField = (index: number, value: unknown): unknown[] =>
     Object.assign(Array(index + 1).fill(null), { [index]: value });
 

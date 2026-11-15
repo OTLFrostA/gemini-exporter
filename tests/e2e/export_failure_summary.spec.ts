@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { A, mount, read } from '../helpers/uiPortHarness';
 import { parseGeminiRpcConversation } from '../../src/l1/parsers/gemini/rpc/parseConversation';
 import { detailGen } from '../fixtures/providers/geminiDetail';
+import { sourceReplayFixture } from '../fixtures/providers/gemini/detail/content';
 import { fixtureAccount } from '../helpers/domainFixture';
 
 test('attachment diagnostics stay recorded but are visible only in developer mode', async ({ page }) => {
@@ -190,4 +191,45 @@ test('diagnostic download preserves native rejection evidence for offline replay
     expect(report.exportRuns[0].diagnostics[0].details).toEqual(diagnostic.details);
     expect(report.exportRuns[0].issues[0].diagnostic.details).toEqual(diagnostic.details);
     expect(JSON.stringify(report)).toContain('PRIVATE_SOURCE_TEXT');
+});
+
+test('diagnostic download retains unresolved source reasons and the complete affected Detail page', async ({ page }) => {
+    const { wire, payload } = sourceReplayFixture();
+    const parsed = parseGeminiRpcConversation(wire, { account: fixtureAccount('gemini'), providerId: 'gemini' });
+    const diagnostics = parsed.diagnostics.filter(d => ['GEMINI_SOURCE_ANNOTATION_FALLBACK', 'GEMINI_SOURCE_REPLAY_EVIDENCE'].includes(d.code));
+    expect(diagnostics).toHaveLength(3);
+    await mount(page, 'options', { holdExport: true });
+    await page.locator('#devToggle').check();
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+    await page.evaluate(diagnosticsJson => {
+        const h = Reflect.get(window, 'harness');
+        for (const diagnostic of JSON.parse(diagnosticsJson))
+            h.exportOptions.onDiagnostic({ ...diagnostic, key: h.exports[0].keys[0], stage: 'source_parse' });
+        h.finishExport();
+    }, JSON.stringify(diagnostics));
+    await expect(page.locator('#exportFailureList > details')).toHaveCount(1);
+    const downloaded = page.waitForEvent('download');
+    await page.locator('#btnExportDiag').focus();
+    await page.locator('#btnExportDiag').press('Enter');
+    const filePath = await (await downloaded).path();
+    if (!filePath) throw new Error('Diagnostic download missing');
+    const { readFile } = await import('node:fs/promises');
+    const report: unknown = JSON.parse(await readFile(filePath, 'utf8'));
+    expect(report).toEqual(expect.objectContaining({ exportRuns: [expect.objectContaining({
+        diagnostics: expect.arrayContaining([
+            ...['rc_source_old', 'rc_source_new'].map(providerMessageId => expect.objectContaining({
+                code: 'GEMINI_SOURCE_ANNOTATION_FALLBACK', sourceRef: expect.objectContaining({ providerMessageId }),
+                details: expect.objectContaining({ sourceFailures: [{ nativeText: 'Native source diagnostic.', annotations: [
+                    { start: 0, end: 0, sourceIds: ['0'], rangeValid: true, unboundSourceIds: ['0'] },
+                ] }] }),
+            })),
+            expect.objectContaining({ code: 'GEMINI_SOURCE_REPLAY_EVIDENCE', details: {
+                rpcId: 'hNvQHb', conversationId: 'c_source_replay', providerMessageIds: ['rc_source_old', 'rc_source_new'],
+                captureStatus: 'captured', payload,
+            } }),
+        ]),
+        issues: [expect.objectContaining({ category: 'GEMINI_SOURCE_ANNOTATION_FALLBACK', occurrences: 2 })],
+    })] }));
+    expect(JSON.stringify(report)).not.toContain('UNRELATED_RPC_SAMPLE');
 });

@@ -496,3 +496,33 @@ checks, strict TypeScript, zero-any, 12 production bundles with zero build warni
 bundled-font verification, and all 221 Playwright tests. Type-aware lint passes with
 no warnings in changed production files. Live Tier 2 remains unverified; no personal
 browser or port 9222 was accessed. Scenario pool remains 20/20 without consumption.
+
+## Evidence for remaining source failures
+
+The seven remaining fresh-report occurrences are still unresolved; native-body
+recovery is not proof of complete source fidelity. Source fallback warnings now
+include `sourceFailures`: the affected native text, annotation coordinates, range
+validity, and IDs without a binding in the admitted source table.
+
+`GEMINI_SOURCE_REPLAY_EVIDENCE` captures one complete decoded `hNvQHb` payload per
+affected page, retaining unknown fields in the selected candidate, model and
+Detail envelope. It lists affected provider message IDs and explicitly reports
+`captureStatus: unavailable` when no JSON-portable original payload exists.
+Successful pages do not emit these samples. The observation survives page merging
+without becoming Domain/ExportRecord state and does not include other RPC frames
+or request headers. Existing diagnostic-count limits and dropped-event counters
+still apply. This captures evidence for further protocol investigation; it cannot
+invent an absent server binding or recover fields omitted by earlier diagnostics.
+
+The source tests cover the exact zero-width `"0"` failure and a bound source with
+an invalid range, complete unread-field retention for two affected replies in one
+page, exact payload replay, missing-payload reporting, and absence of samples on
+success. Four assertions failed before the logging change. A Playwright test
+downloads the diagnostic JSON and checks the raw page and rejection reasons in
+the physical file, while retaining a single source-warning group.
+
+With this diagnostic increment, `npm test` passes all 408 unit-test files and
+222 Playwright tests, including type/static checks, the production build and
+bundled-font verification. All 106 frozen parser outputs and asset registries
+are identical to the preceding ownership repair. Live Tier 2 and a fresh export
+from the affected personal account remain unverified.

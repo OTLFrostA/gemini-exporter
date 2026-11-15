@@ -28,29 +28,39 @@ function textWithSoftBreaks(text: string): InlineNode[] {
 }
 
 export type GeminiSourceCitations = ReadonlyMap<string, readonly DomainCitation[]>;
+export type GeminiSourceFailure = {
+    nativeText: string;
+    annotations: Array<{ start: number; end: number; sourceIds: string[];
+        rangeValid: boolean; unboundSourceIds: string[] }>;
+};
 export interface GeminiStructuredContext extends MarkdownParseContext {
-    onSourceFallback?: () => void;
+    onSourceFallback?: (failure: GeminiSourceFailure) => void;
 }
 
 function textInlines(node: GeminiTextNode, sources: GeminiSourceCitations, context?: GeminiStructuredContext): InlineNode[] | null {
     const strict = convertGeminiInlines(node.text, node.annotations, sources);
     if (strict !== null || !context?.onSourceFallback) return strict;
-    const rejected = (node.annotations ?? []).filter(annotation => annotation.type === 'source'
+    const rejected = (node.annotations ?? []).filter((annotation): annotation is Extract<GeminiAnnotation, { type: 'source' }> => annotation.type === 'source'
         && convertGeminiInlines(node.text, [annotation], sources) === null);
     if (!rejected.length) return null;
-    const children = convertGeminiInlines(node.text, node.annotations?.filter(annotation => !rejected.includes(annotation)), sources);
+    const children = convertGeminiInlines(node.text, node.annotations?.filter(annotation =>
+        !rejected.some(source => source === annotation)), sources);
     if (children === null) return null;
     // Preserve valid formatting and known source identities at paragraph/cell
     // scope. Exact anchoring remains unrepresented and must stay partial.
     // Never clamp an offset, subtract Markdown delimiters, or invent a URL.
     const emitted = new Set<string>();
-    for (const annotation of rejected) if (annotation.type === 'source') {
+    for (const annotation of rejected) {
         for (const id of annotation.sourceIds) for (const citation of sources.get(id) ?? []) {
             if (!emitted.has(citation.id)) children.push({ type: 'citationRef', citationId: citation.id });
             emitted.add(citation.id);
         }
     }
-    context.onSourceFallback();
+    context.onSourceFallback({ nativeText: node.text, annotations: rejected.map(annotation => ({
+        start: annotation.start, end: annotation.end, sourceIds: [...annotation.sourceIds],
+        rangeValid: validGeminiTextRange(node.text, annotation.start, annotation.end),
+        unboundSourceIds: annotation.sourceIds.filter(id => !sources.get(id)?.length),
+    })) });
     return children;
 }
 

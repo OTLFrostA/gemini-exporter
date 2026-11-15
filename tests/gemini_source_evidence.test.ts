@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixtureAccount } from './helpers/domainFixture.js';
-import { citationText, coverageWire } from './fixtures/providers/gemini/detail/content.js';
-import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { citationText, coverageWire, sourceReplayFixture } from './fixtures/providers/gemini/detail/content.js';
+import { parseGeminiRpcConversation, parseGeminiDetailEvidence } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
+import { decodeGeminiDetail } from '../src/l1/parsers/gemini/rpc/detailDecoder.js';
+import { boundaryTop } from './fixtures/providers/gemini/detail/protocol.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { extractSourceAttributions } from '../src/l1/parsers/gemini/rpc/sourceAttributions.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
@@ -67,6 +69,9 @@ test('zero-width source ID zero cannot be inferred from a source record position
     const result = parse(raw, metadata, [['rc_foreign', [['Other answer']], table('0')]]);
     assert.equal(result.conversation.detail.quality.status, 'partial');
     assert.deepEqual(sourceDiagnostic(result).rawDocument, raw);
+    assert.deepEqual(sourceDiagnostic(result).sourceFailures, [{ nativeText: 'Native body.', annotations: [
+        { start: 0, end: 0, sourceIds: ['0'], rangeValid: true, unboundSourceIds: ['0'] },
+    ] }]);
     assert.ok(JSON.stringify(result.conversation.detail.messages[1].content).includes('Native body.'));
     assert.ok(!JSON.stringify(result.conversation.detail.messages[1].content).includes('citationRef'));
     assertDomainClosure(result.conversation.detail);
@@ -358,9 +363,48 @@ test('source-only failures retain raw coordinates and the selected candidate sou
         candidateIndex: 0, candidateId: 'rc_primary', candidateText: 'Selected Markdown.',
         sourceMetadata: metadata, artifactPackets: packets,
     });
+    assert.deepEqual(details.sourceFailures, [{ nativeText: 'code', annotations: [
+        { start: 0, end: 6, sourceIds: ['spp_owned'], rangeValid: false, unboundSourceIds: [] },
+    ] }]);
     assert.equal(result.conversation.detail.quality.status, 'partial');
     assert.ok(!JSON.stringify(result.conversation.detail).includes('candidateEvidence'));
     assertDomainClosure(result.conversation.detail);
+});
+
+test('source failures capture one complete Detail payload per page, including unread source fields, for exact replay', () => {
+    const { wire, payload } = sourceReplayFixture();
+    const context = { account: fixtureAccount('gemini'), providerId: 'gemini' };
+    const parsed = parseGeminiRpcConversation(wire, context);
+    assert.equal(parsed.diagnostics.filter(d => d.code === 'GEMINI_SOURCE_ANNOTATION_FALLBACK').length, 2);
+    const evidence = parsed.diagnostics.filter(d => d.code === 'GEMINI_SOURCE_REPLAY_EVIDENCE');
+    assert.equal(evidence.length, 1);
+    assert.equal(evidence[0].severity, 'info');
+    assert.deepEqual(evidence[0].details, { rpcId: 'hNvQHb', conversationId: 'c_source_replay',
+        providerMessageIds: ['rc_source_old', 'rc_source_new'], captureStatus: 'captured', payload });
+    const serialized = JSON.stringify(evidence);
+    for (const field of ['UNPARSED_CANDIDATE_SOURCE_SLOT', 'UNPARSED_MODEL_SOURCE_SLOT', 'UNPARSED_DETAIL_SOURCE_SLOT'])
+        assert.ok(serialized.includes(field));
+    assert.ok(!serialized.includes('UNRELATED_RPC_SAMPLE'));
+    assert.ok(!JSON.stringify(parsed.conversation).includes('UNPARSED_'));
+    const replay = parseGeminiRpcConversation(boundaryTop(payload), context);
+    assert.deepEqual(replay.conversation, parsed.conversation);
+    assertDomainClosure(parsed.conversation.detail);
+});
+
+test('successful source parsing does not retain complete Detail payload samples', () => {
+    const { wire } = sourceReplayFixture(false);
+    const parsed = parseGeminiRpcConversation(wire, { account: fixtureAccount('gemini'), providerId: 'gemini' });
+    assert.ok(!parsed.diagnostics.some(d => d.code === 'GEMINI_SOURCE_REPLAY_EVIDENCE'));
+    assert.ok(!JSON.stringify(parsed.diagnostics).includes('UNPARSED_'));
+});
+
+test('source replay evidence explicitly reports when a decoded-only input has no original payload', () => {
+    const decoded = decodeGeminiDetail(sourceReplayFixture().wire);
+    const parsed = parseGeminiDetailEvidence({ ...decoded, _raw: undefined },
+        { account: fixtureAccount('gemini'), providerId: 'gemini' });
+    const evidence = parsed.diagnostics.find(d => d.code === 'GEMINI_SOURCE_REPLAY_EVIDENCE');
+    assert.deepEqual(evidence?.details, { rpcId: 'hNvQHb', conversationId: 'c_source_replay',
+        providerMessageIds: ['rc_source_old', 'rc_source_new'], captureStatus: 'unavailable' });
 });
 
 test('decode rejection retains original document indices and candidate metadata before filtering', () => {

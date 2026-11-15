@@ -15,6 +15,7 @@ import { closeSourceCitations } from '../../shared/resources/domainCitationAdapt
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
 import { parseGeminiBody, parseGeminiPrompt, parseSourceReasoning, structuredBodyAttachments } from '../shared/contentAdapter.js';
 import type { SourceConversationParseResult } from '../../parsingResult.js';
+import { isJsonValue } from '../../../../shared/utils/jsonTypes.js';
 
 export interface GeminiRpcParseContext extends ConversationParseContext {
     targetConvId?: string;
@@ -201,6 +202,18 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
     if (newerMessages.length) diagnostics.push({ severity: 'info', code: 'CONVERSATION_VERSION_MISMATCH', message: 'Detail contains activity newer than its metadata version',
         details: { sourceVersion: updatedAt, newerMessages } });
     diagnostics.push(...contentDiagnostics);
+    const sourceFallbacks = contentDiagnostics.filter(diagnostic => diagnostic.code === 'GEMINI_SOURCE_ANNOTATION_FALLBACK');
+    if (sourceFallbacks.length) diagnostics.push({ severity: 'info', code: 'GEMINI_SOURCE_REPLAY_EVIDENCE',
+        message: 'Detail response evidence for unresolved source annotations',
+        details: { rpcId: 'hNvQHb', conversationId: evidence.id,
+            providerMessageIds: [...new Set(sourceFallbacks.flatMap(diagnostic =>
+                diagnostic.sourceRef?.providerMessageId ? [diagnostic.sourceRef.providerMessageId] : []))],
+            // Capture once per affected page before pagination drops transport payloads.
+            // Includes unread source slots, but no request headers or other RPC responses.
+            ...(evidence._raw != null && isJsonValue(evidence._raw)
+                ? { captureStatus: 'captured', payload: evidence._raw }
+                : { captureStatus: 'unavailable' }),
+        } });
     return {
         evidence: { rejectedTurns: evidence.turnsRejected, ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds, unrepresentedContent },
         ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}),
