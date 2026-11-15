@@ -169,6 +169,14 @@ export function createLocalFolderVaultClient(
     };
 
     return {
+        async authenticateKey(input) {
+            return {
+                sessionToken: 'local-folder-session',
+                ownerSubject: `vault:${input.keyFingerprint}`,
+                expiresAt: Number.MAX_SAFE_INTEGER,
+            };
+        },
+
         async authenticateGoogle() {
             return {
                 sessionToken: 'local-folder-session',

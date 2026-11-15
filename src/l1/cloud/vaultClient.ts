@@ -60,6 +60,9 @@ function throwMappedHttpError(
     retryAfterHeader: string | null,
 ): never {
     const retryAt = parseRetryAfterTimestamp(retryAfterHeader);
+    if (details.code === 'ACCESS_CODE_REQUIRED') {
+        throw new OperationError('CLOUD_ACCESS_CODE_INVALID', details.message, status);
+    }
     if (status === 401 || status === 403 || details.code === 'UNAUTHORIZED') {
         throw new OperationError('CLOUD_AUTH_REQUIRED', details.message, status);
     }
@@ -96,6 +99,13 @@ function parseRecordMeta(raw: unknown): CloudRecordMeta {
 }
 
 export interface CloudVaultClient {
+    authenticateKey(input: {
+        readonly serverUrl: string;
+        readonly keyFingerprint: string;
+        readonly authToken: string;
+        readonly accessCode?: string;
+        readonly signal?: AbortSignal;
+    }): Promise<CloudAuthSessionResponse>;
     authenticateGoogle(serverUrl: string, idToken: string, signal?: AbortSignal): Promise<CloudAuthSessionResponse>;
     logoutAll(serverUrl: string, sessionToken: string, signal?: AbortSignal): Promise<void>;
     getVaultStatus(serverUrl: string, sessionToken: string, signal?: AbortSignal): Promise<CloudVaultStatusResponse>;
@@ -135,6 +145,35 @@ export interface CloudVaultClient {
 
 export function createCloudVaultClient(fetchFn: CloudFetchFn = globalThis.fetch.bind(globalThis)): CloudVaultClient {
     return {
+        async authenticateKey(input) {
+            const base = normalizeCloudServerUrl(input.serverUrl);
+            const res = await fetchFn(`${base}/v1/auth/key`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    keyFingerprint: input.keyFingerprint,
+                    authToken: input.authToken,
+                    ...(input.accessCode?.trim() ? { accessCode: input.accessCode.trim() } : {}),
+                }),
+                signal: input.signal,
+            });
+            if (!res.ok) {
+                throwMappedHttpError(res.status, await readErrorDetails(res), res.headers.get('Retry-After'));
+            }
+            const raw: unknown = await res.json();
+            if (!isRecord(raw)
+                || typeof raw.sessionToken !== 'string' || !raw.sessionToken
+                || typeof raw.ownerSubject !== 'string' || !raw.ownerSubject
+                || typeof raw.expiresAt !== 'number' || !Number.isSafeInteger(raw.expiresAt)) {
+                throw new OperationError('CLOUD_SERVER_ERROR', 'Malformed authentication response from Cloud Vault');
+            }
+            return {
+                sessionToken: raw.sessionToken,
+                ownerSubject: raw.ownerSubject,
+                expiresAt: raw.expiresAt,
+            };
+        },
+
         async authenticateGoogle(serverUrl, idToken, signal) {
             const base = normalizeCloudServerUrl(serverUrl);
             const res = await fetchFn(`${base}/v1/auth/google`, {

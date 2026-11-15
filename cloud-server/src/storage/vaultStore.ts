@@ -26,6 +26,7 @@ export interface VaultUserRow {
     readonly ownerSubject: string;
     readonly tokenEpoch: number;
     readonly keyFingerprint?: string;
+    readonly authVerifierHash?: string;
     readonly usedBytes: number;
     readonly quotaBytes: number;
     readonly headSeq: number;
@@ -39,6 +40,13 @@ export type PutRecordOutcome =
 
 export interface VaultStore {
     ensureUser(ownerSubject: string, defaultQuotaBytes: number, nowMs?: number): Promise<VaultUserRow>;
+    authenticateKeyTenant(input: {
+        readonly ownerSubject: string;
+        readonly keyFingerprint: string;
+        readonly authVerifierHash: string;
+        readonly defaultQuotaBytes: number;
+        readonly nowMs?: number;
+    }): Promise<VaultUserRow | null>;
     getUser(ownerSubject: string): Promise<VaultUserRow | null>;
     rotateUserTokenEpoch(ownerSubject: string, nowMs?: number): Promise<number>;
     getVaultStatus(ownerSubject: string): Promise<CloudVaultStatusResponse | null>;
@@ -89,18 +97,29 @@ function readText(row: Record<string, unknown>, field: string): string {
  * Production Cloudflare D1 + R2 storage engine using immutable versioned R2 object keys
  * (`v1/<subject>/<blindId>/r<rev>`) and atomic D1 `batch()` optimistic-concurrency swaps.
  */
+function constantTimeEqualHex(a: string, b: string): boolean {
+    if (a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) {
+        diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return diff === 0;
+}
+
 export function createCloudflareVaultStore(db: D1DatabaseLike, bucket: R2BucketLike): VaultStore {
     const getUser = async (ownerSubject: string): Promise<VaultUserRow | null> => {
         const row = await db
-            .prepare('SELECT user_id, token_epoch, key_fingerprint, used_bytes, quota_bytes, next_seq FROM users WHERE user_id = ?1')
+            .prepare('SELECT user_id, token_epoch, key_fingerprint, auth_verifier_hash, used_bytes, quota_bytes, next_seq FROM users WHERE user_id = ?1')
             .bind(ownerSubject)
             .first<Record<string, unknown>>();
         if (!row) return null;
         const fp = typeof row.key_fingerprint === 'string' && row.key_fingerprint ? row.key_fingerprint : undefined;
+        const verifier = typeof row.auth_verifier_hash === 'string' && row.auth_verifier_hash ? row.auth_verifier_hash : undefined;
         return {
             ownerSubject: readText(row, 'user_id'),
             tokenEpoch: readSafeInt(row, 'token_epoch'),
             ...(fp ? { keyFingerprint: fp } : {}),
+            ...(verifier ? { authVerifierHash: verifier } : {}),
             usedBytes: readSafeInt(row, 'used_bytes'),
             quotaBytes: readSafeInt(row, 'quota_bytes'),
             headSeq: readSafeInt(row, 'next_seq') - 1,
@@ -118,6 +137,23 @@ export function createCloudflareVaultStore(db: D1DatabaseLike, bucket: R2BucketL
                 .run();
             const user = await getUser(ownerSubject);
             if (!user) throw new Error('Failed to persist user row in D1');
+            return user;
+        },
+
+        async authenticateKeyTenant(input) {
+            const nowMs = input.nowMs ?? Date.now();
+            await db
+                .prepare(
+                    'INSERT INTO users (user_id, token_epoch, key_fingerprint, auth_verifier_hash, used_bytes, quota_bytes, next_seq, created_at, updated_at) ' +
+                    'VALUES (?1, 1, ?2, ?3, 0, ?4, 1, ?5, ?5) ON CONFLICT(user_id) DO NOTHING',
+                )
+                .bind(input.ownerSubject, input.keyFingerprint, input.authVerifierHash, input.defaultQuotaBytes, nowMs)
+                .run();
+            const user = await getUser(input.ownerSubject);
+            if (!user || !user.authVerifierHash) return null;
+            if (!constantTimeEqualHex(user.authVerifierHash, input.authVerifierHash)) {
+                return null;
+            }
             return user;
         },
 
@@ -362,6 +398,7 @@ export function createInMemoryVaultStore(): VaultStore & {
     interface MemoryUser {
         tokenEpoch: number;
         keyFingerprint?: string;
+        authVerifierHash?: string;
         usedBytes: number;
         quotaBytes: number;
         nextSeq: number;
@@ -379,6 +416,7 @@ export function createInMemoryVaultStore(): VaultStore & {
         ownerSubject,
         tokenEpoch: u.tokenEpoch,
         ...(u.keyFingerprint ? { keyFingerprint: u.keyFingerprint } : {}),
+        ...(u.authVerifierHash ? { authVerifierHash: u.authVerifierHash } : {}),
         usedBytes: u.usedBytes,
         quotaBytes: u.quotaBytes,
         headSeq: u.nextSeq - 1,
@@ -395,6 +433,27 @@ export function createInMemoryVaultStore(): VaultStore & {
                 recordsByUser.set(ownerSubject, new Map());
             }
             return toUserRow(ownerSubject, user);
+        },
+
+        async authenticateKeyTenant(input) {
+            let user = users.get(input.ownerSubject);
+            if (!user) {
+                user = {
+                    tokenEpoch: 1,
+                    keyFingerprint: input.keyFingerprint,
+                    authVerifierHash: input.authVerifierHash,
+                    usedBytes: 0,
+                    quotaBytes: input.defaultQuotaBytes,
+                    nextSeq: 1,
+                };
+                users.set(input.ownerSubject, user);
+                recordsByUser.set(input.ownerSubject, new Map());
+                return toUserRow(input.ownerSubject, user);
+            }
+            if (!user.authVerifierHash || !constantTimeEqualHex(user.authVerifierHash, input.authVerifierHash)) {
+                return null;
+            }
+            return toUserRow(input.ownerSubject, user);
         },
 
         async getUser(ownerSubject) {

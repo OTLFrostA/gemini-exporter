@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     user_id TEXT PRIMARY KEY,
     token_epoch INTEGER NOT NULL DEFAULT 1,
     key_fingerprint TEXT,
+    auth_verifier_hash TEXT,
     used_bytes INTEGER NOT NULL DEFAULT 0,
     quota_bytes INTEGER NOT NULL,
     next_seq INTEGER NOT NULL DEFAULT 1,

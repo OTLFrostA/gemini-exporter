@@ -16,6 +16,7 @@ export interface CloudSyncSessionState {
     readonly expiresAt: number;
     readonly email?: string;
     readonly folderName?: string;
+    readonly accessCode?: string;
     readonly keyMismatch?: boolean;
     readonly pulledSeq: number;
     readonly enabledSinceAt?: number;
@@ -175,6 +176,7 @@ function parseSessionState(raw: unknown): CloudSyncSessionState | null {
         pulledSeq: raw.pulledSeq,
         ...(typeof raw.email === 'string' && raw.email ? { email: raw.email } : {}),
         ...(typeof raw.folderName === 'string' && raw.folderName ? { folderName: raw.folderName } : {}),
+        ...(typeof raw.accessCode === 'string' && raw.accessCode ? { accessCode: raw.accessCode } : {}),
         ...(raw.keyMismatch === true ? { keyMismatch: true } : {}),
         ...(typeof raw.enabledSinceAt === 'number' && Number.isSafeInteger(raw.enabledSinceAt)
             ? { enabledSinceAt: raw.enabledSinceAt }

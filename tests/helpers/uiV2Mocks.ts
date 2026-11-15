@@ -113,6 +113,7 @@ export function installUiV2Mocks(): void {
             exportRecoveryKey: async () => null,
             installAutoEnqueueListener: () => () => {},
             connectLocalFolderVault: () => unconfigured('Application.cloudSync.connectLocalFolderVault'),
+            connectCloudVault: () => unconfigured('Application.cloudSync.connectCloudVault'),
             connectWithGoogleIdToken: () => unconfigured('Application.cloudSync.connect'),
             disconnect: async () => {},
             setAutoSyncEnabled: async () => {},

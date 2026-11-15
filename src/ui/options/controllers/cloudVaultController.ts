@@ -3,13 +3,30 @@ import {
     type CloudSyncStatusSnapshot,
     type CloudVaultBackendType,
 } from '../../../application/cloud/cloudSyncEngine.js';
-import { getSettings, updateSettings } from '../../../application/settings/index.js';
-import { launchGoogleOidcIdTokenFlow } from '../../../runtime/capabilities/googleCloudAuth.js';
+import { getSettings } from '../../../application/settings/index.js';
 import { pickVaultDirectoryHandle, reauthorizeVaultDirectoryHandle } from '../../../runtime/capabilities/vaultFolderAuth.js';
 import { OperationError } from '../../../shared/errors/operationError.js';
 import { elementById as el, requiredElement as control } from '../../shared/elements.js';
 import { errorText, text } from '../../shared/settings.js';
 import type { UiMessage } from '../state/foregroundTask.js';
+
+function formatCloudTargetLabel(snap: CloudSyncStatusSnapshot | null): string {
+    if (!snap) return '';
+    if (snap.email) return snap.email;
+    let hostPart = '';
+    if (snap.serverUrl && !snap.serverUrl.startsWith('local-vault://')) {
+        try {
+            hostPart = new URL(snap.serverUrl).host;
+        } catch {
+            hostPart = snap.serverUrl;
+        }
+    }
+    const shortFp = snap.ownerSubject?.startsWith('vault:')
+        ? `#${snap.ownerSubject.slice('vault:'.length, 'vault:'.length + 8)}`
+        : (snap.ownerSubject ?? '');
+    if (hostPart && shortFp) return `☁️ ${hostPart} (${shortFp})`;
+    return hostPart ? `☁️ ${hostPart}` : shortFp;
+}
 
 export interface CloudVaultControllerHandle {
     refresh(): Promise<void>;
@@ -37,8 +54,8 @@ export function mountCloudVaultPanel(callbacks: {
     const btnLocalChangeDir = control('button', 'btnLocalVaultChangeDir');
 
     const serverInput = control('input', 'cloudServerUrlInput');
-    const clientIdInput = control('input', 'cloudGoogleClientIdInput');
-    const btnConnect = control('button', 'btnCloudConnectGoogle');
+    const accessCodeInput = control('input', 'cloudAccessCodeInput');
+    const btnConnect = control('button', 'btnCloudConnect');
     const btnDisconnect = control('button', 'btnCloudDisconnect');
     const connectedRow = el('cloudConnectedAccountRow');
     const connectedLabel = el('cloudConnectedEmail');
@@ -108,8 +125,8 @@ export function mountCloudVaultPanel(callbacks: {
 
         if (!connected) {
             summaryEl.textContent = text(
-                'Choose a local folder or sign in to Cloud Vault to enable auto E2EE backup',
-                '选择本地文件夹或登录云端开启零知识自动加密备份',
+                'Choose a local folder or connect a Cloud Vault server to enable auto E2EE backup',
+                '选择本地文件夹或连接云同步服务器开启自动加密备份',
             );
         } else if (snap?.backend === 'local-folder' && snap.folderPermissionRequired) {
             summaryEl.textContent = text(
@@ -124,7 +141,7 @@ export function mountCloudVaultPanel(callbacks: {
         } else {
             const targetDesc = snap?.backend === 'local-folder'
                 ? `📁 ${snap.folderName ?? 'Local Vault'}`
-                : (snap?.email ?? snap?.ownerSubject ?? '');
+                : formatCloudTargetLabel(snap);
             const queuePart = (snap?.pendingOutbox ?? 0) > 0
                 ? text(` · ${snap?.pendingOutbox} queued`, ` · ${snap?.pendingOutbox} 条待同步`)
                 : '';
@@ -146,7 +163,7 @@ export function mountCloudVaultPanel(callbacks: {
         const isCloudConnected = connected && activeBackend === 'cloud-server';
         btnConnect.hidden = isCloudConnected;
         serverInput.disabled = disabled || isCloudConnected;
-        clientIdInput.disabled = disabled || isCloudConnected;
+        accessCodeInput.disabled = disabled || isCloudConnected;
         btnConnect.disabled = disabled;
 
         connectedRow.hidden = !connected;
@@ -168,7 +185,7 @@ export function mountCloudVaultPanel(callbacks: {
         if (connected) {
             connectedLabel.textContent = activeBackend === 'local-folder'
                 ? `📁 ${snap?.folderName ?? ''}`
-                : (snap?.email ?? snap?.ownerSubject ?? '');
+                : formatCloudTargetLabel(snap);
         }
         if (cachedRecoveryKey) {
             keyDisplay.value = keyRevealed ? cachedRecoveryKey : 'GEK1-•••••-•••••-•••••-•••••-•••••';
@@ -193,8 +210,8 @@ export function mountCloudVaultPanel(callbacks: {
             const candidate = snap.serverUrl ?? settings.cloudSyncServerUrl ?? '';
             if (!candidate.startsWith('local-vault://')) serverInput.value = candidate;
         }
-        if (!clientIdInput.value && settings.cloudSyncGoogleClientId) {
-            clientIdInput.value = settings.cloudSyncGoogleClientId;
+        if (!accessCodeInput.value && settings.cloudSyncAccessCode) {
+            accessCodeInput.value = settings.cloudSyncAccessCode;
         }
         paint();
     };
@@ -309,18 +326,12 @@ export function mountCloudVaultPanel(callbacks: {
     const onConnectCloud = (): void => {
         void runAction(async () => {
             const serverUrl = serverInput.value.trim();
-            const googleClientId = clientIdInput.value.trim();
+            const accessCode = accessCodeInput.value.trim() || undefined;
             if (!serverUrl) {
-                setModalFeedback(text('Enter your Cloud Vault HTTPS URL', '请填写云同步服务器 HTTPS 地址'), true);
+                setModalFeedback(text('Enter your Cloud Vault server URL', '请填写云同步服务器地址'), true);
                 return;
             }
-            if (!googleClientId) {
-                setModalFeedback(text('Enter your Google OAuth Client ID', '请填写 Google OAuth Client ID'), true);
-                return;
-            }
-            await updateSettings({ cloudSyncServerUrl: serverUrl, cloudSyncGoogleClientId: googleClientId });
-            const idToken = await launchGoogleOidcIdTokenFlow(googleClientId);
-            const connected = await defaultCloudSyncEngine.connectWithGoogleIdToken(serverUrl, idToken);
+            const connected = await defaultCloudSyncEngine.connectCloudVault(serverUrl, accessCode);
             cachedRecoveryKey = connected.recoveryKey;
             await defaultCloudSyncEngine.setAutoSyncEnabled(true);
             const synced = await runSyncAndNotify();

@@ -15,11 +15,11 @@ binding = "VAULT_BLOBS"
 bucket_name = "gemini-exporter-vault-blobs"
 
 [vars]
-# Replace with your Google Cloud OAuth 2.0 Web/Extension Client ID(s)
-GOOGLE_CLIENT_IDS = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
-# Restrict browser CORS strictly to your published/unpacked Chrome Extension origin
-ALLOWED_ORIGINS = "chrome-extension://YOUR_EXTENSION_ID"
+# Default allows any Chrome/Chromium extension origin (`chrome-extension://<32-char-id>`) while blocking web pages
+ALLOWED_ORIGINS = "chrome-extension://*"
 DEFAULT_QUOTA_BYTES = "104857600"
 
-# Set SESSION_HMAC_SECRET (>= 32 random bytes) via Cloudflare Secret, never in plaintext config:
+# Set secrets via Cloudflare Secret (never commit plaintext secrets):
 #   openssl rand -base64 48 | npx wrangler secret put SESSION_HMAC_SECRET
+# Optional invite/access code to restrict server usage to yourself or invited testers:
+#   npx wrangler secret put SERVER_ACCESS_CODE
