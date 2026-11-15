@@ -115,10 +115,12 @@ test('E2EE Cloud Vault full browser UI flow: Google OIDC sign-in -> post-toggle 
 
     await expect(page.locator('#cloudConnectedEmail')).toHaveText('e2e-researcher@example.com');
     await expect(page.locator('#cloudSyncToggle')).toBeChecked();
-    await expect(page.locator('#cloudIncludeDetailToggle')).not.toBeChecked();
-    // Explicitly opt into full body sync for this end-to-end Markdown body export test
-    await page.locator('#cloudIncludeDetailToggle').click();
-    await expect(page.locator('#cloudIncludeDetailToggle')).toBeChecked();
+    await expect(page.locator('#cloudIncludeDetailRow')).toBeHidden();
+    // Enable full-body flag via internal settings API for this Markdown body round-trip assertion while UI keeps it hidden
+    await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        await api.updateSettings({ cloudSyncIncludeDetail: true });
+    });
 
     // Reveal & capture the generated GEK1-... Master Recovery Key
     await page.locator('#btnCloudRevealKey').click();
@@ -231,7 +233,7 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
     await expect(page.locator('#cloudConnectedEmail')).toContainText('LocalEncryptedVaultExperiment');
     await expect(page.locator('#cloudModalFeedback')).toContainText('Saved 1');
     await expect(page.locator('#cloudSyncToggle')).toBeChecked();
-    await expect(page.locator('#cloudIncludeDetailToggle')).not.toBeChecked();
+    await expect(page.locator('#cloudIncludeDetailRow')).toBeHidden();
 
     await page.locator('#btnCloudRevealKey').click();
     const localRecoveryKey = await page.locator('#cloudRecoveryKeyDisplay').inputValue();
