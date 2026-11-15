@@ -69,6 +69,9 @@ test('manifest shards are read in order and malformed later shards fail cleanly'
     const data = { 'export_manifest.json': manifest, 'part-0.json': JSON.stringify([conversation('first')]), 'part-1.json': JSON.stringify([conversation('second')]) };
     const result = await parseOpenAIExportArchive(await zip(data), CHATGPT_ACCOUNT.providerAccountId);
     assert.deepEqual(result.conversations.map(d => d.conversationId), ['first', 'second']);
+    const repeated = await parseOpenAIExportArchive(await fixture([conversation(), conversation()]), CHATGPT_ACCOUNT.providerAccountId);
+    assert.equal(repeated.conversationCount, 1, 'source summary counts distinct conversations across shards/rows');
+    assert.equal(repeated.conversations.length, 2, 'source snapshots are still supplied to admission in order');
     await assert.rejects(parseOpenAIExportArchive(await zip({ ...data, 'part-1.json': '[{"id":"broken"}]' }), CHATGPT_ACCOUNT.providerAccountId));
     await assert.rejects(
         readOpenAIArchive(await zip({ 'export_manifest.json': manifest })),

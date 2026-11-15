@@ -40,8 +40,9 @@ export async function admitArchivedConversations<Item>(options: {
         readonly total: number;
         readonly accepted: boolean;
     }) => void;
-}): Promise<{ acceptedIds: Set<string>; rejectedCount: number; incompleteQuality: boolean }> {
+}): Promise<{ acceptedIds: Set<string>; addedCount: number; rejectedCount: number; incompleteQuality: boolean }> {
     const acceptedIds = new Set<string>();
+    let addedCount = 0;
     let rejectedCount = 0;
     let incompleteQuality = false;
     const total = options.items.length;
@@ -69,6 +70,7 @@ export async function admitArchivedConversations<Item>(options: {
         for (const [sliceIndex, entry] of extracted.entries()) {
             const position = offset + sliceIndex;
             const admission = admissions[sliceIndex];
+            if (admission?.indexAdded) addedCount++;
             const accepted = admission?.accepted === true;
             if (accepted) {
                 acceptedIds.add(entry.conversationId);
@@ -91,5 +93,5 @@ export async function admitArchivedConversations<Item>(options: {
         }
     }
     notifyDomainChanged(options.accountId);
-    return { acceptedIds, rejectedCount, incompleteQuality };
+    return { acceptedIds, addedCount, rejectedCount, incompleteQuality };
 }

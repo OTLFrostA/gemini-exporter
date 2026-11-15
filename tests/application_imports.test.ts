@@ -33,8 +33,9 @@ test('Application Takeout import admits parsed conversations to L2, notifies Run
     }];
     const progress: number[] = [];
     const resources = createSourceResourceContext();
+    state.detailDecision = { accepted: true, changed: true, indexAdded: true };
     const result = await importTakeout(dummyFile(), account.id, p => progress.push(p), resources);
-    assert.deepEqual(result, { imported: 1, status: 'ok' });
+    assert.deepEqual(result, { imported: 1, added: 1, status: 'ok' });
     assert.equal(state.admittedDetails.length, 1);
     assert.equal(state.admittedDetails[0].accountId, account.id);
     assert.equal(state.admittedDetails[0].conversationId, 'takeout-1');
@@ -59,7 +60,8 @@ test('Application Takeout import admits parsed conversations to L2, notifies Run
     }];
     state.detailDecision = { accepted: false, changed: false };
     const rejectedResources = createSourceResourceContext();
-    await importTakeout(dummyFile(), account.id, undefined, rejectedResources);
+    const rejected = await importTakeout(dummyFile(), account.id, undefined, rejectedResources);
+    assert.equal(rejected.added, 0, 'a rejected detail cannot count as a new local conversation');
     assert.equal(rejectedResources.has({ accountId: account.id, conversationId: 'takeout-2' }, 'img-2'), false);
 });
 
@@ -122,8 +124,9 @@ test('Application OpenAI import orchestrates L1 archive parsing, L2 admission, l
     };
     const resources = createSourceResourceContext();
     const progress: number[] = [];
+    state.detailDecision = { accepted: true, changed: true, indexAdded: true };
     const okResult = await importOpenAI(new Uint8Array([1]), chatgptAccount.id, p => progress.push(p), resources);
-    assert.deepEqual(okResult, { imported: 1, skipped: 0, missingAssets: 0, status: 'ok' });
+    assert.deepEqual(okResult, { read: 1, imported: 1, added: 1, skipped: 0, missingAssets: 0, status: 'ok' });
     assert.equal(progress.at(-1), 100);
     assert.deepEqual(state.notifications, [chatgptAccount.id]);
     assert.ok(resources.has({ accountId: chatgptAccount.id, conversationId: 'gpt-1' }, 'asset-1'));
@@ -131,5 +134,5 @@ test('Application OpenAI import orchestrates L1 archive parsing, L2 admission, l
     // Rejected detail increments skipped and marks partial
     state.detailDecision = { accepted: false, changed: false };
     const skippedResult = await importOpenAI(new Uint8Array([1]), chatgptAccount.id);
-    assert.deepEqual(skippedResult, { imported: 0, skipped: 1, missingAssets: 0, status: 'partial' });
+    assert.deepEqual(skippedResult, { read: 1, imported: 0, added: 0, skipped: 1, missingAssets: 0, status: 'partial' });
 });

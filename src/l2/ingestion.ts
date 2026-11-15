@@ -90,6 +90,8 @@ export async function ingestIndexes(accountId: Account['id'],
 export interface DetailIngestResult {
     accepted: boolean;
     changed: boolean;
+    /** Present only when this committed transaction created the conversation's Index. */
+    indexAdded?: true;
 }
 
 function buildConversationDecision(
@@ -107,10 +109,12 @@ function buildConversationDecision(
         const sameFacts = sameStoredFacts.material;
         const accepted = selected === incoming || (existing !== null && sameFacts(existing, incoming));
         const changed = !existing || (selected !== existing && !sameFacts(existing, selected));
+        const result: DetailIngestResult = { accepted, changed };
+        if (!existingIndex) result.indexAdded = true;
         return {
             ...(!sameStoredFacts.index(acceptedIndex, existingIndex) ? { index: acceptedIndex } : {}),
             ...(!sameStoredFacts.detail(selected, existing) ? { detail: selected } : {}),
-            result: { accepted, changed },
+            result,
         };
     };
 }

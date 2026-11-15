@@ -3,6 +3,8 @@ import { parseOpenAIExportArchive } from '../../l1/imports/openai/parseArchive.j
 import { admitArchivedConversations, requireImportTargetAccount } from './batchAdmitImports.js';
 
 export interface OpenAIImportResult {
+    read: number;
+    added: number;
     imported: number;
     skipped: number;
     missingAssets: number;
@@ -45,6 +47,8 @@ export async function importOpenAI(file: Blob | Uint8Array, accountId: string,
         : (batch.incompleteQuality || skipped > 0 || missingAssets > 0) ? 'partial' : 'ok';
     onProgress?.(100);
     return {
+        read: parsedArchive.conversationCount,
+        added: batch.addedCount,
         imported: batch.acceptedIds.size,
         skipped,
         missingAssets,

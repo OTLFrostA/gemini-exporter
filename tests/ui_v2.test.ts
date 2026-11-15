@@ -88,7 +88,7 @@ test('UI: first selected ZIP creates default only when all local accounts are ab
     const result = await handleTakeoutImport({} as File, null, { onTarget: async id => assert.equal(id, A.id) }, {
         listAccounts: async () => [], getAccount: async () => null,
         getOrCreateAccount: async (provider, subject) => { assert.equal(provider, 'gemini'); assert.equal(subject, 'default'); created++; return A; },
-        updateSettings: async () => {}, importTakeout: async () => ({ imported: 0, status: 'partial' as const })
+        updateSettings: async () => {}, importTakeout: async () => ({ imported: 0, added: 0, status: 'partial' as const })
     });
     assert.equal(created, 1); assert.equal(result.imported, 0); assert.equal(result.status, 'partial');
 });
