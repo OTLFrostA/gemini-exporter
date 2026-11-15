@@ -119,11 +119,8 @@ export function mountCloudVaultPanel(callbacks: {
             const queuePart = (snap?.pendingOutbox ?? 0) > 0
                 ? text(` · ${snap?.pendingOutbox} queued`, ` · ${snap?.pendingOutbox} 条待同步`)
                 : '';
-            const modePart = snap?.includeDetail
-                ? text('Full', '含正文')
-                : text('Index-only', '仅目录');
             const statePart = snap?.enabled
-                ? text(`Auto-sync (${modePart})`, `自动加密 (${modePart})`)
+                ? text('Auto-sync ON', '自动同步中')
                 : text('Paused', '已暂停');
             summaryEl.textContent = `${statePart}${targetDesc ? ' · ' + targetDesc : ''}${queuePart}`;
         }
