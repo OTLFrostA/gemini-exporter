@@ -64,10 +64,7 @@ export function decodeGeminiCandidateResources(
 ): DecodedGeminiCandidateResources {
     const { source: cand, index: candidateIndex, body: answerBody, turnDocument } = candidate;
     const candidateBlock = answerBody || cand;
-    // Preserve the established ownership, fallback and ordering rules.
-    const structuredExtraction = inspectStructuredContent({
-        turnDocument, candidateIndex, candidateBody: candidate.text
-    });
+    const structuredExtraction = inspectStructuredContent({ turnDocument, candidateIndex });
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
     const groundingReferences: GeminiCitationReference[] = [];
     deepWalk(cand, node => {
@@ -77,9 +74,8 @@ export function decodeGeminiCandidateResources(
             if (reference) groundingReferences.push(reference);
         }
     });
-    const rawAnswerDocument = candidateIndex === 0
-        ? structuredExtraction.status === 'decoded' ? structuredExtraction.rawDocument ?? turnDocument : turnDocument
-        : undefined;
+    const rawAnswerDocument = structuredExtraction.status === 'decoded' || structuredExtraction.status === 'decode_rejected'
+        ? wireArray(turnDocument) ? [turnDocument[candidateIndex]] : turnDocument : undefined;
     const { images: candImages, structuredImages } = extractResponseImageEvidence(
         cand, [answerBody, rawAnswerDocument], candidate.text, structuredContent
     );

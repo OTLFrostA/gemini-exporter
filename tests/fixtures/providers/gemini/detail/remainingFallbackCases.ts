@@ -69,11 +69,11 @@ function financeCard(): unknown[] {
     ], [[], []], summary + ' [Disclaimer](https://example.com/disclaimer)']);
 }
 
-function attachmentCard(): unknown[] {
+export function attachmentCard(url = 'https://example.com/image.jpg'): unknown[] {
     return citationField(9, [[[
         [null, null, null, [null, 1, 'fixture-image-tag', null,
             [3, null, 'File attachment was not previously registered'], null, null, null, null, null, null, 'image/jpeg']],
-        ['https://example.com/image.jpg'], null,
+        [url], null,
         [0, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, false],
         null, null, null, null, null, null, null, [true],
     ]]]);
@@ -117,7 +117,7 @@ export const remainingFallbackCases = {
     'G_REMAINING_MAP_UNKNOWN_SIBLING': () => surrounding(unsupportedSibling(citationField(6, [[], [[[
         place('Fixture Museum', 'https://example.com/museum'),
     ]]]]))),
-    // The observed root contains two body sequences. The second is not a trailer.
+    // Parallel candidate documents. The second entry is not a layout trailer.
     'G_REMAINING_BODY_SEQUENCES': () => wire([
         [[citationText('First body.')]], [[citationText('Second body.')]],
     ]),
@@ -152,18 +152,18 @@ export const remainingFallbackCases = {
         [null, null, null, null, null, [[['Fixture Museum'], ['http://example.com/place'], [], null, 2, []]]],
     ]])]),
     'G_REMAINING_PLACEHOLDER_MARKDOWN': () => wire([[[]]], undefined, 'Authoritative Markdown body.'),
-    'G_REMAINING_ALTERNATIVE_FIRST': () => wire([
+    'G_REMAINING_ALTERNATIVE_FIRST': () => coverageWire([
         [[citationText('Selected body.')]], [[citationText('Other body.')]],
-    ], undefined, 'Selected body.'),
-    'G_REMAINING_ALTERNATIVE_SECOND': () => wire([
+    ], [['rc_primary', [['Selected body.']]], ['rc_other', [['Other body.']]]]),
+    'G_REMAINING_ALTERNATIVE_SECOND': () => coverageWire([
         [[citationText('Other body.')]], [[citationText('Selected body.')]],
-    ], undefined, '**Selected** body.'),
-    'G_REMAINING_ALTERNATIVE_DUPLICATE': () => wire([
+    ], [['rc_other', [['Other body.']]], ['rc_selected', [['**Selected** body.']]]], 'rc_selected'),
+    'G_REMAINING_ALTERNATIVE_DUPLICATE': () => coverageWire([
         [[citationText('Selected body.')]], [[citationText('Selected body.')]],
-    ], undefined, 'Selected body.'),
-    'G_REMAINING_ALTERNATIVE_RESOURCE': () => wire([
+    ], [['rc_other', [['Selected body.']]], ['rc_selected', [['Selected body.']]]], 'rc_selected'),
+    'G_REMAINING_ALTERNATIVE_RESOURCE': () => coverageWire([
         [[citationText('Other body.'), attachmentCard()]], [[citationText('Selected body.')]],
-    ], undefined, 'Selected body.'),
+    ], [['rc_other', [['Other body.']]], ['rc_selected', [['Selected body.']]]], 'rc_selected'),
     'G_REMAINING_FINANCE': () => surrounding(financeCard()),
     'G_REMAINING_ATTACHMENT': () => surrounding(attachmentCard()),
     'G_REMAINING_BUSINESSES': () => surrounding(citationField(5, [[], [[

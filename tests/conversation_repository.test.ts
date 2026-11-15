@@ -154,9 +154,9 @@ test('ingestDetailsBatch commits a multi-conversation slice atomically and prese
             { conversationId: 'batch-b', detail: { ...body(), savedAt: 150, quality: { status: 'complete' } }, indexFields: { title: 'Chat B', titleSource: 'provider', updatedAt: 150 } },
         ]);
         assert.deepEqual(outcomes, [
-            { accepted: true, changed: true },
+            { accepted: true, changed: true, indexAdded: true },
             { accepted: false, changed: false },
-            { accepted: true, changed: true },
+            { accepted: true, changed: true, indexAdded: true },
         ]);
         const storedA = await readStoredConversation({ accountId, conversationId: 'batch-a' });
         assert.equal(storedA?.index.title, 'Authoritative A');

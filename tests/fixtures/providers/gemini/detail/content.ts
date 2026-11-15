@@ -8,8 +8,9 @@ export function coverageTextNode(value: string, flag: number): unknown[] {
     return [null, [null, 0, value, [[0, value.length, [[null, null, null, null, flag]]]]]];
 }
 
-export function coverageWire(raw: unknown, candidates: unknown[] = [['rc_answer', [[COVERAGE_FALLBACK]]]]): string {
+export function coverageWire(raw: unknown, candidates: unknown[] = [['rc_answer', [[COVERAGE_FALLBACK]]]], selectedId?: string): string {
     const payload: unknown[] = [candidates];
+    if (selectedId !== undefined) payload[3] = selectedId;
     if (raw !== undefined) payload[12] = raw;
     return JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[[['c_coverage', 'r_coverage'], [1700000000, 0], [['Question']], payload]]])]]);
 }

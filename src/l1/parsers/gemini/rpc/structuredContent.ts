@@ -1,7 +1,7 @@
 import { extractImageEvidence, type ImageAttachment } from "./sourceAttachments.js";
 import { isJsonValue, type JsonValue } from "../../../../shared/utils/jsonTypes.js";
 import { isHttpUrl, decodeDocumentLinks, decodeResearchPlan, decodeMapCard, decodeFlightCard, decodeBusinessCard, decodeFinanceCard, decodeMailCard } from './cardNodes.js';
-import { matchesCandidateBody } from './structuredBodyMatch.js';
+import { isGeminiSourceId } from './sourceAttributions.js';
 
 export type GeminiAnnotation = { start: number; end: number } & (
     | { type: 0 | 2 | 4 | 5 | 7 | 12 }
@@ -142,8 +142,7 @@ function isWireArray(value: unknown): value is unknown[] {
  * the same source-ID grammar and never leak unchecked arrays. */
 function decodeSourceIds(value: unknown): string[] | null {
     if (!isWireArray(value) || value.length === 0) return null;
-    return value.every((id): id is string => typeof id === 'string' && /^(?:(?:spp_|sp_|cit_)[\w-]+|0)$/.test(id))
-        ? [...value] : null;
+    return value.every(isGeminiSourceId) ? [...value] : null;
 }
 
 /** Citation sources are a wire union: Workspace, uploaded file, or web page.
@@ -850,7 +849,6 @@ function rejectedValuePath(document: JsonValue, target: JsonValue, path = ''): s
 interface GeminiStructuredEvidenceInput {
     turnDocument: unknown;
     candidateIndex: number;
-    candidateBody?: string;
 }
 
 function emptyDocumentPlaceholder(value: unknown): boolean {
@@ -858,29 +856,27 @@ function emptyDocumentPlaceholder(value: unknown): boolean {
 }
 
 export function inspectStructuredContent(input: GeminiStructuredEvidenceInput): GeminiStructuredExtraction {
-    // Turn-level document field 12 belongs only to primary Candidate 0 (PR #705).
+    // hNvQHb field 13 is a repeated document parallel to the candidate list.
+    // Bind by the selected candidate's original index, as the provider decoder
+    // does. Markdown similarity cannot establish ownership (or veto it).
+    // See tests/live/probes/gemini_renderer_probe/CANDIDATE_OWNERSHIP_FINDING.md.
     if (input.turnDocument == null || emptyDocumentPlaceholder(input.turnDocument)) return { status: 'missing' };
-    if (input.candidateIndex !== 0) return { status: 'candidate_unmatched' };
+    const selected = isWireArray(input.turnDocument) ? input.turnDocument[input.candidateIndex]
+        : input.candidateIndex === 0 ? input.turnDocument : undefined;
+    if (selected === undefined) return { status: 'candidate_unmatched' };
+    if (selected === null || emptyDocumentPlaceholder(selected)) return { status: 'missing' };
     const issues: DecodeIssues = [];
-    const document = decodeGeminiStructuredPayload(input.turnDocument, issues);
-    if (document) return { status: 'decoded', document };
-    // Several native bodies are alternatives, not concatenated chat segments.
-    // Require exactly one independently matching body. Position alone does not
-    // establish ownership, and duplicate matches stay explicitly unsupported.
-    if (input.candidateBody && isWireArray(input.turnDocument) && input.turnDocument.length > 1
-        && input.turnDocument.every(branch => isWireArray(branch) && branch.length === 1 && isWireArray(branch[0]))) {
-        const matches: Array<{ document: GeminiStructuredDocument; rawDocument: JsonValue }> = [];
-        for (const branch of input.turnDocument) {
-            const candidate = decodeGeminiStructuredPayload([branch]);
-            if (candidate && isJsonValue(branch) && matchesCandidateBody(candidate, input.candidateBody)) matches.push({ document: candidate, rawDocument: [branch] });
-        }
-        if (matches.length === 1) return { status: 'decoded', ...matches[0] };
-    }
+    const document = decodeGeminiStructuredPayload(isWireArray(input.turnDocument) ? [selected] : selected, issues);
+    // Diagnostics retain original indices so a nonprimary candidate can be
+    // replayed with its original candidateIndex, including after rejection.
+    const rawDocument = input.turnDocument;
+    if (document) return { status: 'decoded', document,
+        ...(isJsonValue(rawDocument) ? { rawDocument } : {}) };
     const issue = issues[0] ?? { kind: 'payload' };
-    if (!isJsonValue(input.turnDocument)) return { status: 'decode_rejected', issue };
-    if (!issues.length) { issue.rawValue = input.turnDocument; issue.path = ''; }
+    if (!isJsonValue(rawDocument)) return { status: 'decode_rejected', issue };
+    if (!issues.length) { issue.rawValue = rawDocument; issue.path = ''; }
     else if (issue.rawValue !== null && typeof issue.rawValue === 'object') {
-        issue.path = rejectedValuePath(input.turnDocument, issue.rawValue);
+        issue.path = rejectedValuePath(rawDocument, issue.rawValue);
     }
-    return { status: 'decode_rejected', issue, rawDocument: input.turnDocument };
+    return { status: 'decode_rejected', issue, rawDocument };
 }

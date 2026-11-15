@@ -30,14 +30,14 @@ test('unbound source identities preserve native text without inventing citations
     }
 });
 
-test('unmatched alternative bodies retain fallback without concatenating branches', () => {
+test('parallel candidate bodies preserve the primary document without concatenating branches', () => {
     for (const key of ['G_REMAINING_BODY_SEQUENCES', 'G_REMAINING_BODY_SEQUENCES_LIST'] as const) {
         const result = parseRemainingFixture(key);
         assertDomainClosure(result.domain.detail);
-        assert.equal(result.domain.detail.quality.status, 'partial', key);
-        assert.ok(result.merged.evidence?.unrepresentedContent, key);
-        assert.ok(result.markdown.includes('Fallback body remains available.'), key);
-        assert.ok(!result.markdown.includes('First body.') && !result.markdown.includes('Second body.'), key);
+        assert.equal(result.domain.detail.quality.status, 'complete', key);
+        assert.ok(!result.merged.evidence?.unrepresentedContent, key);
+        assert.ok(result.markdown.includes('First body.'), key);
+        assert.doesNotMatch(result.markdown, /Fallback body remains available|Second body|Second list item/);
     }
 });
 

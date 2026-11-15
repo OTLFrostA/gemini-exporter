@@ -52,11 +52,11 @@ test('document trailer variants pass native RPC extraction and retain every para
     }
 });
 
-test('ambiguous and unsupported native documents explicitly fall back without leaking extra body branches', () => {
+test('unsupported selected native documents explicitly fall back without leaking extra body branches', () => {
     for (const key of [
         'G_NATIVE_DOCUMENT_SECOND_BODY', 'G_NATIVE_DOCUMENT_TRAILER_CONTENT',
         'G_NATIVE_DOCUMENT_TRAILER_UNKNOWN_FLAG', 'G_NATIVE_DOCUMENT_TRAILER_NEGATIVE_FLAG',
-        'G_NATIVE_DOCUMENT_MULTIPLE_BRANCHES', 'G_NATIVE_DOCUMENT_UNKNOWN_CHILD',
+        'G_NATIVE_DOCUMENT_UNKNOWN_CHILD',
     ] as const) for (const mode of ['structured', 'markdown'] as const) {
         const result = parseGeminiRpcConversation(detailGen(key), {
             account: fixtureAccount('gemini'), providerId: 'gemini', bodyRepresentation: mode,
@@ -71,6 +71,16 @@ test('ambiguous and unsupported native documents explicitly fall back without le
         assert.deepEqual(replies[0].content, [{ type: 'paragraph', children: [{ type: 'text', text: 'Known body.' }] }], key);
         assertDomainClosure(result.conversation.detail);
     }
+});
+
+test('parallel native documents select the primary entry without making identical drafts ambiguous', () => {
+    const result = parseGeminiRpcConversation(detailGen('G_NATIVE_DOCUMENT_MULTIPLE_BRANCHES'), {
+        account: fixtureAccount('gemini'), providerId: 'gemini',
+    });
+    assert.ok(!result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'));
+    assert.deepEqual(result.conversation.detail.messages[1].content,
+        [{ type: 'paragraph', children: [{ type: 'text', text: 'Known body.' }] }]);
+    assertDomainClosure(result.conversation.detail);
 });
 
 test('citation marker metadata is a nonnegative integer rather than a fixed enum', () => {
