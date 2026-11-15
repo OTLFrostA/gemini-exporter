@@ -545,6 +545,45 @@ export function createCloudSyncEngine(deps: {
         return activePull;
     };
 
+    const enqueueUnsyncedLocalConversations = async (): Promise<number> => {
+        const [settings, session] = await Promise.all([
+            getSettings(),
+            getCloudSyncSession(),
+        ]);
+        if (!session || session.expiresAt <= now()) return 0;
+        const includeDetail = settings.cloudSyncIncludeDetail === true;
+        const accounts = await listAccounts();
+        const unsynced: ConversationKey[] = [];
+        for (const acc of accounts) {
+            if (acc.providerAccountId === DEFAULT_ACCOUNT_KEY) continue;
+            const indexes = await listIndexes(acc.id);
+            for (const idx of indexes) {
+                const synced = await getSyncedCloudRecord(session.ownerSubject, idx.key);
+                if (synced?.oversizedBytes !== undefined) continue;
+                const detail = includeDetail ? await getDetail(idx.key) : null;
+                const source: PortableConversationSource = detail ? { index: idx, detail } : { index: idx };
+                const json = encodePortableCloudConversation(acc, source);
+                const sha = await sha256Utf8Hex(json);
+                if (synced && synced.payloadSha256 === sha) continue;
+                unsynced.push(idx.key);
+            }
+        }
+        if (unsynced.length > 0) {
+            await enqueueCloudOutboxKeys(unsynced, now());
+        }
+        return unsynced.length;
+    };
+
+    const syncNow = async (signal?: AbortSignal): Promise<{ pull: CloudPullResult; push: CloudFlushResult }> => {
+        const pull = await pullChanges(signal);
+        const settings = await getSettings();
+        if (settings.cloudSyncEnabled) {
+            await enqueueUnsyncedLocalConversations();
+        }
+        const push = await flushOutbox(signal);
+        return { pull, push };
+    };
+
     return {
         async connectLocalFolderVault(handle) {
             const perm = await handle.queryPermission({ mode: 'readwrite' });
@@ -630,45 +669,32 @@ export function createCloudSyncEngine(deps: {
             }
             await updateSettings({ cloudSyncEnabled: enabled });
             if (enabled) {
-                trackBackground(flushOutbox().then(() => undefined).catch(err => {
-                    console.warn('[CloudSync] Initial outbox flush failed:', err);
+                trackBackground(syncNow().then(() => undefined).catch(err => {
+                    console.warn('[CloudSync] Automatic bidirectional sync failed:', err);
                 }));
             }
         },
 
         async setIncludeDetail(includeDetail) {
             await updateSettings({ cloudSyncIncludeDetail: includeDetail });
-        },
-
-        async enqueueAllExistingHistory() {
-            const settings = await getSettings();
-            const includeDetail = settings.cloudSyncIncludeDetail === true;
-            const accounts = await listAccounts();
-            const keys: ConversationKey[] = [];
-            for (const acc of accounts) {
-                if (acc.providerAccountId === DEFAULT_ACCOUNT_KEY) continue;
-                const indexes = await listIndexes(acc.id);
-                for (const idx of indexes) {
-                    if (includeDetail) {
-                        // Even when detail mode is enabled, still back up Index-only rows as Index!
-                        keys.push(idx.key);
-                    } else {
-                        keys.push(idx.key);
-                    }
+            if (includeDetail) {
+                const settings = await getSettings();
+                if (settings.cloudSyncEnabled) {
+                    trackBackground(
+                        enqueueUnsyncedLocalConversations()
+                            .then(() => flushOutbox())
+                            .then(() => undefined)
+                            .catch(err => console.warn('[CloudSync] Detail upgrade sync failed:', err)),
+                    );
                 }
             }
-            await enqueueCloudOutboxKeys(keys, now());
-            return keys.length;
         },
+
+        enqueueAllExistingHistory: enqueueUnsyncedLocalConversations,
 
         flushOutbox,
         pullChanges,
-
-        async syncNow(signal) {
-            const pull = await pullChanges(signal);
-            const push = await flushOutbox(signal);
-            return { pull, push };
-        },
+        syncNow,
 
         async getStatusSnapshot() {
             const [settings, session, outboxCounts] = await Promise.all([
@@ -726,6 +752,7 @@ export function createCloudSyncEngine(deps: {
         async importRecoveryKey(recoveryKeyInput) {
             const session = await requireActiveSession();
             const imported = await importVaultRecoveryKey(session.ownerSubject, recoveryKeyInput);
+            await putCloudSyncSession({ ...session, pulledSeq: 0 });
             return { keyFingerprint: imported.keyring.keyFingerprint };
         },
 

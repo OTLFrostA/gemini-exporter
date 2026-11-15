@@ -9,6 +9,7 @@ import { createCloudServerHandler } from '../cloud-server/src/router.js';
 import { createInMemoryVaultStore } from '../cloud-server/src/storage/vaultStore.js';
 import { createCloudVaultClient, normalizeCloudServerUrl } from '../src/l1/cloud/vaultClient.js';
 import { createCloudSyncEngine } from '../src/application/cloud/cloudSyncEngine.js';
+import { updateSettings } from '../src/application/settings/index.js';
 import { ingestDetail, ingestIndexes } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
@@ -105,23 +106,25 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
         try {
             const accA = await getOrCreateAccount('gemini', 'gaia-sync-user-1', 'sync@example.com', 'Sync User');
 
-            // 1. Pre-toggle conversation BEFORE cloud sync is enabled: must NOT auto-upload!
+            // 1. Pre-toggle conversation BEFORE cloud sync is enabled: nothing uploaded while disabled
             await ingestDetail(accA.id, 'c_before_toggle', {
                 savedAt: 1000,
                 quality: { status: 'complete' },
                 assets: [],
                 messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Old pre-toggle chat' }] }] }],
             }, { title: 'Old Pre-Toggle', titleSource: 'provider', updatedAt: 1000 });
+            assert.equal(backend.store.inspectRawBlobs().size, 0, 'nothing uploaded while Cloud Sync is disabled');
 
-            // Connect with Google OIDC & flip the auto-sync switch ON
+            // Connect with Google OIDC & flip the auto-sync switch ON -> automatically backs up existing history immediately!
             const idToken = await backend.mintIdToken('google_sub_sync_1', 'sync@example.com');
             const connectedA = await engineA.connectWithGoogleIdToken(SERVER_URL, idToken);
             assert.equal(connectedA.createdNewKey, true);
             assert.match(connectedA.recoveryKey, /^GEK1-/);
             await engineA.setIncludeDetail(true);
             await engineA.setAutoSyncEnabled(true);
+            await engineA.waitForIdle();
 
-            assert.equal(backend.store.inspectRawBlobs().size, 0, 'pre-toggle history stays untouched until explicitly queued or updated');
+            assert.equal(backend.store.inspectRawBlobs().size, 1, 'enabling sync immediately reconciles & uploads pre-existing history without manual buttons');
 
             // 2. Post-toggle conversation arrives while network is offline -> persisted in Outbox with backoff
             networkOffline = true;
@@ -139,7 +142,7 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
             const offlineStatus = await engineA.getStatusSnapshot();
             assert.equal(offlineStatus.pendingOutbox, 1);
             assert.equal(offlineStatus.failedOutbox, 1);
-            assert.equal(backend.store.inspectRawBlobs().size, 0);
+            assert.equal(backend.store.inspectRawBlobs().size, 1);
 
             // 3. Network recovers and time advances past retry backoff -> flushOutbox uploads automatically!
             networkOffline = false;
@@ -147,7 +150,7 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
             const flush1 = await engineA.flushOutbox();
             assert.equal(flush1.uploaded, 1);
             assert.equal((await engineA.getStatusSnapshot()).pendingOutbox, 0);
-            assert.equal(backend.store.inspectRawBlobs().size, 1);
+            assert.equal(backend.store.inspectRawBlobs().size, 2);
 
             // 4. Subsequent Index title upgrade on the same conversation automatically pushes revision 2!
             await ingestIndexes(accA.id, [{
@@ -180,15 +183,15 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
             assert.equal(connectedB.createdNewKey, false, 'Device B automatically inherited Master Key from chrome.storage.sync!');
             await engineB.setIncludeDetail(true);
             await engineB.setAutoSyncEnabled(true);
+            await engineB.waitForIdle();
 
-            // Pull changes onto Device B
-            const pullB = await engineB.pullChanges();
-            assert.equal(pullB.downloaded, 1);
-            assert.equal(pullB.accepted, 1);
+            // Enabling sync on Device B already pulled both records automatically without manual pullChanges()!
             assert.equal((await engineB.getStatusSnapshot()).pendingOutbox, 0, 'restoring from cloud must NOT echo back into Outbox');
 
             // Verify conversation landed on Device B with the upgraded user title and v1 answer
             const accB = await getOrCreateAccount('gemini', 'gaia-sync-user-1');
+            const restoredPreExisting = await readConversation({ accountId: accB.id, conversationId: 'c_before_toggle' });
+            assert.equal(restoredPreExisting?.index.title, 'Old Pre-Toggle');
             const restoredOnB = await readConversation({ accountId: accB.id, conversationId: 'c_post_toggle_1' });
             assert.ok(restoredOnB);
             assert.equal(restoredOnB.index.title, 'User Renamed Topic');
@@ -225,7 +228,6 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
         const idTokenC = await backend.mintIdToken('google_sub_sync_1', 'sync@example.com');
         await engineC.connectWithGoogleIdToken(SERVER_URL, idTokenC);
         await engineC.setIncludeDetail(true);
-        await engineC.setAutoSyncEnabled(true);
 
         // Device C has NOT pulled yet (thinks remoteRevision is 0), and has an older local draft (savedAt: 1500)
         const accC = await getOrCreateAccount('gemini', 'gaia-sync-user-1');
@@ -236,6 +238,7 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
             messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Stale draft on C' }] }] }],
         }, { title: 'Draft Title', titleSource: 'derived', updatedAt: 1500 });
 
+        await updateSettings({ cloudSyncEnabled: true });
         await engineC.enqueueAllExistingHistory();
         // Pushing from C hits 409 (expected 0 vs server 3) -> auto-pulls rev 3 -> L2 merges (rev 3 wins!) -> converges with 0 overwrite!
         const conflictHeal = await engineC.flushOutbox();
