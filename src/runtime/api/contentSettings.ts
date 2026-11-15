@@ -36,10 +36,15 @@ export async function readContentSettings(): Promise<GlobalSettings> {
         ...(raw.ratingPromptDismissed === true ? { ratingPromptDismissed: true } : {}),
         ...(raw.directWritePromptCompleted === true || legacy.gemini_suppress_direct_write_prompt === true
             ? { directWritePromptCompleted: true } : {}),
+        ...(typeof raw.cloudSyncEnabled === 'boolean' ? { cloudSyncEnabled: raw.cloudSyncEnabled } : {}),
     };
 }
 
 export function isContentLiveSaveEffective(settings: GlobalSettings, directoryAvailable: boolean): boolean {
     return settings.enabledDisk && settings.exportDelivery === 'folderWriter'
         && settings.defaultFormat === 'markdown' && directoryAvailable;
+}
+
+export function isContentAutoCaptureEnabled(settings: GlobalSettings, directoryAvailable: boolean): boolean {
+    return isContentLiveSaveEffective(settings, directoryAvailable) || settings.cloudSyncEnabled === true;
 }

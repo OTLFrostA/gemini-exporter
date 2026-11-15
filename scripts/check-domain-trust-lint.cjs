@@ -19,6 +19,8 @@ const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4', 'clo
         'src/shared/crypto/recoveryKey.ts', 'src/shared/crypto/vaultKeys.ts',
         'src/shared/crypto/boundedGzip.ts', 'src/shared/crypto/aeadEnvelope.ts', 'src/shared/crypto/index.ts',
         'src/shared/types/cloudSync.ts',
+        'src/l1/cloud/vaultClient.ts',
+        'src/runtime/background/cloudSyncHandler.ts',
         'src/shared/types/accountContextReply.ts',
         'src/shared/types/export.ts', 'src/shared/types/directoryHandle.ts', 'src/shared/utils/devMode.ts',
         'src/l1/parsers/shared/time.ts', 'src/l1/parsers/shared/markdown/texBrackets.ts',

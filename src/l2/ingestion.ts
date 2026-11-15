@@ -22,6 +22,25 @@ async function readExistingAccount(accountId: Account['id']): Promise<Account | 
 
 export interface IndexIngestResult { added: number; updated: number }
 
+type CommittedKeysListener = (keys: readonly ConversationKey[]) => void;
+const committedKeysListeners = new Set<CommittedKeysListener>();
+
+export function subscribeCommittedKeys(listener: CommittedKeysListener): () => void {
+    committedKeysListeners.add(listener);
+    return () => { committedKeysListeners.delete(listener); };
+}
+
+function emitCommittedKeys(keys: readonly ConversationKey[]): void {
+    if (keys.length === 0 || committedKeysListeners.size === 0) return;
+    for (const listener of committedKeysListeners) {
+        try {
+            listener(keys);
+        } catch (error) {
+            console.warn('[L2] Committed keys listener failed:', error);
+        }
+    }
+}
+
 /** Duplicate source rows merge in input order; Storage reads their current values under one transaction. */
 async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promise<IndexIngestResult> {
     const groups = new Map<string, DomainConversationIndex[]>();
@@ -33,6 +52,7 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
     }
     const entries = [...groups.values()];
     const changes: IndexIngestResult = { added: 0, updated: 0 };
+    let committedKeys: ConversationKey[] = [];
     await updateIndexesAtomically(entries.map(group => group[0].key), previous => {
         const changed: DomainConversationIndex[] = [];
         entries.forEach((group, i) => {
@@ -44,8 +64,10 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
                 else changes.added++;
             }
         });
+        committedKeys = changed.map(row => row.key);
         return changed;
     });
+    emitCommittedKeys(committedKeys);
     return changes;
 }
 
@@ -104,7 +126,15 @@ export async function ingestDetail(accountId: Account['id'], conversationId: Con
     const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Detail account does not exist');
     const key = { accountId, conversationId };
-    return updateConversationAtomically(key, buildConversationDecision(key, detail, indexFields));
+    let wroteFacts = false;
+    const baseDecision = buildConversationDecision(key, detail, indexFields);
+    const outcome = await updateConversationAtomically(key, (oldIndex, oldDetail) => {
+        const decided = baseDecision(oldIndex, oldDetail);
+        wroteFacts = Boolean(decided.index || decided.detail);
+        return decided;
+    });
+    if (wroteFacts) emitCommittedKeys([key]);
+    return outcome;
 }
 
 export async function ingestDetailsBatch(
@@ -114,11 +144,22 @@ export async function ingestDetailsBatch(
     const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Detail account does not exist');
     if (entries.length === 0) return [];
+    const committedKeys: ConversationKey[] = [];
     const prepared = entries.map(entry => {
         const key = { accountId, conversationId: entry.conversationId };
-        return { key, decide: buildConversationDecision(key, entry.detail, entry.indexFields) };
+        const baseDecision = buildConversationDecision(key, entry.detail, entry.indexFields);
+        return {
+            key,
+            decide: (oldIndex: DomainConversationIndex | null, oldDetail: DomainConversationDetail | null) => {
+                const decided = baseDecision(oldIndex, oldDetail);
+                if (decided.index || decided.detail) committedKeys.push(key);
+                return decided;
+            },
+        };
     });
-    return updateConversationsAtomically(prepared);
+    const outcomes = await updateConversationsAtomically(prepared);
+    emitCommittedKeys(committedKeys);
+    return outcomes;
 }
 
 /** Invoked only after L1 verifies a specific remotely deleted/nonexistent conversation. */

@@ -16,4 +16,8 @@ export interface GlobalSettings {
     ratingPromptDismissed?: true;
     /** Automatically suggested large-batch folder delivery has already been shown. */
     directWritePromptCompleted?: true;
+    /** Opt-in automatic zero-knowledge E2EE cloud backup for subsequent conversation updates. */
+    cloudSyncEnabled?: boolean;
+    /** Configured zero-knowledge Cloud Vault endpoint origin (HTTPS). */
+    cloudSyncServerUrl?: string;
 }

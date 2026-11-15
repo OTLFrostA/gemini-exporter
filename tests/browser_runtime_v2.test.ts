@@ -27,6 +27,20 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
         'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
+        'src/application/cloud/cloudSyncEngine.js': {
+            defaultCloudSyncEngine: {
+                installAutoEnqueueListener: () => () => {},
+                flushOutbox: async () => ({ uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 }),
+                syncNow: async () => ({
+                    pull: { downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 },
+                    push: { uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 },
+                }),
+                getStatusSnapshot: async () => ({
+                    enabled: false, connected: false, pulledSeq: 0,
+                    pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: false,
+                }),
+            },
+        },
         'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]),
         // Runtime unit mocks L2 decoders; real schema/closure validation is covered by L2 and integration suites.
         'src/l2/runtimeValidation.js': { restoreDomainDetail: (value: unknown) => value },
