@@ -104,6 +104,32 @@ export function installUiV2Mocks(): void {
     stub('../../src/application/resources.js', {
         createSourceResourceContext: () => unconfigured('Application.createSourceResourceContext'),
     });
+    stub('../../src/application/cloud/cloudSyncEngine.js', {
+        defaultCloudSyncEngine: {
+            getStatusSnapshot: async () => ({
+                enabled: false, connected: false, pulledSeq: 0,
+                pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: false,
+            }),
+            exportRecoveryKey: async () => null,
+            installAutoEnqueueListener: () => () => {},
+            connectWithGoogleIdToken: () => unconfigured('Application.cloudSync.connect'),
+            disconnect: async () => {},
+            setAutoSyncEnabled: async () => {},
+            enqueueAllExistingHistory: async () => 0,
+            flushOutbox: async () => ({ uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 }),
+            pullChanges: async () => ({ downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 }),
+            syncNow: async () => ({
+                pull: { downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 },
+                push: { uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 },
+            }),
+            importRecoveryKey: () => unconfigured('Application.cloudSync.importRecoveryKey'),
+            reconcilePostToggleAccount: async () => {},
+            waitForIdle: async () => {},
+        },
+    });
+    stub('../../src/runtime/capabilities/googleCloudAuth.js', {
+        launchGoogleOidcIdTokenFlow: () => unconfigured('Runtime.launchGoogleOidcIdTokenFlow'),
+    });
     stub('../../src/shared/utils/pathUtils.js', {
         isVersionGreater: (one: string, two: string) => {
             const left = one.replace(/^v/i, '').split('.').map(Number);

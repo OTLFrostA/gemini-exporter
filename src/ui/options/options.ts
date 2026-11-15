@@ -35,6 +35,7 @@ import { confirmCleanup } from './views/cleanupPrompt.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
 import type { ForegroundTask, TaskFeedback, UiMessage } from './state/foregroundTask.js';
 import { mountTaskPanel } from './views/taskPanelView.js';
+import { mountCloudVaultPanel, type CloudVaultControllerHandle } from './controllers/cloudVaultController.js';
 
 type Level = 'info' | 'warn' | 'error';
 type Action = 'export' | 'takeout' | 'cleanup';
@@ -50,6 +51,7 @@ export async function initWorkbench(): Promise<void> {
     let foreground: ForegroundTask = { kind: 'idle' };
     const isBusy = () => foreground.kind !== 'idle';
     const taskPanel = mountTaskPanel();
+    let cloudPanel: CloudVaultControllerHandle | undefined;
     let scanController: AbortController | null = null;
     let advanceTutorialScan: (() => void) | undefined;
     let currentScanStatus: UiMessage | null = null;
@@ -134,6 +136,7 @@ export async function initWorkbench(): Promise<void> {
         document.body.dataset.busy = String(isBusy() || scanController !== null);
         document.body.dataset.foregroundBusy = String(isBusy());
         document.body.dataset.scanning = String(scanController !== null);
+        cloudPanel?.setBusy(isBusy() || scanController !== null || !settings);
         document.body.classList.toggle('dev-mode', settings?.developerMode ?? false);
         const controls = [
             ['select', ['accountIdSelect', 'format', 'chatFilterSelect']],
@@ -755,10 +758,13 @@ export async function initWorkbench(): Promise<void> {
         void readSettings().then(next => {
             const changed = !settings || ([
                 'defaultFormat', 'skipExported', 'includeAssets', 'enabledDisk',
-                'exportDelivery', 'developerMode', 'theme', 'language',
+                'exportDelivery', 'developerMode', 'theme', 'language', 'cloudSyncEnabled',
             ] as const).some(field => settings[field] !== next[field]);
             settings = next;
-            if (changed) render();
+            if (changed) {
+                render();
+                void cloudPanel?.refresh().catch(() => {});
+            }
         }).catch(e => statusError(e));
     });
     const onFocus = () => {
@@ -792,10 +798,13 @@ export async function initWorkbench(): Promise<void> {
         }, 16);
     };
     const stopDomainChanges = observeDomainChanges(accountId => {
-        pendingDomainAccounts.add(accountId); scheduleDomainRefresh();
+        pendingDomainAccounts.add(accountId);
+        scheduleDomainRefresh();
+        cloudPanel?.onDomainChanged(accountId);
     });
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
+        cloudPanel?.unmount();
         taskPanel.unmount();
         unmountList();
         importedResources.release();
@@ -806,6 +815,10 @@ export async function initWorkbench(): Promise<void> {
     renderLog(); render();
     await ensureV2Ready();
     settings = await readSettings();
+    cloudPanel = mountCloudVaultPanel({
+        onStatus: (msg, level) => status(msg, level),
+        onRestored: async () => { await refresh(); },
+    });
     renderLog(); // Localize initial 'Ready' once; subsequent toggles never retranslate the log.
     // First paint must unlock Settings even when the account registry is empty.
     await state.refresh(); render();

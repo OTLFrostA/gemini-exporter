@@ -98,6 +98,30 @@ const OPERATION_ERROR_MESSAGES: Readonly<Partial<Record<OperationErrorCode, read
         'Selected account unavailable',
         '所选账号不可用。',
     ],
+    CLOUD_AUTH_REQUIRED: [
+        'Please sign in with Google in Cloud Sync settings first.',
+        '请先在云同步设置中使用 Google 账号登录。',
+    ],
+    CLOUD_KEY_INVALID: [
+        'Invalid recovery key format or checksum. Please verify every character.',
+        '恢复密钥格式或校验和错误，请仔细核对每个字符。',
+    ],
+    CLOUD_DECRYPT_AUTH_FAILED: [
+        'Decryption failed: recovery key does not match the encrypted cloud vault.',
+        '解密验签失败：当前恢复密钥与云端加密库不匹配。',
+    ],
+    CLOUD_QUOTA_EXCEEDED: [
+        'Cloud Vault storage quota exceeded.',
+        '云端加密存储空间配额已满。',
+    ],
+    CLOUD_RECORD_TOO_LARGE: [
+        'Conversation exceeds the 2 MiB encrypted record limit.',
+        '单条会话超出 2 MiB 加密体积上限。',
+    ],
+    CLOUD_SERVER_ERROR: [
+        'Could not reach the Cloud Vault server. Check the HTTPS URL and network.',
+        '无法连接云同步服务器，请检查 HTTPS 地址与网络连接。',
+    ],
 };
 export function errorText(error: unknown): string {
     if (error instanceof DOMException && error.name === 'AbortError')

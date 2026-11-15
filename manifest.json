@@ -10,6 +10,9 @@
     "storage",
     "unlimitedStorage"
   ],
+  "optional_permissions": [
+    "identity"
+  ],
   "host_permissions": [],
   "optional_host_permissions": [
     "https://gemini.google.com/*",

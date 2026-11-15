@@ -111,6 +111,19 @@
   .live-save-title{font-size:13px;font-weight:600}
   .live-save-hint{font-size:11px;color:var(--muted)}
   #liveSaveStatus{font-size:11px;color:var(--muted);line-height:1.4}
+  .cloud-vault-card{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card-inner);display:flex;flex-direction:column;gap:6px}
+  .cloud-vault-header{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:28px}
+  .cloud-vault-title{font-size:12px;font-weight:600;color:var(--text)}
+  .cloud-vault-controls{display:flex;align-items:center;gap:8px;flex:none}
+  .cloud-vault-summary{font-size:11px;color:var(--muted);line-height:1.35;overflow-wrap:anywhere}
+  .cloud-modal-field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+  .cloud-modal-field label{font-size:12px;font-weight:600;color:var(--muted)}
+  .cloud-modal-input{width:100%;height:34px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card-inner);color:var(--text);font-size:12px;outline:none}
+  .cloud-modal-input:focus{border-color:var(--border-focus)}
+  .cloud-modal-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .cloud-modal-section{margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+  #cloudModalFeedback{font-size:12px;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--ok) 12%,var(--card-inner));color:var(--text);margin-top:8px;overflow-wrap:anywhere}
+  #cloudModalFeedback[data-error="true"]{background:color-mix(in srgb,#f87171 14%,var(--card-inner));color:#fca5a5}
   input[type=checkbox]{accent-color:var(--accent)}
   input[type=checkbox].toggle {
     appearance: none;
@@ -377,6 +390,17 @@
     </div>
     <div id="exportFailureHost" style="display:contents;"></div>
 
+    <div id="cloudVaultCard" class="cloud-vault-card">
+      <div class="cloud-vault-header">
+        <span class="cloud-vault-title" data-ui-en="☁️ E2EE Cloud Sync" data-ui-zh="☁️ 端到端加密云同步">☁️ 端到端加密云同步</span>
+        <div class="cloud-vault-controls">
+          <input type="checkbox" id="cloudSyncToggle" class="toggle" aria-label="E2EE Auto Cloud Sync" disabled>
+          <button id="btnCloudVaultSetup" type="button" class="ghost small" data-ui-en="Manage" data-ui-zh="管理">管理</button>
+        </div>
+      </div>
+      <div id="cloudVaultSummary" class="cloud-vault-summary">登录 Google 开启零知识端到端加密自动备份</div>
+    </div>
+
     <div id="logSection" class="dev-only" style="display:flex; flex-direction:column; gap:8px; flex:1; min-height:90px; overflow:hidden; margin-top:4px;">
       <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; flex:none;">
         <select id="logLevel" class="page-select" title="级别" data-i18n-title="logLevelTitle" style="font-size:11px; padding:4px 6px; border-radius:6px; background:var(--card-inner);">
@@ -469,6 +493,50 @@
     <button id="btnCleanupCancel" type="button" class="ghost" autofocus>取消</button>
     <button id="btnCleanupConfirm" type="button" class="destructive">清除记录</button>
   </div>
+</dialog>
+<dialog id="cloudVaultModal" class="direct-write-modal" aria-labelledby="cloudVaultModalTitle">
+  <div class="direct-write-header">
+    <h2 id="cloudVaultModalTitle" data-ui-en="🔒 Zero-Knowledge E2EE Cloud Vault" data-ui-zh="🔒 零知识端到端加密云保险箱">🔒 零知识端到端加密云保险箱</h2>
+    <button id="btnCloudModalClose" type="button" aria-label="Close">×</button>
+  </div>
+  <p class="direct-write-description" data-ui-en="Conversations are compressed and encrypted locally with AES-256-GCM before leaving your browser. Your Master Key syncs via Chrome Sync and never touches the server." data-ui-zh="对话在本地压缩并使用 AES-256-GCM 加密后才上传，不含二进制大附件。主密钥通过浏览器同步托管，服务器永远无法解密。">对话在本地压缩并使用 AES-256-GCM 加密后才上传，不含二进制大附件。主密钥通过浏览器同步托管，服务器永远无法解密。</p>
+  <div class="cloud-modal-field">
+    <label for="cloudServerUrlInput" data-ui-en="Cloud Vault HTTPS URL" data-ui-zh="云同步服务器 HTTPS 地址">云同步服务器 HTTPS 地址</label>
+    <input id="cloudServerUrlInput" class="cloud-modal-input" type="url" placeholder="https://gemini-exporter-cloud-vault.your-domain.workers.dev">
+  </div>
+  <div class="cloud-modal-field">
+    <label for="cloudGoogleClientIdInput" data-ui-en="Google OAuth Client ID" data-ui-zh="Google OAuth Client ID">Google OAuth Client ID</label>
+    <input id="cloudGoogleClientIdInput" class="cloud-modal-input" type="text" placeholder="1234567890-xxx.apps.googleusercontent.com">
+  </div>
+  <div class="cloud-modal-row">
+    <button id="btnCloudConnectGoogle" type="button" class="primary" style="width:100%;" data-ui-en="Sign in with Google & Enable E2EE Sync" data-ui-zh="使用 Google 账号登录并开启加密同步">使用 Google 账号登录并开启加密同步</button>
+  </div>
+  <div id="cloudConnectedAccountRow" class="cloud-modal-row" style="justify-content:space-between;" hidden>
+    <span id="cloudConnectedEmail" class="stat" style="font-weight:600;color:var(--text);"></span>
+    <button id="btnCloudDisconnect" type="button" class="ghost small" data-ui-en="Disconnect" data-ui-zh="断开连接">断开连接</button>
+  </div>
+  <div id="cloudConnectedActions" class="cloud-modal-section" hidden>
+    <div class="cloud-modal-row">
+      <button id="btnCloudSyncNow" type="button" class="primary small" style="flex:1;" data-ui-en="Sync & Restore Now" data-ui-zh="立即同步 / 恢复">立即同步 / 恢复</button>
+      <button id="btnCloudBackfill" type="button" class="ghost small" style="flex:1;" data-ui-en="Backup Existing History" data-ui-zh="备份现有本地历史">备份现有本地历史</button>
+    </div>
+    <div class="cloud-modal-field" style="margin-top:4px;margin-bottom:0;">
+      <label for="cloudRecoveryKeyDisplay" data-ui-en="Master Recovery Key (Keep offline for non-Chrome browsers)" data-ui-zh="主恢复密钥（妥善离线备份，供跨浏览器恢复）">主恢复密钥（妥善离线备份，供跨浏览器恢复）</label>
+      <div class="cloud-modal-row">
+        <input id="cloudRecoveryKeyDisplay" class="cloud-modal-input" type="text" readonly style="flex:1;font-family:ui-monospace,monospace;">
+        <button id="btnCloudRevealKey" type="button" class="ghost small" data-ui-en="Show" data-ui-zh="显示">显示</button>
+        <button id="btnCloudCopyKey" type="button" class="ghost small" data-ui-en="Copy" data-ui-zh="复制">复制</button>
+      </div>
+    </div>
+    <div class="cloud-modal-field" style="margin-bottom:0;">
+      <label for="cloudImportKeyInput" data-ui-en="Import Recovery Key from Another Device" data-ui-zh="从其他设备导入恢复密钥">从其他设备导入恢复密钥</label>
+      <div class="cloud-modal-row">
+        <input id="cloudImportKeyInput" class="cloud-modal-input" type="text" placeholder="GEK1-XXXXX-..." style="flex:1;font-family:ui-monospace,monospace;">
+        <button id="btnCloudImportKey" type="button" class="ghost small" data-ui-en="Import" data-ui-zh="导入">导入</button>
+      </div>
+    </div>
+  </div>
+  <div id="cloudModalFeedback" role="status" aria-live="polite" hidden></div>
 </dialog>
 <!-- PR5: JSZip stays external (UMD global), bundled workbench follows -->
 <script src="/lib/jszip.min.js"></script>

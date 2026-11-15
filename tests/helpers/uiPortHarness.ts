@@ -176,6 +176,39 @@ export const registerCleanup = fn => {
  h.cleanups.push(fn);
  return () => { const index=h.cleanups.indexOf(fn);if(index>=0)h.cleanups.splice(index,1); };
 };
+export const launchGoogleOidcIdTokenFlow = async clientId => {
+ (h.googleAuthRequests ??= []).push(clientId);
+ if (h.googleAuthError) throw h.googleAuthError;
+ return h.googleIdToken ?? 'mock-google-id-token';
+};
+export const defaultCloudSyncEngine = {
+ getStatusSnapshot: async () => h.cloudStatus ?? {
+  enabled: Boolean(h.settings?.cloudSyncEnabled),
+  connected: false,
+  pulledSeq: 0,
+  pendingOutbox: 0,
+  failedOutbox: 0,
+  oversizedSkipped: 0,
+  hasRecoveryKey: false,
+ },
+ exportRecoveryKey: async () => h.cloudRecoveryKey ?? null,
+ installAutoEnqueueListener: () => () => {},
+ connectWithGoogleIdToken: async (serverUrl, idToken) => {
+  (h.cloudConnectCalls ??= []).push({ serverUrl, idToken });
+  h.cloudRecoveryKey ??= 'GEK1-01234-56789-ABCDE-FGHJK-MNPQR-STVWX-YZ012-34567-89ABC-DEFGH-JKMNP';
+  h.cloudStatus = { enabled: true, connected: true, serverUrl, ownerSubject: 'google:mock', email: 'mock@example.com', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true };
+  return { session: { id: 'active', serverUrl, ownerSubject: 'google:mock', sessionToken: 'tok', expiresAt: Date.now() + 3600000, pulledSeq: 0 }, recoveryKey: h.cloudRecoveryKey, createdNewKey: true };
+ },
+ disconnect: async () => { h.cloudStatus = { enabled: false, connected: false, pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: false }; },
+ setAutoSyncEnabled: async enabled => { h.settings.cloudSyncEnabled = enabled; if (h.cloudStatus) h.cloudStatus.enabled = enabled; },
+ enqueueAllExistingHistory: async () => 0,
+ flushOutbox: async () => ({ uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 }),
+ pullChanges: async () => ({ downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 }),
+ syncNow: async () => ({ pull: { downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 }, push: { uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 } }),
+ importRecoveryKey: async key => { h.cloudRecoveryKey = key; return { keyFingerprint: '0'.repeat(32) }; },
+ reconcilePostToggleAccount: async () => {},
+ waitForIdle: async () => {},
+};
 export const isVersionGreater = (a,b) => {
  const one = a.replace(/^v/i,'').split('.').map(Number);
  const two = b.replace(/^v/i,'').split('.').map(Number);

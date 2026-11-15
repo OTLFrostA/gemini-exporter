@@ -30,6 +30,7 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/application/cloud/cloudSyncEngine.js': {
             defaultCloudSyncEngine: {
                 installAutoEnqueueListener: () => () => {},
+                reconcilePostToggleAccount: async () => {},
                 flushOutbox: async () => ({ uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 }),
                 syncNow: async () => ({
                     pull: { downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 },
