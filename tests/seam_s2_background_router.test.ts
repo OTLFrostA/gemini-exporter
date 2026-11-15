@@ -16,6 +16,20 @@ function load(file: string, stubs: Record<string, unknown> = {}) {
     const ports = { 'src/l2/accountRegistry.js': mockAccountRegistry([A, B]),
         'src/l1/client/platformAccess.js': { hasPlatformAccess: async () => true },
         'src/runtime/capabilities/platformInjection.js': { syncAllPlatformContentScripts: async () => [] },
+        'src/application/cloud/cloudSyncEngine.js': {
+            defaultCloudSyncEngine: {
+                installAutoEnqueueListener: () => () => {},
+                flushOutbox: async () => ({ uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 }),
+                syncNow: async () => ({
+                    pull: { downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 },
+                    push: { uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 },
+                }),
+                getStatusSnapshot: async () => ({
+                    enabled: false, connected: false, pulledSeq: 0,
+                    pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: false,
+                }),
+            },
+        },
         'src/l2/conversationKey.js': mockConversationKey([A, B]), ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;

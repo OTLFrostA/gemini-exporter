@@ -6,7 +6,7 @@ import { registerContentControlRouter } from './controlRouter.js';
 import { startContentBootstrap } from './contentBootstrap.js';
 import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { registerCleanup } from './cleanupRegistry.js';
-import { readContentSettings, isContentLiveSaveEffective } from '../api/contentSettings.js';
+import { readContentSettings, isContentAutoCaptureEnabled } from '../api/contentSettings.js';
 
 async function currentAccount() {
     const observation = await observeGrokAccount();
@@ -26,7 +26,7 @@ const bridge = initGrokMessageBridge({
     isActive,
     currentAccount,
     currentConversationId: conversationId,
-    isSaveEnabled: async () => isContentLiveSaveEffective(await readContentSettings(), true),
+    isSaveEnabled: async () => isContentAutoCaptureEnabled(await readContentSettings(), true),
     onSaveRequested: LiveSaveCoordinator.executeLiveSave,
     registerCleanup,
 });

@@ -1,6 +1,7 @@
 import { syncAllPlatformContentScripts } from '../capabilities/platformInjection.js';
 import { handleDomainIngestionMessage } from './domainStorageHandler.js';
 import { handleAccountRegistryMessage } from './accountRegistryHandler.js';
+import { initCloudSyncBackground, handleCloudSyncMessage } from './cloudSyncHandler.js';
 import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
 import { initTabActionListeners } from './tabAction.js';
 import { ensureV2Ready } from './readiness.js';
@@ -15,6 +16,7 @@ initSessionAccessLevel();
 initLifecycleListeners();
 initUninstallUrl();
 initTabActionListeners();
+initCloudSyncBackground();
 const syncSourceAccess = () => { void syncAllPlatformContentScripts().catch(error => console.warn('[Platform injection]', error)); };
 syncSourceAccess();
 chrome.permissions?.onAdded?.addListener(syncSourceAccess);
@@ -23,6 +25,7 @@ chrome.permissions?.onRemoved?.addListener(syncSourceAccess);
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
     if (handleDomainIngestionMessage(message, sender, respond)) return true;
     if (handleAccountRegistryMessage(message, sender, respond)) return true;
+    if (handleCloudSyncMessage(message, sender, respond)) return true;
     if (!message || typeof message !== 'object' || !('action' in message)
         || !['ensureV2Ready', 'getLocalIndexCount', 'updateBadgePosition', 'runLiveSave', 'openOptions', 'openGeminiPage', 'reloadGeminiTab'].includes(String(message.action))) return false;
     void (async () => {
