@@ -105,9 +105,10 @@ test('E2EE Cloud Vault full browser UI flow: Google OIDC sign-in -> post-toggle 
         });
     });
 
-    // 2. Open Cloud Vault modal, sign in with Google, and verify auto-sync toggle turns ON
+    // 2. Open Vault modal, switch to Cloud Server tab, sign in with Google, and verify auto-sync toggle turns ON
     await page.locator('#btnCloudVaultSetup').click();
     await expect(page.locator('#cloudVaultModal')).toBeVisible();
+    await page.locator('#btnVaultTabCloud').click();
     await page.locator('#cloudServerUrlInput').fill(VAULT_ORIGIN);
     await page.locator('#cloudGoogleClientIdInput').fill(GOOGLE_CLIENT_ID);
     await page.locator('#btnCloudConnectGoogle').click();
@@ -165,6 +166,7 @@ test('E2EE Cloud Vault full browser UI flow: Google OIDC sign-in -> post-toggle 
     // Disconnect and wipe local cloud session cursor so pull starts fresh from seq = 0 like a brand-new machine
     await page.locator('#btnCloudVaultSetup').click();
     await page.locator('#btnCloudDisconnect').click();
+    await page.locator('#btnVaultTabCloud').click();
     await expect(page.locator('#btnCloudConnectGoogle')).toBeVisible();
 
     await page.locator('#btnCloudConnectGoogle').click();
@@ -189,4 +191,117 @@ test('E2EE Cloud Vault full browser UI flow: Google OIDC sign-in -> post-toggle 
     expect(exportedMd).toContain(secretTitle);
     expect(exportedMd).toContain('State the secret invariant.');
     expect(exportedMd).toContain(secretMarker);
+});
+
+test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic .gee1 ciphertext write on disk -> zero plaintext leak -> wipe & local decryption restore', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const page = await openOptions(context, extensionId);
+
+    // Mount a real Chromium OPFS directory handle behind showDirectoryPicker so IDB structured-clone & disk I/O are 100% native
+    await page.evaluate(() => {
+        const proto = FileSystemDirectoryHandle.prototype as unknown as Record<string, unknown>;
+        proto.queryPermission = async () => 'granted';
+        proto.requestPermission = async () => 'granted';
+        Object.defineProperty(window, 'showDirectoryPicker', {
+            configurable: true,
+            value: async () => {
+                const opfsRoot = await navigator.storage.getDirectory();
+                return opfsRoot.getDirectoryHandle('LocalEncryptedVaultExperiment', { create: true });
+            },
+        });
+    });
+
+    // 1. Open Vault modal (defaults to Local Encrypted Folder tab!) and pick local folder
+    await page.locator('#btnCloudVaultSetup').click();
+    await expect(page.locator('#cloudVaultModal')).toBeVisible();
+    await expect(page.locator('#btnVaultTabLocal')).toHaveAttribute('aria-selected', 'true');
+    await page.locator('#btnLocalVaultPick').click();
+
+    await expect(page.locator('#cloudConnectedEmail')).toContainText('LocalEncryptedVaultExperiment');
+    await expect(page.locator('#cloudSyncToggle')).toBeChecked();
+
+    await page.locator('#btnCloudRevealKey').click();
+    const localRecoveryKey = await page.locator('#cloudRecoveryKeyDisplay').inputValue();
+    expect(localRecoveryKey).toMatch(/^GEK1(?:-[0-9A-Z]{5}){11}$/);
+    await page.locator('#btnCloudModalClose').click();
+
+    // 2. Add a new conversation AFTER enabling Local Encrypted Vault -> must automatically write .gee1 file!
+    const localSecret = 'LOCAL-DISK-CIPHERTEXT-EXPERIMENT-77193';
+    const localTitle = 'Encrypted Local Folder Experiment';
+    const postTime = Date.now() + 5000;
+    await page.evaluate(async ({ accountId, localSecret, localTitle, postTime }) => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        await api.ingestDetail(accountId, 'c_local_vault_01', {
+            savedAt: postTime,
+            quality: { status: 'complete', sourceTurn: 'finished' },
+            assets: [],
+            messages: [
+                { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Test local encrypted save?' }] }] },
+                { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: localSecret }] }] },
+            ],
+        }, { title: localTitle, titleSource: 'provider', updatedAt: postTime });
+    }, { accountId, localSecret, localTitle, postTime });
+
+    const helperExtPage = await context.newPage();
+    await helperExtPage.goto(`chrome-extension://${extensionId}/src/ui/popup/popup.html`);
+    await helperExtPage.evaluate(async id => {
+        await chrome.runtime.sendMessage({ action: 'domainChanged', accountId: id }).catch(() => {});
+    }, accountId);
+    await helperExtPage.close();
+
+    // 3. Inspect real files written inside the folder: verify vault-manifest.json + records/<blindId>.gee1 with ZERO plaintext!
+    await expect.poll(async () => page.evaluate(async () => {
+        try {
+            const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('LocalEncryptedVaultExperiment');
+            const manifestFile = await (await root.getFileHandle('vault-manifest.json')).getFile();
+            const manifest = JSON.parse(await manifestFile.text());
+            return Object.keys(manifest.records ?? {}).length;
+        } catch {
+            return 0;
+        }
+    }), { timeout: 10000 }).toBe(1);
+
+    const diskInspection = await page.evaluate(async () => {
+        const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('LocalEncryptedVaultExperiment');
+        const manifestText = await (await (await root.getFileHandle('vault-manifest.json')).getFile()).text();
+        const manifest = JSON.parse(manifestText) as { records: Record<string, unknown> };
+        const blindId = Object.keys(manifest.records)[0]!;
+        const recordsDir = await root.getDirectoryHandle('records');
+        const gee1Bytes = new Uint8Array(await (await (await recordsDir.getFileHandle(`${blindId}.gee1`)).getFile()).arrayBuffer());
+        return {
+            manifestText,
+            blindId,
+            magic: Array.from(gee1Bytes.slice(0, 4)),
+            rawLatin1: new TextDecoder('latin1').decode(gee1Bytes),
+        };
+    });
+
+    expect(diskInspection.blindId).toMatch(/^[0-9a-f]{64}$/);
+    expect(diskInspection.magic).toEqual([0x47, 0x45, 0x45, 0x31]); // "GEE1"
+    for (const sensitive of [localSecret, localTitle, 'c_local_vault_01', 'gemini', 'Test local encrypted save?']) {
+        expect(diskInspection.manifestText).not.toContain(sensitive);
+        expect(diskInspection.rawLatin1).not.toContain(sensitive);
+    }
+
+    // 4. Wipe extension's local conversation list, then restore directly from the local encrypted folder!
+    await page.locator('#btnMoreActions').click();
+    await page.locator('#btnClearScan').click();
+    await page.locator('#btnCleanupConfirm').click();
+    await expect(page.locator('#list .item')).toHaveCount(0);
+
+    await page.locator('#btnCloudVaultSetup').click();
+    await page.locator('#btnCloudSyncNow').click();
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Restored 1');
+    await page.locator('#btnCloudModalClose').click();
+
+    await expect(page.locator('#list .item')).toHaveCount(1);
+    await expect(page.locator('#list')).toContainText(localTitle);
+
+    await page.locator('#btnSelectAll').click();
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#btnExport').click();
+    const download = await downloadPromise;
+    const exportedMd = await readFile((await download.path())!, 'utf8');
+    expect(exportedMd).toContain(localTitle);
+    expect(exportedMd).toContain(localSecret);
 });

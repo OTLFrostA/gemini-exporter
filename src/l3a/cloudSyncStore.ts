@@ -1,15 +1,21 @@
 import type { ConversationKey } from '../l2/conversationKey.js';
+import type { CloudVaultBackendType } from '../shared/types/cloudSync.js';
+import { isDirectoryHandle, type DirectoryHandle } from '../shared/types/directoryHandle.js';
+
+export type { CloudVaultBackendType } from '../shared/types/cloudSync.js';
 
 const CLOUD_DB_NAME = 'gemini_exporter_cloud_v1';
-const CLOUD_DB_VERSION = 1;
+const CLOUD_DB_VERSION = 2;
 
 export interface CloudSyncSessionState {
     readonly id: 'active';
+    readonly backend?: CloudVaultBackendType;
     readonly serverUrl: string;
     readonly ownerSubject: string;
     readonly sessionToken: string;
     readonly expiresAt: number;
     readonly email?: string;
+    readonly folderName?: string;
     readonly pulledSeq: number;
     readonly enabledSinceAt?: number;
 }
@@ -70,6 +76,9 @@ function openCloudDBOnFactory(factory: IDBFactory, onEvict?: () => void): Promis
             if (!db.objectStoreNames.contains('localKeys')) {
                 db.createObjectStore('localKeys', { keyPath: 'ownerSubject' });
             }
+            if (!db.objectStoreNames.contains('vaultHandles')) {
+                db.createObjectStore('vaultHandles');
+            }
         };
         request.onsuccess = () => {
             const db = request.result;
@@ -102,7 +111,7 @@ function acquireCloudDB(): Promise<IDBDatabase> {
     return promise;
 }
 
-type CloudStoreName = 'session' | 'outbox' | 'syncedRecords' | 'localKeys';
+type CloudStoreName = 'session' | 'outbox' | 'syncedRecords' | 'localKeys' | 'vaultHandles';
 
 async function inCloudStores<T>(
     names: readonly CloudStoreName[],
@@ -154,14 +163,17 @@ function parseSessionState(raw: unknown): CloudSyncSessionState | null {
         || typeof raw.pulledSeq !== 'number' || !Number.isSafeInteger(raw.pulledSeq) || raw.pulledSeq < 0) {
         return null;
     }
+    const backend: CloudVaultBackendType = raw.backend === 'local-folder' ? 'local-folder' : 'cloud-server';
     return {
         id: 'active',
+        backend,
         serverUrl: raw.serverUrl,
         ownerSubject: raw.ownerSubject,
         sessionToken: raw.sessionToken,
         expiresAt: raw.expiresAt,
         pulledSeq: raw.pulledSeq,
         ...(typeof raw.email === 'string' && raw.email ? { email: raw.email } : {}),
+        ...(typeof raw.folderName === 'string' && raw.folderName ? { folderName: raw.folderName } : {}),
         ...(typeof raw.enabledSinceAt === 'number' && Number.isSafeInteger(raw.enabledSinceAt)
             ? { enabledSinceAt: raw.enabledSinceAt }
             : {}),
@@ -396,6 +408,31 @@ export function putLocalKeyMirror(ownerSubject: string, recoveryKey: string, now
     return inCloudStores(['localKeys'], 'readwrite', (tx, done) => {
         const row: CloudLocalKeyMirror = { ownerSubject, recoveryKey, updatedAt: nowMs };
         tx.objectStore('localKeys').put(row);
+        done(undefined);
+    });
+}
+
+function isFileSystemDirLike(value: unknown): value is FileSystemDirectoryHandle {
+    return value !== null && typeof value === 'object'
+        && 'kind' in value && value.kind === 'directory'
+        && 'getFileHandle' in value && typeof value.getFileHandle === 'function';
+}
+
+export function getStoredLocalVaultHandle(): Promise<DirectoryHandle | null> {
+    return inCloudStores(['vaultHandles'], 'readonly', (tx, done) => {
+        const req = tx.objectStore('vaultHandles').get('local-vault');
+        req.onsuccess = () => {
+            const raw: unknown = req.result;
+            done(isFileSystemDirLike(raw) && isDirectoryHandle(raw) ? raw : null);
+        };
+    });
+}
+
+export function setStoredLocalVaultHandle(handle: DirectoryHandle | null): Promise<void> {
+    return inCloudStores(['vaultHandles'], 'readwrite', (tx, done) => {
+        const store = tx.objectStore('vaultHandles');
+        if (handle) store.put(handle, 'local-vault');
+        else store.delete('local-vault');
         done(undefined);
     });
 }

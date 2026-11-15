@@ -14,6 +14,7 @@ import {
     countOversizedCloudRecords,
     enqueueCloudOutboxKeys,
     getCloudSyncSession,
+    getStoredLocalVaultHandle,
     getSyncedCloudRecord,
     getSyncedCloudRecordByBlindId,
     listDueCloudOutbox,
@@ -21,8 +22,11 @@ import {
     putSyncedCloudRecord,
     recordCloudOutboxFailure,
     removeCloudOutboxKey,
+    setStoredLocalVaultHandle,
     type CloudSyncSessionState,
+    type CloudVaultBackendType,
 } from '../../l3a/cloudSyncStore.js';
+import type { DirectoryHandle } from '../../shared/types/directoryHandle.js';
 import {
     exportVaultRecoveryKey,
     importVaultRecoveryKey,
@@ -33,6 +37,11 @@ import {
     normalizeCloudServerUrl,
     type CloudVaultClient,
 } from '../../l1/cloud/vaultClient.js';
+import {
+    LOCAL_VAULT_OWNER_SUBJECT,
+    LOCAL_VAULT_SERVER_URL,
+    createLocalFolderVaultClient,
+} from '../../l1/cloud/localFolderVaultClient.js';
 import { getSettings, updateSettings } from '../settings/index.js';
 import {
     openCloudConversation,
@@ -51,12 +60,17 @@ async function sha256BytesHex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
     return bytesToHex(digest);
 }
 
+export type { CloudVaultBackendType } from '../../shared/types/cloudSync.js';
+
 export interface CloudSyncStatusSnapshot {
     readonly enabled: boolean;
     readonly connected: boolean;
+    readonly backend?: CloudVaultBackendType;
     readonly serverUrl?: string;
     readonly ownerSubject?: string;
     readonly email?: string;
+    readonly folderName?: string;
+    readonly folderPermissionRequired?: boolean;
     readonly pulledSeq: number;
     readonly pendingOutbox: number;
     readonly failedOutbox: number;
@@ -79,6 +93,11 @@ export interface CloudPullResult {
 }
 
 export interface CloudSyncEngine {
+    connectLocalFolderVault(handle: DirectoryHandle): Promise<{
+        session: CloudSyncSessionState;
+        recoveryKey: string;
+        createdNewKey: boolean;
+    }>;
     connectWithGoogleIdToken(serverUrl: string, idToken: string): Promise<{
         session: CloudSyncSessionState;
         recoveryKey: string;
@@ -100,10 +119,24 @@ export interface CloudSyncEngine {
 
 export function createCloudSyncEngine(deps: {
     readonly client?: CloudVaultClient;
+    readonly localFolderClient?: CloudVaultClient;
     readonly now?: () => number;
 } = {}): CloudSyncEngine {
-    const client = deps.client ?? createCloudVaultClient();
+    const remoteClient = deps.client ?? createCloudVaultClient();
     const now = deps.now ?? Date.now;
+    let inMemoryVaultHandle: DirectoryHandle | null = null;
+    const resolveLocalHandle = async (): Promise<DirectoryHandle> => {
+        if (inMemoryVaultHandle) return inMemoryVaultHandle;
+        const stored = await getStoredLocalVaultHandle();
+        if (!stored) {
+            throw new OperationError('DIRECTORY_PERMISSION_REQUIRED', 'No local encrypted vault folder configured');
+        }
+        inMemoryVaultHandle = stored;
+        return stored;
+    };
+    const localClient = deps.localFolderClient ?? createLocalFolderVaultClient(resolveLocalHandle, now);
+    const clientForSession = (session: CloudSyncSessionState): CloudVaultClient =>
+        session.backend === 'local-folder' ? localClient : remoteClient;
     let activeFlush: Promise<CloudFlushResult> | null = null;
     let activePull: Promise<CloudPullResult> | null = null;
     const backgroundTasks = new Set<Promise<void>>();
@@ -202,8 +235,9 @@ export function createCloudSyncEngine(deps: {
             }
 
             const envelopeSha256 = await sha256BytesHex(sealed.envelope);
+            const activeClient = clientForSession(session);
             try {
-                const putOutcome = await client.putEncryptedRecord({
+                const putOutcome = await activeClient.putEncryptedRecord({
                     serverUrl: session.serverUrl,
                     sessionToken: session.sessionToken,
                     blindRecordId: sealed.blindRecordId,
@@ -227,7 +261,7 @@ export function createCloudSyncEngine(deps: {
                 }
 
                 // 409 Optimistic Conflict Auto-Heal: pull remote revision, L2-merge locally, and retry!
-                const remote = await client.getEncryptedRecord({
+                const remote = await activeClient.getEncryptedRecord({
                     serverUrl: session.serverUrl,
                     sessionToken: session.sessionToken,
                     blindRecordId: sealed.blindRecordId,
@@ -272,9 +306,11 @@ export function createCloudSyncEngine(deps: {
                 currentConversation = mergedLocal;
             } catch (error) {
                 if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;
-                // Auth or quota errors bubble up to halt the batch cleanly; transient server/network errors retry with backoff.
+                // Auth, folder permission, or quota errors bubble up to halt the batch cleanly while keeping items queued
                 if (error instanceof OperationError
-                    && (error.code === 'CLOUD_AUTH_REQUIRED' || error.code === 'CLOUD_QUOTA_EXCEEDED')) {
+                    && (error.code === 'CLOUD_AUTH_REQUIRED'
+                        || error.code === 'CLOUD_QUOTA_EXCEEDED'
+                        || error.code === 'DIRECTORY_PERMISSION_REQUIRED')) {
                     throw error;
                 }
                 const issue = operationIssue(error, 'CLOUD_SERVER_ERROR');
@@ -352,9 +388,10 @@ export function createCloudSyncEngine(deps: {
                 }
                 let cursor = hasAnyLocalConversation ? session.pulledSeq : 0;
 
+                const activeClient = clientForSession(session);
                 for (let page = 0; page < 200; page++) {
                     signal?.throwIfAborted();
-                    const feed = await client.listChanges({
+                    const feed = await activeClient.listChanges({
                         serverUrl: session.serverUrl,
                         sessionToken: session.sessionToken,
                         sinceSeq: cursor,
@@ -381,7 +418,7 @@ export function createCloudSyncEngine(deps: {
                         portable: PortableCloudConversation;
                         payloadSha256: string;
                     } | null> => {
-                        const blob = await client.getEncryptedRecord({
+                        const blob = await activeClient.getEncryptedRecord({
                             serverUrl: session.serverUrl,
                             sessionToken: session.sessionToken,
                             blindRecordId: meta.blindRecordId,
@@ -460,9 +497,41 @@ export function createCloudSyncEngine(deps: {
     };
 
     return {
+        async connectLocalFolderVault(handle) {
+            const perm = await handle.queryPermission({ mode: 'readwrite' });
+            if (perm !== 'granted') {
+                throw new OperationError('DIRECTORY_PERMISSION_REQUIRED', 'Local vault directory requires readwrite permission');
+            }
+            inMemoryVaultHandle = handle;
+            await setStoredLocalVaultHandle(handle);
+            const existingSession = await getCloudSyncSession();
+            const pulledSeq = existingSession?.backend === 'local-folder'
+                && existingSession.folderName === handle.name
+                ? existingSession.pulledSeq
+                : 0;
+            const provisioned = await loadOrProvisionVaultKeyring(LOCAL_VAULT_OWNER_SUBJECT);
+            const session: CloudSyncSessionState = {
+                id: 'active',
+                backend: 'local-folder',
+                serverUrl: LOCAL_VAULT_SERVER_URL,
+                ownerSubject: LOCAL_VAULT_OWNER_SUBJECT,
+                sessionToken: 'local-folder-session',
+                expiresAt: Number.MAX_SAFE_INTEGER,
+                folderName: handle.name,
+                pulledSeq,
+                enabledSinceAt: existingSession?.enabledSinceAt ?? now(),
+            };
+            await putCloudSyncSession(session);
+            return {
+                session,
+                recoveryKey: provisioned.recoveryKey,
+                createdNewKey: provisioned.createdNew,
+            };
+        },
+
         async connectWithGoogleIdToken(serverUrl, idToken) {
             const normalizedUrl = normalizeCloudServerUrl(serverUrl);
-            const auth = await client.authenticateGoogle(normalizedUrl, idToken);
+            const auth = await remoteClient.authenticateGoogle(normalizedUrl, idToken);
             const existingSession = await getCloudSyncSession();
             const pulledSeq = existingSession?.ownerSubject === auth.ownerSubject
                 && existingSession.serverUrl === normalizedUrl
@@ -471,6 +540,7 @@ export function createCloudSyncEngine(deps: {
             const provisioned = await loadOrProvisionVaultKeyring(auth.ownerSubject);
             const session: CloudSyncSessionState = {
                 id: 'active',
+                backend: 'cloud-server',
                 serverUrl: normalizedUrl,
                 ownerSubject: auth.ownerSubject,
                 sessionToken: auth.sessionToken,
@@ -490,8 +560,12 @@ export function createCloudSyncEngine(deps: {
 
         async disconnect(options = {}) {
             const session = await getCloudSyncSession();
-            if (session && options.revokeRemoteTokens) {
-                await client.logoutAll(session.serverUrl, session.sessionToken).catch(() => {});
+            if (session && session.backend !== 'local-folder' && options.revokeRemoteTokens) {
+                await remoteClient.logoutAll(session.serverUrl, session.sessionToken).catch(() => {});
+            }
+            if (session?.backend === 'local-folder') {
+                inMemoryVaultHandle = null;
+                await setStoredLocalVaultHandle(null);
             }
             await updateSettings({ cloudSyncEnabled: false });
             await clearCloudSyncSession(true);
@@ -544,6 +618,20 @@ export function createCloudSyncEngine(deps: {
                 countCloudOutbox(),
             ]);
             const connected = Boolean(session && session.expiresAt > now());
+            let folderPermissionRequired = false;
+            if (connected && session?.backend === 'local-folder') {
+                const storedHandle = inMemoryVaultHandle ?? await getStoredLocalVaultHandle();
+                if (!storedHandle) {
+                    folderPermissionRequired = true;
+                } else {
+                    inMemoryVaultHandle = storedHandle;
+                    try {
+                        folderPermissionRequired = (await storedHandle.queryPermission({ mode: 'readwrite' })) !== 'granted';
+                    } catch {
+                        folderPermissionRequired = true;
+                    }
+                }
+            }
             const [oversizedSkipped, recoveryKey] = session
                 ? await Promise.all([
                     countOversizedCloudRecords(session.ownerSubject),
@@ -553,11 +641,14 @@ export function createCloudSyncEngine(deps: {
             return {
                 enabled: settings.cloudSyncEnabled === true,
                 connected,
+                ...(session?.backend ? { backend: session.backend } : {}),
                 ...(session?.serverUrl ?? settings.cloudSyncServerUrl
                     ? { serverUrl: session?.serverUrl ?? settings.cloudSyncServerUrl }
                     : {}),
                 ...(session?.ownerSubject ? { ownerSubject: session.ownerSubject } : {}),
                 ...(session?.email ? { email: session.email } : {}),
+                ...(session?.folderName ? { folderName: session.folderName } : {}),
+                ...(folderPermissionRequired ? { folderPermissionRequired: true } : {}),
                 pulledSeq: session?.pulledSeq ?? 0,
                 pendingOutbox: outboxCounts.total,
                 failedOutbox: outboxCounts.failed,
