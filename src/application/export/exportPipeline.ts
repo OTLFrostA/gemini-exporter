@@ -105,6 +105,8 @@ type ExportSource = ExportPendingContent & {
 };
 type PendingExport = ExportSource & { prepared: PreparedResources; reused: ReadonlySet<string> };
 interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'exportedAt'>; files: ExportArtifact[] }
+const MAX_FOLDER_WRITES = 3;
+const MAX_PENDING_FOLDER_CONVERSATIONS = 8;
 
 /** Core export workflow engine, decoupled from heavyweight format backends. */
 export async function executeExportWithSession(
@@ -141,6 +143,7 @@ export async function executeExportWithSession(
     const prefetchedDetails = new Map<number, Promise<PrefetchedDetailOutcome | null>>();
     let saveCancelledFiles: (() => Promise<void>) | undefined;
     const queued = new Map<string, Promise<void>>();
+    const folderWrites = new Set<Promise<void>>();
     const deliveredBodies = new Set<string>();
     const identity = (key: ConversationKey) => JSON.stringify([key.accountId, key.conversationId]);
     const resources = createSourceResourceContext();
@@ -189,6 +192,19 @@ export async function executeExportWithSession(
             providers.set(id, provider);
         }
         return provider;
+    };
+    const writeFolder = async (files: readonly ExportArtifact[], directory: FileSystemDirectoryHandle): Promise<void> => {
+        while (folderWrites.size >= MAX_FOLDER_WRITES) {
+            signal.throwIfAborted();
+            await Promise.race(folderWrites);
+        }
+        signal.throwIfAborted();
+        const writing = writeToFolder(files, directory);
+        // Capacity waiters must not inherit another conversation's write failure.
+        const settled = writing.catch(() => {});
+        folderWrites.add(settled);
+        try { await writing; }
+        finally { folderWrites.delete(settled); }
     };
     const readLocal = readConversation;
     const applyCommittedGroupStats = (group: ExportGroup, record: ExportRecord): void => {
@@ -451,6 +467,11 @@ export async function executeExportWithSession(
 
         const pendingSlots: (PendingExport | undefined)[] = [];
         for (const [index, key] of request.keys.entries()) {
+            // Bound retained snapshots/bytes while unrelated folder commits finish independently.
+            while (directory && queued.size >= MAX_PENDING_FOLDER_CONVERSATIONS) {
+                signal.throwIfAborted();
+                await Promise.race(queued.values());
+            }
             const keyId = identity(key);
             const isRepeatKey = seenKeyIdentities.has(keyId);
             seenKeyIdentities.add(keyId);
@@ -595,16 +616,17 @@ export async function executeExportWithSession(
                 const plan = linkedPlanner?.(conversation, new Map(), source.fileIds, source.folderBaseName, source.requiredIds, directory ? account : undefined);
                 const body = plan ? await renderGroup({ ...source, prepared: new Map(), reused: new Set() },
                     { ...plan, externalResourceIds: new Set() }) : undefined;
+                let bodyWritten: Promise<void> | undefined;
                 if (body) {
                     if (directory) {
-                        await writeToFolder(body.files, directory);
-                        bodyDelivered(key);
-                        if (!source.requiredIds.size) await finalize([body]);
+                        bodyWritten = writeFolder(body.files, directory).then(() => bodyDelivered(key));
+                        // The completion task observes this failure after preparation settles.
+                        void bodyWritten.catch(() => {});
                     } else {
                         bodies.push({ group: body, hasAttachments: source.requiredIds.size > 0 });
                         report({ key, status: 'prepared' });
                     }
-                    if (!source.requiredIds.size) continue;
+                    if (!source.requiredIds.size && !directory) continue;
                 }
                 const pendingSlot = !body && !(folderPlanner && directory) ? pendingSlots.push(undefined) - 1 : -1;
                 type AcquiredOutcome =
@@ -665,7 +687,8 @@ export async function executeExportWithSession(
                 activeDownstream.add(acquireDone);
                 void acquireDone.finally(() => { activeDownstream.delete(acquireDone); });
 
-                const taskPromise: Promise<void> = retireChain.then(async () => {
+                const preparedGroup = body && !source.requiredIds.size ? Promise.resolve(body)
+                    : retireChain.then(async (): Promise<ExportGroup | undefined> => {
                     const outcome = await acquisitionPromise;
                     if (!outcome.ok) throw outcome.error;
                     signal.throwIfAborted();
@@ -689,16 +712,24 @@ export async function executeExportWithSession(
                                 failures: record.attachmentIssues.map(issue => ({ ...issue, path: finalPlan.resources[issue.resourceId] })) }, null, 2),
                         });
                         const group: ExportGroup = { key, record, files };
-                        if (directory) {
-                            if (files.length) await writeToFolder(files, directory);
-                            await finalize([group]);
-                        } else settledBodies.set(body, group);
+                        if (directory) return group;
+                        settledBodies.set(body, group);
                     } else if (folderPlanner && directory) {
-                        const group = await renderGroup(item, folderPlanner(item.conversation, prepared, fileIds, item.folderBaseName));
-                        await writeToFolder(group.files, directory);
-                        await finalize([group]);
+                        return renderGroup(item, folderPlanner(item.conversation, prepared, fileIds, item.folderBaseName));
                     } else if (pendingSlot >= 0) {
                         pendingSlots[pendingSlot] = item;
+                    }
+                });
+                const taskPromise: Promise<void> = preparedGroup.then(async group => {
+                    // A correction follows its own body, without gating other conversations.
+                    await bodyWritten;
+                    if (group && directory) {
+                        if (group !== body) {
+                            signal.throwIfAborted();
+                            if (group.files.length) await writeFolder(group.files, directory);
+                        }
+                        // Keep receipts for successful in-flight commits after cancellation.
+                        await finalize([group]);
                     }
                 }).catch(error => {
                     if (cancelled(error)) controller.abort(error);
@@ -706,12 +737,16 @@ export async function executeExportWithSession(
                         console.warn('[Gemini Exporter] Export item failed', key, error);
                         fail([key], error);
                     }
-                }).finally(() => {
+                }).finally(async () => {
+                    await bodyWritten?.catch(() => {});
                     resources.releaseConversation(key);
                     if (queued.get(keyId) === taskPromise) queued.delete(keyId);
                     activeDownstream.delete(taskPromise);
                 });
-                retireChain = taskPromise;
+                // Preserve input-order preparation while physical commits run independently.
+                retireChain = preparedGroup.then(() => {}, error => {
+                    if (cancelled(error)) controller.abort(error);
+                });
                 handedOff = true;
                 activeDownstream.add(taskPromise);
                 queued.set(keyId, taskPromise);

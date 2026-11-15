@@ -1,9 +1,10 @@
 # Conversation acquisition summaries
 
 Online synchronization, Google Takeout import and OpenAI ZIP import share the
-same workbench summary: source method, operation status, conversations read,
-new conversations added, and the selected account's current local total.
-Online synchronization also reports changed conversation metadata when available.
+same visible counts: conversations read, new conversations added, and the
+selected account's current local total. For example: “Read 3 conversation records,
+added 2, total 3”. Source method, operation status and changed metadata counts
+remain available as structured evidence.
 
 - **Read/scanned** describes the current operation, rather than a fraction of an
   assumed remote total. Offline counts use distinct conversation identities;
@@ -17,8 +18,9 @@ Online synchronization also reports changed conversation metadata when available
   filters, selection and other accounts. The completion handler refreshes persisted
   facts before displaying a result; later refreshes update the total.
 
-An import replaces the previous synchronization message in the same summary
-position. Switching accounts clears the preceding account's summary. Source
+An import clears the preceding synchronization message and displays its result
+in the task status. Provider-limited scans link to Takeout guidance from both the
+scan status and diagnostic log. Switching accounts clears the preceding account's summary. Source
 limits remain a partial synchronization outcome, with their specific cause and
 page counters retained in logs and the diagnostic report. A Takeout import does
 not certify that an account's complete remote history has been obtained.

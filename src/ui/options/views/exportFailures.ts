@@ -41,6 +41,7 @@ const LABELS: ReadonlyMap<string, readonly [string, string]> = new Map([
     ['MATH_FENCE_UNCLOSED', ['Source formula delimiter is unclosed; formula source preserved', '来源公式分隔符未闭合，已保留原始公式']],
     ['GEMINI_STRUCTURED_FALLBACK', ['Some source content required fallback parsing', '部分来源内容使用了备用解析']],
     ['GEMINI_SOURCE_ANNOTATION_FALLBACK', ['Body preserved; some source references could not be placed exactly', '已保留正文，部分来源引用无法精确定位']],
+    ['GEMINI_DOCUMENT_BINDING_FALLBACK', ['Some document bodies are missing or their ownership is unverified', '部分文档正文缺失或归属尚未确认']],
     ['UNKNOWN_ERROR', ['Unknown error', '未知错误']],
 ]);
 export function failureGroupLabel(group: ExportIssueGroup): string {

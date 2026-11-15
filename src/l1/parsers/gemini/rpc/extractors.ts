@@ -769,15 +769,16 @@ import { payloadToMs, extractCandidateValue } from "./payload.js";
         const rawId = slots?.[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
         const body = slots?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY];
         const candidateBlock = body || selected;
+        const candidateText = slots !== null ? extractModelResponseText(selected) : '';
         const candidate: DecodedGeminiCandidate | null = slots !== null
             ? {
                 source: slots, body, index: candidateIndex,
                 turnDocument: isUnknownArray(modelPayload) ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined,
                 id: typeof rawId === "string" ? rawId : "",
-                text: extractModelResponseText(selected),
+                text: candidateText,
                 thoughts: extractThoughts(candidateBlock),
                 citations: extractCitations(candidateBlock),
-                sourceAttributions: extractSourceAttributions(selected),
+                sourceAttributions: extractSourceAttributions(selected, candidateText),
                 groundingCitationMarkers: extractGroundingCitationMarkers(selected || candidateBlock)
             }
             : null;

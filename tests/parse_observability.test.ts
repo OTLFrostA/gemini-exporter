@@ -75,13 +75,14 @@ function flatDocItem(title = "Adequate Flat Title Here"): unknown[] {
 test('P1-9a: 严格路径命中的文档不标 heuristic', () => {
     const out = attachments.extractDocumentsMeta([strictDocItem()]);
     assert.strictEqual(out.length, 1);
-    assert.strictEqual(out[0].source, undefined, '严格路径不应带 source 标记');
+    assert.strictEqual(out[0].source, 'strict', '严格身份显式标记，不能使用 heuristic 正文匹配');
+    assert.strictEqual(out[0].id, UUID);
 });
 
 test('P1-9b: flat 兜底仅在严格路径产出为 0 时执行', () => {
     const out = attachments.extractDocumentsMeta([strictDocItem(), flatDocItem()]);
     assert.strictEqual(out.length, 1, '已有严格结果时 flat 兜底不应再产出');
-    assert.strictEqual(out[0].source, undefined);
+    assert.strictEqual(out[0].source, 'strict');
 });
 
 test('P1-9c: 纯 flat 形态产出标记 source=heuristic-flat', () => {

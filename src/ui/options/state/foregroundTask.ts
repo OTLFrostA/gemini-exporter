@@ -4,7 +4,7 @@ import type { ScanProgress, ScanResult } from '../../../application/sync/scanCon
 export interface ScanEvidence {
     accountId: string | null;
     progress: ScanProgress;
-    result?: ScanProgress & Pick<ScanResult, 'status' | 'reason'>;
+    result?: ScanProgress & Pick<ScanResult, 'status' | 'reason' | 'diagnostics'>;
 }
 
 /** UI operation ownership. Source scanning has an independent lifetime. */

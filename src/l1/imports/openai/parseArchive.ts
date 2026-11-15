@@ -114,5 +114,5 @@ export async function parseOpenAIExportArchive(
         missingAssets += itemMissing;
         conversations.push({ conversationId: conversation.id, parsed, boundEntries: bound, missingAssets: itemMissing });
     }
-    return { conversationCount: decoded.length, conversations, skippedEmpty, missingAssets };
+    return { conversationCount: new Set(decoded.map(conversation => conversation.id)).size, conversations, skippedEmpty, missingAssets };
 }

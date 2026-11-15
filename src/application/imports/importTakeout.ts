@@ -5,7 +5,7 @@ import { OperationError } from '../../shared/errors/operationError.js';
 import { TakeoutParseError } from '../../shared/types/errors.js';
 import { admitArchivedConversations, requireImportTargetAccount } from './batchAdmitImports.js';
 
-export interface TakeoutParseResult { imported: number; status: 'ok' | 'partial' }
+export interface TakeoutParseResult { imported: number; added: number; status: 'ok' | 'partial' }
 
 /** Application offline import workflow: L1 archive parsing precedes L2 admission and UI invalidation. */
 export async function importTakeout(file: File, accountId: Account['id'], onProgress?: (percent: number) => void, resources?: SourceResourceContext): Promise<TakeoutParseResult> {
@@ -57,6 +57,7 @@ export async function importTakeout(file: File, accountId: Account['id'], onProg
     onProgress?.(100);
     return {
         imported: importedIds.size,
+        added: batch.addedCount,
         status: resourceFailure || batch.incompleteQuality ? 'partial' : 'ok',
     };
 }

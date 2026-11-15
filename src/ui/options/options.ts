@@ -9,6 +9,7 @@ import { ScanConnectionError } from '../../runtime/capabilities/scanConnection.j
 import { elementById as el, requiredElement as control } from '../shared/elements.js';
 import { observeDomainChanges } from '../../runtime/api/domainChanges.js';
 import { exportSummary } from '../shared/exportSummary.js';
+import { conversationSourceSummary, type ConversationSourceSummary } from '../shared/conversationSourceSummary.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { updateSettings, isLiveSaveEffective, type GlobalSettings } from '../../application/settings/index.js';
 import * as Cleanup from '../../application/localCleanup.js';
@@ -34,7 +35,7 @@ import { DIRECT_WRITE_THRESHOLD, FEEDBACK_URL } from '../../shared/utils/constan
 import { showDirectWritePrompt } from './views/directWritePrompt.js';
 import { confirmCleanup } from './views/cleanupPrompt.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
-import type { ForegroundTask, TaskFeedback, UiMessage } from './state/foregroundTask.js';
+import type { ForegroundTask, ScanEvidence, TaskFeedback, UiMessage } from './state/foregroundTask.js';
 import { mountTaskPanel } from './views/taskPanelView.js';
 import { mountCloudVaultPanel, type CloudVaultControllerHandle } from './controllers/cloudVaultController.js';
 
@@ -55,7 +56,8 @@ export async function initWorkbench(): Promise<void> {
     let cloudPanel: CloudVaultControllerHandle | undefined;
     let scanController: AbortController | null = null;
     let advanceTutorialScan: (() => void) | undefined;
-    let currentScanStatus: UiMessage | null = null;
+    let currentScanStatus: UiMessage | ConversationSourceSummary | null = null;
+    let scanEvidence: ScanEvidence | undefined;
     let scanTakeoutCount: number | undefined;
     let presentationSaving = false;
     let themeToggle: ReturnType<typeof createOptimisticThemeToggle> | undefined;
@@ -112,10 +114,26 @@ export async function initWorkbench(): Promise<void> {
     };
     const statusError = (error: unknown, level: Level = 'error') =>
         status(() => errorText(error), level, error instanceof Error ? error.message : String(error));
-    const reportScan = (message: UiMessage, level: Level = 'info', rawLogMessage?: string) => {
+    const resolveSourceMessage = (message: UiMessage | ConversationSourceSummary): string => {
+        if (typeof message !== 'object') return resolveUiMessage(message);
+        const summary = conversationSourceSummary(message, state.indexes.length);
+        const result = message.method === 'sync' ? scanEvidence?.result : undefined;
+        if (!result || result.status === 'complete' || result.status === 'up_to_date') return summary;
+        const reasons = new Map(Object.entries({
+            provider_limit: () => text('The online API limit has been reached. Import earlier history with Takeout.', '已达到在线接口上限，更早的历史可以通过 Takeout 导入。'),
+            max_pages: () => state.accounts.find(a => a.id === state.accountId)?.providerId === 'claude'
+                ? text('Claude list coverage cannot yet be verified', 'Claude 列表完整性尚无法验证')
+                : text('Local page budget reached', '已达到本地页数预算'),
+            invalid_response: () => text('Scan failed: invalid Gemini response', '扫描失败：Gemini 返回无效响应'),
+            aborted: () => text('Scan cancelled', '扫描已取消'), error: () => text('Scan failed', '扫描失败'),
+        }));
+        return summary + text('. ', '。') + (reasons.get(result.diagnostics?.failure ?? result.reason ?? result.status)?.()
+            ?? (result.status === 'error' ? text('Scan failed', '扫描失败') : text('Scan finished', '扫描已结束')));
+    };
+    const reportScan = (message: UiMessage | ConversationSourceSummary, level: Level = 'info', rawLogMessage?: string) => {
         currentScanStatus = message;
         paintTaskPanel();
-        log.push({ at: Date.now(), level, message: rawLogMessage ?? resolveUiMessage(message), takeoutCount: scanTakeoutCount });
+        log.push({ at: Date.now(), level, message: rawLogMessage ?? resolveSourceMessage(message), takeoutCount: scanTakeoutCount });
         if (log.length > 400) log.shift();
         renderLog();
     };
@@ -128,8 +146,11 @@ export async function initWorkbench(): Promise<void> {
     const failureGroups = () => currentIssues.groups();
     const paintTaskPanel = () => taskPanel.render({
         task: foreground, feedback, percent, scanning: scanController !== null,
+        scanMessage: currentScanStatus === null || typeof currentScanStatus === 'object' && currentScanStatus.method !== 'sync'
+            ? null : resolveSourceMessage(currentScanStatus), scanEvidence, scanSlow,
         onTakeout: scanTakeoutCount === undefined ? undefined : showTakeout.bind(undefined, scanTakeoutCount),
-        scanMessage: currentScanStatus === null ? null : resolveUiMessage(currentScanStatus), scanSlow,
+        sourceSummary: currentScanStatus !== null && typeof currentScanStatus === 'object'
+            ? { ...currentScanStatus, accountId: state.accountId, total: state.indexes.length } : undefined,
         groups: failureGroups(), failedCount: failed.length, dismissed: dismissedFailures,
         developerMode: settings?.developerMode ?? false, ready: !!settings,
         onCancel: cancel, onRetry: retryFailed, onDismiss: dismissFailures, onCopy: copyFailures,
@@ -267,7 +288,10 @@ export async function initWorkbench(): Promise<void> {
         } catch { /* Keep actionable guidance until a verified Content source is available. */ }
     };
     const select = async (id: string) => {
-        if (id !== state.accountId) { lastRequest = null; failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false; }
+        if (id !== state.accountId) {
+            lastRequest = null; failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false;
+            currentScanStatus = null; scanEvidence = undefined; scanTakeoutCount = undefined; feedback = { kind: 'empty' };
+        }
         state.selectAccount(id); render(); await refresh();
     };
     const perform = async (kind: Action, task: (signal: AbortSignal) => Promise<void>) => {
@@ -340,9 +364,6 @@ export async function initWorkbench(): Promise<void> {
         finishTutorialExport?.(tutorialExportSucceeded);
         if (successfulExports > 0 && tutorialExportSucceeded) void showRatingPromptIfEligible().catch(error => console.warn('[Rating prompt]', error));
     };
-    const summary = (read: number, added: number, total: number) => text(
-        `Read ${read} conversation ${read === 1 ? 'record' : 'records'}, added ${added}, total ${total}`,
-        `已读取到 ${read} 条会话记录，新增 ${added} 条，一共 ${total} 条`);
     const showTakeout = (count: number) => TourGuide.showTakeoutPrompt(count,
         () => {}, () => { fileInput.click(); },
         () => { window.open('https://takeout.google.com/settings/takeout/custom/gemini', '_blank', 'noopener,noreferrer'); },
@@ -377,13 +398,13 @@ export async function initWorkbench(): Promise<void> {
                 return;
             }
             const startedAt = Date.now();
+            scanEvidence = undefined;
             reportScan(() => text('Resolving conversation source…', '正在确认会话来源…'));
             const backoff = createBackoffNotice();
             const diagnostics: Diagnostic[] = [];
             let scanProgressMessage = () => text('Resolving conversation source…', '正在确认会话来源…');
             const paintScanProgress = () => reportScan(() => scanProgressMessage() + (backoff.message() ? ` · ${backoff.message()}` : ''));
             const stopBackoffTicker = backoff.startTicker(paintScanProgress);
-            let targetAccountId = state.accountId;
             let baselineIds = new Set<string>();
             const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
                 onDiagnostic: diagnostic => {
@@ -391,11 +412,11 @@ export async function initWorkbench(): Promise<void> {
                     if (backoff.observe(diagnostic)) paintScanProgress();
                 },
                 onTarget: async id => {
-                    targetAccountId = id;
                     baselineIds = new Set((await listIndexes(id)).map(row => row.key.conversationId));
                     await select(id);
                 }, onProgress: p => {
                     if (signal.aborted) return;
+                    scanEvidence = { accountId: state.accountId, progress: p };
                     scanProgressMessage = () => text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
                         `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`);
                     paintScanProgress();
@@ -411,25 +432,22 @@ export async function initWorkbench(): Promise<void> {
             scanHasResults ||= result.conversationsFetched > 0;
             scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result, diagnostics });
             if (scanRuns.length > 10) scanRuns.shift();
-            const reasons = new Map(Object.entries({
-                provider_limit: () => text('The online API limit has been reached. Import earlier history with Takeout.', '已达到在线接口上限，更早的历史可以通过 Takeout 导入。'),
-                max_pages: () => state.accounts.find(a => a.id === state.accountId)?.providerId === 'claude'
-                    ? text('Claude list coverage cannot yet be verified', 'Claude 列表完整性尚无法验证')
-                    : text('Local page budget reached', '已达到本地页数预算'),
-                invalid_response: () => text('Scan failed: invalid Gemini response', '扫描失败：Gemini 返回无效响应'),
-                aborted: () => text('Scan cancelled', '扫描已取消'), error: () => text('Scan failed', '扫描失败')
-            }));
             const reason = result.diagnostics?.failure ?? result.reason ?? result.status;
             const succeeded = result.status === 'complete' || result.status === 'up_to_date';
-            const indexes = targetAccountId ? await listIndexes(targetAccountId) : [];
-            const added = result.indexChanges?.added ?? indexes.filter(row => !baselineIds.has(row.key.conversationId)).length;
-            const countsSummary = () => summary(result.conversationsFetched, added, indexes.length);
-            if (reason === 'provider_limit' && state.accounts.find(a => a.id === targetAccountId)?.providerId === 'gemini')
+            const committedProgress = { pagesFetched: result.pagesFetched, conversationsFetched: result.conversationsFetched };
+            scanEvidence = { accountId: state.accountId, progress: committedProgress,
+                result: { ...committedProgress, status: result.status, reason: result.reason, diagnostics: result.diagnostics } };
+            await refresh();
+            const added = result.indexChanges?.added ?? state.indexes.filter(row => !baselineIds.has(row.key.conversationId)).length;
+            if (reason === 'provider_limit' && state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini')
                 scanTakeoutCount = result.conversationsFetched;
-            reportScan(() => succeeded ? countsSummary()
-                : `${countsSummary()}${text('. ', '。')}${reasons.get(reason)?.() ?? (result.status === 'error' ? text('Scan failed', '扫描失败') : text('Scan finished', '扫描已结束'))}`,
+            reportScan({ method: 'sync',
+                status: succeeded ? 'complete' : result.status === 'partial_limit' ? 'partial'
+                    : result.status === 'aborted' ? 'aborted' : 'error',
+                read: result.conversationsFetched, added, updated: result.indexChanges?.updated,
+            },
                 result.status === 'error' ? 'error' : result.status === 'aborted' || result.status === 'partial_limit' ? 'warn' : 'info',
-                result.status === 'error' ? `${countsSummary()}. Scan failed (${result.reason ?? 'unknown'})` : undefined);
+                result.status === 'error' ? `Sync ${result.status} (${reason}) · ${result.pagesFetched} pages · ${result.conversationsFetched} source entries` : undefined);
             settings = await readSettings();
             if (state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini'
                 && result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
@@ -600,35 +618,36 @@ export async function initWorkbench(): Promise<void> {
         const accountId = state.accountId;
         const account = state.accounts.find(a => a.id === accountId);
         return perform('takeout', async () => {
+            currentScanStatus = null;
+            scanTakeoutCount = undefined;
+            if (!scanController) scanEvidence = undefined;
             try {
-                let targetAccountId = accountId;
-                let baselineIds = new Set(accountId ? (await listIndexes(accountId)).map(row => row.key.conversationId) : []);
                 const outcome = await handlePlatformArchiveImport(file, account, accountId, {
                     onStartKind: kind => status(() => kind === 'openai'
                         ? text('Importing OpenAI ZIP…', '正在导入 OpenAI ZIP…')
                         : text('Importing Takeout ZIP…', '正在导入 Takeout ZIP…')),
-                    onTarget: async id => {
-                        targetAccountId = id;
-                        baselineIds = new Set((await listIndexes(id)).map(row => row.key.conversationId));
-                        await select(id);
-                    },
+                    onTarget: select,
                     onProgress: percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent),
                     resources: importedResources,
                 });
-                const indexes = targetAccountId ? await listIndexes(targetAccountId) : [];
-                const added = indexes.filter(row => !baselineIds.has(row.key.conversationId)).length;
+                await refresh();
                 if (outcome.kind === 'openai') {
                     const { result } = outcome;
+                    currentScanStatus = { method: 'openai',
+                        status: result.status === 'partial' ? 'partial' : 'complete', read: result.read, added: result.added };
+                    const summary = currentScanStatus;
                     if (result.status === 'empty') status(() => text(
                         'This OpenAI ZIP contains no conversation bodies. No conversations were imported.',
                         '此 OpenAI ZIP 没有聊天正文，未导入任何会话。'), 'warn');
-                    else status(() => text(
-                        `${summary(result.imported + result.skipped, added, indexes.length)}. Skipped ${result.skipped}; unavailable attachments ${result.missingAssets}.`,
-                        `${summary(result.imported + result.skipped, added, indexes.length)}。跳过 ${result.skipped} 条；${result.missingAssets} 个附件不可用。`),
-                        result.status === 'partial' ? 'warn' : 'info');
+                    else status(() => conversationSourceSummary(summary, state.indexes.length) + text(
+                        `. Skipped ${result.skipped}; unavailable attachments ${result.missingAssets}.`,
+                        `。跳过 ${result.skipped} 条；${result.missingAssets} 个附件不可用。`), result.status === 'partial' ? 'warn' : 'info');
                 } else {
                     const { result } = outcome;
-                    status(() => summary(result.imported, added, indexes.length) + (result.status === 'partial'
+                    currentScanStatus = { method: 'takeout',
+                        status: result.status === 'ok' ? 'complete' : 'partial', read: result.imported, added: result.added };
+                    const summary = currentScanStatus;
+                    status(() => conversationSourceSummary(summary, state.indexes.length) + (result.status === 'partial'
                         ? text('. Some content or attachments are incomplete.', '。部分内容或附件不完整。') : ''), result.status === 'partial' ? 'warn' : 'info');
                 }
             } finally { fileInput.value = ''; }

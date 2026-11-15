@@ -15,22 +15,24 @@ for (const language of ['en', 'zh']) test(`source summaries replace earlier scan
     await page.locator('#btnSyncAll').click();
     const summary = page.locator('#scanStatus');
     await expect(summary).toHaveText(language === 'zh'
-        ? '在线同步部分完成 · 累计扫描 750 条对话 · 新增 0 条 · 更新 0 条信息 · 当前共 1 条对话'
-        : 'Sync partially completed · Scanned: 750 · Added: 0 · Updated: 0 · Total conversations: 1');
+        ? '已读取到 750 条会话记录，新增 0 条，一共 1 条。已达到在线接口上限，更早的历史可以通过 Takeout 导入。'
+        : 'Read 750 conversation records, added 0, total 1. The online API limit has been reached. Import earlier history with Takeout.');
     await page.locator('#takeoutFileInput').setInputFiles(archive);
-    await expect(summary).toHaveText(language === 'zh'
-        ? 'Takeout 导入完成 · 读取 3 条对话 · 新增 2 条 · 当前共 3 条对话'
-        : 'Takeout import complete · Read: 3 · Added: 2 · Total conversations: 3');
-    await expect(page.locator('#status')).toHaveText('');
+    await expect(summary).toBeHidden();
+    const importedSummary = page.locator('#status');
+    await expect(importedSummary).toHaveText(language === 'zh'
+        ? '已读取到 3 条会话记录，新增 2 条，一共 3 条'
+        : 'Read 3 conversation records, added 2, total 3');
     await page.locator('#chatSearchInput').fill('new-one');
     await expect(page.locator('#list .item')).toHaveCount(1);
-    await expect(summary).toContainText(language === 'zh' ? '当前共 3 条对话' : 'Total conversations: 3');
+    await expect(importedSummary).toContainText(language === 'zh' ? '一共 3 条' : 'total 3');
     await page.evaluate(() => { Reflect.get(window, 'harness').takeoutResult.added = 0; });
     await page.locator('#takeoutFileInput').setInputFiles(archive);
-    await expect(summary).toContainText(language === 'zh' ? '新增 0 条' : 'Added: 0');
-    await expect(summary).toContainText(language === 'zh' ? '当前共 3 条对话' : 'Total conversations: 3');
+    await expect(importedSummary).toContainText(language === 'zh' ? '新增 0 条' : 'added 0');
+    await expect(importedSummary).toContainText(language === 'zh' ? '一共 3 条' : 'total 3');
     await page.locator('#accountIdSelect').selectOption(B);
     await expect(summary).toBeHidden();
+    await expect(importedSummary).toHaveText('');
 });
 
 test('OpenAI imports use the same source summary and committed account total', async ({ page }) => {
@@ -40,6 +42,6 @@ test('OpenAI imports use the same source summary and committed account total', a
         openaiResult: { read: 3, imported: 2, added: 1, skipped: 1, missingAssets: 2, status: 'partial' },
     });
     await page.locator('#takeoutFileInput').setInputFiles(archive);
-    await expect(page.locator('#scanStatus')).toHaveText('OpenAI ZIP import partially completed · Read: 3 · Added: 1 · Total conversations: 2');
-    await expect(page.locator('#status')).toHaveText('Skipped: 1; unavailable attachments: 2.');
+    await expect(page.locator('#scanStatus')).toBeHidden();
+    await expect(page.locator('#status')).toHaveText('Read 3 conversation records, added 1, total 2. Skipped 1; unavailable attachments 2.');
 });

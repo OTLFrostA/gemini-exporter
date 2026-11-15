@@ -8,7 +8,7 @@ import type { InlineNode } from '../src/l2/content/inline.js';
 
 test('recognizing a card must not discard an unknown nonempty sibling branch', () => {
     for (const key of ['G_REMAINING_PLAN_UNKNOWN_SIBLING', 'G_REMAINING_DOCUMENT_UNKNOWN_SIBLING',
-        'G_REMAINING_MAP_UNKNOWN_SIBLING'] as const) {
+        'G_REMAINING_MAP_UNKNOWN_SIBLING', 'G_REMAINING_MAP_ROUTE_UNKNOWN'] as const) {
         const result = parseRemainingFixture(key);
         assert.ok(result.merged.evidence?.unrepresentedContent, key);
         assert.equal(result.domain.detail.quality.status, 'partial', key);
