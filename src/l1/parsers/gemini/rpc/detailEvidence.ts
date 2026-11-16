@@ -77,6 +77,8 @@ export interface GeminiMessageEvidence {
     structuredImages: ImageAttachment[];
     structuredContent?: GeminiStructuredDocument;
     structuredExtraction?: GeminiStructuredExtraction;
+    /** Original selected-candidate index when non-zero, preserving parallel document ownership. */
+    candidateIndex?: number;
     /** Unmodified selected Markdown is needed for exact source-range recovery. */
     candidateText?: string;
     groundingCitationMarkers?: string[];

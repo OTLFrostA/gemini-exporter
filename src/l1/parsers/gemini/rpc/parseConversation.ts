@@ -2,7 +2,7 @@ import { GeminiResponseEnvelope } from './responseEnvelope.js';
 import { hideGeminiFileCitations } from '../shared/fileCitations.js';
 import type { GeminiAttachmentEvidence } from './detailEvidence.js';
 import { closeGeminiCodeCitations } from '../shared/codeCitations.js';
-import type { GeminiStructuredNode } from './structuredContent.js';
+import { extractSelectedPartialSlots, type GeminiPartialStructuredSlot, type GeminiStructuredNode } from './structuredContent.js';
 import { contentQuality } from '../../qualityEvidence.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import { normId } from '../../../../shared/utils/pathUtils.js';
@@ -36,7 +36,10 @@ export interface GeminiRpcParseResult extends SourceConversationParseResult {
     };
 }
 
-function citationsOf(message: GeminiMessageEvidence): { citations: DomainCitation[]; legacyCitations: DomainCitation[]; sourceCitations: Map<string, DomainCitation[]> } {
+function citationsOf(
+    message: GeminiMessageEvidence,
+    partialSlots?: readonly GeminiPartialStructuredSlot[] | null,
+): { citations: DomainCitation[]; legacyCitations: DomainCitation[]; sourceCitations: Map<string, DomainCitation[]> } {
     const citations: DomainCitation[] = [];
     const byUrl = new Map<string, DomainCitation>();
     const addSource = (source: { url: string; title?: string }): DomainCitation => {
@@ -91,6 +94,7 @@ function citationsOf(message: GeminiMessageEvidence): { citations: DomainCitatio
     };
     visit(message.groundingReferences ?? []);
     if (message.structuredContent) visit(message.structuredContent.children);
+    else if (partialSlots) visit(partialSlots.flatMap(slot => slot.kind === 'decoded' ? [slot.node] : []));
     for (const [id, titles] of files) {
         const citation = { id, title: [...titles].join('; ') };
         citations.push(citation);
@@ -114,8 +118,11 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
     let unrepresentedContent = false;
     const messages: DomainMessage[] = evidence.messages.map((message, index) => {
         const sourceRef = { providerId: 'gemini', providerMessageId: message.id, locator: `messages[${index}]` };
-        const { citations, legacyCitations, sourceCitations } = citationsOf(message);
         const extraction = message.structuredExtraction;
+        const partialSlots = context.bodyRepresentation !== 'markdown' && extraction?.status === 'decode_rejected' && extraction.rawDocument !== undefined
+            ? extractSelectedPartialSlots(extraction.rawDocument, message.candidateIndex ?? 0)
+            : null;
+        const { citations, legacyCitations, sourceCitations } = citationsOf(message, partialSlots);
         const uncertainDocuments = message.documents?.filter(document => document.contentMissing || document.hasFabricatedText) ?? [];
         if (uncertainDocuments.length) {
             if (uncertainDocuments.some(document => document.contentMissing)) unrepresentedContent = true;
@@ -149,6 +156,8 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
                     { diagnostics: contentDiagnostics, sourceRef, sourceCitations, recoverLiteralMath: context.bodyRepresentation !== 'structured',
                         candidateText: message.candidateText,
                         sourceAttributions: message.sourceAttributions,
+                        groundingCitationMarkers: message.groundingCitationMarkers,
+                        ...(partialSlots ? { partialSlots } : {}),
                         onStructuredFallback: () => { unrepresentedContent = true; } }),
             ...(message.timestamp !== null && Number.isFinite(message.timestamp) ? { timestamp: message.timestamp } : {}),
             ...(message.model ? { model: message.model } : {}),
