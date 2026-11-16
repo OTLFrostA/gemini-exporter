@@ -1,4 +1,3 @@
-import { decodeGeminiStructuredPayload as decodeBody } from '../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { fixtureKey } from './helpers/domainFixture.js';
 import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
@@ -9,47 +8,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { BlockNode } from '../src/l2/content/blocks.js';
 import { mapContentAssetReferences } from '../src/l2/content/assetReferences.js';
-import { parseMarkdownToBlocks } from '../src/l1/parsers/shared/markdown/index.js';
-import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 
 const paragraph = (text: string): BlockNode[] => [{ type: 'paragraph', children: [{ type: 'text', text }] }];
 const metadata = { id: 'content-input', title: 'Content boundary', timestamp: null };
 
-test('Gemini chooses provider structure before Domain and does not reinterpret structured text as Markdown', () => {
-    const domain = historicalFixtureDomain({ ...metadata, messages: [{
-        role: 'model', content: 'raw **fallback**',
-        structuredContent: { children: [{ nodeType: 18, text: '**literal structure**' }] },
-    }] });
-    assert.deepEqual(domain.detail.messages[0].content, paragraph('**literal structure**'));
-});
-
-for (const structured of [
-    { children: [{ nodeType: 99, text: 'unsupported' }] },
-    { children: [{ nodeType: 20, items: [{ children: [{ nodeType: 99 }] }] }] },
-    { children: [{ nodeType: 18, text: 'bad', annotations: [null] }] },
-    { children: [{ nodeType: 18, text: 'bad', annotations: { length: 1 } }] },
-    { children: [{ nodeType: 18, text: 'bad', annotations: [{ start: 0, end: 100, type: 0 }] }] },
-    { children: [{ nodeType: 17, rows: [{ cells: null }] }] },
-    { children: [] },
-]) {
-    test(`malformed or unsupported structured input preserves its full Markdown fallback: ${JSON.stringify(structured)}`, () => {
-        assert.deepEqual(parseGeminiBody('# Visible\n\n**answer**', decodeBody(structured) ?? undefined), [
-            { type: 'heading', level: 1, children: [{ type: 'text', text: 'Visible' }] },
-            { type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: 'answer' }] }] },
-        ]);
-    });
-}
-
-test('generic Markdown parses images through the caller-provided asset resolver', () => {
-    const ctx = { diagnostics: [], sourceRef: { providerId: 'other', locator: 'content' },
-        resolveImage: (ref: string, alt: string) => ({ type: 'image' as const, assetId: `resolved:${ref}`, alt }),
-    };
-    assert.deepEqual(parseMarkdownToBlocks('![diagram](image.png)', '', ctx), [{
-        type: 'paragraph', children: [{ type: 'image', assetId: 'resolved:image.png', alt: 'diagram' }],
-    }]);
-});
+// L1-only structured/markdown adapter assertions live in `tests/l1_extracted_regressions.test.ts`.
+// This suite covers cross-layer Domain -> L3b Document composition boundaries.
 
 for (const [content, expectedVisible] of [
     ['![local](assets/image.png)\n\n> ![linked](https://example.test/image.png)', 'local'],

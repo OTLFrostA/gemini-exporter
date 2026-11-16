@@ -76,7 +76,10 @@ def main():
         unit_cmd.extend(["--base", args.base])
     if args.files is not None:
         unit_cmd.extend(["--files"] + args.files)
-    res = subprocess.run(unit_cmd, cwd=REPO_DIR)
+    unit_env = os.environ.copy()
+    if not args.skip_typecheck:
+        unit_env["GEMINI_SKIP_REDUNDANT_TSC"] = "1"
+    res = subprocess.run(unit_cmd, cwd=REPO_DIR, env=unit_env)
     if res.returncode != 0:
         print("❌ 单元测试套件执行失败！")
         sys.exit(res.returncode)
