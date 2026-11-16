@@ -25,22 +25,16 @@ npm run cloud:local
 SERVER_ACCESS_CODE=my-secret-passcode npm run cloud:local
 ```
 
-## Cloudflare Workers Deployment (3 Minutes, $0 Free Tier)
+## Cloudflare Workers One-Command Deployment (1 Minute, $0 Free Tier, No Credit Card Required)
+Uses per-tenant **SQLite-backed Durable Objects** (`VaultTenantDO`) out of the box — zero manual D1 database IDs or R2 bucket setup needed:
 ```bash
 npx wrangler login
 cd cloud-server
 
-# 1. Create D1 database and R2 bucket
-npx wrangler d1 create gemini_exporter_vault_db
-npx wrangler r2 bucket create gemini-exporter-vault-blobs
+# 1. Deploy Worker + auto-provision SQLite Durable Object class
+npx wrangler deploy
 
-# 2. Paste the output `database_id` into wrangler.toml, then apply schema migration
-npx wrangler d1 migrations apply gemini_exporter_vault_db --remote
-
-# 3. Configure session signing secret (and optional access code)
+# 2. Configure session signing secret (and optional access code)
 openssl rand -base64 48 | npx wrangler secret put SESSION_HMAC_SECRET
 # Optional: npx wrangler secret put SERVER_ACCESS_CODE
-
-# 4. Deploy Worker
-npx wrangler deploy
 ```
