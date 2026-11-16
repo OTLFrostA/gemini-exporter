@@ -95,15 +95,17 @@ function renderBlocks(blocks: readonly BlockNode[], indent = ''): string {
                 break;
             }
             case 'table': {
+                const escapeCell = (raw: string): string =>
+                    raw.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
                 const tableLines: string[] = [];
                 const header = b.headerRows?.[0];
                 if (header) {
-                    const cells = header.cells.map(c => renderInlines(c.children).replace(/\|/g, '\\|').replace(/\n/g, ' '));
+                    const cells = header.cells.map(c => escapeCell(renderInlines(c.children)));
                     tableLines.push(`${indent}| ${cells.join(' | ')} |`);
                     tableLines.push(`${indent}| ${cells.map(() => '---').join(' | ')} |`);
                 }
                 for (const row of b.rows) {
-                    const cells = row.cells.map(c => renderInlines(c.children).replace(/\|/g, '\\|').replace(/\n/g, ' '));
+                    const cells = row.cells.map(c => escapeCell(renderInlines(c.children)));
                     tableLines.push(`${indent}| ${cells.join(' | ')} |`);
                 }
                 parts.push(tableLines.join('\n'));
