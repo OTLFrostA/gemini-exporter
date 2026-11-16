@@ -43,10 +43,14 @@ function userMessageOf(res: any): any {
     return res.messages.find((m: any) => m.role === "user");
 }
 
-test('P1-061a: rc_ 清洗正则使用真正的 \\s（源码级锁定，旧正则匹配字面反斜杠+s 是死代码）', () => {
-    const src = fs.readFileSync(path.join(__dirname, '../src/l1/parsers/gemini/rpc/turnResources.ts'), 'utf8');
-    assert.ok(src.includes('/^rc_[a-z0-9_]{10,}\\s*/i'), 'rc_ 清洗正则必须使用单反斜杠 \\s');
-    assert.ok(!src.includes('/^rc_[a-z0-9_]{10,}\\\\s*/i'), '不应残留双重转义 \\\\s');
+test('P1-061a: candidate rc_ prefix and trailing whitespace strip cleanly from model text', () => {
+    const turn = makeTurn({ candText: 'rc_abcdef0123456789   Hello world' });
+    const decoded = extractors.decodeTurn(turn);
+    const { decodeGeminiTurn } = require('../src/l1/parsers/gemini/rpc/turnResources.js');
+    const msgs = decodeGeminiTurn(decoded, turn);
+    const model = msgs.find((m: any) => m.role === 'model');
+    assert.ok(model);
+    assert.strictEqual(model.content, 'Hello world');
 });
 
 test('P1-061b: chip URL 整行被清理（保留段落换行）', () => {

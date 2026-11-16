@@ -253,3 +253,45 @@ test('bootstrap stores a new special-key SID as an own entry and ignores inherit
         assert.equal(stored.neighbor.at, 'kept');
     }
 });
+
+test('bootstrap retains stored at token on empty postMessage updates and never logs raw token secrets in dev mode', async () => {
+    const logged: string[] = [];
+    const ctx = makeContext();
+    ctx.__gemExporterDevMode = true;
+    ctx.__gemExporterExtractedAt = 'SECRET_AT_TOKEN_VALUE_1234567890';
+    ctx.document.documentElement.innerHTML = '"cfb2h":"boq_assistant-bard-web-server_secret_build"';
+    ctx.console = {
+        log: (...args: unknown[]) => logged.push(args.map(String).join(' ')),
+        warn: (...args: unknown[]) => logged.push(args.map(String).join(' ')),
+        debug: (...args: unknown[]) => logged.push(args.map(String).join(' ')),
+    };
+    vm.runInContext(code, ctx, { filename: 'bootstrap.js' });
+    ctx.TestBootstrap.initBootstrap();
+    await new Promise(resolve => setImmediate(resolve));
+
+    vm.runInContext(`
+        for (const listener of [...accountListeners]) listener({
+            source: window,
+            origin: location.origin,
+            data: { type: 'GEMINI_CREDENTIALS', payload: { sid: 'sid_keep', at: 'PERSISTED_AT_TOKEN_999', bl: 'bl_1', accountSlot: 'u0' } },
+        });
+    `, ctx);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(ctx.__sessionData.gemini_credentials_map.sid_keep.at, 'PERSISTED_AT_TOKEN_999');
+
+    // Subsequent message with empty `at` must not overwrite the previously stored `at`
+    vm.runInContext(`
+        for (const listener of [...accountListeners]) listener({
+            source: window,
+            origin: location.origin,
+            data: { type: 'GEMINI_CREDENTIALS', payload: { sid: 'sid_keep', at: '', bl: 'bl_2', accountSlot: 'u0' } },
+        });
+    `, ctx);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(ctx.__sessionData.gemini_credentials_map.sid_keep.at, 'PERSISTED_AT_TOKEN_999');
+    assert.equal(ctx.__sessionData.gemini_credentials_map.sid_keep.bl, 'bl_2');
+
+    const allLogs = logged.join('\n');
+    assert.equal(allLogs.includes('SECRET_AT_TOKEN'), false, 'raw extracted at token prefix must never enter console logs');
+    assert.equal(allLogs.includes('boq_assistant-bard-web-server_secret_build'), false, 'raw bl build string must never enter console logs');
+});

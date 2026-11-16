@@ -29,18 +29,8 @@ function replaceGlobal(key: string, value: unknown): () => void {
 // storage behavior covered by known_issue_credentials_session.test.ts.
 // P1-007 pinned an obsolete diagnostic string instead of detecting secrets.
 
-test('P1-003: bootstrap avoids the previously leaked token logging patterns', () => {
-    const src = readSrc('l1/client/gemini/bootstrap.ts');
-    assert.ok(!src.includes('atFromPage.slice(0, 12)'), 'credential prefix should never be logged');
-    assert.ok(!src.includes("console.log('[Gemini Exporter] bl refreshed', blFromPage)"), 'raw bl should never be logged');
-    assert.ok(src.includes("'atLen', atFromPage.length"), 'at log should use only length');
-    assert.ok(src.includes("'blLen', blFromPage.length"), 'bl log should use only length');
-});
-
-test('P1-005: empty postMessage token must not replace the stored token (source guard)', () => {
-    const src = readSrc('l1/client/gemini/bootstrap.ts');
-    assert.ok(src.includes('at: p.at || old.at'), 'empty token must not overwrite stored at');
-});
+// P1-003 (dev-mode token log redaction) and P1-005 (empty-at postMessage preservation)
+// are verified behaviorally in `tests/known_issue_credentials_session.test.ts`.
 
 test('P1-006: asset messages reject untrusted hosts before invoking cookie-authenticated fetchers', async () => {
     const calls: string[] = [];
