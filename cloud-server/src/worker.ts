@@ -1,10 +1,20 @@
 import { createGoogleOidcVerifier } from './auth/googleOidc.js';
 import { createCloudServerHandler } from './router.js';
+import {
+    VaultTenantDO,
+    createDurableObjectVaultStore,
+    type DurableObjectNamespaceLike,
+} from './storage/durableVaultStore.js';
 import { createCloudflareVaultStore, type D1DatabaseLike, type R2BucketLike } from './storage/vaultStore.js';
 
+export { VaultTenantDO };
+
 export interface WorkerEnv {
-    readonly VAULT_DB: D1DatabaseLike;
-    readonly VAULT_BLOBS: R2BucketLike;
+    /** Zero-setup per-tenant SQLite Durable Object namespace (default Free-Plan storage). */
+    readonly VAULT_TENANTS?: DurableObjectNamespaceLike;
+    /** Optional D1 + R2 bindings for large multi-region deployments. */
+    readonly VAULT_DB?: D1DatabaseLike;
+    readonly VAULT_BLOBS?: R2BucketLike;
     readonly SESSION_HMAC_SECRET: string;
     /** Optional shared access/invite code guarding `/v1/auth/key`. */
     readonly SERVER_ACCESS_CODE?: string;
@@ -27,8 +37,19 @@ export default {
     async fetch(request: Request, env: WorkerEnv): Promise<Response> {
         const quotaOverride = env.DEFAULT_QUOTA_BYTES ? Number(env.DEFAULT_QUOTA_BYTES) : undefined;
         const allowed = splitCsv(env.ALLOWED_ORIGINS);
+        const store = env.VAULT_TENANTS
+            ? createDurableObjectVaultStore(env.VAULT_TENANTS)
+            : env.VAULT_DB && env.VAULT_BLOBS
+                ? createCloudflareVaultStore(env.VAULT_DB, env.VAULT_BLOBS)
+                : null;
+        if (!store) {
+            return new Response(
+                JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'Missing VAULT_TENANTS or VAULT_DB/VAULT_BLOBS bindings' } }),
+                { status: 500, headers: { 'Content-Type': 'application/json' } },
+            );
+        }
         const handler = createCloudServerHandler({
-            store: createCloudflareVaultStore(env.VAULT_DB, env.VAULT_BLOBS),
+            store,
             oidcVerifier,
             config: {
                 sessionHmacSecret: env.SESSION_HMAC_SECRET,

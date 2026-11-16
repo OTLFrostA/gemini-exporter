@@ -2,17 +2,15 @@ name = "gemini-exporter-cloud-vault"
 main = "src/worker.ts"
 compatibility_date = "2026-01-01"
 
-# Zero-knowledge metadata & monotonic change-sequence store (Cloudflare D1)
-[[d1_databases]]
-binding = "VAULT_DB"
-database_name = "gemini_exporter_vault_db"
-database_id = "00000000-0000-0000-0000-000000000000" # Replace with output of `wrangler d1 create gemini_exporter_vault_db`
-migrations_dir = "migrations"
+# Zero-setup per-tenant SQLite Durable Objects (included in Cloudflare Workers Free plan — no R2 card or D1 ID required!)
+[durable_objects]
+bindings = [
+  { name = "VAULT_TENANTS", class_name = "VaultTenantDO" }
+]
 
-# Zero-knowledge encrypted conversation blob store (Cloudflare R2 - $0 egress)
-[[r2_buckets]]
-binding = "VAULT_BLOBS"
-bucket_name = "gemini-exporter-vault-blobs"
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["VaultTenantDO"]
 
 [vars]
 # Default allows any Chrome/Chromium extension origin (`chrome-extension://<32-char-id>`) while blocking web pages
