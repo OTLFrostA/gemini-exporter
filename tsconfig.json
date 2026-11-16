@@ -16,7 +16,6 @@
   },
   "include": [
     "src/**/*",
-    "cloud-server/src/**/*",
     "tests/**/*"
   ],
   "exclude": [

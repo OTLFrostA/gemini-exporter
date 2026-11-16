@@ -1,26 +1,19 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { accountId, openOptions } from './uiFixture';
-import { createCloudServerHandler } from '../../cloud-server/src/router';
-import { createInMemoryVaultStore } from '../../cloud-server/src/storage/vaultStore';
+import { createMockCloudVaultHttp } from '../helpers/mockCloudVaultHttp';
 
 const VAULT_ORIGIN = 'https://vault.example.test';
-const SESSION_SECRET = 'playwright-e2e-vault-session-hmac-secret-32bytes+';
 const SERVER_INVITE_CODE = 'my-private-vault-2026';
 
 test('E2EE Cloud Vault full browser UI flow: zero-config key-derived auth + access code -> automatic encrypted upload -> zero-knowledge server audit -> cross-browser key import switches tenant & restores lossless Markdown', async ({ context, extensionId }) => {
     await seedRegistryAccounts(context);
 
-    // 1. Boot real zero-knowledge Cloud Server handler (no Google OAuth required!)
-    const serverStore = createInMemoryVaultStore();
-    const serverHandler = createCloudServerHandler({
-        store: serverStore,
-        config: {
-            sessionHmacSecret: SESSION_SECRET,
-            serverAccessCode: SERVER_INVITE_CODE,
-            allowedOrigins: ['chrome-extension://*'],
-        },
+    // 1. Boot mock zero-knowledge Cloud Vault HTTP contract double
+    const serverStore = createMockCloudVaultHttp({
+        serverAccessCode: SERVER_INVITE_CODE,
     });
+    const serverHandler = serverStore.handler;
 
     // Route extension HTTPS requests to our real Cloud Server handler
     await context.route(`${VAULT_ORIGIN}/**`, async route => {

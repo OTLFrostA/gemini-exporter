@@ -1,12 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-    createGoogleOidcVerifier,
-    encodeBase64UrlBytes,
-    type JsonWebKeyWithKid,
-} from '../cloud-server/src/auth/googleOidc.js';
-import { createCloudServerHandler } from '../cloud-server/src/router.js';
-import { createInMemoryVaultStore } from '../cloud-server/src/storage/vaultStore.js';
 import { createCloudVaultClient, normalizeCloudServerUrl } from '../src/l1/cloud/vaultClient.js';
 import { createCloudSyncEngine } from '../src/application/cloud/cloudSyncEngine.js';
 import { updateSettings } from '../src/application/settings/index.js';
@@ -14,53 +7,9 @@ import { ingestDetail, ingestIndexes } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { indexStorage } from './helpers/indexStorage.js';
+import { createMockCloudVaultHttp } from './helpers/mockCloudVaultHttp.js';
 
-const CLIENT_ID = '888888888888-syncclient.apps.googleusercontent.com';
-const SESSION_SECRET = 'sync-engine-hmac-secret-with-at-least-32-random-bytes!!';
 const SERVER_URL = 'https://vault.gemini-exporter.test';
-
-async function setupMockCloudBackend() {
-    const keyPair = await crypto.subtle.generateKey(
-        {
-            name: 'RSASSA-PKCS1-v1_5',
-            modulusLength: 2048,
-            publicExponent: new Uint8Array([1, 0, 1]),
-            hash: 'SHA-256',
-        },
-        true,
-        ['sign', 'verify'],
-    );
-    const publicJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
-    const jwk: JsonWebKeyWithKid = { ...publicJwk, kid: 'sync-key-1', alg: 'RS256', use: 'sig' };
-    const oidcVerifier = createGoogleOidcVerifier(async () => ({ keys: [jwk], maxAgeMs: 3600_000 }));
-    const store = createInMemoryVaultStore();
-    const handler = createCloudServerHandler({
-        store,
-        oidcVerifier,
-        config: {
-            sessionHmacSecret: SESSION_SECRET,
-            googleClientIds: [CLIENT_ID],
-            allowedOrigins: ['*'],
-        },
-    });
-    const mintIdToken = async (sub: string, email: string): Promise<string> => {
-        const nowSec = Math.floor(Date.now() / 1000);
-        const h = encodeBase64UrlBytes(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', kid: 'sync-key-1' })));
-        const p = encodeBase64UrlBytes(new TextEncoder().encode(JSON.stringify({
-            iss: 'https://accounts.google.com',
-            aud: CLIENT_ID,
-            sub,
-            email,
-            email_verified: true,
-            iat: nowSec - 5,
-            exp: nowSec + 3600,
-        })));
-        const input = new Uint8Array(new TextEncoder().encode(`${h}.${p}`));
-        const sig = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', keyPair.privateKey, input));
-        return `${h}.${p}.${encodeBase64UrlBytes(sig)}`;
-    };
-    return { store, handler, mintIdToken };
-}
 
 function attachSharedChromeSync(sharedSyncBag: Record<string, unknown>): void {
     const syncArea = {
@@ -83,7 +32,7 @@ test('vaultClient rejects insecure non-loopback HTTP URLs and normalizes HTTPS o
 });
 
 test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retry, Chrome Sync keyring sharing, and 409 optimistic conflict auto-heal across devices', async () => {
-    const backend = await setupMockCloudBackend();
+    const backend = createMockCloudVaultHttp();
     const sharedChromeSync: Record<string, unknown> = {};
     let networkOffline = false;
     let clockMs = Date.now();
@@ -113,18 +62,17 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
                 assets: [],
                 messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Old pre-toggle chat' }] }] }],
             }, { title: 'Old Pre-Toggle', titleSource: 'provider', updatedAt: 1000 });
-            assert.equal(backend.store.inspectRawBlobs().size, 0, 'nothing uploaded while Cloud Sync is disabled');
+            assert.equal(backend.inspectRawBlobs().size, 0, 'nothing uploaded while Cloud Sync is disabled');
 
-            // Connect with Google OIDC & flip the auto-sync switch ON -> automatically backs up existing history immediately!
-            const idToken = await backend.mintIdToken('google_sub_sync_1', 'sync@example.com');
-            const connectedA = await engineA.connectWithGoogleIdToken(SERVER_URL, idToken);
+            // Connect with derived key & flip the auto-sync switch ON -> automatically backs up existing history immediately!
+            const connectedA = await engineA.connectCloudVault(SERVER_URL);
             assert.equal(connectedA.createdNewKey, true);
             assert.match(connectedA.recoveryKey, /^GEK1-/);
             await engineA.setIncludeDetail(true);
             await engineA.setAutoSyncEnabled(true);
             await engineA.waitForIdle();
 
-            assert.equal(backend.store.inspectRawBlobs().size, 1, 'enabling sync immediately reconciles & uploads pre-existing history without manual buttons');
+            assert.equal(backend.inspectRawBlobs().size, 1, 'enabling sync immediately reconciles & uploads pre-existing history without manual buttons');
 
             // 2. Post-toggle conversation arrives while network is offline -> persisted in Outbox with backoff
             networkOffline = true;
@@ -142,7 +90,7 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
             const offlineStatus = await engineA.getStatusSnapshot();
             assert.equal(offlineStatus.pendingOutbox, 1);
             assert.equal(offlineStatus.failedOutbox, 1);
-            assert.equal(backend.store.inspectRawBlobs().size, 1);
+            assert.equal(backend.inspectRawBlobs().size, 1);
 
             // 3. Network recovers and time advances past retry backoff -> flushOutbox uploads automatically!
             networkOffline = false;
@@ -150,7 +98,7 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
             const flush1 = await engineA.flushOutbox();
             assert.equal(flush1.uploaded, 1);
             assert.equal((await engineA.getStatusSnapshot()).pendingOutbox, 0);
-            assert.equal(backend.store.inspectRawBlobs().size, 2);
+            assert.equal(backend.inspectRawBlobs().size, 2);
 
             // 4. Subsequent Index title upgrade on the same conversation automatically pushes revision 2!
             await ingestIndexes(accA.id, [{
@@ -178,8 +126,7 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
         });
         const unsubscribeB = engineB.installAutoEnqueueListener();
         try {
-            const idTokenB = await backend.mintIdToken('google_sub_sync_1', 'sync@example.com');
-            const connectedB = await engineB.connectWithGoogleIdToken(SERVER_URL, idTokenB);
+            const connectedB = await engineB.connectCloudVault(SERVER_URL);
             assert.equal(connectedB.createdNewKey, false, 'Device B automatically inherited Master Key from chrome.storage.sync!');
             await engineB.setIncludeDetail(true);
             await engineB.setAutoSyncEnabled(true);
@@ -225,8 +172,7 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
             client: createCloudVaultClient(transport),
             now: () => clockMs,
         });
-        const idTokenC = await backend.mintIdToken('google_sub_sync_1', 'sync@example.com');
-        await engineC.connectWithGoogleIdToken(SERVER_URL, idTokenC);
+        await engineC.connectCloudVault(SERVER_URL);
         await engineC.setIncludeDetail(true);
 
         // Device C has NOT pulled yet (thinks remoteRevision is 0), and has an older local draft (savedAt: 1500)
