@@ -1,10 +1,8 @@
 import type { BlockNode } from '../../../../l2/content/blocks.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../shared/markdown/index.js';
 import type { ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
-import type { GeminiStructuredDocument } from '../rpc/structuredContent.js';
+import type { GeminiPartialStructuredSlot, GeminiStructuredDocument } from '../rpc/structuredContent.js';
 import type { ImageAttachment } from '../rpc/sourceAttachments.js';
-import { convertHtmlToMarkdown } from '../../shared/html/htmlToMarkdown.js';
-import { stripInternalChipMarkdown } from '../../shared/chipUtils.js';
 import { preprocessGeminiMarkdown, normalizeGeminiTexAliases } from './markdownCompatibility.js';
 import { geminiStructuredToContent, type GeminiSourceCitations, type GeminiSourceFailure } from './structuredContentAdapter.js';
 import type { InlineNode } from '../../../../l2/content/inline.js';
@@ -12,13 +10,17 @@ import { normalizeTextUnderscores } from '../../../../shared/utils/latexCompatib
 import { hasLiteralMathText, recoverLiteralMath } from './literalMathRecovery.js';
 import type { GeminiSourceAttribution } from '../rpc/sourceAttributions.js';
 import { recoverGeminiSourceRanges } from './sourceRanges.js';
+import { cleanGeminiBodyText, createCandidateMarkdownIndex } from './candidateMarkdown.js';
+import { recoverPartialStructuredBlocks } from './partialStructuredRecovery.js';
 
-interface GeminiBodyParseContext extends MarkdownParseContext {
+export interface GeminiBodyParseContext extends MarkdownParseContext {
     sourceCitations?: GeminiSourceCitations;
     recoverLiteralMath?: boolean;
     onStructuredFallback?: (reason: 'source_annotations' | 'body') => void;
     candidateText?: string;
     sourceAttributions?: readonly GeminiSourceAttribution[];
+    groundingCitationMarkers?: readonly string[];
+    partialSlots?: readonly GeminiPartialStructuredSlot[];
 }
 
 /** Work only on parsed math nodes; code, user prose and file names stay literal. */
@@ -57,8 +59,23 @@ export function parseGeminiPrompt(content: string): BlockNode[] {
     return [{ type: 'paragraph', children }];
 }
 
-function cleanGeminiBody(text: string): string {
-    return stripInternalChipMarkdown(convertHtmlToMarkdown(text));
+function applyLiteralMathRecovery(
+    blocks: BlockNode[],
+    markdownIndex: ReturnType<typeof createCandidateMarkdownIndex>,
+    context: GeminiBodyParseContext,
+): void {
+    if (context.recoverLiteralMath !== false && markdownIndex.cleaned().includes('$') && hasLiteralMathText(blocks)) {
+        const recovered = recoverLiteralMath(blocks, markdownIndex.referenceBlocks(context));
+        if (recovered) {
+            context.diagnostics.push({
+                severity: 'info',
+                code: 'GEMINI_LITERAL_MATH_RECOVERED',
+                message: 'Recovered native literal math from the matching raw Markdown paragraph',
+                sourceRef: context.sourceRef,
+                details: { recovered },
+            });
+        }
+    }
 }
 
 /** Provider syntax ends here. Resource references are bound by the caller's neutral parse hook. */
@@ -67,63 +84,102 @@ export function parseGeminiBody(
     structuredContent?: GeminiStructuredDocument,
     context: GeminiBodyParseContext = { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'content' } },
 ): BlockNode[] {
-    const cleaned = cleanGeminiBody(content);
+    if (!structuredContent && !context.partialSlots?.length) {
+        return normalizeGeminiMath(parseMarkdownToBlocks(
+            preprocessGeminiMarkdown(cleanGeminiBodyText(content)),
+            '',
+            { ...context, lineStartDisplayMath: true, preserveCodeFenceFinalNewline: true },
+        ));
+    }
+    const markdownIndex = createCandidateMarkdownIndex(content, context.candidateText);
     if (structuredContent) {
         const sourceFailures: GeminiSourceFailure[] = [];
-        const recovery = recoverGeminiSourceRanges(structuredContent, context.sourceAttributions ?? [], context.candidateText);
+        const recovery = recoverGeminiSourceRanges(structuredContent, context.sourceAttributions ?? [], markdownIndex);
         const structured = geminiStructuredToContent(recovery.document, context.sourceCitations,
             { ...context, onSourceFallback: failure => { sourceFailures.push(failure); } });
-        if (structured !== null && (structured.length > 0 || !cleaned.trim())) {
-            if (recovery.recovered) context.diagnostics.push({ severity: 'info', code: 'GEMINI_SOURCE_RANGE_RECOVERED',
-                message: 'Recovered invalid source coordinates from verified selected-candidate quotes and unique native anchors', sourceRef: context.sourceRef,
-                details: { recovered: recovery.recovered, method: 'exact_selected_source_quote' } });
+        if (structured !== null && (structured.length > 0 || !markdownIndex.cleaned().trim())) {
+            if (recovery.recovered) context.diagnostics.push({
+                severity: 'info',
+                code: 'GEMINI_SOURCE_RANGE_RECOVERED',
+                message: 'Recovered invalid source coordinates from verified selected-candidate quotes and unique native anchors',
+                sourceRef: context.sourceRef,
+                details: { recovered: recovery.recovered, method: 'exact_selected_source_quote' },
+            });
             if (sourceFailures.length) {
                 context.onStructuredFallback?.('source_annotations');
-                context.diagnostics.push({ severity: 'warning', code: 'GEMINI_SOURCE_ANNOTATION_FALLBACK',
+                context.diagnostics.push({
+                    severity: 'warning',
+                    code: 'GEMINI_SOURCE_ANNOTATION_FALLBACK',
                     message: 'Preserved native body and available sources; exact source anchoring is unverified',
-                    sourceRef: context.sourceRef, details: { reason: 'source_annotations_unrepresented',
-                        sourceFailures, structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content,
-                        ...(context.sourceCitations?.size ? { sourceCitationsJson: JSON.stringify([...context.sourceCitations]) } : {}) },
+                    sourceRef: context.sourceRef,
+                    details: {
+                        reason: 'source_annotations_unrepresented',
+                        sourceFailures,
+                        structuredDocumentJson: JSON.stringify(structuredContent),
+                        fallbackMarkdown: content,
+                        ...(context.sourceCitations?.size ? { sourceCitationsJson: JSON.stringify([...context.sourceCitations]) } : {}),
+                    },
                 });
             }
-            if (context.recoverLiteralMath !== false && cleaned.includes('$') && hasLiteralMathText(structured)) {
-                const markdown = parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', {
-                    ...context, diagnostics: [], lineStartDisplayMath: true, preserveCodeFenceFinalNewline: true,
-                });
-                const recovered = recoverLiteralMath(structured, markdown);
-                if (recovered) context.diagnostics.push({ severity: 'info', code: 'GEMINI_LITERAL_MATH_RECOVERED',
-                    message: 'Recovered native literal math from the matching raw Markdown paragraph',
-                    sourceRef: context.sourceRef, details: { recovered } });
-            }
+            applyLiteralMathRecovery(structured, markdownIndex, context);
             return normalizeGeminiMath(structured);
         }
         context.onStructuredFallback?.('body');
         context.diagnostics.push({
-            severity: 'warning', code: 'GEMINI_STRUCTURED_FALLBACK',
+            severity: 'warning',
+            code: 'GEMINI_STRUCTURED_FALLBACK',
             message: 'Structured body could not be adapted; using Markdown fallback',
-            sourceRef: context.sourceRef, details: { reason: 'adapter_rejected',
-                structuredDocumentJson: JSON.stringify(structuredContent), fallbackMarkdown: content,
-                ...(context.sourceCitations?.size ? { sourceCitationsJson: JSON.stringify([...context.sourceCitations]) } : {}) },
+            sourceRef: context.sourceRef,
+            details: {
+                reason: 'adapter_rejected',
+                structuredDocumentJson: JSON.stringify(structuredContent),
+                fallbackMarkdown: content,
+                ...(context.sourceCitations?.size ? { sourceCitationsJson: JSON.stringify([...context.sourceCitations]) } : {}),
+            },
         });
+        const partial = recoverPartialStructuredBlocks({
+            slots: structuredContent.children.map(node => ({ kind: 'decoded', node })),
+            markdownIndex,
+            sourceCitations: context.sourceCitations,
+            sourceAttributions: context.sourceAttributions,
+            groundingCitationMarkers: context.groundingCitationMarkers,
+            context,
+        });
+        if (partial) {
+            applyLiteralMathRecovery(partial.blocks, markdownIndex, context);
+            return normalizeGeminiMath(partial.blocks);
+        }
+    } else if (context.partialSlots?.length) {
+        const partial = recoverPartialStructuredBlocks({
+            slots: context.partialSlots,
+            markdownIndex,
+            sourceCitations: context.sourceCitations,
+            sourceAttributions: context.sourceAttributions,
+            groundingCitationMarkers: context.groundingCitationMarkers,
+            context,
+        });
+        if (partial) {
+            applyLiteralMathRecovery(partial.blocks, markdownIndex, context);
+            return normalizeGeminiMath(partial.blocks);
+        }
     }
-    // GM-MD-004: display fences without blank lines; fenced code preserves its
-    // physical final newline just as the native code string does.
-    return normalizeGeminiMath(parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', {
-        ...context, lineStartDisplayMath: true, preserveCodeFenceFinalNewline: true,
-    }));
+    return normalizeGeminiMath(markdownIndex.fallbackBlocks(context));
 }
 
 /** Adapt body-local facts already decoded by the resource pipeline. */
 export function structuredBodyAttachments(message: { structuredImages: ImageAttachment[] }): ResourceEvidence[] {
     return message.structuredImages.map(image => ({
-        ...image, type: 'image', src: image.sourceUrl,
-        name: image.fileName ?? image.title, title: image.fileName ?? image.title,
+        ...image,
+        type: 'image',
+        src: image.sourceUrl,
+        name: image.fileName ?? image.title,
+        title: image.fileName ?? image.title,
     }));
 }
 
 /** Parse provider-exposed reasoning before it crosses the semantic input boundary. */
 export function parseSourceReasoning(reasoning: string | undefined, context: MarkdownParseContext): BlockNode[] | undefined {
     if (reasoning === undefined) return undefined;
-    const cleaned = cleanGeminiBody(reasoning);
+    const cleaned = cleanGeminiBodyText(reasoning);
     return cleaned.trim() ? normalizeGeminiMath(parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', context)) : undefined;
 }

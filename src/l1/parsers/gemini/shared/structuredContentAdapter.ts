@@ -4,11 +4,15 @@ import type { InlineNode } from '../../../../l2/content/inline.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../shared/markdown/index.js';
 import { convertHtmlToMarkdown } from '../../shared/html/htmlToMarkdown.js';
 import { validGeminiTextRange } from './sourceRanges.js';
-import type {
-    GeminiAnnotation,
-    GeminiStructuredDocument,
-    GeminiStructuredNode,
-    GeminiTextNode,
+import { GEMINI_ANNOTATION_TYPES, GEMINI_NODE_TYPES } from '../rpc/jspbSchema.js';
+import {
+    headingLevelOf,
+    mathSourceOf,
+    orderedListStartOf,
+    type GeminiAnnotation,
+    type GeminiStructuredDocument,
+    type GeminiStructuredNode,
+    type GeminiTextNode,
 } from '../rpc/structuredContent.js';
 
 function textWithSoftBreaks(text: string): InlineNode[] {
@@ -66,7 +70,7 @@ function textInlines(node: GeminiTextNode, sources: GeminiSourceCitations, conte
 }
 
 function isLeafAnnotation(type: GeminiAnnotation['type']): boolean {
-    return type === 4 || type === 7;
+    return type === GEMINI_ANNOTATION_TYPES.INLINE_MATH || type === GEMINI_ANNOTATION_TYPES.INLINE_CODE;
 }
 
 /** Citations annotate a span, but render as a reference after that span. They
@@ -202,33 +206,36 @@ export function convertGeminiInlines(
             // Leaf nodes cannot contain another annotation without losing it.
             if (isLeafAnnotation(a.type) && curAnnots.some(c => c !== a && c.start >= a.start && c.end <= a.end)) return null;
 
-            if (a.type === 4) {
-                // Inline Math
+            if (a.type === GEMINI_ANNOTATION_TYPES.INLINE_MATH) {
                 nodes.push({
                     type: 'inlineMath',
                     source: rawSlice,
                 });
-            } else if (a.type === 7) {
-                // Inline Code
+            } else if (a.type === GEMINI_ANNOTATION_TYPES.INLINE_CODE) {
                 nodes.push({
                     type: 'inlineCode',
                     code: rawSlice,
                 });
-            } else if ([0, 2, 5, 6, 12].some(type => a.type === type)) {
-                // Container annotation with potential nested annotations
+            } else if (
+                a.type === GEMINI_ANNOTATION_TYPES.STRONG
+                || a.type === GEMINI_ANNOTATION_TYPES.EMPHASIS
+                || a.type === GEMINI_ANNOTATION_TYPES.SUBTLE_EMPHASIS
+                || a.type === GEMINI_ANNOTATION_TYPES.LINK
+                || a.type === GEMINI_ANNOTATION_TYPES.STRIKETHROUGH
+            ) {
                 const innerAnnots = curAnnots.filter(
                     (c) => c !== a && c.start >= a.start && c.end <= a.end,
                 );
                 const children = convertRange(a.start, a.end, innerAnnots);
                 if (children === null) return null;
 
-                if (a.type === 0) {
+                if (a.type === GEMINI_ANNOTATION_TYPES.STRONG) {
                     nodes.push({ type: 'strong', children });
-                } else if (a.type === 2 || a.type === 5) {
+                } else if (a.type === GEMINI_ANNOTATION_TYPES.EMPHASIS || a.type === GEMINI_ANNOTATION_TYPES.SUBTLE_EMPHASIS) {
                     nodes.push({ type: 'emphasis', children });
-                } else if (a.type === 12) {
+                } else if (a.type === GEMINI_ANNOTATION_TYPES.STRIKETHROUGH) {
                     nodes.push({ type: 'strikethrough', children });
-                } else if (a.type === 6) {
+                } else if (a.type === GEMINI_ANNOTATION_TYPES.LINK) {
                     nodes.push({ type: 'link', href: a.url, children });
                 }
             } else {
@@ -256,8 +263,8 @@ function compositeHeadingLevel(children: GeminiStructuredNode[]): HeadingBlock['
     let level: HeadingBlock['level'] | 0 | undefined;
     for (const child of children) {
         let declared: HeadingBlock['level'] | 0 | undefined;
-        if (child.nodeType === 18) {
-            const value = child.jJ ?? 0;
+        if (child.nodeType === GEMINI_NODE_TYPES.TEXT_BLOCK) {
+            const value = headingLevelOf(child) ?? 0;
             if (value !== 0 && value !== 1 && value !== 2 && value !== 3 && value !== 4 && value !== 5 && value !== 6) return null;
             declared = value;
         } else if (child.nodeType === 'paragraph') {
@@ -278,8 +285,8 @@ function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSo
     const inlines: InlineNode[] = [];
     for (let i = 0; i < children.length; i++) {
         const child = children[i];
-        if (child.nodeType === 18) {
-            if ((child.jJ ?? 0) !== level) return null;
+        if (child.nodeType === GEMINI_NODE_TYPES.TEXT_BLOCK) {
+            if ((headingLevelOf(child) ?? 0) !== level) return null;
             const converted = textInlines(child, sources, context);
             if (converted === null) return null;
             inlines.push(...converted);
@@ -304,20 +311,13 @@ function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSo
                 continue;
             }
             if (!sources.get(citationId)?.some(citation => citation.id === citationId)) return null;
-            // Native uploaded-file chips are hidden in the authored webpage text.
-            // Keep their source metadata, but do not invent a visible numbered marker.
-            // Text nodes (including literal [1] and inline code) remain untouched.
-        } else if (child.nodeType === 12) {
-            // Native display math can occur inside a table cell. Preserve its
-            // source instead of falling back and reinterpreting other cell text.
-            inlines.push({ type: 'inlineMath', source: child.FTa });
-        } else if (child.nodeType === 13) {
+        } else if (child.nodeType === GEMINI_NODE_TYPES.MATH_BLOCK) {
+            inlines.push({ type: 'inlineMath', source: mathSourceOf(child) });
+        } else if (child.nodeType === GEMINI_NODE_TYPES.LINE_BREAK) {
             inlines.push({ type: 'lineBreak', kind: 'hard' });
-        } else if (child.nodeType === 0) {
-            // Attachments inside composite paragraphs belong to the same
-            // resource pipeline as root attachments; do not duplicate them.
+        } else if (child.nodeType === GEMINI_NODE_TYPES.ATTACHMENT) {
+            // Attachments inside composite paragraphs belong to the shared resource pipeline.
         } else {
-            // Unsupported node inside table cell -> fallback
             return null;
         }
     }
@@ -363,12 +363,11 @@ export function geminiStructuredToContent(
                     ? { type: 'paragraph', children } : { type: 'heading', level, children });
                 break;
             }
-            case 18: {
-                // Text / Heading / Paragraph
+            case GEMINI_NODE_TYPES.TEXT_BLOCK: {
                 const inlines = textInlines(node, sources, context);
                 if (inlines === null) return null;
 
-                const level = node.jJ;
+                const level = headingLevelOf(node);
                 if (level === 1 || level === 2 || level === 3 || level === 4 || level === 5 || level === 6) {
                     blocks.push({
                         type: 'heading',
@@ -384,17 +383,15 @@ export function geminiStructuredToContent(
                 break;
             }
 
-            case 12: {
-                // Display Math
+            case GEMINI_NODE_TYPES.MATH_BLOCK: {
                 blocks.push({
                     type: 'math',
-                    source: node.FTa,
+                    source: mathSourceOf(node),
                 });
                 break;
             }
 
-            case 1: {
-                // Code block
+            case GEMINI_NODE_TYPES.CODE_BLOCK: {
                 blocks.push({
                     type: 'code',
                     code: node.code,
@@ -403,17 +400,15 @@ export function geminiStructuredToContent(
                 break;
             }
 
-            case 19: {
-                // Thematic break
+            case GEMINI_NODE_TYPES.THEMATIC_BREAK: {
                 blocks.push({
                     type: 'thematicBreak',
                 });
                 break;
             }
 
-            case 20:
-            case 14: {
-                // Unordered (20) or Ordered (14) list
+            case GEMINI_NODE_TYPES.UNORDERED_LIST:
+            case GEMINI_NODE_TYPES.ORDERED_LIST: {
                 const items: ListItem[] = [];
                 for (const item of node.items) {
                     const itemBlocks = geminiStructuredToContent(
@@ -424,15 +419,14 @@ export function geminiStructuredToContent(
                 }
                 blocks.push({
                     type: 'list',
-                    ordered: node.nodeType === 14,
-                    ...(node.nodeType === 14 ? { start: node.VHa ?? 1 } : {}),
+                    ordered: node.nodeType === GEMINI_NODE_TYPES.ORDERED_LIST,
+                    ...(node.nodeType === GEMINI_NODE_TYPES.ORDERED_LIST ? { start: orderedListStartOf(node) } : {}),
                     items,
                 });
                 break;
             }
 
-            case 15: {
-                // Blockquote
+            case GEMINI_NODE_TYPES.BLOCKQUOTE: {
                 const quoteBlocks = geminiStructuredToContent(
                     { children: node.children }, sources, context,
                 );
@@ -444,8 +438,7 @@ export function geminiStructuredToContent(
                 break;
             }
 
-            case 17: {
-                // Table
+            case GEMINI_NODE_TYPES.TABLE: {
                 const tableRows: TableRow[] = [];
                 for (const row of node.rows) {
                     const cells: TableCell[] = [];
@@ -470,22 +463,14 @@ export function geminiStructuredToContent(
                 break;
             }
 
-            case 24: {
+            case GEMINI_NODE_TYPES.GENERATED_FILE: {
                 blocks.push({ type: 'file', assetId: node.id, label: node.title });
                 break;
             }
 
-            case 0: {
-                // Attachment nodes (nodeType: 0) such as search/web images (attachmentType: 36)
-                // and UI chips/elicitations are handled authoritatively by the existing candidate
-                // attachment/asset pipeline; not duplicated here in body blocks.
+            case GEMINI_NODE_TYPES.ATTACHMENT:
+            case GEMINI_NODE_TYPES.LINE_BREAK:
                 break;
-            }
-
-            case 13: {
-                // Standalone line break at root: ignore
-                break;
-            }
 
             default:
                 // Unknown / unsupported node type -> reject and trigger fallback

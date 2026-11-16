@@ -355,6 +355,7 @@ function parseCandidateResponse(
         messageCount: 1,
         ...(structuredContent ? { structuredContent } : {}),
         structuredExtraction,
+        ...(candidate.index > 0 ? { candidateIndex: candidate.index } : {}),
         candidateText: candidate.text,
         structuredImages,
         ...(sourceAttributions.length ? { sourceAttributions } : {}),
