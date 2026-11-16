@@ -9,6 +9,8 @@
 
 Provider fixture references can be audited without a browser via `node scripts/audit-provider-fixtures.cjs` (add `--json` for each literal key and its source locations). This is a static inventory, not proof that a fixture was executed. Browser and physical-export fidelity require their own tests.
 
+To promote a newly captured live Gemini `batchexecute` RPC response or private diagnostic sample into a committed `P0` regression fixture without leaking private prose or signed tokens, use `node -r ./tests/ts_register.js scripts/sanitize_gemini_wire.ts <input> <output> --mode full` (preserves exact UTF-8 byte widths, UTF-16 code-unit offsets, Markdown/LaTeX delimiters, and JSPB wire topology; use `--mode tokens_and_urls` for public QA benchmark captures) and register its SHA-256 hash in `scripts/parser_migration/test_provenance_manifest.json`.
+
 本项目构建了严密、分层的**三层测试体系 (Three-Tier Testing Architecture)**，兼顾了 CI 自动化门禁的极致速度与生产环境真实链路的绝对可靠性。无论是人类开发者还是 AI 编程助手，在进行功能开发、Bug 修复或重构时，均须严格遵守本规范。
 
 普通业务测试构造 canonical ConversationIndex 时，使用

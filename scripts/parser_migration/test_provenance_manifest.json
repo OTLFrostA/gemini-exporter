@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "generatedAt": "2026-10-17",
   "classificationDefinitions": {
-    "P0": "Real Gemini: Strictly requires verified raw payload evidence file and originalHash. ONLY tier that can justify compatibility rules. (Currently 0 pending real session captures).",
+    "P0": "Real Gemini: Strictly requires verified raw payload evidence file and originalHash. ONLY tier that can justify compatibility rules.",
     "P1": "Standard Syntax: CommonMark / GFM or standard LaTeX syntax. Verifies integration with standard behavior.",
     "P2": "Project Semantics: Domain closure, Document AST, diagnostics, resource preparation and backend serialization. Preserve meaningful behavior contracts across interface migrations.",
     "P3": "Synthetic Robustness: Artificial edge cases constructed for testing. Non-blocking for parser migration.",
@@ -3067,18 +3067,66 @@
           "classification": "P2"
         }
       ]
+    },
+    {
+      "file": "tests/provider-gemini-p0-real-captures.test.ts",
+      "domain": "provider_gemini",
+      "classification": "P0",
+      "provenanceSource": "Sanitized real multi-frame Gemini batchexecute (MaZiqc + hNvQHb) HTTP responses across 6 multimodal benchmark sessions",
+      "evidence": "tests/fixtures/providers/gemini/captured/p0_golden_rpc_corpus.json",
+      "originalHash": "2d34330cc9d4c8ca1ee90f0b518eb42a8fc16c459a741917a3f44d2f3fa60ca0",
+      "policy": "MUST_PASS_REAL_REGRESSION",
+      "notes": "Exercises full L1 RPC wire -> pagination merge -> L2 admission -> Application physical Markdown/HTML/JSON export, plus dual-coordinate sanitizer isomorphism.",
+      "testCount": 7,
+      "tests": [
+        {
+          "name": "P0 real capture [Imagen]: multi-frame batchexecute closes generated image identity and exports physical Markdown/HTML/JSON",
+          "classification": "P0",
+          "policy": "MUST_PASS_REAL_REGRESSION"
+        },
+        {
+          "name": "P0 real capture [Python Code]: multi-frame batchexecute preserves decorator code blocks, headings and lists across formats",
+          "classification": "P0",
+          "policy": "MUST_PASS_REAL_REGRESSION"
+        },
+        {
+          "name": "P0 real capture [User File]: multi-frame batchexecute binds uploaded JSON file asset and hidden file citation without [1] leakage",
+          "classification": "P0",
+          "policy": "MUST_PASS_REAL_REGRESSION"
+        },
+        {
+          "name": "P0 real capture [Multimodal 5-Turn]: multi-frame batchexecute preserves generated schematic, LaTeX math, tables, code and citations",
+          "classification": "P0",
+          "policy": "MUST_PASS_REAL_REGRESSION"
+        },
+        {
+          "name": "P0 real capture [Quantum Table]: multi-frame batchexecute preserves inline search diagram, display math and multi-column comparison table",
+          "classification": "P0",
+          "policy": "MUST_PASS_REAL_REGRESSION"
+        },
+        {
+          "name": "P0 real capture [Web Citations]: multi-frame batchexecute binds all six spp_ web source attributions into physical links",
+          "classification": "P0",
+          "policy": "MUST_PASS_REAL_REGRESSION"
+        },
+        {
+          "name": "P0 wire sanitizer: full dual-coordinate masking preserves exact UTF-8/UTF-16 offsets, AST topology and complete quality across all real captures",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 52,
-    "totalTests": 518,
+    "totalSuites": 53,
+    "totalTests": 525,
     "byClassification": {
-      "P0": 0,
+      "P0": 6,
       "P1": 18,
-      "P2": 498,
+      "P2": 499,
       "P3": 2,
       "P4": 0
     }
   },
-  "lastAudited": "2026-10-27"
+  "lastAudited": "2026-11-16"
 }

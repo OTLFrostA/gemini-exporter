@@ -14,6 +14,7 @@ import { fixtureOrigins as claudeStreamOrigins } from './claudeStream.js';
 import { fixtureOrigins as geminiDetailContentCasesOrigins } from './gemini/detail/contentCases.js';
 import { fixtureOrigins as geminiDetailIntegrationCasesOrigins } from './gemini/detail/integrationCases.js';
 import { fixtureOrigins as geminiDetailProtocolCasesOrigins } from './gemini/detail/protocolCases.js';
+import { fixtureOrigins as geminiDetailP0CapturedCasesOrigins } from './gemini/detail/p0CapturedCases.js';
 import { fixtureOrigins as geminiDetailResourcesCasesOrigins } from './gemini/detail/resourcesCases.js';
 import { fixtureOrigins as geminiDetailVersionCasesOrigins } from './gemini/detail/versionCases.js';
 import { fixtureOrigins as geminiListCasesOrigins } from './gemini/list/cases.js';
@@ -47,6 +48,7 @@ export const fixtureCatalog = [
     ...geminiDetailContentCasesOrigins,
     ...geminiDetailIntegrationCasesOrigins,
     ...geminiDetailProtocolCasesOrigins,
+    ...geminiDetailP0CapturedCasesOrigins,
     ...geminiDetailResourcesCasesOrigins,
     ...geminiDetailVersionCasesOrigins,
     ...geminiListCasesOrigins,
