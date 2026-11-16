@@ -121,8 +121,13 @@ test('unknown field 6 retains its full payload and parent document through JSON 
         { label: 'Synthetic shop', url: 'https://example.com/shop', nested: ['营业时间', 23, true] }];
     const rawDocument = [[[textNode('known', 3), rejectedNode]]];
     const extraction = inspectStructuredContent({ turnDocument: rawDocument, candidateIndex: 0 });
-    assert.deepEqual(JSON.parse(JSON.stringify(extraction)), { status: 'decode_rejected',
-        issue: { kind: 'node', fields: [6], rawValue: rejectedNode, path: '/0/0/1' }, rawDocument });
+    assert.equal(extraction.status, 'decode_rejected');
+    if (extraction.status === 'decode_rejected') {
+        assert.deepEqual(JSON.parse(JSON.stringify(extraction.issue)), {
+            kind: 'node', fields: [6], rawValue: rejectedNode, path: '/0/0/1',
+        });
+        assert.deepEqual(JSON.parse(JSON.stringify(extraction.rawDocument)), rawDocument);
+    }
     assert.equal(decodeGeminiStructuredPayload(rawDocument), null);
     const supported = { children: [{ nodeType: 18, text: 'supported' }] };
     assert.deepEqual(inspectStructuredContent({ turnDocument: supported, candidateIndex: 0 }),

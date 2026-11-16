@@ -192,18 +192,17 @@ declare global {
         }
 
         if (handler) {
-            const selected = handler;
             try {
-                void readCappedText(response.clone(), selected.captureLimit, selected.progress ? chunk => {
-                    if (response.ok && !init?.signal?.aborted && !request?.signal.aborted) selected.progress?.(chunk);
+                void readCappedText(response.clone(), handler.captureLimit, handler.progress ? chunk => {
+                    if (response.ok && !init?.signal?.aborted && !request?.signal.aborted) handler.progress?.(chunk);
                 } : undefined).then(async ({ text, truncated }) => {
                     const aborted = init?.signal?.aborted
                         || request?.signal.aborted;
-                    selected.complete(await capturedBody, text, truncated || !!aborted, response.ok);
+                    handler.complete(await capturedBody, text, truncated || !!aborted, response.ok);
                 }).catch((error: unknown) => {
                     if (isDev()) console.debug('[GemExporter:hook]', error);
-                }).finally(() => selected.end());
-            } catch { selected.end(); }
+                }).finally(() => handler.end());
+            } catch { handler.end(); }
         }
 
         return response;
@@ -235,14 +234,13 @@ declare global {
             const requestBody = typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '';
             captureFromUrl(sourceUrl, requestBody);
             if (handler) {
-                const selected = handler;
-                selected.start(requestBody);
+                handler.start(requestBody);
                 let ended = false;
                 let offset = 0;
                 const progress = () => {
-                    if (this.status < 200 || this.status >= 300 || !selected.progress) return;
+                    if (this.status < 200 || this.status >= 300 || !handler.progress) return;
                     const text = this.responseText;
-                    selected.progress(text.slice(offset));
+                    handler.progress(text.slice(offset));
                     offset = text.length;
                 };
                 this.addEventListener('progress', progress);
@@ -255,11 +253,11 @@ declare global {
                         if (event.type === 'load') {
                             progress();
                             const text = this.responseText;
-                            selected.complete(requestBody, text.slice(0, selected.captureLimit), text.length > selected.captureLimit,
+                            handler.complete(requestBody, text.slice(0, handler.captureLimit), text.length > handler.captureLimit,
                                 this.status >= 200 && this.status < 300);
                         }
                     } catch (error) { if (isDev()) console.debug('[GemExporter:hook]', error); }
-                    finally { selected.end(); }
+                    finally { handler.end(); }
                 };
                 for (const name of ['load', 'loadend', 'abort', 'error', 'timeout']) this.addEventListener(name, handleEnd);
                 cancelStream = () => handleEnd(new Event('error'));

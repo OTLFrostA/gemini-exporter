@@ -1,6 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildExportFileName, sanitizeFileName, sanitizeRelativePath } from '../src/shared/utils/pathUtils.js';
+import { buildExportFileName, sanitizeFileName, sanitizeRelativePath, shortId, shortScope } from '../src/shared/utils/pathUtils.js';
+
+test('shortId and shortScope extract bounded 6-character identifiers and fall back safely', () => {
+    assert.equal(shortId('c_12345678'), '345678');
+    assert.equal(shortId('c_abc123xyz'), '123xyz');
+    assert.equal(shortId('abcdef'), 'abcdef');
+    assert.equal(shortId('c_abcdef'), 'abcdef');
+    assert.equal(shortId('abc'), 'abc');
+    assert.equal(shortId('12345'), '12345');
+    assert.equal(shortId(123456789), '456789');
+    for (const empty of [null, undefined, '', '   ']) {
+        assert.equal(shortId(empty), 'chat');
+        assert.equal(shortScope(empty), '');
+    }
+    assert.equal(shortScope('c_12345678'), '345678_');
+    assert.equal(shortScope('abcdef'), 'abcdef_');
+    assert.equal(shortScope('abc'), 'abc_');
+    assert.equal(buildExportFileName('My Chat', 'c_12345678', 'md'), 'My Chat_345678.md');
+    assert.equal(buildExportFileName('Deep Research', 'c_xyz987', 'json'), 'Deep Research_xyz987.json');
+    assert.equal(buildExportFileName(null, null), 'untitled_chat.md');
+});
 
 test('export filenames remove Unicode noncharacters from diagnostic titles', () => {
     assert.equal(buildExportFileName('确认Amazon余额充值 \u{5FFFF}', '6ae0497e-40d0-83e8-80f5-544b41748b97'),

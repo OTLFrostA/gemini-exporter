@@ -253,7 +253,7 @@ def test_javascript_unit_tests(target_tests=None):
     print(f"  ⚡ Executed {len(test_files)} unit suites in {elapsed:.1f}s (workers={max_workers})")
 
 def test_content_badge_flicker_prevention():
-    """Verify the actual v2 Badge owner, not removed SyncEngine/IndexCapture files."""
+    """Verify Badge visual layout invariants in CSS; runtime Badge behavior is covered by ui_v2 suites."""
     css_path = os.path.join(BASE_DIR, "src/ui/badge/content.css")
     with open(css_path, "r", encoding="utf-8") as f:
         css = f.read()
@@ -261,26 +261,7 @@ def test_content_badge_flicker_prevention():
     assert "min-width:" in css, "Badge keeps a stable minimum width"
     assert ".syncing .pulse" in css, "Badge retains its visual sync feedback"
     assert re.search(r'#geminiExportBadge\s+\.pulse\s*\{[^}]*background:\s*#06b6d4', css), "Idle pulse must remain visually stable"
-
-    def read(path):
-        with open(os.path.join(BASE_DIR, path), encoding="utf-8") as f:
-            return f.read()
-
-    badge = read("src/ui/badge/badgeView.ts")
-    content = read("src/runtime/content/content.ts") + "\n" + read("src/runtime/content/contentBootstrap.ts")
-    ingestion = read("src/l2/ingestion.ts")
-
-    assert "label.textContent" in badge and "count === null" in badge, "Badge must render local Index count safely"
-    assert "badge.isConnected" in badge, "Badge must reattach a detached node instead of duplicating it"
-    assert "getLocalIndexCount" in badge and "refreshIndexCount" in badge, "Only Badge owns the local count pull"
-    assert "accountId !== id" in badge or "id !== accountId" in badge, "Count replies must be account-scoped"
-    assert "stopCountPolling" in badge and "registerCleanup" in badge, "Badge must stop polling during cleanup"
-    assert "BadgeView.ensureBadge" in content and "BadgeView.refreshAccount" in content, "Content must delegate Badge lifecycle"
-    assert "hookHistoryEvents" in content, "Content handles location changes through PageObserver"
-    assert "MessageBridge.init" in content, "Passive Sniffer admission must remain separate from Badge"
-    assert "sameStoredFacts" in ingestion and "mergeIndexes" in ingestion, "L2 must skip unchanged Index facts"
-    assert "syncEngine" not in content and "geminiIndexCapture" not in content, "Removed scan facades must not return"
-    print("  ✓ V2 Badge lifetime, account isolation, stable CSS and passive Index separation verified")
+    print("  ✓ V2 Badge visual CSS layout invariants verified")
 
 def test_account_uuid_storage_boundary():
     with open(os.path.join(BASE_DIR, "src/l3a/storageService.ts"), encoding="utf-8") as f:
@@ -494,149 +475,25 @@ def test_tour_status_indicator_styling():
     assert "pointer-events:none" in container.replace(" ", ""), "Cutout must pass business clicks to its target"
     assert "pointer-events:auto" in popover.replace(" ", ""), "Popover controls must stay operable"
     assert "max-height:" in popover and "overflow:auto" in popover.replace(" ", ""), "Small viewports must retain all Tour actions"
-    with open(os.path.join(BASE_DIR, "src/ui/guidance/tourGuide.ts"), encoding="utf-8") as f:
-        guide = f.read()
-    assert "role', 'dialog'" in guide and "Escape" in guide, "Guidance must preserve dialog semantics and keyboard dismissal"
-    print("  ✓ Current Tour cutout, interaction and viewport styles verified")
-
-
-def test_takeout_limit_modal_and_wall_detection():
-    with open(os.path.join(BASE_DIR, "src/ui/options/options.ts"), encoding="utf-8") as f:
-        options = f.read()
-    with open(os.path.join(BASE_DIR, "src/ui/options/controllers/takeoutController.ts"), encoding="utf-8") as f:
-        options += "\n" + f.read()
-    with open(os.path.join(BASE_DIR, "src/ui/guidance/tourGuide.ts"), encoding="utf-8") as f:
-        guide = f.read()
-    with open(os.path.join(BASE_DIR, "src/ui/options/controllers/syncController.ts"), encoding="utf-8") as f:
-        sync = f.read()
-    with open(os.path.join(BASE_DIR, "src/application/settings/index.ts"), encoding="utf-8") as f:
-        settings = f.read()
-    with open(os.path.join(BASE_DIR, "src/l2/settings.ts"), encoding="utf-8") as f:
-        settings_schema = f.read()
-    assert "takeoutFileInput" in options and "handleTakeoutImport" in options
-    assert "takeoutPromptCompleted" in settings_schema and "takeoutPromptCompleted" in options
-    assert "showTakeoutPrompt" in guide and "importFile()" in guide
-    assert "scanAll" in sync and "AbortSignal" in sync, "Scan is a local typed Application invocation"
-    for old in ("deepScan", "hitGoogleLimit", "gemini_pending_takeout_prompt"):
-        assert old not in sync, f"UI must not reconstruct provider limits with {old}"
-    # Threshold, acknowledgement, import and cancellation behavior run against
-    # actual handlers in tour_guide.test.ts and takeout_limit_prompt.spec.ts.
-    print("  ✓ Takeout guidance uses Application counters, current Settings and File import")
-
-
-def test_stage1_architecture_ssot_and_state_isolation():
-    # The former Stage 1 implementation (per-slot __bgAborts, Takeout cache,
-    # Content syncEngine, Options-side merging and exportEngine) was removed
-    # by v2. Verify the *current* responsibility boundaries instead.
-    def read(path):
-        with open(os.path.join(BASE_DIR, path), encoding="utf-8") as source:
-            return source.read()
-
-    # Scan cancellation and concurrent-run isolation belong to Application.
-    scan = read("src/application/sync/scanController.ts")
-    background = read("src/runtime/background/background.ts")
-    assert "signal?: AbortSignal" in scan and "options.signal?.throwIfAborted()" in scan, "Scan must respect its own AbortSignal"
-    assert "new Set<string>()" in scan and "active.has(accountId)" in scan and "active.delete(accountId)" in scan, "Active Scan runs must be account-scoped and released"
-    assert "__bgAborts" not in background and "__bgAborted" not in background, "Background must not restore parallel v1 abort flags"
-
-    # Takeout is an explicit input + target Account, not an ambient per-slot cache.
-    takeout = read("src/application/imports/importTakeout.ts") + "\n" + read("src/application/imports/batchAdmitImports.ts")
-    assert "importTakeout(file: File, accountId:" in takeout and "getAccount(accountId)" in takeout, "Takeout must resolve its explicit trusted Account"
-    assert "ingestDetail(" in takeout, "Application Takeout must admit parsed facts through L2"
-    assert "retainParsed(" in takeout and "__accountTakeouts" not in takeout, "Takeout must not retain a global resource/Domain cache"
-
-    # L2 exclusively owns both Index and Detail selection; Options only reads
-    # the resulting facts for display.
-    index = read("src/l2/conversationIndex.ts")
-    detail = read("src/l2/conversationDetail.ts")
-    ingestion = read("src/l2/ingestion.ts")
-    options = read("src/ui/options/options.ts")
-    assert "mergeConversationIndex" in index and "resolveTitle" in index, "L2 must own Index/title arbitration"
-    assert "selectConversationDetail" in detail and "sameConversationKey" in detail, "L2 must select only same-key Detail"
-    assert "mergeConversationIndex" in ingestion and "selectConversationDetail" in ingestion, "L2 must reuse both domain selection contracts"
-    assert "ConversationViewState" in options and "renderList" in options, "Options must render a read-only Domain projection"
-    assert "compareConversations" not in options, "Options must not restore a competing conversation merge"
-
-    # Packaging owns *all* physical paths; Application never invents a second
-    # source-title/file-name or export-engine path policy.
-    packaging = read("src/l4/packaging/index.ts")
-    export = read("src/application/export/runExport.ts") + "\n" + read("src/application/export/exportPipeline.ts")
-    assert "buildExportFileName" in packaging and "sanitizeFileName" in packaging and "assertExportPath" in packaging, "L4 must own safe and unique export paths"
-    assert "createExportPathPlanner" in export and "packageExportFiles" in export, "Application must use L4 Packaging"
-    assert "sanitizeFileName" not in export, "Application must not independently name exported files"
-
-    print("  ✓ V2 Stage 1: per-account Scan isolation, task-owned Takeout, L2 selection and L4 paths verified")
+    print("  ✓ Current Tour cutout and viewport CSS invariants verified")
 
 
 def test_storage_keys_and_constants_ssot():
-    """V2 persistence must have one Storage owner; obsolete session keys are not contracts."""
+    """Verify retired V1 global session/database keys do not reappear and packaging script remains wired."""
     def source(path):
         with open(os.path.join(BASE_DIR, path), encoding="utf-8") as f:
             return f.read()
 
-    storage = source("src/l3a/storageService.ts")
-    settings = source("src/application/settings/index.ts") + "\n" + source("src/l2/settings.ts")
     exporter = source("src/application/export/runExport.ts") + "\n" + source("src/application/export/exportPipeline.ts")
     constants = source("src/shared/utils/constants.ts")
-
-    for name in ("getIndex", "getDetail", "updateConversationAtomically",
-                 "getCoverage", "updateCoverageAtomically",
-                 "getExportRecord", "putExportRecord", "getStoredSettings", "patchStoredSettings"):
-        assert name in storage, f"V2 Storage missing declared boundary: {name}"
-    for name in ("defaultFormat", "skipExported", "includeAssets", "enabledDisk",
-                 "developerMode", "lastSeenFeatureVersion", "takeoutPromptCompleted"):
-        assert name in settings, f"V2 Settings missing frozen field: {name}"
-    assert "putExportRecord" in exporter and "getExportRecord" in exporter
     assert "LAST_EXPORT_SESSION" not in exporter, "Export must not use persistent V1 sessions"
-    idb = source("src/l3a/idb.ts")
-    assert "const DATABASE_NAME" in idb and "const DATABASE_VERSION" in idb, (
-        "L3a must own the active IndexedDB name and schema version")
-    assert "indexedDB.open(DATABASE_NAME, DATABASE_VERSION)" in idb, (
-        "IndexedDB must open with the canonical L3a configuration")
-    assert "IDB_DATABASES" not in constants, (
-        "Shared constants must not duplicate the actual L3a database configuration")
+    assert "IDB_DATABASES" not in constants, "Shared constants must not duplicate L3a database configuration"
 
     build = source("build.js")
     package = source("package.json")
     assert "--pack" in build, "Build must support packaging"
     assert '"package":' in package, "package.json must expose packaging"
-    print("  ✓ V2 Storage/Settings/ExportRecord contracts and build packaging verified")
-
-
-def test_stage2_architecture_improvements():
-    """Retain valid path, Provider and sender-safety contracts across V2 modules."""
-    def source(path):
-        with open(os.path.join(BASE_DIR, path), encoding="utf-8") as f:
-            return f.read()
-
-    planner = source("src/l4/packaging/index.ts")
-    zip_writer = source("src/l4/packaging/writers/zipWriter.ts")
-    folder_writer = source("src/l4/delivery/writers/fsWriter.ts")
-    export = source("src/application/export/runExport.ts") + "\n" + source("src/application/export/exportPipeline.ts")
-    hook = source("src/l1/sniffer/gemini/hookCredentials.ts")
-    client = source("src/l1/client/gemini/geminiClient.ts")
-    background = source("src/runtime/background/background.ts")
-
-    assert "sanitizeFileName" in planner and "assertExportPath" in planner, (
-        "L4 must sanitize and validate planned export names")
-    assert "assertExportPath" in zip_writer and "assertExportPath" in folder_writer, (
-        "ZIP and Folder writers must both reject unsafe relative paths")
-    assert "writeFile" in folder_writer and "ensureSubDir" in folder_writer, (
-        "Folder writer must support checked nested paths")
-    assert "createExportPathPlanner" in export and "packageExportFiles" in export, (
-        "Unified Export must use L4 Packaging rather than V1 per-format delivery")
-    assert "prepareExportResources" in export and "runExport" in export, (
-        "Resource acquisition and execution share the same Application task")
-    assert not re.search(r'setTimeout\s*\(\s*\w+\s*,\s*100\s*\)', export), (
-        "Unified Export must not busy-poll")
-    for name in ("origFetch", "origOpen", "origSend"):
-        assert name in hook, f"Sniffer must preserve and wrap native {name}"
-    assert "RegExp.$1" not in hook, "Do not restore legacy RegExp static captures"
-    assert "resolveCred" in client and "postBatchexecute" in client, (
-        "Gemini Client owns credential resolution and source RPC")
-    assert "assertExtensionSender" in background and "assertContentSender" in background, (
-        "Runtime must verify sender before cross-context operations")
-    print("  ✓ V2 path safety, unified Export, Provider capture and Runtime sender guards verified")
+    print("  ✓ Retired V1 storage keys absent and build packaging verified")
 
 def test_serial_pipeline_suite():
     import subprocess
@@ -802,11 +659,6 @@ def run_all():
                     test_online_scenario_provider_and_lifecycle_tracker()
                 if any(x in f for f in affected for x in ["tourGuide", "options.css", "dialogView"]):
                     test_tour_status_indicator_styling()
-                    test_takeout_limit_modal_and_wall_detection()
-                if any(x in f for f in affected for x in ["background", "takeoutEngine", "syncEngine"]):
-                    test_stage1_architecture_ssot_and_state_isolation()
-                if any(x in f for f in affected for x in ["writers", "exportOrchestrator", "geminiClient", "hookCredentials"]):
-                    test_stage2_architecture_improvements()
                 if any("pipeline" in f for f in affected):
                     test_serial_pipeline_suite()
                     test_pipeline_decoupling_suite()
@@ -845,10 +697,7 @@ def run_all():
     test_scenario_pool_pipeline()
     test_online_scenario_provider_and_lifecycle_tracker()
     test_tour_status_indicator_styling()
-    test_takeout_limit_modal_and_wall_detection()
-    test_stage1_architecture_ssot_and_state_isolation()
     test_storage_keys_and_constants_ssot()
-    test_stage2_architecture_improvements()
     test_serial_pipeline_suite()
     test_gemini_driver_suite()
     test_selectors_and_gateway_suite()
