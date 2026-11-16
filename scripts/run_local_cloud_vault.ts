@@ -201,6 +201,8 @@ const port = Number(process.env.PORT ?? '8788');
 const host = process.env.HOST ?? '127.0.0.1';
 const dataDir = path.resolve(process.env.VAULT_DATA_DIR ?? 'temp/local-cloud-vault');
 const accessCode = process.env.SERVER_ACCESS_CODE?.trim() || undefined;
+const mcpPath = process.env.MCP_SECRET_PATH?.trim() || undefined;
+const mcpBearer = process.env.MCP_BEARER_SECRET?.trim() || undefined;
 
 const { store, sessionSecret } = createDiskBackedLocalVaultStore(dataDir);
 const handler = createCloudServerHandler({
@@ -208,6 +210,7 @@ const handler = createCloudServerHandler({
     config: {
         sessionHmacSecret: sessionSecret,
         ...(accessCode ? { serverAccessCode: accessCode } : {}),
+        ...(mcpPath && mcpBearer ? { privateMcp: { secretPath: mcpPath, bearerSecret: mcpBearer } } : {}),
         allowedOrigins: ['*'],
     },
 });

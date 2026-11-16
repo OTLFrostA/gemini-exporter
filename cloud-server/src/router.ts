@@ -7,6 +7,7 @@ import {
 } from '../../src/shared/types/cloudSync.js';
 import { AuthVerificationError, type GoogleOidcVerifier } from './auth/googleOidc.js';
 import { issueSessionToken, verifySessionToken } from './auth/sessionToken.js';
+import { maybeHandlePrivateMcpRequest, type PrivateMcpConfig } from './mcp/mcpHandler.js';
 import { createRateLimiter, type RateLimiter } from './rateLimit.js';
 import { sha256Hex, type VaultStore } from './storage/vaultStore.js';
 
@@ -22,6 +23,8 @@ export interface CloudServerConfig {
     readonly googleClientIds?: readonly string[];
     /** Optional shared invite/access code guarding key-derived tenant authentication. */
     readonly serverAccessCode?: string;
+    /** Optional unlisted zero-exposure MCP endpoint configuration (`MCP_SECRET_PATH` + `MCP_BEARER_SECRET`). */
+    readonly privateMcp?: PrivateMcpConfig;
     /** Comma-separated or explicit list of allowed Origins (supports `chrome-extension://*` for unpacked/store Chrome extensions). */
     readonly allowedOrigins?: readonly string[];
     readonly defaultQuotaBytes?: number;
@@ -156,6 +159,26 @@ export function createCloudServerHandler(deps: CloudServerDependencies): (reques
     };
 
     return async (request: Request): Promise<Response> => {
+        let url: URL;
+        try {
+            url = new URL(request.url);
+        } catch {
+            return errorResponse(400, 'INVALID_REQUEST', 'Malformed request URL', null);
+        }
+
+        // Unlisted private MCP endpoint (stealth-gated by both secret path and bearer token BEFORE browser extension CORS check)
+        const mcpReply = await maybeHandlePrivateMcpRequest(
+            request,
+            url,
+            deps.store,
+            deps.config.privateMcp
+                ? { ...deps.config.privateMcp, defaultQuotaBytes, now }
+                : undefined,
+        );
+        if (mcpReply) {
+            return mcpReply;
+        }
+
         const requestOrigin = request.headers.get('Origin');
         const corsOrigin = resolveAllowedCorsOrigin(requestOrigin, deps.config.allowedOrigins);
 
@@ -165,13 +188,6 @@ export function createCloudServerHandler(deps: CloudServerDependencies): (reques
         }
         if (request.method === 'OPTIONS') {
             return new Response(null, { status: 204, headers: baseSecurityHeaders(corsOrigin) });
-        }
-
-        let url: URL;
-        try {
-            url = new URL(request.url);
-        } catch {
-            return errorResponse(400, 'INVALID_REQUEST', 'Malformed request URL', corsOrigin);
         }
 
         const path = url.pathname;
@@ -285,6 +301,10 @@ export function createCloudServerHandler(deps: CloudServerDependencies): (reques
                     ...(verified.email ? { email: verified.email } : {}),
                 };
                 return jsonResponse(200, response, corsOrigin);
+            }
+
+            if (!path.startsWith('/v1/')) {
+                return new Response('Not Found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
             }
 
             // All remaining /v1/* endpoints require a valid authenticated session
