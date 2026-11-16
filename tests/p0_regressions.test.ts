@@ -12,7 +12,6 @@ const fs = require('fs');
 const path = require('path');
 
 const StorageService = require('../src/l3a/storageService.js');
-const CredManager = require('../src/l1/client/gemini/api/credentialManager.js').default;
 import { composeFixture } from './helpers/documentFixture.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -38,56 +37,7 @@ test('P0-1: export-record writes recover after one storage failure', async () =>
     } finally { env.restore(); }
 });
 
-test('P0-2: resolveCred backfill must not drop other accounts from the credential map', async () => {
-    const sessionStore: Record<string, any> = {};
-    const prevChrome = (global as any).chrome;
-    const prevDocument = (global as any).document;
-    const prevLocation = (global as any).location;
-    const prevHook = (globalThis as any).__gemExporterExtractAt;
-    (global as any).chrome = {
-        storage: {
-            session: {
-                get: async (keys: string[]) => {
-                    const r: Record<string, any> = {};
-                    for (const k of keys) if (k in sessionStore) r[k] = sessionStore[k];
-                    return r;
-                },
-                set: async (obj: any) => { Object.assign(sessionStore, obj); },
-                remove: async (keys: string[]) => { for (const k of keys) delete sessionStore[k]; },
-            },
-        },
-    };
-    // 伪造"页面能抓到 at"的信号（node 下没有真实页面）
-    (global as any).document = { documentElement: { innerHTML: '' }, querySelectorAll: () => [] };
-    (global as any).location = { pathname: '/app' };
-    (globalThis as any).__gemExporterExtractAt = () => 'PAGE_AT_FRESH';
-    try {
-        // map 里已有两个账号：首条目是缺 at 的半成品，第二条是好的
-        await (global as any).chrome.storage.session.set({
-            gemini_credentials_map: {
-                bad: { sid: 'bad', at: '', bl: 'BL_X', accountSlot: 'default', lastUsed: 1 },
-                good: { sid: 'good', at: 'AT_GOOD', bl: 'BL_X', accountSlot: 'u1', lastUsed: 2 },
-            },
-        });
-        const resolved = await CredManager.resolveCred();
-        const after: Record<string, any> = sessionStore.gemini_credentials_map || {};
-        assert.deepStrictEqual(
-            Object.keys(after).sort(), ['bad', 'good'],
-            `credential map was overwritten during backfill, keys now: ${JSON.stringify(Object.keys(after))}`
-        );
-        assert.strictEqual(after.good.at, 'AT_GOOD', 'the other account credential must be preserved');
-        assert.strictEqual(after.bad.at, 'PAGE_AT_FRESH', 'this fixture must actually exercise AT backfill');
-        assert.strictEqual(resolved.at, 'PAGE_AT_FRESH', 'resolved credentials should use the new page token');
-    } finally {
-        (global as any).chrome = prevChrome;
-        if (prevDocument === undefined) delete (global as any).document;
-        else (global as any).document = prevDocument;
-        if (prevLocation === undefined) delete (global as any).location;
-        else (global as any).location = prevLocation;
-        if (prevHook === undefined) delete (globalThis as any).__gemExporterExtractAt;
-        else (globalThis as any).__gemExporterExtractAt = prevHook;
-    }
-});
+// P0-2 (resolveCred credential-map backfill) lives in `tests/l1_extracted_regressions.test.ts`.
 
 test('P0-4: doc title-fallback regex must match a real markdown H1 heading', () => {
     const { DOC_TITLE_FALLBACK_RE } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');

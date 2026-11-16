@@ -9,8 +9,9 @@
  *   node scripts/test-l1-units.cjs integration   # real cross-module tests, not a unit gate
  */
 'use strict';
-const { spawnSync } = require('node:child_process');
+const { spawn } = require('node:child_process');
 const { existsSync } = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 // Only these groups are module-unit tests. Every call outside src/l1 is
@@ -95,25 +96,72 @@ const register = path.join(root, 'tests/ts_register.js');
 const mockPreload = path.join(root, 'tests/helpers/l1V2UnitPreload.cjs');
 if (!existsSync(register)) throw new Error('Missing TypeScript test loader');
 if (!integration && !existsSync(mockPreload)) throw new Error('Missing frozen-v2 port mocks');
-console.log('Running ' + tests.length + ' L1 unit-test files (' + groups.join(', ') + ')');
-let failed = 0;
 for (const file of tests) {
     if (!existsSync(path.join(root, file))) throw new Error('Missing L1 unit test: ' + file);
-    const start = Date.now();
-    const run = spawnSync(process.execPath,
-        ['-r', register, ...(integration ? [] : ['-r', mockPreload]), '--test', file], {
-        cwd: root, encoding: 'utf8', timeout: 90_000, maxBuffer: 16 * 1024 * 1024,
-    });
-    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-    if (run.status === 0) {
-        console.log('PASS ' + file + ' (' + elapsed + 's)');
-    } else {
-        failed++;
-        console.error('FAIL ' + file + ' (' + elapsed + 's, exit=' + run.status + ')');
-        if (run.error) console.error(run.error);
-        console.error((run.stdout || '').slice(-16000));
-        console.error((run.stderr || '').slice(-8000));
-    }
 }
-console.log('L1 unit suites: ' + (tests.length - failed) + ' passed, ' + failed + ' failed / ' + tests.length + ' files');
-if (failed) process.exitCode = 1;
+const concurrency = Math.max(1, Math.min((os.cpus() || []).length || 4, 6));
+console.log('Running ' + tests.length + ' L1 unit-test files (' + groups.join(', ') + ', concurrency=' + concurrency + ')');
+
+function runFile(file) {
+    return new Promise(resolve => {
+        const start = Date.now();
+        const child = spawn(
+            process.execPath,
+            ['-r', register, ...(integration ? [] : ['-r', mockPreload]), '--test', file],
+            { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] },
+        );
+        let stdout = '';
+        let stderr = '';
+        let timedOut = false;
+        const timer = setTimeout(() => {
+            timedOut = true;
+            child.kill('SIGKILL');
+        }, 90_000);
+        child.stdout.setEncoding('utf8');
+        child.stderr.setEncoding('utf8');
+        child.stdout.on('data', chunk => { if (stdout.length < 64_000) stdout += chunk; else stdout = stdout.slice(-32_000) + chunk; });
+        child.stderr.setEncoding('utf8');
+        child.stderr.on('data', chunk => { if (stderr.length < 32_000) stderr += chunk; else stderr = stderr.slice(-16_000) + chunk; });
+        child.on('error', error => {
+            clearTimeout(timer);
+            resolve({ file, status: 1, elapsed: ((Date.now() - start) / 1000).toFixed(1), stdout, stderr, error });
+        });
+        child.on('close', code => {
+            clearTimeout(timer);
+            resolve({
+                file,
+                status: timedOut ? 124 : code,
+                elapsed: ((Date.now() - start) / 1000).toFixed(1),
+                stdout,
+                stderr,
+                error: timedOut ? new Error('Timed out after 90s') : undefined,
+            });
+        });
+    });
+}
+
+(async () => {
+    const results = new Array(tests.length);
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(concurrency, tests.length) }, async () => {
+        while (cursor < tests.length) {
+            const idx = cursor++;
+            results[idx] = await runFile(tests[idx]);
+        }
+    });
+    await Promise.all(workers);
+    let failed = 0;
+    for (const run of results) {
+        if (run.status === 0) {
+            console.log('PASS ' + run.file + ' (' + run.elapsed + 's)');
+        } else {
+            failed++;
+            console.error('FAIL ' + run.file + ' (' + run.elapsed + 's, exit=' + run.status + ')');
+            if (run.error) console.error(run.error);
+            console.error((run.stdout || '').slice(-16000));
+            console.error((run.stderr || '').slice(-8000));
+        }
+    }
+    console.log('L1 unit suites: ' + (tests.length - failed) + ' passed, ' + failed + ' failed / ' + tests.length + ' files');
+    if (failed) process.exitCode = 1;
+})();

@@ -138,6 +138,9 @@ def test_i18n_keys():
     print("  ✓ Current UI static labels have complete EN/ZH translations")
 
 def test_javascript_syntax():
+    if os.environ.get("GEMINI_SKIP_REDUNDANT_TSC") == "1":
+        print("  ✓ TypeScript strict syntax already validated upstream (skipped duplicate tsc)")
+        return
     import subprocess
     import shutil
     # PR7: delegate syntax validation to TypeScript compiler (strict mode covers JS + TS)
@@ -193,18 +196,61 @@ def test_javascript_unit_tests(target_tests=None):
             return
 
     register_hook = os.path.join(BASE_DIR, "tests", "ts_register.js")
-    for tf in test_files:
+    preload_hook = os.path.join(BASE_DIR, "tests", "helpers", "l1V2UnitPreload.cjs")
+
+    import concurrent.futures
+    import threading
+    import time
+
+    env_workers = os.environ.get("GEMINI_TEST_WORKERS")
+    max_workers = max(1, int(env_workers)) if env_workers and env_workers.isdigit() else min(os.cpu_count() or 4, 6)
+    # Limit concurrent headless Chromium launches inside Node unit files so UI timing assertions never starve.
+    browser_sem = threading.Semaphore(2)
+
+    def run_single_suite(tf):
         rel = os.path.relpath(tf, BASE_DIR)
-        cmd = [node_bin, "-r", register_hook, "--test", tf] if os.path.exists(register_hook) else [node_bin, "--test", tf]
-        # L1's isolated unit fixtures need their frozen public-port mocks before production imports.
-        with open(tf, encoding="utf-8") as source:
-            isolated_l1 = "helpers/l1V2UnitMocks.js" in source.read()
+        with open(tf, encoding="utf-8") as source_file:
+            source_text = source_file.read()
+        isolated_l1 = "helpers/l1V2UnitMocks.js" in source_text
+        launches_browser = "chromium.launch" in source_text or "@playwright/test" in source_text
         if isolated_l1:
-            cmd = [node_bin, "-r", register_hook, "-r",
-                   os.path.join(BASE_DIR, "tests", "helpers", "l1V2UnitPreload.cjs"), "--test", tf]
-        res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
-        assert res.returncode == 0, f"Unit test failed in {rel}:\n{res.stdout}\n{res.stderr}"
-        print(f"  ✓ Unit test suite passed: {rel}")
+            cmd = [node_bin, "-r", register_hook, "-r", preload_hook, "--test", tf]
+        elif os.path.exists(register_hook):
+            cmd = [node_bin, "-r", register_hook, "--test", tf]
+        else:
+            cmd = [node_bin, "--test", tf]
+
+        if launches_browser:
+            with browser_sem:
+                res = subprocess.run(cmd, cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        else:
+            res = subprocess.run(cmd, cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        return rel, res
+
+    started = time.monotonic()
+    failures = []
+    if len(test_files) <= 1 or max_workers == 1:
+        for tf in test_files:
+            rel, res = run_single_suite(tf)
+            if res.returncode != 0:
+                failures.append((rel, res))
+                break
+            print(f"  ✓ Unit test suite passed: {rel}")
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+            ordered_futures = [pool.submit(run_single_suite, tf) for tf in test_files]
+            for fut in ordered_futures:
+                rel, res = fut.result()
+                if res.returncode != 0:
+                    failures.append((rel, res))
+                else:
+                    print(f"  ✓ Unit test suite passed: {rel}")
+
+    if failures:
+        rel, res = failures[0]
+        assert False, f"Unit test failed in {rel}:\n{res.stdout}\n{res.stderr}"
+    elapsed = time.monotonic() - started
+    print(f"  ⚡ Executed {len(test_files)} unit suites in {elapsed:.1f}s (workers={max_workers})")
 
 def test_content_badge_flicker_prevention():
     """Verify the actual v2 Badge owner, not removed SyncEngine/IndexCapture files."""
