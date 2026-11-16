@@ -18,6 +18,10 @@ export interface WorkerEnv {
     readonly SESSION_HMAC_SECRET: string;
     /** Optional shared access/invite code guarding `/v1/auth/key`. */
     readonly SERVER_ACCESS_CODE?: string;
+    /** Unlisted private MCP path (e.g. `/mcp-<random-hex>`) — disabled when omitted. */
+    readonly MCP_SECRET_PATH?: string;
+    /** High-entropy private MCP bearer secret — disabled when omitted. */
+    readonly MCP_BEARER_SECRET?: string;
     /** Optional comma-separated Google OAuth 2.0 Client IDs if OIDC login is also enabled. */
     readonly GOOGLE_CLIENT_IDS?: string;
     /** Comma-separated allowed Origins, e.g. `chrome-extension://*`. */
@@ -55,6 +59,14 @@ export default {
                 sessionHmacSecret: env.SESSION_HMAC_SECRET,
                 googleClientIds: splitCsv(env.GOOGLE_CLIENT_IDS),
                 ...(env.SERVER_ACCESS_CODE?.trim() ? { serverAccessCode: env.SERVER_ACCESS_CODE.trim() } : {}),
+                ...(env.MCP_SECRET_PATH?.trim() && env.MCP_BEARER_SECRET?.trim()
+                    ? {
+                        privateMcp: {
+                            secretPath: env.MCP_SECRET_PATH.trim(),
+                            bearerSecret: env.MCP_BEARER_SECRET.trim(),
+                        },
+                    }
+                    : {}),
                 allowedOrigins: allowed.length > 0 ? allowed : ['chrome-extension://*'],
                 ...(quotaOverride && Number.isSafeInteger(quotaOverride) && quotaOverride > 0
                     ? { defaultQuotaBytes: quotaOverride }
