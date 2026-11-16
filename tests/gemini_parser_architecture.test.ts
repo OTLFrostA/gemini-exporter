@@ -12,6 +12,8 @@ import {
     singleWireSlot,
 } from '../src/l1/parsers/gemini/rpc/jspbSchema.js';
 import { createCandidateMarkdownIndex } from '../src/l1/parsers/gemini/shared/candidateMarkdown.js';
+import { decodeTurn } from '../src/l1/parsers/gemini/rpc/extractors.js';
+import { decodeGeminiTurn, decodeGeminiUserResources } from '../src/l1/parsers/gemini/rpc/turnResources.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { parseGeminiBody } from '../src/l1/parsers/gemini/shared/contentAdapter.js';
@@ -181,4 +183,39 @@ test('block-level isolation refuses ambiguous anchors or unproven card-vs-gap or
     );
     assert.equal(unprovenOrder.length, 2);
     assert.equal(JSON.stringify(unprovenOrder).includes('Card text absent from Markdown.'), false);
+});
+
+test('empty candidate BODY never concatenates sibling metadata or artifact labels as answer text or legacy citations', () => {
+    const candidate: unknown[] = [
+        'rc_empty_body',
+        [''],
+        [[['quoted'], [1], [['https://example.com/meta-only', 'Meta Source']], 'spp_meta']],
+    ];
+    candidate[30] = [['artifact_id', null, 'Internal Artifact Label', null, 'Artifact body']];
+    const turn = [['c_chat', 'r_req'], [1700000000, 0], [['User prompt']], [[candidate]]];
+    const decoded = decodeTurn(turn);
+    assert.ok(decoded?.candidate);
+    assert.equal(decoded.candidate.text, '', 'sibling metadata/artifact strings must not leak into empty answer text');
+    assert.deepEqual(decoded.candidate.citations, [], 'sibling sourceMetadata tuples must not leak into legacy body citations');
+});
+
+test('valid inline user image tuples do not duplicate as phantom user file attachments', () => {
+    const imgUrl = 'https://lh3.googleusercontent.com/rd-gg/user-upload-screenshot';
+    const rawTurn = [
+        ['c_chat', 'r_req'],
+        [1700000000, 0],
+        [['Describe this screenshot', [imgUrl, 1280, 720, 'img_tok_1']]],
+        [[['rc_ans', [['It shows a dashboard.']]]]],
+    ];
+    const userResources = decodeGeminiUserResources(rawTurn);
+    assert.equal(userResources.images.length, 1);
+    assert.equal(userResources.images[0].sourceUrl, imgUrl);
+    assert.deepEqual(userResources.files, [], 'valid inline image must not also produce a phantom attachment file');
+
+    const parsedTurn = decodeTurn(rawTurn);
+    assert.ok(parsedTurn);
+    const messages = decodeGeminiTurn(parsedTurn, rawTurn);
+    assert.equal(messages[0].role, 'user');
+    assert.equal(messages[0].attachments?.length, 1);
+    assert.equal(messages[0].attachments?.[0].type, 'image');
 });

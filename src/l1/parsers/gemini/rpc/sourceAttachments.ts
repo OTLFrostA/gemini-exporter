@@ -1,8 +1,10 @@
 import type { GeminiStructuredDocument, GeminiStructuredNode } from './structuredContent.js';
-import { isInternalChipUrl as canonicalIsInternalChipUrl } from "../../shared/chipUtils.js";
-import { isJsonValue, type JsonValue } from "../../../../shared/utils/jsonTypes.js";
-import { payloadToMs } from "./payload.js";
+import { isInternalChipUrl as canonicalIsInternalChipUrl } from '../../shared/chipUtils.js';
+import { isJsonValue, type JsonValue } from '../../../../shared/utils/jsonTypes.js';
+import { payloadToMs } from './payload.js';
 import { decodeDocumentLinks } from './cardNodes.js';
+import { GEMINI_NODE_TYPES, isWireArray, isWireRecord } from './jspbSchema.js';
+import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from './extractors.js';
 
 export interface ImageAttachment {
     /** JSON-serialized matched wire tuple; never an unvalidated runtime value. */
@@ -39,7 +41,7 @@ export interface DeepResearchDocMeta {
     chipUrl?: string;
     createdAt?: number;
     contentId?: string;
-    source?: "strict" | "heuristic-flat";
+    source?: 'strict' | 'heuristic-flat';
 }
 
 export interface DocLink {
@@ -51,571 +53,553 @@ export interface DocSectionsResult {
     sections: string[];
     links: DocLink[];
     contentMarkdown: string;
-    contentMatch?: "exact" | "substring";
+    contentMatch?: 'exact' | 'substring';
 }
 
-import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extractors.js";
+export interface RawImageCandidate {
+    evidenceNode?: JsonValue;
+    sourceUrl: string;
+    width?: number;
+    height?: number;
+    size?: number;
+    token?: string;
+    rawFileName?: string;
+    title?: string;
+    mimeType?: string;
+    detectorKind: string;
+}
 
+type ImageNodeDetector = (node: unknown, schema: typeof GEMINI_JSPB_SCHEMA) => RawImageCandidate | null;
 
-    const GOOGLE_MEDIA_HOST_RE = /(^|\.)googleusercontent\.com$|(^|\.)usercontent\.google\.com$|(^|\.)drive\.google\.com$|(^|\.)docs\.google\.com$|(^|\.)gstatic\.com$/i;
-    function getUrlHost(u: string): string {
-        const m = /^https?:\/\/([^/:?#]+)/i.exec(u || "");
-        return m ? m[1].toLowerCase() : "";
-    }
-    function isGoogleMediaHost(u: string): boolean {
-        return GOOGLE_MEDIA_HOST_RE.test(getUrlHost(u));
-    }
+const GOOGLE_MEDIA_HOST_RE = /(^|\.)googleusercontent\.com$|(^|\.)usercontent\.google\.com$|(^|\.)drive\.google\.com$|(^|\.)docs\.google\.com$|(^|\.)gstatic\.com$/i;
 
-    function warnWhitelistDropOnce(warned: Set<string>, url: string, kind: string): void {
-        try {
-            let host = getUrlHost(url);
-            let key = kind + "|" + host;
-            if (warned.has(key)) return;
-            warned.add(key);
-            if (console.warn) {
-                console.warn(`[Gemini Exporter] media URL skipped (host not in whitelist, ${kind}): host=${host} url=${String(url).slice(0, 220)}`);
-            }
-        } catch (e) { /* ignore */ }
-    }
+function getUrlHost(u: string): string {
+    const m = /^https?:\/\/([^/:?#]+)/i.exec(u || '');
+    return m ? m[1].toLowerCase() : '';
+}
 
-    function getImageDedupKey(imageObj: Partial<ImageAttachment>): string {
-        return imageObj.token
-            ? `token:${imageObj.token}`
-            : (imageObj.sourceUrl || [imageObj.fileName, imageObj.mimeType, imageObj.width, imageObj.height, imageObj.size].filter(x => x != null && x !== "").join(":"));
-    }
+function isGoogleMediaHost(u: string): boolean {
+    return GOOGLE_MEDIA_HOST_RE.test(getUrlHost(u));
+}
 
-    function filterNewImages(images: ImageAttachment[], seenSet: Set<string>): ImageAttachment[] {
-        return images.filter(img => {
-            let key = getImageDedupKey(img);
-            if (!key) return true;
-            if (seenSet.has(key)) return false;
-            seenSet.add(key);
-            return true;
-        });
-    }
-
-    function isInternalChipUrl(u?: string | null): boolean {
-        return canonicalIsInternalChipUrl(u);
-    }
-
-    export interface RawImageCandidate {
-        evidenceNode?: JsonValue;
-        sourceUrl: string;
-        width?: number;
-        height?: number;
-        size?: number;
-        token?: string;
-        rawFileName?: string;
-        title?: string;
-        mimeType?: string;
-        detectorKind: string;
-    }
-
-    type ImageNodeDetector = (node: unknown, schema: typeof GEMINI_JSPB_SCHEMA) => RawImageCandidate | null;
-
-    function isRecord(value: unknown): value is Record<string, unknown> {
-        return value !== null && typeof value === "object" && !Array.isArray(value);
-    }
-
-    function isUnknownArray(value: unknown): value is unknown[] {
-        return Array.isArray(value);
-    }
-
-    const detectInlineImageTuple: ImageNodeDetector = (node, schema) => {
-        if (!isUnknownArray(node)) return null;
-        const slots = node;
-        const inl = schema.INLINE_IMAGE;
-        const url = slots[inl.URL];
-        const width = slots[inl.WIDTH];
-        const height = slots[inl.HEIGHT];
-        if (
-            node.length >= 3 &&
-            typeof url === "string" &&
-            url.startsWith("http") &&
-            typeof width === "number" &&
-            typeof height === "number"
-        ) {
-            const rawToken = slots[inl.TOKEN];
-            return {
-                sourceUrl: url,
-                width,
-                height,
-                token: typeof rawToken === "string" ? rawToken : void 0,
-                detectorKind: "extractImages [url,w,h]"
-            };
+function warnWhitelistDropOnce(warned: Set<string>, url: string, kind: string): void {
+    try {
+        const host = getUrlHost(url);
+        const key = kind + '|' + host;
+        if (warned.has(key)) return;
+        warned.add(key);
+        if (console.warn) {
+            console.warn(`[Gemini Exporter] media URL skipped (host not in whitelist, ${kind}): host=${host} url=${String(url).slice(0, 220)}`);
         }
-        return null;
-    };
+    } catch { /* ignore */ }
+}
 
-    const detectGeneratedMediaNode: ImageNodeDetector = (node, schema) => {
-        if (!isUnknownArray(node)) return null;
-        const slots = node;
-        const gen = schema.GENERATED_IMAGE;
-        const url = slots[gen.URL];
-        const filename = slots[gen.FILENAME];
-        const mimeTypeVal = slots[gen.MIME_TYPE];
-        const dims = slots[gen.DIMENSIONS];
-        if (
-            node.length >= 4 &&
-            typeof url === "string" &&
-            url.startsWith("http") &&
-            (
-                (typeof filename === "string" && (/\.(jpe?g|png|webp|gif)$/i.test(filename) || /watermarked_img_/i.test(filename))) ||
-                (typeof mimeTypeVal === "string" && mimeTypeVal.startsWith("image/")) ||
-                (isUnknownArray(dims) && typeof dims[0] === "number" && typeof dims[1] === "number")
-            )
-        ) {
-            // Derivative upscale renditions (e.g. 2x with UPSCALE_FACTOR > 1) are secondary variants,
-            // not the authoritative source generation.
-            const upscaleFactor = slots[gen.UPSCALE_FACTOR];
-            if (typeof upscaleFactor === "number" && upscaleFactor > 1) {
-                return null;
-            }
-            const rawFileName = (typeof filename === "string" && filename.trim()) ? filename.trim() : "";
-            const rawDims = isUnknownArray(dims) ? dims : null;
-            const width = rawDims !== null && typeof rawDims[0] === "number" ? rawDims[0] : void 0;
-            const height = rawDims !== null && typeof rawDims[1] === "number" ? rawDims[1] : void 0;
-            const size = rawDims !== null && typeof rawDims[2] === "number" ? rawDims[2] : void 0;
-            const mimeType = typeof mimeTypeVal === "string" ? mimeTypeVal : void 0;
-            const rawToken = slots[gen.TOKEN];
-            const token = typeof rawToken === "string" ? rawToken : void 0;
-            return {
-                sourceUrl: url,
-                width,
-                height,
-                size,
-                token,
-                rawFileName,
-                mimeType,
-                detectorKind: "extractImages generated-media"
-            };
+function getImageDedupKey(imageObj: Partial<ImageAttachment>): string {
+    return imageObj.token
+        ? `token:${imageObj.token}`
+        : (imageObj.sourceUrl || [imageObj.fileName, imageObj.mimeType, imageObj.width, imageObj.height, imageObj.size].filter(x => x != null && x !== '').join(':'));
+}
+
+export function filterNewImages(images: ImageAttachment[], seenSet: Set<string>): ImageAttachment[] {
+    return images.filter(img => {
+        const key = getImageDedupKey(img);
+        if (!key) return true;
+        if (seenSet.has(key)) return false;
+        seenSet.add(key);
+        return true;
+    });
+}
+
+export function isInternalChipUrl(u?: string | null): boolean {
+    return canonicalIsInternalChipUrl(u);
+}
+
+const detectInlineImageTuple: ImageNodeDetector = (node, schema) => {
+    if (!isWireArray(node)) return null;
+    const inl = schema.INLINE_IMAGE;
+    const url = node[inl.URL];
+    const width = node[inl.WIDTH];
+    const height = node[inl.HEIGHT];
+    if (
+        node.length >= 3
+        && typeof url === 'string'
+        && url.startsWith('http')
+        && typeof width === 'number'
+        && typeof height === 'number'
+    ) {
+        const rawToken = node[inl.TOKEN];
+        return {
+            sourceUrl: url,
+            width,
+            height,
+            token: typeof rawToken === 'string' ? rawToken : undefined,
+            detectorKind: 'extractImages [url,w,h]',
+        };
+    }
+    return null;
+};
+
+const detectGeneratedMediaNode: ImageNodeDetector = (node, schema) => {
+    if (!isWireArray(node)) return null;
+    const gen = schema.GENERATED_IMAGE;
+    const url = node[gen.URL];
+    const filename = node[gen.FILENAME];
+    const mimeTypeVal = node[gen.MIME_TYPE];
+    const dims = node[gen.DIMENSIONS];
+    if (
+        node.length >= 4
+        && typeof url === 'string'
+        && url.startsWith('http')
+        && (
+            (typeof filename === 'string' && (/\.(jpe?g|png|webp|gif)$/i.test(filename) || /watermarked_img_/i.test(filename)))
+            || (typeof mimeTypeVal === 'string' && mimeTypeVal.startsWith('image/'))
+            || (isWireArray(dims) && typeof dims[0] === 'number' && typeof dims[1] === 'number')
+        )
+    ) {
+        // Derivative upscale renditions (e.g. 2x with UPSCALE_FACTOR > 1) are secondary variants,
+        // not the authoritative source generation.
+        const upscaleFactor = node[gen.UPSCALE_FACTOR];
+        if (typeof upscaleFactor === 'number' && upscaleFactor > 1) {
+            return null;
         }
-        return null;
-    };
+        const rawFileName = typeof filename === 'string' && filename.trim() ? filename.trim() : '';
+        const rawDims = isWireArray(dims) ? dims : null;
+        const width = rawDims !== null && typeof rawDims[0] === 'number' ? rawDims[0] : undefined;
+        const height = rawDims !== null && typeof rawDims[1] === 'number' ? rawDims[1] : undefined;
+        const size = rawDims !== null && typeof rawDims[2] === 'number' ? rawDims[2] : undefined;
+        const mimeType = typeof mimeTypeVal === 'string' ? mimeTypeVal : undefined;
+        const rawToken = node[gen.TOKEN];
+        const token = typeof rawToken === 'string' ? rawToken : undefined;
+        return {
+            sourceUrl: url,
+            width,
+            height,
+            size,
+            token,
+            rawFileName,
+            mimeType,
+            detectorKind: 'extractImages generated-media',
+        };
+    }
+    return null;
+};
 
-    const detectAttachmentType36: ImageNodeDetector = (node) => {
-        if (isRecord(node)) {
-            const obj = node;
-            if (obj.attachmentType !== 36) return null;
-            const kc = typeof obj.Kc === "string" ? obj.Kc : undefined;
-            const ze = typeof obj.Ze === "string" ? obj.Ze : (typeof obj.NHc === "string" ? obj.NHc : undefined);
-            const imgUrl = typeof obj.imageUrl === "string" ? obj.imageUrl : undefined;
-            const title = typeof obj.title === "string" ? obj.title.trim() : undefined;
-            const width = typeof obj.imageWidth === "number" ? obj.imageWidth : undefined;
-            const height = typeof obj.imageHeight === "number" ? obj.imageHeight : undefined;
+const detectAttachmentType36: ImageNodeDetector = node => {
+    if (isWireRecord(node)) {
+        if (node.attachmentType !== 36) return null;
+        const kc = typeof node.Kc === 'string' ? node.Kc : undefined;
+        const ze = typeof node.Ze === 'string' ? node.Ze : (typeof node.NHc === 'string' ? node.NHc : undefined);
+        const imgUrl = typeof node.imageUrl === 'string' ? node.imageUrl : undefined;
+        const title = typeof node.title === 'string' ? node.title.trim() : undefined;
+        const width = typeof node.imageWidth === 'number' ? node.imageWidth : undefined;
+        const height = typeof node.imageHeight === 'number' ? node.imageHeight : undefined;
 
-            const sourceUrl = (kc && isGoogleMediaHost(kc))
-                ? kc
-                : ((ze && isGoogleMediaHost(ze))
-                    ? ze
-                    : ((imgUrl && isGoogleMediaHost(imgUrl))
-                        ? imgUrl
-                        : (kc || ze || imgUrl || "")));
+        const sourceUrl = (kc && isGoogleMediaHost(kc))
+            ? kc
+            : ((ze && isGoogleMediaHost(ze))
+                ? ze
+                : ((imgUrl && isGoogleMediaHost(imgUrl))
+                    ? imgUrl
+                    : (kc || ze || imgUrl || '')));
 
-            if (!sourceUrl || !sourceUrl.startsWith("http")) return null;
+        if (!sourceUrl || !sourceUrl.startsWith('http')) return null;
+
+        return {
+            sourceUrl,
+            width,
+            height,
+            title,
+            detectorKind: 'extractImages attachmentType:36',
+        };
+    }
+
+    if (isWireArray(node) && node.length >= 8) {
+        const slot0 = node[0];
+        const slot3 = node[3];
+        const slot7 = node[7];
+        const gstaticTuple = isWireArray(slot3) && slot3.length >= 4
+            ? slot3
+            : (isWireArray(slot0) && slot0.length >= 4 ? slot0 : null);
+        const rawImageTuple = gstaticTuple?.[0];
+        const imageTuple = isWireArray(rawImageTuple) ? rawImageTuple : null;
+        const rawUrl = imageTuple?.[0];
+        if (typeof rawUrl === 'string') {
+            const rawWidth = gstaticTuple?.[2];
+            const rawHeight = gstaticTuple?.[3];
+            const width = typeof rawWidth === 'number' ? rawWidth : undefined;
+            const height = typeof rawHeight === 'number' ? rawHeight : undefined;
+
+            let title: string | undefined;
+            let fallbackGoogleUrl: string | undefined;
+            const fallbackTuple = isWireArray(slot7) ? slot7 : null;
+            const fallbackUrl = fallbackTuple?.[0];
+            if (typeof fallbackUrl === 'string') {
+                fallbackGoogleUrl = fallbackUrl;
+                const fallbackTitle = fallbackTuple?.[2];
+                if (typeof fallbackTitle === 'string' && fallbackTitle.trim()) {
+                    title = fallbackTitle.trim();
+                }
+            }
+
+            const sourceUrl = isGoogleMediaHost(rawUrl)
+                ? rawUrl
+                : (fallbackGoogleUrl && isGoogleMediaHost(fallbackGoogleUrl) ? fallbackGoogleUrl : rawUrl);
+
+            if (!sourceUrl || !sourceUrl.startsWith('http')) return null;
 
             return {
                 sourceUrl,
                 width,
                 height,
                 title,
-                detectorKind: "extractImages attachmentType:36"
+                detectorKind: 'extractImages attachmentType:36',
             };
         }
+    }
+    return null;
+};
 
-        if (isUnknownArray(node) && node.length >= 8) {
-            const slots = node;
-            const slot0 = slots[0];
-            const slot3 = slots[3];
-            const slot7 = slots[7];
-            const gstaticTuple = isUnknownArray(slot3) && slot3.length >= 4
-                ? slot3
-                : (isUnknownArray(slot0) && slot0.length >= 4 ? slot0 : null);
-            const rawImageTuple = gstaticTuple?.[0];
-            const imageTuple = isUnknownArray(rawImageTuple) ? rawImageTuple : null;
-            const rawUrl = imageTuple?.[0];
-            if (typeof rawUrl === "string") {
-                const rawWidth = gstaticTuple?.[2];
-                const rawHeight = gstaticTuple?.[3];
-                const width = typeof rawWidth === "number" ? rawWidth : undefined;
-                const height = typeof rawHeight === "number" ? rawHeight : undefined;
+const IMAGE_DETECTORS: readonly ImageNodeDetector[] = [
+    detectGeneratedMediaNode,
+    detectInlineImageTuple,
+    detectAttachmentType36,
+];
 
-                let title: string | undefined;
-                let fallbackGoogleUrl: string | undefined;
-                const fallbackTuple = isUnknownArray(slot7) ? slot7 : null;
-                const fallbackUrl = fallbackTuple?.[0];
-                if (typeof fallbackUrl === "string") {
-                    fallbackGoogleUrl = fallbackUrl;
-                    const fallbackTitle = fallbackTuple?.[2];
-                    if (typeof fallbackTitle === "string" && fallbackTitle.trim()) {
-                        title = fallbackTitle.trim();
-                    }
-                }
+function sourceImage(raw: RawImageCandidate): ImageAttachment {
+    return {
+        sourceUrl: raw.sourceUrl,
+        sourceEvidence: { detectorKind: raw.detectorKind, node: raw.evidenceNode ?? null },
+        width: raw.width,
+        height: raw.height,
+        size: raw.size,
+        token: raw.token,
+        ...(raw.rawFileName ? { fileName: raw.rawFileName } : {}),
+        ...(raw.title ? { title: raw.title } : {}),
+        ...(raw.mimeType ? { mimeType: raw.mimeType } : {}),
+        ...(raw.detectorKind === 'extractImages generated-media' ? { isGenerated: true } : {}),
+    };
+}
 
-                const sourceUrl = (isGoogleMediaHost(rawUrl))
-                    ? rawUrl
-                    : (fallbackGoogleUrl && isGoogleMediaHost(fallbackGoogleUrl) ? fallbackGoogleUrl : rawUrl);
-
-                if (!sourceUrl || !sourceUrl.startsWith("http")) return null;
-
-                return {
-                    sourceUrl,
-                    width,
-                    height,
-                    title,
-                    detectorKind: "extractImages attachmentType:36"
-                };
+/** One response may expose the same wire tuple through body and metadata
+ * roots. Reuse its decoded evidence while each list keeps its own order,
+ * token preference and visibility rules. The reader lives for one extraction. */
+function createImageEvidenceReader(normalize: (raw: RawImageCandidate) => ImageAttachment = sourceImage): (node: object) => ImageAttachment | null {
+    const evidence = new WeakMap<object, ImageAttachment | null>();
+    const warnedHosts = new Set<string>();
+    return node => {
+        if (evidence.has(node)) return evidence.get(node) ?? null;
+        evidence.set(node, null);
+        for (const detector of IMAGE_DETECTORS) {
+            const raw = detector(node, GEMINI_JSPB_SCHEMA);
+            if (!raw) continue;
+            if (isInternalChipUrl(raw.sourceUrl)) return null;
+            if (!isGoogleMediaHost(raw.sourceUrl)) {
+                warnWhitelistDropOnce(warnedHosts, raw.sourceUrl, raw.detectorKind);
+                return null;
             }
+            const evidenceJson = JSON.stringify(node);
+            const snapshot: unknown = evidenceJson.length <= 12000
+                ? JSON.parse(evidenceJson) : { truncated: true, preview: evidenceJson.slice(0, 12000) };
+            if (isJsonValue(snapshot)) raw.evidenceNode = snapshot;
+            const image = normalize(raw);
+            evidence.set(node, image);
+            return image;
         }
         return null;
     };
+}
 
-    const IMAGE_DETECTORS: ImageNodeDetector[] = [
-        detectGeneratedMediaNode,
-        detectInlineImageTuple,
-        detectAttachmentType36
-    ];
+export function collectImages(
+    obj: unknown,
+    normalize: (raw: RawImageCandidate) => ImageAttachment = sourceImage,
+    readEvidence = createImageEvidenceReader(normalize),
+    decoded: Iterable<ImageAttachment> = [],
+): ImageAttachment[] {
+    const images: ImageAttachment[] = [];
+    const seenKeys = new Set<string>();
 
-    function sourceImage(raw: RawImageCandidate): ImageAttachment {
-        return {
-            sourceUrl: raw.sourceUrl,
-            sourceEvidence: { detectorKind: raw.detectorKind, node: raw.evidenceNode ?? null },
-            width: raw.width, height: raw.height, size: raw.size, token: raw.token,
-            ...(raw.rawFileName ? { fileName: raw.rawFileName } : {}),
-            ...(raw.title ? { title: raw.title } : {}),
-            ...(raw.mimeType ? { mimeType: raw.mimeType } : {}),
-            ...(raw.detectorKind === 'extractImages generated-media' ? { isGenerated: true } : {}),
-        };
-    }
-
-    /** One response may expose the same wire tuple through body and metadata
-     * roots. Reuse its decoded evidence while each list keeps its own order,
-     * token preference and visibility rules. The reader lives for one extraction. */
-    function createImageEvidenceReader(normalize: (raw: RawImageCandidate) => ImageAttachment = sourceImage): (node: object) => ImageAttachment | null {
-        const evidence = new WeakMap<object, ImageAttachment | null>();
-        const warnedHosts = new Set<string>();
-        return node => {
-            if (evidence.has(node)) return evidence.get(node) ?? null;
-            evidence.set(node, null);
-            for (const detector of IMAGE_DETECTORS) {
-                const raw = detector(node, GEMINI_JSPB_SCHEMA);
-                if (!raw) continue;
-                if (isInternalChipUrl(raw.sourceUrl)) return null;
-                if (!isGoogleMediaHost(raw.sourceUrl)) {
-                    warnWhitelistDropOnce(warnedHosts, raw.sourceUrl, raw.detectorKind);
-                    return null;
+    const addImage = (img: ImageAttachment): void => {
+        if (img.token) {
+            const existingIdx = images.findIndex(existing => existing.token === img.token);
+            if (existingIdx !== -1) {
+                if (img.isGenerated && !images[existingIdx].isGenerated) {
+                    seenKeys.delete(getImageDedupKey(images[existingIdx]));
+                    seenKeys.add(getImageDedupKey(img));
+                    images[existingIdx] = img;
                 }
-                // Retain a bounded JSON-only snapshot of the matched tuple.
-                const evidenceJson = JSON.stringify(node);
-                const snapshot: unknown = evidenceJson.length <= 12000
-                    ? JSON.parse(evidenceJson) : { truncated: true, preview: evidenceJson.slice(0, 12000) };
-                if (isJsonValue(snapshot)) raw.evidenceNode = snapshot;
-                const image = normalize(raw);
-                evidence.set(node, image);
-                return image;
+                return;
             }
-            return null;
-        };
+        }
+
+        const key = getImageDedupKey(img);
+        if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            images.push(img);
+        }
+    };
+
+    deepWalk(obj, node => {
+        const image = readEvidence(node);
+        if (image) addImage(image);
+    });
+    for (const image of decoded) addImage(image);
+    return images;
+}
+
+export function extractImageEvidence(obj: unknown): ImageAttachment[] {
+    return collectImages(obj);
+}
+
+function* structuredImageEvidence(nodes: readonly GeminiStructuredNode[]): Generator<ImageAttachment> {
+    for (const node of nodes) {
+        switch (node.nodeType) {
+            case GEMINI_NODE_TYPES.ATTACHMENT:
+                yield* node.images ?? [];
+                break;
+            case 'paragraph':
+            case 'fragment':
+            case GEMINI_NODE_TYPES.BLOCKQUOTE:
+                yield* structuredImageEvidence(node.children);
+                break;
+            case GEMINI_NODE_TYPES.ORDERED_LIST:
+            case GEMINI_NODE_TYPES.UNORDERED_LIST:
+                for (const item of node.items) yield* structuredImageEvidence(item.children);
+                break;
+            case GEMINI_NODE_TYPES.TABLE:
+                for (const row of node.rows) for (const cell of row.cells) yield* structuredImageEvidence(cell.children);
+                break;
+        }
     }
+}
 
-    function collectImages(obj: unknown, normalize: (raw: RawImageCandidate) => ImageAttachment = sourceImage,
-        readEvidence = createImageEvidenceReader(normalize), decoded: Iterable<ImageAttachment> = []): ImageAttachment[] {
-        const images: ImageAttachment[] = [];
-        const seenKeys = new Set<string>();
+export function extractResponseImageEvidence(
+    candidate: readonly unknown[],
+    visibleMedia: readonly unknown[],
+    text: string,
+    structuredContent?: GeminiStructuredDocument,
+): GeminiResponseImageEvidence {
+    const readEvidence = createImageEvidenceReader();
+    const structuredImages = collectImages(undefined, sourceImage, readEvidence, structuredImageEvidence(structuredContent?.children ?? []));
+    const visibleImages = collectImages(visibleMedia, sourceImage, readEvidence, structuredImages);
+    const visibleKeys = new Set(visibleImages.map(getImageDedupKey));
+    const inlineUrls = new Set<string>();
+    for (const match of text.matchAll(/!\[[^\]]*\]\(<?(https?:\/\/[^\s)>]+)>?(?:\s+[^)]*)?\)|<img\b[^>]*\bsrc=["'](https?:\/\/[^"']+)["']/gi)) {
+        inlineUrls.add(match[1] || match[2]);
+    }
+    // Reuse already collected `visibleImages` instead of re-walking `visibleMedia` a second time.
+    const images = collectImages(candidate, sourceImage, readEvidence, visibleImages).filter(image => {
+        if (image.sourceEvidence?.detectorKind !== 'extractImages attachmentType:36') return true;
+        return visibleKeys.has(getImageDedupKey(image)) || inlineUrls.has(image.sourceUrl);
+    });
+    return { images, structuredImages };
+}
 
-        const addImage = (img: ImageAttachment) => {
-            if (img.token) {
-                const existingIdx = images.findIndex(existing => existing.token === img.token);
-                if (existingIdx !== -1) {
-                    if (img.isGenerated && !images[existingIdx].isGenerated) {
-                        const oldKey = getImageDedupKey(images[existingIdx]);
-                        seenKeys.delete(oldKey);
-                        const newKey = getImageDedupKey(img);
-                        seenKeys.add(newKey);
-                        images[existingIdx] = img;
+export function itemMatchesFilename(name: string): boolean {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) return false;
+    if (trimmed.startsWith('//') || trimmed.includes('://')) return false;
+    if (trimmed.includes('?') || trimmed.includes('&') || trimmed.includes('=')) return false;
+    if (trimmed.includes('/') || trimmed.includes('\\')) return false;
+    return /\.[a-zA-Z0-9_-]{1,20}$/.test(trimmed);
+}
+
+export function extractFileNameFromUrl(url: string): string | null {
+    if (!url) return null;
+    try {
+        const qIdx = url.indexOf('?');
+        if (qIdx !== -1) {
+            const query = url.slice(qIdx);
+            const m = query.match(/[?&](?:file_?name|name|title)=([^&#]+)/i);
+            if (m && m[1]) {
+                try {
+                    const decoded = decodeURIComponent(m[1]).trim();
+                    if (decoded && !decoded.includes('://') && !decoded.includes('/') && !decoded.includes('\\')) {
+                        return decoded;
                     }
-                    return;
+                } catch {
+                    const raw = m[1].trim();
+                    if (raw && !raw.includes('://') && !raw.includes('/')) return raw;
                 }
             }
-
-            const key = getImageDedupKey(img);
-            if (!seenKeys.has(key)) {
-                seenKeys.add(key);
-                images.push(img);
-            }
-        };
-        deepWalk(obj, node => {
-            const image = readEvidence(node);
-            if (image) addImage(image);
-        });
-        for (const image of decoded) addImage(image);
-        return images;
-    }
-
-    function extractImageEvidence(obj: unknown): ImageAttachment[] {
-        return collectImages(obj);
-    }
-    function* structuredImageEvidence(nodes: readonly GeminiStructuredNode[]): Generator<ImageAttachment> {
-        for (const node of nodes) {
-            switch (node.nodeType) {
-                case 0:
-                    yield* node.images ?? [];
-                    break;
-                case 'paragraph':
-                case 'fragment':
-                case 15:
-                    yield* structuredImageEvidence(node.children);
-                    break;
-                case 14:
-                case 20:
-                    for (const item of node.items) yield* structuredImageEvidence(item.children);
-                    break;
-                case 17:
-                    for (const row of node.rows) for (const cell of row.cells) yield* structuredImageEvidence(cell.children);
-                    break;
+        }
+        const cleanPath = url.split('?')[0].split('#')[0];
+        const lastSlash = cleanPath.lastIndexOf('/');
+        if (lastSlash !== -1) {
+            const candidate = cleanPath.slice(lastSlash + 1);
+            if (candidate && itemMatchesFilename(candidate)) {
+                try {
+                    return decodeURIComponent(candidate);
+                } catch {
+                    return candidate;
+                }
             }
         }
-    }
-
-    function extractResponseImageEvidence(candidate: readonly unknown[], visibleMedia: readonly unknown[], text: string, structuredContent?: GeminiStructuredDocument): GeminiResponseImageEvidence {
-        const readEvidence = createImageEvidenceReader();
-        const structuredImages = collectImages(undefined, sourceImage, readEvidence, structuredImageEvidence(structuredContent?.children ?? []));
-        const visibleKeys = new Set(collectImages(visibleMedia, sourceImage, readEvidence, structuredImages).map(getImageDedupKey));
-        const inlineUrls = new Set<string>();
-        for (const match of text.matchAll(/!\[[^\]]*\]\(<?(https?:\/\/[^\s)>]+)>?(?:\s+[^)]*)?\)|<img\b[^>]*\bsrc=["'](https?:\/\/[^"']+)["']/gi)) {
-            inlineUrls.add(match[1] || match[2]);
-        }
-        const images = collectImages([candidate, visibleMedia], sourceImage, readEvidence, structuredImages).filter(image => {
-            if (image.sourceEvidence?.detectorKind !== 'extractImages attachmentType:36') return true;
-            // Search results in candidate metadata are not automatically answer images.
-            // Require an attachment in the answer document/body or a real inline image URL.
-            return visibleKeys.has(getImageDedupKey(image)) || inlineUrls.has(image.sourceUrl);
-        });
-        return { images, structuredImages };
-    }
-
-    function itemMatchesFilename(name: string): boolean {
-        const trimmed = name.trim();
-        if (!trimmed) return false;
-        if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) return false;
-        if (trimmed.startsWith("//") || trimmed.includes("://")) return false;
-        if (trimmed.includes("?") || trimmed.includes("&") || trimmed.includes("=")) return false;
-        if (trimmed.includes("/") || trimmed.includes("\\")) return false;
-        return /\.[a-zA-Z0-9_-]{1,20}$/.test(trimmed);
-    }
-
-    function extractFileNameFromUrl(url: string): string | null {
-        if (!url) return null;
-        try {
-            const qIdx = url.indexOf("?");
-            if (qIdx !== -1) {
-                const query = url.slice(qIdx);
-                const m = query.match(/[?&](?:file_?name|name|title)=([^&#]+)/i);
-                if (m && m[1]) {
+        if (qIdx !== -1) {
+            const segments = url.slice(qIdx).split(/[&;]/);
+            for (const seg of segments) {
+                const eqIdx = seg.indexOf('=');
+                if (eqIdx !== -1) {
+                    const parts = seg.slice(eqIdx + 1).split(/[/\\]/);
+                    const lastPart = parts[parts.length - 1];
                     try {
-                        const decoded = decodeURIComponent(m[1]).trim();
-                        if (decoded && !decoded.includes("://") && !decoded.includes("/") && !decoded.includes("\\")) {
-                            return decoded;
-                        }
+                        const dec = decodeURIComponent(lastPart).trim();
+                        if (dec && itemMatchesFilename(dec)) return dec;
                     } catch {
-                        const raw = m[1].trim();
-                        if (raw && !raw.includes("://") && !raw.includes("/")) return raw;
+                        if (lastPart && itemMatchesFilename(lastPart)) return lastPart;
                     }
                 }
             }
-            const cleanPath = url.split("?")[0].split("#")[0];
-            const lastSlash = cleanPath.lastIndexOf("/");
-            if (lastSlash !== -1) {
-                const candidate = cleanPath.slice(lastSlash + 1);
-                if (candidate && itemMatchesFilename(candidate)) {
-                    try {
-                        return decodeURIComponent(candidate);
-                    } catch {
-                        return candidate;
-                    }
+        }
+    } catch { /* ignore */ }
+    return null;
+}
+
+export function extractUserFiles(turnUserArr: unknown): UserFileAttachment[] {
+    const files: UserFileAttachment[] = [];
+    if (!isWireArray(turnUserArr)) return files;
+    const warnedHosts = new Set<string>();
+    const seenUrls = new Set<string>();
+
+    deepWalk(turnUserArr, node => {
+        if (!isWireArray(node)) return;
+        // Valid inline or generated image tuples belong to `extractImageEvidence` and must
+        // not duplicate into phantom `attachment` file records.
+        if (detectInlineImageTuple(node, GEMINI_JSPB_SCHEMA) !== null
+            || detectGeneratedMediaNode(node, GEMINI_JSPB_SCHEMA) !== null) {
+            return;
+        }
+
+        const googleUrls: string[] = [];
+        const filenames: string[] = [];
+        let fallbackId = '';
+
+        for (let i = 0; i < node.length; i++) {
+            const item = node[i];
+            if (typeof item !== 'string') continue;
+            const trimmed = item.trim();
+            if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+                if (/\s/.test(trimmed) || /^https?:\/\/docs\.google\.com\/(?:document|spreadsheets|presentation)\//i.test(trimmed)) continue;
+                if (isGoogleMediaHost(trimmed) && !isInternalChipUrl(trimmed)) {
+                    googleUrls.push(trimmed);
+                } else if (!isGoogleMediaHost(trimmed) && !isInternalChipUrl(trimmed)) {
+                    warnWhitelistDropOnce(warnedHosts, trimmed, 'extractUserFiles [url]');
                 }
-            }
-            if (qIdx !== -1) {
-                const query = url.slice(qIdx);
-                const segments = query.split(/[&;]/);
-                for (const seg of segments) {
-                    const eqIdx = seg.indexOf("=");
-                    if (eqIdx !== -1) {
-                        const val = seg.slice(eqIdx + 1);
-                        const parts = val.split(/[/\\]/);
-                        const lastPart = parts[parts.length - 1];
-                        try {
-                            const dec = decodeURIComponent(lastPart).trim();
-                            if (dec && itemMatchesFilename(dec)) return dec;
-                        } catch {
-                            if (lastPart && itemMatchesFilename(lastPart)) return lastPart;
-                        }
-                    }
-                }
-            }
-        } catch { /* ignore */ }
-        return null;
-    }
-
-    function extractUserFiles(turnUserArr: unknown): UserFileAttachment[] {
-        let files: UserFileAttachment[] = [];
-        if (!isUnknownArray(turnUserArr)) return files;
-        let warnedHosts = new Set<string>();
-        let seenUrls = new Set<string>();
-
-        deepWalk(turnUserArr, (node) => {
-            if (!isUnknownArray(node)) return;
-
-            const googleUrls: string[] = [];
-            const filenames: string[] = [];
-            let fallbackId = "";
-
-            const slots = node;
-            for (let i = 0; i < slots.length; i++) {
-                const item = slots[i];
-                if (typeof item === "string") {
-                    const trimmed = item.trim();
-                    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-                        // A prompt containing a URL is prose, not a file attachment.
-                        // Docs editor/share links also remain links in the prompt.
-                        if (/\s/.test(trimmed) || /^https?:\/\/docs\.google\.com\/(?:document|spreadsheets|presentation)\//i.test(trimmed)) continue;
-                        if (isGoogleMediaHost(trimmed) && !isInternalChipUrl(trimmed)) {
-                            googleUrls.push(trimmed);
-                        } else if (!isGoogleMediaHost(trimmed) && !isInternalChipUrl(trimmed)) {
-                            warnWhitelistDropOnce(warnedHosts, trimmed, "extractUserFiles [url]");
-                        }
-                    } else if (itemMatchesFilename(trimmed)) {
-                        filenames.push(trimmed);
-                    } else if (trimmed && !fallbackId && trimmed.length < 100) {
-                        fallbackId = trimmed;
-                    }
-                }
-            }
-
-            if (!googleUrls.length) return;
-
-            const downloadUrls = googleUrls.filter(u =>
-                u.includes("/download") ||
-                u.includes("c=bard_storage") ||
-                /[?&](?:file_?name|name)=/i.test(u) ||
-                u.includes("contribution.usercontent")
-            );
-            const thumbUrls = googleUrls.filter(u =>
-                u.includes("/viewer/thumb") ||
-                u.includes("drive.google.com/viewer")
-            );
-
-            let sourceUrl = downloadUrls[0] || googleUrls.find(u => !thumbUrls.includes(u)) || googleUrls[0];
-            let thumbnailUrl = thumbUrls[0] || (sourceUrl !== googleUrls[0] ? googleUrls[0] : undefined);
-
-            if (seenUrls.has(sourceUrl)) return;
-            seenUrls.add(sourceUrl);
-
-            let fileName = filenames[0] || extractFileNameFromUrl(sourceUrl) || (thumbnailUrl ? extractFileNameFromUrl(thumbnailUrl) : null);
-            if (!fileName) {
-                for (const u of googleUrls) {
-                    const fn = extractFileNameFromUrl(u);
-                    if (fn) { fileName = fn; break; }
-                }
-            }
-            if (!fileName) {
-                fileName = "attachment";
-            }
-
-            const id = fallbackId || fileName || sourceUrl;
-            files.push({
-                sourceUrl,
-                fileName,
-                id,
-                thumbnailUrl
-            });
-        });
-        return files;
-    }
-
-    function extractDocumentsMeta(root: unknown): DeepResearchDocMeta[] {
-        let out: DeepResearchDocMeta[] = [];
-        let uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-        const researchPrefixRe = RESEARCH_PROMPT_PREFIX_RE;
-        const doc = GEMINI_JSPB_SCHEMA.DEEP_RESEARCH_DOC;
-
-        function pushMeta(metaObj: DeepResearchDocMeta) {
-            if (metaObj.id && metaObj.title) {
-                let cleanTitle = metaObj.title;
-                if (researchPrefixRe.test(cleanTitle)) {
-                    cleanTitle = "";
-                }
-                // deepWalk 会访问嵌套的每一层数组，同一文档可能被重复发现 —— 按 id 去重
-                const key = metaObj.id || metaObj.chipUrl || "";
-                if (key && out.some(m => (m.id || m.chipUrl || "") === key)) return;
-                out.push({
-                    id: metaObj.id,
-                    title: cleanTitle,
-                    chipUrl: metaObj.chipUrl,
-                    createdAt: metaObj.createdAt,
-                    contentId: metaObj.contentId,
-                    source: metaObj.source
-                });
+            } else if (itemMatchesFilename(trimmed)) {
+                filenames.push(trimmed);
+            } else if (trimmed && !fallbackId && trimmed.length < 100) {
+                fallbackId = trimmed;
             }
         }
 
-        // Pass 1: strict path only — typed indices, never marked heuristic.
-        deepWalk([root], (node) => {
-            if (isUnknownArray(node)) {
-                const entries = node;
-                for (let i = 0; i < entries.length; i++) {
-                    const entry = entries[i];
-                    if (!isUnknownArray(entry) || entry.length < 4) continue;
-                    const fields = entry;
-                    const chip = fields[doc.CHIP_URL];
-                    const chipParts = isUnknownArray(chip) ? chip : null;
-                    const chipUrl = chipParts?.[0];
-                    const linkedDocument = decodeDocumentLinks([fields]) !== null;
-                    const id = fields[linkedDocument ? 1 : doc.ID];
-                    const rawTitle = fields[doc.TITLE];
-                    if (typeof chipUrl !== "string" || !chipUrl.includes("immersive_entry_chip")
-                        || typeof id !== "string" || typeof rawTitle !== "string") continue;
+        if (!googleUrls.length) return;
 
-                    const rawTimestamp = fields[doc.TIMESTAMP];
-                    const createdAt = payloadToMs(isUnknownArray(rawTimestamp) ? rawTimestamp[0] : undefined) ?? undefined;
-                    const rawContentId = fields[doc.CONTENT_ID];
-                    const contentId = !linkedDocument && typeof rawContentId === "string" && rawContentId.length > 10
-                        ? rawContentId : undefined;
-                    pushMeta({ id, title: rawTitle, chipUrl, createdAt, contentId });
-                }
-            }
-        });
-        if (out.length > 0) return out;
+        const downloadUrls = googleUrls.filter(u =>
+            u.includes('/download')
+            || u.includes('c=bard_storage')
+            || /[?&](?:file_?name|name)=/i.test(u)
+            || u.includes('contribution.usercontent'));
+        const thumbUrls = googleUrls.filter(u =>
+            u.includes('/viewer/thumb')
+            || u.includes('drive.google.com/viewer'));
 
-        // Pass 2: flat fallback, only when the strict path produced nothing.
-        // Heuristic by construction — results are marked source: 'heuristic-flat'.
-        deepWalk([root], (node) => {
-            if (isUnknownArray(node)) {
-                const entries = node;
-                for (let i = 0; i < entries.length; i++) {
-                    const entry = entries[i];
-                    if (!isUnknownArray(entry)) continue;
-                    const item = entry;
-                    try {
-                        const flat = item.flat(Infinity).filter((x): x is string => typeof x === "string");
-                        if (flat.length > 500) continue;
-                        const chip = flat.find(x => x.includes("immersive_entry_chip"));
-                        if (chip) {
-                            const uuid = flat.find(x => uuidRe.test(x));
-                            const title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length >= 8 && !x.includes("c_") && !x.includes(".html") && !researchPrefixRe.test(x));
-                            pushMeta({
-                                id: uuid || flat.find(x => x.includes("rc_")) || chip,
-                                title: title || "",
-                                chipUrl: chip,
-                                source: "heuristic-flat"
-                            });
-                        }
-                    } catch (e) { console.debug("[GemExporter:attachments.ts]", e); }
-                }
+        const sourceUrl = downloadUrls[0] || googleUrls.find(u => !thumbUrls.includes(u)) || googleUrls[0];
+        const thumbnailUrl = thumbUrls[0] || (sourceUrl !== googleUrls[0] ? googleUrls[0] : undefined);
+
+        if (seenUrls.has(sourceUrl)) return;
+        seenUrls.add(sourceUrl);
+
+        let fileName = filenames[0] || extractFileNameFromUrl(sourceUrl) || (thumbnailUrl ? extractFileNameFromUrl(thumbnailUrl) : null);
+        if (!fileName) {
+            for (const u of googleUrls) {
+                const fn = extractFileNameFromUrl(u);
+                if (fn) { fileName = fn; break; }
             }
+        }
+        if (!fileName) fileName = 'attachment';
+
+        const id = fallbackId || fileName || sourceUrl;
+        files.push({
+            sourceUrl,
+            fileName,
+            id,
+            thumbnailUrl,
         });
-        return out;
+    });
+    return files;
+}
+
+export function extractDocumentsMeta(root: unknown): DeepResearchDocMeta[] {
+    const out: DeepResearchDocMeta[] = [];
+    const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+    const researchPrefixRe = RESEARCH_PROMPT_PREFIX_RE;
+    const doc = GEMINI_JSPB_SCHEMA.DEEP_RESEARCH_DOC;
+
+    function pushMeta(metaObj: DeepResearchDocMeta): void {
+        if (!metaObj.id || !metaObj.title) return;
+        const cleanTitle = researchPrefixRe.test(metaObj.title) ? '' : metaObj.title;
+        const key = metaObj.id || metaObj.chipUrl || '';
+        if (key && out.some(m => (m.id || m.chipUrl || '') === key)) return;
+        out.push({
+            id: metaObj.id,
+            title: cleanTitle,
+            chipUrl: metaObj.chipUrl,
+            createdAt: metaObj.createdAt,
+            contentId: metaObj.contentId,
+            source: metaObj.source,
+        });
     }
+
+    // Pass 1: strict path only — typed indices, never marked heuristic.
+    deepWalk([root], node => {
+        if (!isWireArray(node)) return;
+        for (let i = 0; i < node.length; i++) {
+            const fields = node[i];
+            if (!isWireArray(fields) || fields.length < 4) continue;
+            const chip = fields[doc.CHIP_URL];
+            const chipParts = isWireArray(chip) ? chip : null;
+            const chipUrl = chipParts?.[0];
+            const linkedDocument = decodeDocumentLinks([fields]) !== null;
+            const id = fields[linkedDocument ? 1 : doc.ID];
+            const rawTitle = fields[doc.TITLE];
+            if (typeof chipUrl !== 'string' || !chipUrl.includes('immersive_entry_chip')
+                || typeof id !== 'string' || typeof rawTitle !== 'string') continue;
+
+            const rawTimestamp = fields[doc.TIMESTAMP];
+            const createdAt = payloadToMs(isWireArray(rawTimestamp) ? rawTimestamp[0] : undefined) ?? undefined;
+            const rawContentId = fields[doc.CONTENT_ID];
+            const contentId = !linkedDocument && typeof rawContentId === 'string' && rawContentId.length > 10
+                ? rawContentId : undefined;
+            pushMeta({ id, title: rawTitle, chipUrl, createdAt, contentId });
+        }
+    });
+    if (out.length > 0) return out;
+
+    // Pass 2: flat fallback, only when the strict path produced nothing.
+    deepWalk([root], node => {
+        if (!isWireArray(node)) return;
+        for (let i = 0; i < node.length; i++) {
+            const item = node[i];
+            if (!isWireArray(item)) continue;
+            try {
+                const flat = item.flat(Infinity).filter((x): x is string => typeof x === 'string');
+                if (flat.length > 500) continue;
+                const chip = flat.find(x => x.includes('immersive_entry_chip'));
+                if (chip) {
+                    const uuid = flat.find(x => uuidRe.test(x));
+                    const title = flat.find(x => !x.includes('http') && !uuidRe.test(x) && x.length >= 8 && !x.includes('c_') && !x.includes('.html') && !researchPrefixRe.test(x));
+                    pushMeta({
+                        id: uuid || flat.find(x => x.includes('rc_')) || chip,
+                        title: title || '',
+                        chipUrl: chip,
+                        source: 'heuristic-flat',
+                    });
+                }
+            } catch (e) { console.debug('[GemExporter:attachments.ts]', e); }
+        }
+    });
+    return out;
+}
 
 /** One lazy response scan shared by every Turn. Raw nodes never leave this decoder. */
 export interface GeminiDocumentReader {
@@ -625,7 +609,7 @@ export interface GeminiDocumentReader {
 
 function walkDocumentEvidence(node: unknown, visit: (arr: unknown[]) => void, depth = 0): void {
     if (!node || depth > 25) return;
-    if (isUnknownArray(node)) {
+    if (isWireArray(node)) {
         visit(node);
         const isCandidateTuple = typeof node[0] === 'string' && node[0].startsWith('rc_');
         for (let i = 0; i < node.length; i++) {
@@ -634,7 +618,7 @@ function walkDocumentEvidence(node: unknown, visit: (arr: unknown[]) => void, de
             if (isCandidateTuple && (i === 1 || i === 2)) continue;
             walkDocumentEvidence(node[i], visit, depth + 1);
         }
-    } else if (isRecord(node)) {
+    } else if (isWireRecord(node)) {
         for (const key in node) {
             if (Object.prototype.hasOwnProperty.call(node, key)) {
                 walkDocumentEvidence(node[key], visit, depth + 1);
@@ -649,12 +633,12 @@ export function createDocumentReader(root: unknown): GeminiDocumentReader {
     const parsed = new Map<unknown[], DocSectionsResult>();
     const matches = new Map<string, DocSectionsResult | null>();
     let indexed = false;
-    function index() {
+    function index(): void {
         if (indexed) return;
         indexed = true;
         walkDocumentEvidence(root, node => {
             const strings = node.filter((value): value is string => typeof value === 'string');
-            const hasSections = node.some(x => isUnknownArray(x) && x.some(y => isUnknownArray(y) && typeof y[0] === 'string' && y[0].length > 50));
+            const hasSections = node.some(x => isWireArray(x) && x.some(y => isWireArray(y) && typeof y[0] === 'string' && y[0].length > 50));
             const hasLongStr = strings.some(value => value.length > 200 && (value.includes('#') || value.includes('\n\n')));
             if (hasSections || hasLongStr) candidates.push({ node, identifiers: strings });
             for (const text of strings) {
@@ -688,14 +672,15 @@ export function createDocumentReader(root: unknown): GeminiDocumentReader {
                 return result;
             }
             for (const { node, identifiers } of candidates) {
-                // Preserve source order, including the established short substring fallback.
                 const value = identifiers.find(value => value === id || value === target
-                    || value.length < 80 && (value.includes(id) || value.includes(target)));
+                    || (value.length < 80 && (value.includes(id) || value.includes(target))));
                 if (value === undefined) continue;
                 let sections = parsed.get(node);
                 if (!sections) { sections = parseDocSections(node); parsed.set(node, sections); }
-                const result: DocSectionsResult = { ...sections,
-                    ...(value !== id && value !== target ? { contentMatch: 'substring' } : {}) };
+                const result: DocSectionsResult = {
+                    ...sections,
+                    ...(value !== id && value !== target ? { contentMatch: 'substring' } : {}),
+                };
                 matches.set(id, result);
                 return result;
             }
@@ -712,59 +697,39 @@ export function createDocumentReader(root: unknown): GeminiDocumentReader {
     };
 }
 
-    function walkDocSectionNodes(node: unknown, root: unknown, visit: (arr: unknown[]) => void, depth = 0): void {
-        if (!isUnknownArray(node) || depth > 25) return;
-        // Do not descend into a nested container that owns its own short document identifier.
-        if (node !== root
-            && node.some(item => typeof item === 'string' && item.length > 0 && item.length <= 50 && !item.startsWith('http'))
-            && node.some(item => isUnknownArray(item))) {
-            return;
-        }
-        visit(node);
-        for (const child of node) walkDocSectionNodes(child, root, visit, depth + 1);
+function walkDocSectionNodes(node: unknown, root: unknown, visit: (arr: unknown[]) => void, depth = 0): void {
+    if (!isWireArray(node) || depth > 25) return;
+    if (node !== root
+        && node.some(item => typeof item === 'string' && item.length > 0 && item.length <= 50 && !item.startsWith('http'))
+        && node.some(item => isWireArray(item))) {
+        return;
     }
+    visit(node);
+    for (const child of node) walkDocSectionNodes(child, root, visit, depth + 1);
+}
 
-    function parseDocSections(docContentArr: unknown, contentMatch?: "substring"): DocSectionsResult {
-        let sections: string[] = [];
-        let links: DocLink[] = [];
-        let contentMarkdown = "";
-        // P1-9: provenance is explicitly passed from the matcher, never read
-        // as an ad hoc property on the raw wire array.
-        if (!isUnknownArray(docContentArr)) return { sections, links, contentMarkdown, contentMatch };
+export function parseDocSections(docContentArr: unknown, contentMatch?: 'substring'): DocSectionsResult {
+    const sections: string[] = [];
+    const links: DocLink[] = [];
+    let contentMarkdown = '';
+    if (!isWireArray(docContentArr)) return { sections, links, contentMarkdown, contentMatch };
 
-        walkDocSectionNodes(docContentArr, docContentArr, (node) => {
-            if (node.length >= 2 && typeof node[0] === "string" && typeof node[1] === "string" && node[1].startsWith("http")) {
-                links.push({
-                    title: node[0],
-                    url: node[1]
-                });
-            }
-            if (node.length >= 1 && typeof node[0] === "string" && node[0].length > 50) {
-                let text = node[0];
-                if (!sections.includes(text)) sections.push(text);
-            }
-        });
-        if (sections.length) {
-            contentMarkdown = sections.join("\n\n");
+    walkDocSectionNodes(docContentArr, docContentArr, node => {
+        if (node.length >= 2 && typeof node[0] === 'string' && typeof node[1] === 'string' && node[1].startsWith('http')) {
+            links.push({ title: node[0], url: node[1] });
         }
-        return {
-            sections,
-            links,
-            contentMarkdown,
-            contentMatch
-        };
+        if (node.length >= 1 && typeof node[0] === 'string' && node[0].length > 50) {
+            const text = node[0];
+            if (!sections.includes(text)) sections.push(text);
+        }
+    });
+    if (sections.length) {
+        contentMarkdown = sections.join('\n\n');
     }
-
-
-export {
-    collectImages,
-    isInternalChipUrl,
-    filterNewImages,
-    extractImageEvidence,
-    extractResponseImageEvidence,
-    extractUserFiles,
-    extractDocumentsMeta,
-    parseDocSections,
-    itemMatchesFilename,
-    extractFileNameFromUrl
-};
+    return {
+        sections,
+        links,
+        contentMarkdown,
+        contentMatch,
+    };
+}
