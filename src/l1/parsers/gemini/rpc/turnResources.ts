@@ -1,4 +1,4 @@
-import { deepWalk, GEMINI_JSPB_SCHEMA, type DecodedGeminiTurn, type DecodedGeminiCandidate } from './extractors.js';
+import { GEMINI_JSPB_SCHEMA, type DecodedGeminiTurn, type DecodedGeminiCandidate } from './extractors.js';
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence, GeminiMessageEvidence } from './detailEvidence.js';
 import {
@@ -68,13 +68,10 @@ export function decodeGeminiCandidateResources(
     const structuredExtraction = inspectStructuredContent({ turnDocument, candidateIndex });
     const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
     const groundingReferences: GeminiCitationReference[] = [];
-    deepWalk(cand, node => {
-        const field = wireArray(node) ? node[44] : '44' in node ? node['44'] : undefined;
-        if (wireArray(field)) for (const raw of field) {
-            const reference = decodeGeminiCitationReference(raw);
-            if (reference) groundingReferences.push(reference);
-        }
-    });
+    for (const raw of candidate.rawGroundingEntries ?? []) {
+        const reference = decodeGeminiCitationReference(raw);
+        if (reference) groundingReferences.push(reference);
+    }
     const rawAnswerDocument = structuredExtraction.status === 'decoded' || structuredExtraction.status === 'decode_rejected'
         ? wireArray(turnDocument) ? [turnDocument[candidateIndex]] : turnDocument : undefined;
     const { images: candImages, structuredImages } = extractResponseImageEvidence(
