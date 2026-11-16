@@ -10,16 +10,10 @@ import { ingestDetail, ingestIndexes } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { getDetail, getIndex } from '../src/l3a/storageService.js';
 import { deriveVaultKeyring, formatRecoveryKey, generateMasterKeyBytes, parseRecoveryKey } from '../src/shared/crypto/index.js';
-import {
-    createGoogleOidcVerifier,
-    encodeBase64UrlBytes,
-    type JsonWebKeyWithKid,
-} from '../cloud-server/src/auth/googleOidc.js';
-import { createCloudServerHandler } from '../cloud-server/src/router.js';
-import { createInMemoryVaultStore, sha256Hex } from '../cloud-server/src/storage/vaultStore.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { clearLocalScanRecords } from '../src/application/localCleanup.js';
 import { indexStorage } from './helpers/indexStorage.js';
+import { createMockCloudVaultHttp } from './helpers/mockCloudVaultHttp.js';
 
 interface MemoryDirNode {
     handle: DirectoryHandle;
@@ -211,43 +205,17 @@ test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-r
 
             // 4. Zero-reencryption Local-to-Cloud portability proof:
             //    Copy raw .gee1 files verbatim from local folder into Cloud Vault Server and pull from Cloud!
-            const keyPair = await crypto.subtle.generateKey(
-                { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
-                true,
-                ['sign', 'verify'],
-            );
-            const pubJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
-            const jwk: JsonWebKeyWithKid = { ...pubJwk, kid: 'port-1', alg: 'RS256', use: 'sig' };
-            const cloudStore = createInMemoryVaultStore();
-            const cloudHandler = createCloudServerHandler({
-                store: cloudStore,
-                oidcVerifier: createGoogleOidcVerifier(async () => ({ keys: [jwk] })),
-                config: { sessionHmacSecret: 'portability-hmac-secret-at-least-32-bytes!!', googleClientIds: ['cid'], allowedOrigins: ['*'] },
-            });
-            await cloudStore.ensureUser('google:migrated_user', 10_000_000);
+            const mockCloud = createMockCloudVaultHttp();
             for (const [fileName, bytes] of recordsSubdir.files) {
                 const blindId = fileName.replace(/\.gee1$/, '');
-                const putRes = await cloudStore.putRecord({
-                    ownerSubject: 'google:migrated_user',
-                    blindRecordId: blindId,
-                    expectedRevision: 0,
-                    ciphertext: bytes, // Exact untouched bytes from local disk!
-                    sha256: await sha256Hex(bytes),
-                });
-                assert.equal(putRes.status, 'committed');
+                await mockCloud.seedRawRecord(`vault:${keyring.keyFingerprint}`, blindId, bytes);
             }
 
             await clearLocalScanRecords(acc.id);
-            const nowSec = Math.floor(Date.now() / 1000);
-            const h = encodeBase64UrlBytes(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', kid: 'port-1' })));
-            const p = encodeBase64UrlBytes(new TextEncoder().encode(JSON.stringify({
-                iss: 'https://accounts.google.com', aud: 'cid', sub: 'migrated_user', iat: nowSec - 5, exp: nowSec + 3600,
-            })));
-            const sig = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', keyPair.privateKey, new Uint8Array(new TextEncoder().encode(`${h}.${p}`))));
             const cloudEngine = createCloudSyncEngine({
-                client: createCloudVaultClient((url, init) => cloudHandler(new Request(url, init))),
+                client: createCloudVaultClient((url, init) => mockCloud.handler(new Request(url, init))),
             });
-            const cloudConn = await cloudEngine.connectWithGoogleIdToken('https://cloud.port.test', `${h}.${p}.${encodeBase64UrlBytes(sig)}`);
+            const cloudConn = await cloudEngine.connectCloudVault('https://cloud.port.test');
             assert.equal(cloudConn.recoveryKey, connected.recoveryKey, 'Local vault key automatically promoted to Cloud account!');
             const cloudPull = await cloudEngine.pullChanges();
             assert.equal(cloudPull.accepted, 2, 'Untouched local .gee1 files decrypted seamlessly from Cloud Vault!');
