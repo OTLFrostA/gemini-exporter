@@ -1,11 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { decodeChatGPTDetail } from '../src/l1/parsers/chatgpt/decodeDetail.js';
 import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
+import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
+import { initChatGPTMessageBridge } from '../src/l1/sniffer/chatgpt/messageBridge.js';
+import { CHATGPT_SOURCE_EVENT } from '../src/l1/sniffer/chatgpt/observation.js';
 import { restoreDomainDetail } from '../src/l2/runtimeValidation.js';
-import { detailGen } from './fixtures/providers/chatgptDetail.js';
+import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
+import { indexStorage } from './helpers/indexStorage.js';
+import { getDetail } from '../src/l3a/storageService.js';
+import { detailGen as chatgptDetailGen } from './fixtures/providers/chatgptDetail.js';
+import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
+
+const detailGen = chatgptDetailGen;
 
 const id = 'source-chatgpt-1';
 
@@ -145,13 +152,101 @@ test('ChatGPT Detail missing optional status does not invent incomplete branch c
     assert.equal(parsed.conversation.detail.quality.status, 'complete');
 });
 
-test('ChatGPT manual and live Detail entrypoints both invoke the shared boundary', () => {
-    const provider = readFileSync(join(__dirname, '../src/l1/client/chatgpt/chatgptProvider.ts'), 'utf8');
-    const capture = readFileSync(join(__dirname, '../src/l1/sniffer/chatgpt/messageBridge.ts'), 'utf8');
-    assert.match(provider, /decodeChatGPTDetail\(raw, conversationId\)/);
-    assert.match(capture, /decodeChatGPTDetail\(raw\.responseBody, key\.conversationId\)/);
-    assert.doesNotMatch(provider, /as ChatGPTApiConversationWithId/);
-    assert.doesNotMatch(capture, /as ChatGPTApiConversationWithId/);
+test('ChatGPT manual and live Detail entrypoints reject invalid source without preventing a valid retry', { timeout: 5000 }, async t => {
+    const storage = indexStorage({}, { seedAccounts: false });
+    const prevWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    const prevLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+    const cleanups: Array<() => void> = [];
+    try {
+        const providerAccountId = '["boundary-user","boundary-space"]';
+        const account = await getOrCreateAccount('chatgpt', providerAccountId);
+        const accountId = account.id;
+        const liveCid = '6acffdc5-c4d0-83e8-8e1b-ba60979a618a';
+        const key = { accountId, conversationId: liveCid };
+        const valid = chatgptDetailGen('C_BOUNDARY_VALID_DETAIL_01');
+        let response: unknown = chatgptDetailGen('C_BOUNDARY_FOREIGN_DETAIL_01');
+
+        // 1. Manual ChatGPTProvider.fetchConversationDetail rejects foreign-ID payloads before persistence
+        const provider = new ChatGPTProvider({
+            fetchFn: async url => {
+                if (url.endsWith('/api/auth/session')) {
+                    return Response.json(chatgptSessionGen('C_BOUNDARY_PROVIDER_SESSION_01'));
+                }
+                assert.equal(new URL(url).pathname, `/backend-api/conversation/${liveCid}`);
+                return Response.json(response);
+            },
+        });
+        await assert.rejects(
+            provider.fetchConversationDetail(accountId, liveCid),
+            /Detail identity mismatch/,
+        );
+        assert.equal(await getDetail(key), null);
+        response = valid;
+        await provider.fetchConversationDetail(accountId, liveCid);
+        assert.equal((await getDetail(key))?.messages.length, 2);
+
+        // 2. Live initChatGPTMessageBridge drops malformed mapping payloads without saving or throwing uncaught TypeError
+        const listeners = new Set<(event: { source: unknown; origin: string; data: unknown }) => void>();
+        const liveAccount = await getOrCreateAccount('chatgpt', '["live-user","live-space"]');
+        const liveKey = { accountId: liveAccount.id, conversationId: liveCid };
+        const saved: typeof liveKey[] = [];
+        let markDelivered: () => void = () => {};
+        const delivered = new Promise<void>(resolve => { markDelivered = resolve; });
+        const winMock = {
+            addEventListener: (_type: string, fn: (event: { source: unknown; origin: string; data: unknown }) => void) => listeners.add(fn),
+            removeEventListener: (_type: string, fn: (event: { source: unknown; origin: string; data: unknown }) => void) => listeners.delete(fn),
+        };
+        Object.defineProperty(globalThis, 'window', { configurable: true, value: winMock });
+        Object.defineProperty(globalThis, 'location', {
+            configurable: true,
+            value: { origin: 'https://chatgpt.com', href: 'https://chatgpt.com/c/6acffdc5-c4d0-83e8-8e1b-ba60979a618a' },
+        });
+        initChatGPTMessageBridge({
+            isActive: () => true,
+            currentAccount: async () => liveAccount,
+            onSaveRequested: async key => { saved.push(key); markDelivered(); },
+            registerCleanup: fn => cleanups.push(fn),
+        });
+        const listener = [...listeners][0];
+        assert.ok(listener);
+        const send = (responseBody: unknown) => {
+            listener({
+                source: winMock,
+                origin: 'https://chatgpt.com',
+                data: {
+                    type: CHATGPT_SOURCE_EVENT,
+                    payload: {
+                        kind: 'detail',
+                        url: `https://chatgpt.com/backend-api/conversation/${liveCid}`,
+                        conversationId: liveCid,
+                        requestIdentity: liveAccount.providerAccountId,
+                        responseBody,
+                    },
+                },
+            });
+        };
+        // Observe actual admission requests as well: a malformed snapshot must
+        // never reach persistence, even if a later valid event replaces it.
+        const sendMessage = chrome.runtime.sendMessage;
+        const admissions: unknown[] = [];
+        t.mock.method(chrome.runtime, 'sendMessage', async (message: Record<string, unknown>) => {
+            if (message.action === 'domainIngest') admissions.push(message.detail);
+            return Reflect.apply(sendMessage, chrome.runtime, [message]);
+        });
+        send(chatgptDetailGen('C_BOUNDARY_MALFORMED_MAPPING_01'));
+        send(valid);
+        await delivered;
+        assert.deepEqual(saved, [liveKey]);
+        assert.equal(admissions.length, 1);
+        assert.equal((await getDetail(liveKey))?.messages.length, 2);
+    } finally {
+        for (const cleanup of cleanups) cleanup();
+        if (prevWindow) Object.defineProperty(globalThis, 'window', prevWindow);
+        else Reflect.deleteProperty(globalThis, 'window');
+        if (prevLocation) Object.defineProperty(globalThis, 'location', prevLocation);
+        else Reflect.deleteProperty(globalThis, 'location');
+        storage.restore();
+    }
 });
 
 

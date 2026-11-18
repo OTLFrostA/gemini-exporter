@@ -9,6 +9,7 @@ const fixtureMap = {
     'CL_ACCOUNT_BLANK_NAME_01': () => [{ uuid: id, name: '   ' }],
     'CL_ACCOUNT_INVALID_ENVELOPE_01': () => ({ error: 'not an array' }),
     'CL_ACCOUNT_HTTP_FAILURE_01': () => [{ uuid: id, name: 'valid' }],
+    'CL_E2E_CLAUDE_SCAN_01': () => [{ uuid: id, name: 'Claude Team Org', capabilities: ['chat'] }],
 };
 export function organizationsGen<K extends keyof typeof fixtureMap>(key: K): ReturnType<(typeof fixtureMap)[K]> {
     return fixtureMap[key]() as ReturnType<(typeof fixtureMap)[K]>;

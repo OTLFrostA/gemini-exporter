@@ -107,6 +107,38 @@ const fixtureMap = {
             },
         },
     }),
+    'C_E2E_CHATGPT_EXPORT_DETAIL_01': () => ({
+        id: 'gpt-chat',
+        title: 'ChatGPT history from source',
+        create_time: 1700000000,
+        update_time: 1700000010,
+        current_node: 'answer',
+        is_archived: false,
+        mapping: {
+            root: { id: 'root', children: ['question'] },
+            question: textNode('question', 'root', 'user', 'Derive Euler-Lagrange equation.'),
+            answer: textNode('answer', 'question', 'assistant', 'Stationary action requires $\\frac{d}{dt}\\frac{\\partial L}{\\partial \\dot{q}} = \\frac{\\partial L}{\\partial q}$.'),
+        },
+    }),
+    'C_BOUNDARY_FOREIGN_DETAIL_01': () => ({
+        ...nativeDetail({
+            root: { id: 'root', children: ['answer'] },
+            answer: textNode('answer', 'root', 'assistant', 'Foreign payload'),
+        }),
+        id: 'foreign-conversation-id',
+    }),
+    'C_BOUNDARY_MALFORMED_MAPPING_01': () => ({
+        id: '6acffdc5-c4d0-83e8-8e1b-ba60979a618a',
+        mapping: null,
+    }),
+    'C_BOUNDARY_VALID_DETAIL_01': () => ({
+        ...nativeDetail({
+            root: { id: 'root', children: ['question'] },
+            question: textNode('question', 'root', 'user', 'Question'),
+            answer: textNode('answer', 'question', 'assistant', 'Answer'),
+        }),
+        id: '6acffdc5-c4d0-83e8-8e1b-ba60979a618a',
+    }),
 };
 
 export function detailGen<K extends keyof typeof fixtureMap>(key: K): ReturnType<(typeof fixtureMap)[K]> {

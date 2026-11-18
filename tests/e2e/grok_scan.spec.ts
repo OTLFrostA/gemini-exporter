@@ -1,6 +1,7 @@
 import { waitForAuthorization } from '../helpers/tourNavigation';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, accountId } from './uiFixture';
+import { expectProviderDownloads } from './providerDownloads';
 import { detailGen as grokDetailGen, metadataGen, treeGen, responsesGen } from '../fixtures/providers/grokDetail.js';
 import { listGen as grokListGen } from '../fixtures/providers/grokList.js';
 import { userGen as grokUserGen } from '../fixtures/providers/grokUser.js';
@@ -62,6 +63,13 @@ for (const allow of [true, false]) test(`Grok site authorization ${allow ? 'conn
     await expect(page.locator('#list .open-link')).toHaveAttribute('aria-label', 'Open in Grok');
     await expect(page.locator('#btnImportTakeout')).toBeDisabled();
     expect(await page.evaluate(() => Reflect.get(window, 'grokHttpCalls'))).toContain('/rest/app-chat/conversations?pageSize=60');
+
+    // Physical export through Options -> Application -> GrokProvider.fetchConversationDetail
+    await page.locator('#btnSelectAll').click();
+    await expectProviderDownloads(page, 'grok', wire.id, 'reply with a Markdown table comparing CSV and JSON', 'import csv, json');
+    expect(await page.evaluate(() => Reflect.get(window, 'grokHttpCalls'))).toEqual(expect.arrayContaining([
+        expect.stringContaining('response-node'), expect.stringContaining('load-responses'),
+    ]));
 });
 
 test('an unavailable selected Gemini account stays selected while Grok is connected', async ({ context, extensionId }) => {
