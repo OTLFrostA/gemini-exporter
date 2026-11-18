@@ -7,16 +7,17 @@
  *   and email addresses inside multi-frame `batchexecute` responses while
  *   preserving public benchmark prose, media host allowlists, and filenames.
  * - `full`: Additionally replaces natural-language prose, titles, and quotes
- *   using a keyed deterministic bijection over Unicode scalar classes that
- *   strictly preserves BOTH UTF-16 code-unit length AND UTF-8 byte width at
- *   every code point, while keeping Markdown/LaTeX/HTML delimiters and Gemini
+ *   using deterministic substitutions that preserve UTF-16 code-unit and UTF-8
+ *   byte widths for masked scalar values, while keeping common markup delimiters and Gemini
  *   protocol control tokens (`wrb.fr`, `hNvQHb`, `MaZiqc`, `THOUGHT`, `rc_`,
  *   `c_`, `r_`, `spp_`, `[cite: ...]`, MIME types) intact.
+ *   Review the resulting QA fixture: this is not general anonymization.
  */
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 
 export type WireSanitizeMode = 'tokens_and_urls' | 'full';
 
@@ -182,8 +183,8 @@ function mapScalarPreservingWidths(cp: number, salt: string, positionSalt: numbe
     return 0x1f600 + (n % 0x4f);
 }
 
-/** Context-free per-codepoint bijection: identical substrings at any position
- * map to identical substrings with identical UTF-8 and UTF-16 lengths. */
+/** Replace prose by scalar width; recognized control segments and URL locators
+ * follow separate rules. */
 export function maskTextPreservingDualCoordinates(text: string, salt: string): string {
     if (!text) return text;
     if (/^https?:\/\/\S+$/i.test(text)) {
@@ -298,6 +299,7 @@ export function sanitizeGeminiBatchexecuteWire(rawText: string, options: Sanitiz
             const jsonLine = lines[i + 1];
             try {
                 const parsed: unknown = JSON.parse(jsonLine);
+                if (!Array.isArray(parsed)) throw new Error('Expected Gemini frame array');
                 const sanitized = JSON.stringify(sanitizeJsonNode(parsed, salt, mode));
                 // Google batchexecute chunk headers count UTF-16 code units + trailing newline
                 sanitizedChunks.push(`${sanitized.length}\n${sanitized}`);
@@ -310,51 +312,41 @@ export function sanitizeGeminiBatchexecuteWire(rawText: string, options: Sanitiz
         try {
             const rest = lines.slice(i).join('\n');
             const parsed: unknown = JSON.parse(rest);
+            if (!Array.isArray(parsed)) throw new Error('Expected Gemini frame array');
             const sanitized = JSON.stringify(sanitizeJsonNode(parsed, salt, mode));
             sanitizedChunks.push(usedChunkLengths ? `${sanitized.length}\n${sanitized}` : sanitized);
             break;
-        } catch {
-            sanitizedChunks.push(lines[i]);
-            i++;
-        }
+        } catch { throw new Error('Invalid Gemini frame JSON'); }
     }
 
+    if (!sanitizedChunks.length) throw new Error('Missing Gemini response frames');
     const prefix = hasXssiPrefix ? ")]}'\n\n" : '';
     return prefix + sanitizedChunks.join('\n') + (rawText.endsWith('\n') ? '\n' : '');
 }
 
 if (require.main === module) {
-    const args = process.argv.slice(2);
-    const modeIdx = args.indexOf('--mode');
-    const mode: WireSanitizeMode = modeIdx >= 0 && args[modeIdx + 1] === 'full' ? 'full' : 'tokens_and_urls';
-    const saltIdx = args.indexOf('--salt');
-    const salt = saltIdx >= 0 ? args[saltIdx + 1] : undefined;
-    const positional = args.filter((arg, idx) =>
-        !arg.startsWith('--') && idx !== modeIdx + 1 && idx !== saltIdx + 1);
-    if (positional.length < 1) {
+    const { values, positionals } = parseArgs({ allowPositionals: true, options: {
+        mode: { type: 'string', default: 'tokens_and_urls' }, salt: { type: 'string' },
+    } });
+    const { mode, salt } = values;
+    if (positionals.length < 1 || positionals.length > 2 || (mode !== 'full' && mode !== 'tokens_and_urls')) {
         console.error('Usage: node -r ./tests/ts_register.js scripts/sanitize_gemini_wire.ts <input.json|raw.txt> [output] [--mode tokens_and_urls|full] [--salt <str>]');
         process.exit(2);
     }
-    const inputPath = path.resolve(positional[0]);
+    const inputPath = path.resolve(positionals[0]);
     const raw = fs.readFileSync(inputPath, 'utf8');
-    let output: string;
-    try {
-        const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.pages)) {
-            parsed.pages = parsed.pages.map((p: { text?: string }) => ({
-                ...p,
-                ...(typeof p.text === 'string' ? { text: sanitizeGeminiBatchexecuteWire(p.text, { mode, salt }) } : {}),
-            }));
-            output = JSON.stringify(parsed, null, 2) + '\n';
-        } else {
-            output = sanitizeGeminiBatchexecuteWire(raw, { mode, salt });
-        }
-    } catch {
-        output = sanitizeGeminiBatchexecuteWire(raw, { mode, salt });
-    }
-    if (positional[1]) {
-        fs.mkdirSync(path.dirname(path.resolve(positional[1])), { recursive: true });
-        fs.writeFileSync(path.resolve(positional[1]), output, 'utf8');
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { /* raw wire begins with an XSSI prefix */ }
+    const output = parsed && Array.isArray(parsed.pages)
+        ? JSON.stringify({ ...parsed, pages: parsed.pages.map((p: { text?: string } | null) => {
+            if (typeof p?.text !== 'string') throw new Error('Missing Gemini capture page text');
+            return { ...p, text: sanitizeGeminiBatchexecuteWire(p.text, { mode, salt }) };
+        }) }, null, 2) + '\n'
+        : sanitizeGeminiBatchexecuteWire(raw, { mode, salt });
+    if (positionals[1]) {
+        const target = path.resolve(positionals[1]);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, output, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
     } else {
         process.stdout.write(output);
     }
