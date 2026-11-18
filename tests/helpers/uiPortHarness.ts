@@ -178,17 +178,20 @@ export const registerCleanup = fn => {
  h.cleanups.push(fn);
  return () => { const index=h.cleanups.indexOf(fn);if(index>=0)h.cleanups.splice(index,1); };
 };
-export const launchGoogleOidcIdTokenFlow = async clientId => {
- (h.googleAuthRequests ??= []).push(clientId);
- if (h.googleAuthError) throw h.googleAuthError;
- return h.googleIdToken ?? 'mock-google-id-token';
-};
 export const inspectVaultDirectoryStatus = async () => ({ state: 'missing' });
 export const pickVaultDirectoryHandle = async () => {
  const handle = await globalThis.showDirectoryPicker({ mode: 'readwrite' });
  return handle;
 };
 export const reauthorizeVaultDirectoryHandle = async () => globalThis.showDirectoryPicker({ mode: 'readwrite' });
+const fixtureFingerprint = '0123456789abcdef0123456789abcdef';
+export const prepareOneTimeVaultKey = async () => 'GEK1-01234-56789-ABCDE-FGHJK-MNPQR-STVWX-YZ012-34567-89ABC-DEFGH-JKMNP';
+export const commitOneTimeVaultKey = async (_value, origin = 'generated') => {
+ h.hasVaultKey = true;
+ h.vaultKeyOrigin = origin;
+ if (h.cloudStatus) Object.assign(h.cloudStatus, { hasRecoveryKey: true, keyFingerprint: fixtureFingerprint, keyOrigin: origin });
+ return { keyFingerprint: fixtureFingerprint, resolution: h.cloudStatus?.connected ? (origin === 'generated' ? 'rekeyed' : 'unlocked') : 'initialized' };
+};
 export const defaultCloudSyncEngine = {
  getStatusSnapshot: async () => h.cloudStatus ?? {
   enabled: Boolean(h.settings?.cloudSyncEnabled),
@@ -198,35 +201,29 @@ export const defaultCloudSyncEngine = {
   pendingOutbox: 0,
   failedOutbox: 0,
   oversizedSkipped: 0,
-  hasRecoveryKey: false,
+  hasRecoveryKey: Boolean(h.hasVaultKey),
+  keyFingerprint: h.hasVaultKey ? fixtureFingerprint : undefined,
+  keyOrigin: h.hasVaultKey ? (h.vaultKeyOrigin ?? 'generated') : undefined,
  },
- exportRecoveryKey: async () => h.cloudRecoveryKey ?? null,
  installAutoEnqueueListener: () => () => {},
  connectLocalFolderVault: async handle => {
-  h.cloudRecoveryKey ??= 'GEK1-01234-56789-ABCDE-FGHJK-MNPQR-STVWX-YZ012-34567-89ABC-DEFGH-JKMNP';
-  h.cloudStatus = { enabled: true, includeDetail: false, connected: true, backend: 'local-folder', folderName: handle.name, ownerSubject: 'local:vault', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true };
-  return { session: { id: 'active', backend: 'local-folder', serverUrl: 'local-vault://directory', ownerSubject: 'local:vault', sessionToken: 'local', folderName: handle.name, expiresAt: Number.MAX_SAFE_INTEGER, pulledSeq: 0 }, recoveryKey: h.cloudRecoveryKey, createdNewKey: true };
+  h.cloudStatus = { enabled: true, includeDetail: false, connected: true, backend: 'local-folder', folderName: handle.name, ownerSubject: 'local:vault', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true, keyFingerprint: fixtureFingerprint, keyOrigin: h.vaultKeyOrigin ?? 'generated' };
+  return { keyFingerprint: fixtureFingerprint };
  },
- connectCloudVault: async (serverUrl, accessCode) => {
-  (h.cloudConnectCalls ??= []).push({ serverUrl, accessCode });
-  h.cloudRecoveryKey ??= 'GEK1-01234-56789-ABCDE-FGHJK-MNPQR-STVWX-YZ012-34567-89ABC-DEFGH-JKMNP';
-  h.cloudStatus = { enabled: true, includeDetail: false, connected: true, backend: 'cloud-server', serverUrl, ownerSubject: 'vault:0123456789abcdef0123456789abcdef', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true };
-  return { session: { id: 'active', backend: 'cloud-server', serverUrl, ownerSubject: 'vault:0123456789abcdef0123456789abcdef', sessionToken: 'tok', expiresAt: Date.now() + 3600000, pulledSeq: 0 }, recoveryKey: h.cloudRecoveryKey, createdNewKey: true };
+ connectCloudVault: async (serverUrl, accessCode, explicitMode) => {
+  const mode = explicitMode ?? (h.vaultKeyOrigin === 'generated' ? 'create' : 'unlock');
+  (h.cloudConnectCalls ??= []).push({ serverUrl, accessCode, mode });
+  h.vaultKeyOrigin = 'imported';
+  h.cloudStatus = { enabled: true, includeDetail: false, connected: true, backend: 'cloud-server', serverUrl, ownerSubject: 'vault:0123456789abcdef0123456789abcdef', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true, keyFingerprint: fixtureFingerprint, keyOrigin: 'imported' };
+  return { keyFingerprint: fixtureFingerprint };
  },
- connectWithGoogleIdToken: async (serverUrl, idToken) => {
-  (h.cloudConnectCalls ??= []).push({ serverUrl, idToken });
-  h.cloudRecoveryKey ??= 'GEK1-01234-56789-ABCDE-FGHJK-MNPQR-STVWX-YZ012-34567-89ABC-DEFGH-JKMNP';
-  h.cloudStatus = { enabled: true, includeDetail: false, connected: true, serverUrl, ownerSubject: 'google:mock', email: 'mock@example.com', pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: true };
-  return { session: { id: 'active', serverUrl, ownerSubject: 'google:mock', sessionToken: 'tok', expiresAt: Date.now() + 3600000, pulledSeq: 0 }, recoveryKey: h.cloudRecoveryKey, createdNewKey: true };
- },
- disconnect: async () => { h.cloudStatus = { enabled: false, includeDetail: false, connected: false, pulledSeq: 0, pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: false }; },
+ disconnect: async () => { h.cloudStatus = undefined; },
  setAutoSyncEnabled: async enabled => { h.settings.cloudSyncEnabled = enabled; if (h.cloudStatus) h.cloudStatus.enabled = enabled; },
  setIncludeDetail: async v => { h.settings.cloudSyncIncludeDetail = v; if (h.cloudStatus) h.cloudStatus.includeDetail = v; },
  enqueueAllExistingHistory: async () => 0,
  flushOutbox: async () => ({ uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 }),
  pullChanges: async () => ({ downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 }),
  syncNow: async () => ({ pull: { downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 }, push: { uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 } }),
- importRecoveryKey: async key => { h.cloudRecoveryKey = key; return { keyFingerprint: '0'.repeat(32), resolution: 'unlocked' }; },
  resetVaultWithCurrentKey: async () => { if (h.cloudStatus) delete h.cloudStatus.keyMismatch; },
  reconcilePostToggleAccount: async () => {},
  waitForIdle: async () => {},
@@ -330,4 +327,3 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
 }
 export const read = (page: Page, key: string) => page.evaluate(key => (window as any).harness[key], key);
-

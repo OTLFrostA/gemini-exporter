@@ -16,6 +16,7 @@ import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { listAccounts } from '../src/l3a/storageService.js';
 import {
     openCloudConversation,
+    portableVaultSubject,
     restoreCloudConversationsToLocal,
     sealCloudConversation,
 } from '../src/application/cloud/cloudArchiveCodec.js';
@@ -25,7 +26,6 @@ import { indexStorage } from './helpers/indexStorage.js';
 import { readDeliveredFiles, v2ExportHost } from './helpers/v2ExportHost.js';
 
 test('E2EE cross-device lifecycle: Device A seals zero-knowledge ciphertext -> Device B restores via GEK1 recovery key onto its own local Account UUID and exports lossless Markdown/HTML', async t => {
-    const ownerSubject = 'google-oauth2|104928174910293847102';
     const secretPhrase = 'Ultra-Secret-Proprietary-Derivation-99481';
 
     // --- Device A: generate Vault Master Key, ingest multi-platform conversations, and seal ---
@@ -87,7 +87,6 @@ test('E2EE cross-device lifecycle: Device A seals zero-knowledge ciphertext -> D
             assert.ok(snap);
             const sealed = await sealCloudConversation({
                 keyring: keyringA,
-                ownerSubject,
                 revision: 1,
                 account: acc,
                 conversation: snap,
@@ -109,14 +108,13 @@ test('E2EE cross-device lifecycle: Device A seals zero-knowledge ciphertext -> D
         const poisonedJson = encodePortableCloudConversation(geminiAccA, snap1);
         const wrongSlotId = await deriveBlindRecordId(keyringA, 'gemini', 'gaia-778899', 'c_different_target');
         const poisonedEnvelope = await sealUtf8Record(keyringA, poisonedJson, {
-            ownerSubject,
+            ownerSubject: portableVaultSubject(keyringA),
             blindRecordId: wrongSlotId,
             revision: 1,
         });
         await assert.rejects(
             openCloudConversation({
                 keyring: keyringA,
-                ownerSubject,
                 blindRecordId: wrongSlotId,
                 revision: 1,
                 envelope: poisonedEnvelope,
@@ -145,7 +143,6 @@ test('E2EE cross-device lifecycle: Device A seals zero-knowledge ciphertext -> D
     for (const [blindRecordId, row] of blindServerStore) {
         openedItems.push(await openCloudConversation({
             keyring: keyringB,
-            ownerSubject,
             blindRecordId,
             revision: row.revision,
             envelope: row.ciphertext,

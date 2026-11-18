@@ -9,7 +9,8 @@ import { createCloudVaultClient } from '../src/l1/cloud/vaultClient.js';
 import { ingestDetail, ingestIndexes } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { getDetail, getIndex } from '../src/l3a/storageService.js';
-import { deriveVaultKeyring, formatRecoveryKey, generateMasterKeyBytes, parseRecoveryKey } from '../src/shared/crypto/index.js';
+import { deriveVaultKeyring, parseRecoveryKey } from '../src/shared/crypto/index.js';
+import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/cloud/vaultKeySetup.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { clearLocalScanRecords } from '../src/application/localCleanup.js';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -129,6 +130,7 @@ test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-r
                 expectedRevision: 0,
                 envelope: new Uint8Array(new TextEncoder().encode('{"plaintext":true,"padding":"12345678901234567890"}')),
                 sha256: '0'.repeat(64),
+                keyFingerprint: '0'.repeat(32),
             }),
             (err: unknown) => err instanceof OperationError && err.code === 'CLOUD_ENVELOPE_INVALID',
         );
@@ -140,6 +142,9 @@ test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-r
         const unsubscribe = engine.installAutoEnqueueListener();
         try {
             const acc = await getOrCreateAccount('gemini', 'gaia-local-test', 'local@example.com');
+            await assert.rejects(engine.connectLocalFolderVault(folder.handle), { code: 'CLOUD_KEY_NOT_INITIALIZED' });
+            const recoveryKey = await prepareOneTimeVaultKey();
+            await createVaultKeySetup(engine.activateVaultKeyring)(recoveryKey, 'generated', null);
             const connected = await engine.connectLocalFolderVault(folder.handle);
             assert.equal(connected.session.backend, 'local-folder');
             assert.equal(connected.session.ownerSubject, LOCAL_VAULT_OWNER_SUBJECT);
@@ -177,7 +182,7 @@ test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-r
             assert.equal(recordsSubdir.files.size, 2);
 
             // Verify even with the real Master Key, decrypted .gee1 files hold ONLY Index metadata (detail === undefined)!
-            const keyring = await deriveVaultKeyring(await parseRecoveryKey(connected.recoveryKey));
+            const keyring = await deriveVaultKeyring(await parseRecoveryKey(recoveryKey));
             for (const [fileName, bytes] of recordsSubdir.files) {
                 const blindId = fileName.replace(/\.gee1$/, '');
                 const opened = await openCloudConversation({
@@ -206,17 +211,17 @@ test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-r
             // 4. Zero-reencryption Local-to-Cloud portability proof:
             //    Copy raw .gee1 files verbatim from local folder into Cloud Vault Server and pull from Cloud!
             const mockCloud = createMockCloudVaultHttp();
+            const cloudEngine = createCloudSyncEngine({
+                client: createCloudVaultClient((url, init) => mockCloud.handler(new Request(url, init))),
+            });
+            const cloudConn = await cloudEngine.connectCloudVault('https://cloud.port.test', undefined, 'create');
+            assert.equal(cloudConn.keyFingerprint, connected.keyFingerprint, 'one installed key works with both backends');
             for (const [fileName, bytes] of recordsSubdir.files) {
                 const blindId = fileName.replace(/\.gee1$/, '');
                 await mockCloud.seedRawRecord(`vault:${keyring.keyFingerprint}`, blindId, bytes);
             }
 
             await clearLocalScanRecords(acc.id);
-            const cloudEngine = createCloudSyncEngine({
-                client: createCloudVaultClient((url, init) => mockCloud.handler(new Request(url, init))),
-            });
-            const cloudConn = await cloudEngine.connectCloudVault('https://cloud.port.test');
-            assert.equal(cloudConn.recoveryKey, connected.recoveryKey, 'Local vault key automatically promoted to Cloud account!');
             const cloudPull = await cloudEngine.pullChanges();
             assert.equal(cloudPull.accepted, 2, 'Untouched local .gee1 files decrypted seamlessly from Cloud Vault!');
             assert.equal((await getIndex({ accountId: acc.id, conversationId: 'c_mobile_only_index' }))?.title, 'Mobile Chat From Phone App');
@@ -241,7 +246,7 @@ test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-r
     }
 });
 
-test('Key conflict resolution: blocks split-brain writes when a second browser auto-generates Key B against a Key A vault, rejects unrelated Key C, unlocks & merges upon importing Key A, and supports lossless Auto-Rekey', async () => {
+test('Local folder rejects unrelated keys without purging and merges after importing the original key', async () => {
     const sharedFolder = createMemoryDirectoryHandle('SharedSyncedFolder');
     let keyARecovery = '';
 
@@ -250,8 +255,9 @@ test('Key conflict resolution: blocks split-brain writes when a second browser a
     try {
         await env1.ready;
         const engine1 = createCloudSyncEngine();
-        const conn1 = await engine1.connectLocalFolderVault(sharedFolder.handle);
-        keyARecovery = conn1.recoveryKey;
+        keyARecovery = await prepareOneTimeVaultKey();
+        await createVaultKeySetup(engine1.activateVaultKeyring)(keyARecovery, 'generated', null);
+        await engine1.connectLocalFolderVault(sharedFolder.handle);
         const acc1 = await getOrCreateAccount('gemini', 'gaia-user-conflict');
         await ingestIndexes(acc1.id, [{
             conversationId: 'c_from_browser_1',
@@ -264,20 +270,22 @@ test('Key conflict resolution: blocks split-brain writes when a second browser a
         env1.restore();
     }
 
-    // 2. Browser 2 (separate browser without Chrome Sync) auto-generates its own Key B first,
+    // 2. Browser 2 (separate browser without Chrome Sync) generates its own Key B first,
     //    has a local conversation "Chat From Browser 2", and then connects to SharedSyncedFolder!
     const env2 = indexStorage();
     try {
         await env2.ready;
         const engine2 = createCloudSyncEngine();
+        const setup = createVaultKeySetup(engine2.activateVaultKeyring);
         const acc2 = await getOrCreateAccount('gemini', 'gaia-user-conflict');
         await ingestIndexes(acc2.id, [{
             conversationId: 'c_from_browser_2',
             fields: { title: 'Chat From Browser 2', titleSource: 'provider', updatedAt: 20_000 },
         }]);
 
+        const keyB = await setup(await prepareOneTimeVaultKey(), 'generated', null);
         const conn2 = await engine2.connectLocalFolderVault(sharedFolder.handle);
-        assert.notEqual(conn2.recoveryKey, keyARecovery, 'Browser 2 generated a different local Key B');
+        assert.equal(conn2.keyFingerprint, keyB.keyFingerprint);
         await engine2.setAutoSyncEnabled(true);
         await engine2.waitForIdle();
 
@@ -290,14 +298,14 @@ test('Key conflict resolution: blocks split-brain writes when a second browser a
         assert.equal(sharedFolder.subdirs.get('records')?.files.size, 1, 'Split-brain prevented: zero Key B files written into Key A vault');
 
         // Pasting an unrelated 3rd Key C must be rejected without mutating Browser 2's state
-        const unrelatedKeyC = await formatRecoveryKey(generateMasterKeyBytes());
+        const unrelatedKeyC = await prepareOneTimeVaultKey();
         await assert.rejects(
-            engine2.importRecoveryKey(unrelatedKeyC),
+            setup(unrelatedKeyC, 'imported', keyB.keyFingerprint),
             (err: unknown) => err instanceof OperationError && err.code === 'CLOUD_KEY_MISMATCH',
         );
 
         // Importing the true Key A unlocks the vault, pulls Browser 1's chat, AND pushes Browser 2's chat encrypted under Key A!
-        const unlockRes = await engine2.importRecoveryKey(keyARecovery);
+        const unlockRes = await setup(keyARecovery, 'imported', keyB.keyFingerprint);
         assert.equal(unlockRes.resolution, 'unlocked');
         const mergedSync = await engine2.syncNow();
         assert.equal(mergedSync.pull.accepted, 1);
@@ -307,15 +315,26 @@ test('Key conflict resolution: blocks split-brain writes when a second browser a
         assert.equal((await getIndex({ accountId: acc2.id, conversationId: 'c_from_browser_1' }))?.title, 'Chat From Browser 1');
         assert.equal((await getIndex({ accountId: acc2.id, conversationId: 'c_from_browser_2' }))?.title, 'Chat From Browser 2');
 
-        // 3. Auto-Rekey scenario: user already owns SharedSyncedFolder with Key A, and now wants to switch the vault to a fresh Key D!
-        const newKeyD = await formatRecoveryKey(generateMasterKeyBytes());
-        const newKeyringD = await deriveVaultKeyring(await parseRecoveryKey(newKeyD));
-        const rekeyRes = await engine2.importRecoveryKey(newKeyD);
-        assert.equal(rekeyRes.resolution, 'rekeyed');
-        const rekeyPush = await engine2.syncNow();
-        assert.equal(rekeyPush.push.uploaded, 2, 'All conversations automatically re-encrypted under new Key D');
-        const manifestAfterRekey = JSON.parse(new TextDecoder().decode(sharedFolder.files.get('vault-manifest.json'))) as { keyFingerprint?: string };
-        assert.equal(manifestAfterRekey.keyFingerprint, newKeyringD.keyFingerprint);
+        // Even an unlocked folder must not be overwritten when another valid key is pasted.
+        const manifest = sharedFolder.files.get('vault-manifest.json');
+        const ciphertext = [...sharedFolder.subdirs.get('records')!.files];
+        await assert.rejects(setup(unrelatedKeyC, 'imported', unlockRes.keyFingerprint), { code: 'CLOUD_KEY_MISMATCH' });
+        assert.equal((await engine2.getStatusSnapshot()).keyFingerprint, unlockRes.keyFingerprint);
+        assert.deepEqual(sharedFolder.files.get('vault-manifest.json'), manifest);
+        assert.deepEqual([...sharedFolder.subdirs.get('records')!.files], ciphertext);
+
+        // Connected key rotation (`origin === 'generated'`): generating a new key on an unlocked folder losslessly re-encrypts all records
+        const rotatedKey = await prepareOneTimeVaultKey();
+        const rotated = await setup(rotatedKey, 'generated', unlockRes.keyFingerprint);
+        assert.equal(rotated.resolution, 'rekeyed');
+        const rekeySync = await engine2.syncNow();
+        assert.equal(rekeySync.push.uploaded, 2);
+        const manifestAfterRotate = JSON.parse(new TextDecoder().decode(sharedFolder.files.get('vault-manifest.json')!)) as {
+            keyFingerprint: string;
+            records: Record<string, unknown>;
+        };
+        assert.equal(manifestAfterRotate.keyFingerprint, rotated.keyFingerprint);
+        assert.equal(Object.keys(manifestAfterRotate.records).length, 2);
     } finally {
         env2.restore();
     }

@@ -15,7 +15,7 @@ export async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string>
 
 interface MockTenant {
     keyFingerprint?: string;
-    authToken?: string;
+    authVerifier?: string;
     usedBytes: number;
     nextSeq: number;
     records: Map<string, { meta: CloudRecordMeta; blobKey: string }>;
@@ -30,6 +30,7 @@ export function createMockCloudVaultHttp(options: {
 } = {}): {
     readonly handler: (request: Request) => Promise<Response>;
     readonly inspectRawBlobs: () => ReadonlyMap<string, Uint8Array>;
+    readonly inspectTenantCount: () => number;
     readonly seedRawRecord: (ownerSubject: string, blindRecordId: string, ciphertext: Uint8Array<ArrayBuffer>) => Promise<void>;
 } {
     const tenants = new Map<string, MockTenant>();
@@ -49,11 +50,12 @@ export function createMockCloudVaultHttp(options: {
         'Access-Control-Allow-Origin': origin,
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Expected-Revision, X-Content-SHA256, X-Vault-Key-Fingerprint',
-        'Access-Control-Expose-Headers': 'ETag, X-Record-Revision, X-Record-Change-Seq, X-Content-SHA256',
+        'Access-Control-Expose-Headers': 'ETag, X-Record-Revision, X-Record-Change-Seq, X-Content-SHA256, Retry-After',
     } : {});
 
     return {
         inspectRawBlobs: () => blobs,
+        inspectTenantCount: () => tenants.size,
 
         async seedRawRecord(ownerSubject, blindRecordId, ciphertext) {
             const t = ensureTenant(ownerSubject);
@@ -87,26 +89,36 @@ export function createMockCloudVaultHttp(options: {
             const path = url.pathname;
             const method = request.method.toUpperCase();
 
-            if (method === 'POST' && path === '/v1/auth/key') {
-                const body = (await request.json()) as { keyFingerprint?: string; authToken?: string; accessCode?: string };
+            if (method === 'POST' && path === '/v2/auth/key') {
+                const body = (await request.json()) as { keyFingerprint?: string; authToken?: string; accessCode?: string; mode?: string };
                 if (options.serverAccessCode && body.accessCode !== options.serverAccessCode) {
                     return new Response(
                         JSON.stringify({ error: { code: 'ACCESS_CODE_REQUIRED', message: 'Valid server access code is required' } }),
                         { status: 401, headers },
                     );
                 }
-                const ownerSubject = `vault:${body.keyFingerprint ?? ''}`;
-                const t = ensureTenant(ownerSubject);
-                if (!t.authToken) {
-                    t.authToken = body.authToken;
+                if (!body.keyFingerprint || !/^[0-9a-f]{32}$/.test(body.keyFingerprint)
+                    || !body.authToken || !/^[0-9a-f]{64}$/.test(body.authToken)
+                    || (body.mode !== 'create' && body.mode !== 'unlock')) {
+                    return new Response(JSON.stringify({ error: { code: 'INVALID_REQUEST' } }), { status: 400, headers });
+                }
+                const ownerSubject = `vault:${body.keyFingerprint}`;
+                const previous = tenants.get(ownerSubject);
+                if (!previous?.authVerifier && body.mode !== 'create') {
+                    return new Response(JSON.stringify({ error: { code: 'VAULT_NOT_FOUND' } }), { status: 404, headers });
+                }
+                const verifier = await sha256Hex(new TextEncoder().encode(`ge-auth-v2:${ownerSubject}:${body.authToken}`));
+                const t = previous ?? ensureTenant(ownerSubject);
+                if (!t.authVerifier) {
+                    t.authVerifier = verifier;
                     t.keyFingerprint = body.keyFingerprint;
-                } else if (t.authToken !== body.authToken) {
+                } else if (t.authVerifier !== verifier) {
                     return new Response(
                         JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'Invalid authToken' } }),
                         { status: 401, headers },
                     );
                 }
-                const token = `mock_tok_${crypto.randomUUID()}`;
+                const token = `ges2.mock.${crypto.randomUUID()}`;
                 sessions.set(token, ownerSubject);
                 return new Response(
                     JSON.stringify({ sessionToken: token, ownerSubject, expiresAt: Date.now() + 7 * 86400_000 }),
@@ -124,7 +136,7 @@ export function createMockCloudVaultHttp(options: {
             }
             const tenant = ensureTenant(ownerSubject);
 
-            if (method === 'GET' && path === '/v1/vault/status') {
+            if (method === 'GET' && path === '/v2/vault/status') {
                 const status: CloudVaultStatusResponse = {
                     ownerSubject,
                     recordCount: tenant.records.size,
@@ -136,7 +148,7 @@ export function createMockCloudVaultHttp(options: {
                 return new Response(JSON.stringify(status), { status: 200, headers });
             }
 
-            if (method === 'GET' && path === '/v1/vault/changes') {
+            if (method === 'GET' && path === '/v2/vault/changes') {
                 const since = Number(url.searchParams.get('since') ?? '0');
                 const limit = Number(url.searchParams.get('limit') ?? '100');
                 const all = [...tenant.records.values()]
@@ -154,15 +166,14 @@ export function createMockCloudVaultHttp(options: {
                 return new Response(JSON.stringify(feed), { status: 200, headers });
             }
 
-            if (method === 'DELETE' && path === '/v1/vault') {
+            if (method === 'DELETE' && path === '/v2/vault') {
                 for (const r of tenant.records.values()) blobs.delete(r.blobKey);
                 tenant.records.clear();
                 tenant.usedBytes = 0;
-                tenant.keyFingerprint = undefined;
                 return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
             }
 
-            const recPrefix = '/v1/vault/records/';
+            const recPrefix = '/v2/vault/records/';
             if (path.startsWith(recPrefix)) {
                 const blindId = path.slice(recPrefix.length);
                 if (method === 'GET') {
@@ -182,8 +193,8 @@ export function createMockCloudVaultHttp(options: {
                 }
                 if (method === 'PUT') {
                     const expectedRev = Number(request.headers.get('X-Expected-Revision') ?? '0');
-                    const keyFp = request.headers.get('X-Vault-Key-Fingerprint') ?? undefined;
-                    if (tenant.keyFingerprint && keyFp && tenant.keyFingerprint !== keyFp) {
+                    const keyFp = request.headers.get('X-Vault-Key-Fingerprint');
+                    if (tenant.keyFingerprint !== keyFp) {
                         return new Response(
                             JSON.stringify({ error: { code: 'KEY_FINGERPRINT_MISMATCH', message: 'Key mismatch', vaultKeyFingerprint: tenant.keyFingerprint } }),
                             { status: 409, headers },
@@ -210,7 +221,6 @@ export function createMockCloudVaultHttp(options: {
                         tenant.usedBytes -= existing.meta.byteLength;
                     }
                     tenant.usedBytes += payload.byteLength;
-                    if (!tenant.keyFingerprint && keyFp) tenant.keyFingerprint = keyFp;
                     const meta: CloudRecordMeta = {
                         blindRecordId: blindId,
                         revision: nextRevision,

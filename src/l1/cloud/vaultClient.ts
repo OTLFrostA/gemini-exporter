@@ -1,5 +1,6 @@
 import { OperationError } from '../../shared/errors/operationError.js';
 import type {
+    CloudAuthKeyMode,
     CloudAuthSessionResponse,
     CloudChangesResponse,
     CloudRecordMeta,
@@ -8,6 +9,26 @@ import type {
 import { isRecord } from '../../shared/utils/typeGuards.js';
 
 export type CloudFetchFn = (input: string, init?: RequestInit) => Promise<Response>;
+
+const OUTBOUND_MASTER_KEY_LEAK_RE = /GEK1-[0-9A-Z]{5}/i;
+
+/** Catch accidental use of canonical recovery-key text in the vault transport. */
+export function assertZeroOutboundKeyLeak(url: string, init?: RequestInit): void {
+    if (OUTBOUND_MASTER_KEY_LEAK_RE.test(url)) {
+        throw new OperationError('CLOUD_ENVELOPE_INVALID', 'Outbound security circuit breaker blocked Master Key in URL');
+    }
+    if (init?.headers) {
+        const hdrs = new Headers(init.headers);
+        hdrs.forEach(value => {
+            if (OUTBOUND_MASTER_KEY_LEAK_RE.test(value)) {
+                throw new OperationError('CLOUD_ENVELOPE_INVALID', 'Outbound security circuit breaker blocked Master Key in HTTP header');
+            }
+        });
+    }
+    if (typeof init?.body === 'string' && OUTBOUND_MASTER_KEY_LEAK_RE.test(init.body)) {
+        throw new OperationError('CLOUD_ENVELOPE_INVALID', 'Outbound security circuit breaker blocked Master Key in request body');
+    }
+}
 
 /** Normalize and enforce HTTPS for remote Cloud Vault URLs (allowing loopback HTTP only for local testing). */
 export function normalizeCloudServerUrl(rawUrl: string): string {
@@ -63,6 +84,12 @@ function throwMappedHttpError(
     if (details.code === 'ACCESS_CODE_REQUIRED') {
         throw new OperationError('CLOUD_ACCESS_CODE_INVALID', details.message, status);
     }
+    if (status === 404 && details.code === 'VAULT_NOT_FOUND') {
+        throw new OperationError('CLOUD_VAULT_NOT_FOUND', details.message, status);
+    }
+    if (status === 429 || details.code === 'RATE_LIMITED') {
+        throw new OperationError('CLOUD_RATE_LIMITED', details.message, status, retryAt ? { retryAt } : undefined);
+    }
     if (status === 401 || status === 403 || details.code === 'UNAUTHORIZED') {
         throw new OperationError('CLOUD_AUTH_REQUIRED', details.message, status);
     }
@@ -98,16 +125,19 @@ function parseRecordMeta(raw: unknown): CloudRecordMeta {
     };
 }
 
-export interface CloudVaultClient {
+export interface CloudVaultClient extends VaultRecordClient {
     authenticateKey(input: {
         readonly serverUrl: string;
         readonly keyFingerprint: string;
         readonly authToken: string;
+        readonly mode: CloudAuthKeyMode;
         readonly accessCode?: string;
         readonly signal?: AbortSignal;
     }): Promise<CloudAuthSessionResponse>;
-    authenticateGoogle(serverUrl: string, idToken: string, signal?: AbortSignal): Promise<CloudAuthSessionResponse>;
     logoutAll(serverUrl: string, sessionToken: string, signal?: AbortSignal): Promise<void>;
+}
+
+export interface VaultRecordClient {
     getVaultStatus(serverUrl: string, sessionToken: string, signal?: AbortSignal): Promise<CloudVaultStatusResponse>;
     putEncryptedRecord(input: {
         readonly serverUrl: string;
@@ -116,7 +146,7 @@ export interface CloudVaultClient {
         readonly expectedRevision: number;
         readonly envelope: Uint8Array<ArrayBuffer>;
         readonly sha256: string;
-        readonly keyFingerprint?: string;
+        readonly keyFingerprint: string;
         readonly signal?: AbortSignal;
     }): Promise<
         | { readonly status: 'committed'; readonly meta: CloudRecordMeta }
@@ -143,16 +173,22 @@ export interface CloudVaultClient {
     purgeVault(serverUrl: string, sessionToken: string, signal?: AbortSignal): Promise<void>;
 }
 
-export function createCloudVaultClient(fetchFn: CloudFetchFn = globalThis.fetch.bind(globalThis)): CloudVaultClient {
+export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fetch.bind(globalThis)): CloudVaultClient {
+    const fetchFn: CloudFetchFn = (url, init) => {
+        assertZeroOutboundKeyLeak(url, init);
+        return rawFetchFn(url, init);
+    };
     return {
         async authenticateKey(input) {
             const base = normalizeCloudServerUrl(input.serverUrl);
-            const res = await fetchFn(`${base}/v1/auth/key`, {
+            const res = await fetchFn(`${base}/v2/auth/key`, {
                 method: 'POST',
+                redirect: 'error',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     keyFingerprint: input.keyFingerprint,
                     authToken: input.authToken,
+                    mode: input.mode,
                     ...(input.accessCode?.trim() ? { accessCode: input.accessCode.trim() } : {}),
                 }),
                 signal: input.signal,
@@ -174,35 +210,9 @@ export function createCloudVaultClient(fetchFn: CloudFetchFn = globalThis.fetch.
             };
         },
 
-        async authenticateGoogle(serverUrl, idToken, signal) {
-            const base = normalizeCloudServerUrl(serverUrl);
-            const res = await fetchFn(`${base}/v1/auth/google`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ idToken }),
-                signal,
-            });
-            if (!res.ok) {
-                throwMappedHttpError(res.status, await readErrorDetails(res), res.headers.get('Retry-After'));
-            }
-            const raw: unknown = await res.json();
-            if (!isRecord(raw)
-                || typeof raw.sessionToken !== 'string' || !raw.sessionToken
-                || typeof raw.ownerSubject !== 'string' || !raw.ownerSubject
-                || typeof raw.expiresAt !== 'number' || !Number.isSafeInteger(raw.expiresAt)) {
-                throw new OperationError('CLOUD_SERVER_ERROR', 'Malformed authentication response from Cloud Vault');
-            }
-            return {
-                sessionToken: raw.sessionToken,
-                ownerSubject: raw.ownerSubject,
-                expiresAt: raw.expiresAt,
-                ...(typeof raw.email === 'string' && raw.email ? { email: raw.email } : {}),
-            };
-        },
-
         async logoutAll(serverUrl, sessionToken, signal) {
             const base = normalizeCloudServerUrl(serverUrl);
-            const res = await fetchFn(`${base}/v1/auth/logout-all`, {
+            const res = await fetchFn(`${base}/v2/auth/logout-all`, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${sessionToken}` },
                 signal,
@@ -214,7 +224,7 @@ export function createCloudVaultClient(fetchFn: CloudFetchFn = globalThis.fetch.
 
         async getVaultStatus(serverUrl, sessionToken, signal) {
             const base = normalizeCloudServerUrl(serverUrl);
-            const res = await fetchFn(`${base}/v1/vault/status`, {
+            const res = await fetchFn(`${base}/v2/vault/status`, {
                 headers: { Authorization: `Bearer ${sessionToken}` },
                 signal,
             });
@@ -227,7 +237,8 @@ export function createCloudVaultClient(fetchFn: CloudFetchFn = globalThis.fetch.
                 || typeof raw.recordCount !== 'number'
                 || typeof raw.usedBytes !== 'number'
                 || typeof raw.quotaBytes !== 'number'
-                || typeof raw.headSeq !== 'number') {
+                || typeof raw.headSeq !== 'number'
+                || typeof raw.keyFingerprint !== 'string' || !/^[0-9a-f]{32}$/.test(raw.keyFingerprint)) {
                 throw new OperationError('CLOUD_SERVER_ERROR', 'Malformed vault status response');
             }
             return {
@@ -236,22 +247,20 @@ export function createCloudVaultClient(fetchFn: CloudFetchFn = globalThis.fetch.
                 usedBytes: raw.usedBytes,
                 quotaBytes: raw.quotaBytes,
                 headSeq: raw.headSeq,
-                ...(typeof raw.keyFingerprint === 'string' && raw.keyFingerprint
-                    ? { keyFingerprint: raw.keyFingerprint }
-                    : {}),
+                keyFingerprint: raw.keyFingerprint,
             };
         },
 
         async putEncryptedRecord(input) {
             const base = normalizeCloudServerUrl(input.serverUrl);
-            const res = await fetchFn(`${base}/v1/vault/records/${input.blindRecordId}`, {
+            const res = await fetchFn(`${base}/v2/vault/records/${input.blindRecordId}`, {
                 method: 'PUT',
                 headers: {
                     Authorization: `Bearer ${input.sessionToken}`,
                     'Content-Type': 'application/octet-stream',
                     'X-Expected-Revision': String(input.expectedRevision),
                     'X-Content-SHA256': input.sha256,
-                    ...(input.keyFingerprint ? { 'X-Vault-Key-Fingerprint': input.keyFingerprint } : {}),
+                    'X-Vault-Key-Fingerprint': input.keyFingerprint,
                 },
                 body: input.envelope,
                 signal: input.signal,
@@ -274,7 +283,7 @@ export function createCloudVaultClient(fetchFn: CloudFetchFn = globalThis.fetch.
 
         async getEncryptedRecord(input) {
             const base = normalizeCloudServerUrl(input.serverUrl);
-            const res = await fetchFn(`${base}/v1/vault/records/${input.blindRecordId}`, {
+            const res = await fetchFn(`${base}/v2/vault/records/${input.blindRecordId}`, {
                 headers: { Authorization: `Bearer ${input.sessionToken}` },
                 signal: input.signal,
             });
@@ -297,7 +306,7 @@ export function createCloudVaultClient(fetchFn: CloudFetchFn = globalThis.fetch.
         async listChanges(input) {
             const base = normalizeCloudServerUrl(input.serverUrl);
             const limit = input.limit ?? 100;
-            const res = await fetchFn(`${base}/v1/vault/changes?since=${input.sinceSeq}&limit=${limit}`, {
+            const res = await fetchFn(`${base}/v2/vault/changes?since=${input.sinceSeq}&limit=${limit}`, {
                 headers: { Authorization: `Bearer ${input.sessionToken}` },
                 signal: input.signal,
             });
@@ -322,7 +331,7 @@ export function createCloudVaultClient(fetchFn: CloudFetchFn = globalThis.fetch.
 
         async purgeVault(serverUrl, sessionToken, signal) {
             const base = normalizeCloudServerUrl(serverUrl);
-            const res = await fetchFn(`${base}/v1/vault`, {
+            const res = await fetchFn(`${base}/v2/vault`, {
                 method: 'DELETE',
                 headers: { Authorization: `Bearer ${sessionToken}` },
                 signal,

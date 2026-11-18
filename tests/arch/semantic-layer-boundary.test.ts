@@ -155,6 +155,13 @@ test('semantic layers own their files and obey dependency direction, including t
     }
 });
 
+test('plaintext Vault key setup is only reachable from the Options Vault controller', () => {
+    const callers = [...graph]
+        .filter(([, edges]) => edges.some(edge => edge.target === 'application/cloud/vaultKeySetup.ts'))
+        .map(([owner]) => owner);
+    assert.deepEqual(callers, ['ui/options/controllers/cloudVaultController.ts']);
+});
+
 test('native parsers, L2 and renderers cannot acquire forbidden dependencies through a shared runtime helper', () => {
     for (const owner of graph.keys()) {
         if (!renderer(owner) && !/^l1\/parsers\//.test(owner) && !owner.startsWith('l2/')) continue;

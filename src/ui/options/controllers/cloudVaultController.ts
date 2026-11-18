@@ -3,16 +3,17 @@ import {
     type CloudSyncStatusSnapshot,
     type CloudVaultBackendType,
 } from '../../../application/cloud/cloudSyncEngine.js';
+import { commitOneTimeVaultKey, prepareOneTimeVaultKey } from '../../../application/cloud/vaultKeySetup.js';
 import { getSettings } from '../../../application/settings/index.js';
 import { pickVaultDirectoryHandle, reauthorizeVaultDirectoryHandle } from '../../../runtime/capabilities/vaultFolderAuth.js';
 import { OperationError } from '../../../shared/errors/operationError.js';
+import type { CloudAuthKeyMode } from '../../../shared/types/cloudSync.js';
 import { elementById as el, requiredElement as control } from '../../shared/elements.js';
 import { errorText, text } from '../../shared/settings.js';
 import type { UiMessage } from '../state/foregroundTask.js';
 
 function formatCloudTargetLabel(snap: CloudSyncStatusSnapshot | null): string {
     if (!snap) return '';
-    if (snap.email) return snap.email;
     let hostPart = '';
     if (snap.serverUrl && !snap.serverUrl.startsWith('local-vault://')) {
         try {
@@ -45,6 +46,18 @@ export function mountCloudVaultPanel(callbacks: {
     const modal = el('cloudVaultModal');
     const isDialog = (node: HTMLElement): node is HTMLDialogElement => 'showModal' in node;
 
+    const keyLockedRow = el('vaultKeyLockedRow');
+    const keyFingerprintLabel = el('vaultKeyFingerprintLabel');
+    const btnToggleRekey = control('button', 'btnToggleRekey');
+    const keySetupBox = el('vaultKeySetupBox');
+    const btnGenerateOneTimeKey = control('button', 'btnGenerateOneTimeKey');
+    const oneTimeDraftPanel = el('oneTimeDraftPanel');
+    const keyDisplay = control('input', 'cloudRecoveryKeyDisplay');
+    const btnCopyKey = control('button', 'btnCloudCopyKey');
+    const btnConfirmOneTimeKey = control('button', 'btnConfirmOneTimeKey');
+    const importKeyInput = control('input', 'cloudImportKeyInput');
+    const btnImportKey = control('button', 'btnCloudImportKey');
+
     const btnTabLocal = control('button', 'btnVaultTabLocal');
     const btnTabCloud = control('button', 'btnVaultTabCloud');
     const panelLocal = el('vaultPanelLocal');
@@ -56,17 +69,14 @@ export function mountCloudVaultPanel(callbacks: {
     const serverInput = control('input', 'cloudServerUrlInput');
     const accessCodeInput = control('input', 'cloudAccessCodeInput');
     const btnConnect = control('button', 'btnCloudConnect');
+    const btnCreateRemoteVault = control('button', 'btnCloudCreateRemoteVault');
     const btnDisconnect = control('button', 'btnCloudDisconnect');
     const connectedRow = el('cloudConnectedAccountRow');
     const connectedLabel = el('cloudConnectedEmail');
     const actionsSection = el('cloudConnectedActions');
+    const includeDetailRow = el('cloudIncludeDetailRow');
     const includeDetailToggle = control('input', 'cloudIncludeDetailToggle');
     const btnSyncNow = control('button', 'btnCloudSyncNow');
-    const keyDisplay = control('input', 'cloudRecoveryKeyDisplay');
-    const btnRevealKey = control('button', 'btnCloudRevealKey');
-    const btnCopyKey = control('button', 'btnCloudCopyKey');
-    const importKeyInput = control('input', 'cloudImportKeyInput');
-    const btnImportKey = control('button', 'btnCloudImportKey');
     const keyMismatchBox = el('cloudKeyMismatchBox');
     const btnResetVault = control('button', 'btnCloudResetVault');
     const btnCloseModal = control('button', 'btnCloudModalClose');
@@ -74,18 +84,28 @@ export function mountCloudVaultPanel(callbacks: {
 
     let externalBusy = false;
     let internalBusy = false;
-    let keyRevealed = false;
     let resetArmed = false;
+    let rekeyExpanded = false;
+    let offerExplicitCreate = false;
+    let ephemeralOneTimeDraft: { value: string; expectedFingerprint: string | null } | null = null;
     let selectedTab: CloudVaultBackendType = 'local-folder';
     let userPickedTab = false;
     let latestSnapshot: CloudSyncStatusSnapshot | null = null;
-    let cachedRecoveryKey: string | null = null;
+    let modalGeneration = 0;
+    let mounted = true;
+
+    const wipeEphemeralKeyInputs = (): void => {
+        ephemeralOneTimeDraft = null;
+        keyDisplay.value = '';
+        importKeyInput.value = '';
+        oneTimeDraftPanel.hidden = true;
+    };
 
     const unsubscribeAutoEnqueue = defaultCloudSyncEngine.installAutoEnqueueListener();
 
     const silentAutoSync = async (): Promise<void> => {
         const snap = await defaultCloudSyncEngine.getStatusSnapshot();
-        if (!snap.enabled || !snap.connected || snap.folderPermissionRequired || snap.keyMismatch) return;
+        if (!snap.enabled || !snap.connected || !snap.hasRecoveryKey || snap.folderPermissionRequired || snap.keyMismatch) return;
         const outcome = await defaultCloudSyncEngine.syncNow();
         if (outcome.pull.changed > 0) {
             await callbacks.onRestored();
@@ -99,6 +119,7 @@ export function mountCloudVaultPanel(callbacks: {
     window.addEventListener('focus', onWindowFocus);
 
     const setModalFeedback = (msg: string, isError = false): void => {
+        if (!mounted) return;
         modalFeedback.textContent = msg;
         modalFeedback.hidden = !msg;
         modalFeedback.dataset.error = isError ? 'true' : 'false';
@@ -108,8 +129,33 @@ export function mountCloudVaultPanel(callbacks: {
         const disabled = externalBusy || internalBusy;
         const snap = latestSnapshot;
         const connected = Boolean(snap?.connected);
+        const hasKey = Boolean(snap?.hasRecoveryKey);
         const activeBackend: CloudVaultBackendType = snap?.backend ?? selectedTab;
         const viewingTab: CloudVaultBackendType = connected ? activeBackend : selectedTab;
+
+        const shortKeyFp = snap?.keyFingerprint ? `#${snap.keyFingerprint.slice(0, 8)}` : '';
+        keyLockedRow.hidden = !hasKey;
+        if (hasKey) {
+            keyFingerprintLabel.textContent = text(
+                `🔑 Master Key stored in this browser (${shortKeyFp})`,
+                `🔑 主密钥已保存在此浏览器（${shortKeyFp}）`,
+            );
+        }
+        btnToggleRekey.disabled = disabled;
+        btnToggleRekey.textContent = rekeyExpanded
+            ? text('Cancel', '收起')
+            : text('Change Key', '更换密钥');
+
+        const showKeySetup = !hasKey || rekeyExpanded || Boolean(snap?.keyMismatch);
+        keySetupBox.hidden = !showKeySetup;
+        oneTimeDraftPanel.hidden = !ephemeralOneTimeDraft;
+        keyDisplay.value = ephemeralOneTimeDraft?.value ?? '';
+        btnGenerateOneTimeKey.hidden = false;
+        btnGenerateOneTimeKey.disabled = disabled;
+        btnCopyKey.disabled = disabled || !ephemeralOneTimeDraft;
+        btnConfirmOneTimeKey.disabled = disabled || !ephemeralOneTimeDraft;
+        importKeyInput.disabled = disabled;
+        btnImportKey.disabled = disabled;
 
         btnTabLocal.setAttribute('aria-selected', String(viewingTab === 'local-folder'));
         btnTabCloud.setAttribute('aria-selected', String(viewingTab === 'cloud-server'));
@@ -135,8 +181,8 @@ export function mountCloudVaultPanel(callbacks: {
             );
         } else if (snap?.keyMismatch) {
             summaryEl.textContent = text(
-                'Key mismatch (paused) — click Manage to import original Recovery Key',
-                '密钥不匹配（已暂停防覆盖）— 请点击“管理”导入原恢复密钥',
+                'Key mismatch (paused) — click Manage to enter original Master Key',
+                '密钥不匹配（已暂停防覆盖）— 请点击“管理”输入原主密钥',
             );
         } else {
             const targetDesc = snap?.backend === 'local-folder'
@@ -156,27 +202,31 @@ export function mountCloudVaultPanel(callbacks: {
         btnLocalPick.hidden = isLocalConnected;
         btnLocalReauth.hidden = !needsLocalReauth;
         btnLocalChangeDir.hidden = !isLocalConnected;
-        btnLocalPick.disabled = disabled;
+        btnLocalPick.disabled = disabled || !hasKey;
         btnLocalReauth.disabled = disabled;
-        btnLocalChangeDir.disabled = disabled;
+        btnLocalChangeDir.disabled = disabled || !hasKey;
 
         const isCloudConnected = connected && activeBackend === 'cloud-server';
+        const willAutoCreate = snap?.keyOrigin === 'generated';
         btnConnect.hidden = isCloudConnected;
+        btnConnect.textContent = willAutoCreate
+            ? text('Create & Connect Cloud Vault', '新建并连接云端保险箱')
+            : text('Unlock Existing Cloud Vault', '解锁已有云端保险箱');
+        btnCreateRemoteVault.hidden = isCloudConnected || willAutoCreate || !offerExplicitCreate;
         serverInput.disabled = disabled || isCloudConnected;
         accessCodeInput.disabled = disabled || isCloudConnected;
-        btnConnect.disabled = disabled;
+        btnConnect.disabled = disabled || !hasKey;
+        btnCreateRemoteVault.disabled = disabled || !hasKey;
 
+        const showKeyMismatch = Boolean(connected && snap?.keyMismatch);
+        const showIncludeDetailRow = !includeDetailRow.hidden;
         connectedRow.hidden = !connected;
-        actionsSection.hidden = !connected;
+        actionsSection.hidden = !connected || (!showKeyMismatch && !showIncludeDetailRow);
         includeDetailToggle.checked = Boolean(snap?.includeDetail);
         includeDetailToggle.disabled = disabled || !connected;
         btnDisconnect.disabled = disabled;
         btnSyncNow.disabled = disabled || !connected || needsLocalReauth;
-        btnRevealKey.disabled = disabled || !cachedRecoveryKey;
-        btnCopyKey.disabled = disabled || !cachedRecoveryKey;
-        btnImportKey.disabled = disabled || !connected;
-        importKeyInput.disabled = disabled || !connected;
-        keyMismatchBox.hidden = !(connected && snap?.keyMismatch);
+        keyMismatchBox.hidden = !showKeyMismatch;
         btnResetVault.disabled = disabled || !connected;
         btnResetVault.textContent = resetArmed
             ? text('Confirm Erase & Reset Vault', '确认清空旧密文并重置')
@@ -187,22 +237,15 @@ export function mountCloudVaultPanel(callbacks: {
                 ? `📁 ${snap?.folderName ?? ''}`
                 : formatCloudTargetLabel(snap);
         }
-        if (cachedRecoveryKey) {
-            keyDisplay.value = keyRevealed ? cachedRecoveryKey : 'GEK1-•••••-•••••-•••••-•••••-•••••';
-        } else {
-            keyDisplay.value = '';
-        }
-        btnRevealKey.textContent = keyRevealed ? text('Hide', '隐藏') : text('Show', '显示');
     };
 
     const refresh = async (): Promise<void> => {
-        const [snap, settings, key] = await Promise.all([
+        const [snap, settings] = await Promise.all([
             defaultCloudSyncEngine.getStatusSnapshot(),
             getSettings(),
-            defaultCloudSyncEngine.exportRecoveryKey(),
         ]);
+        if (!mounted) return;
         latestSnapshot = snap;
-        cachedRecoveryKey = key;
         if (snap.connected && snap.backend && !userPickedTab) {
             selectedTab = snap.backend;
         }
@@ -238,8 +281,13 @@ export function mountCloudVaultPanel(callbacks: {
                 return;
             }
             const msg = errorText(error);
+            if (error instanceof OperationError && error.code === 'CLOUD_VAULT_NOT_FOUND') {
+                offerExplicitCreate = true;
+            }
             setModalFeedback(msg, true);
-            if (error instanceof OperationError && error.code === 'CLOUD_KEY_MISMATCH') {
+            if (isDialog(modal) && modal.open && error instanceof OperationError && error.code === 'CLOUD_KEY_MISMATCH') {
+                rekeyExpanded = true;
+                paint();
                 importKeyInput.focus();
             }
             callbacks.onStatus(() => errorText(error), 'error');
@@ -257,13 +305,90 @@ export function mountCloudVaultPanel(callbacks: {
         paint();
     };
 
+    const onToggleRekey = (): void => {
+        rekeyExpanded = !rekeyExpanded;
+        if (!rekeyExpanded) wipeEphemeralKeyInputs();
+        paint();
+    };
+
+    const onGenerateOneTimeKey = (): void => {
+        const generation = modalGeneration;
+        const expectedFingerprint = latestSnapshot?.keyFingerprint ?? null;
+        void runAction(async () => {
+            const draft = await prepareOneTimeVaultKey();
+            if (mounted && generation === modalGeneration) ephemeralOneTimeDraft = { value: draft, expectedFingerprint };
+        });
+    };
+
+    const onCopyKey = (): void => {
+        if (!ephemeralOneTimeDraft) return;
+        const generation = modalGeneration;
+        void navigator.clipboard.writeText(ephemeralOneTimeDraft.value).then(() => {
+            if (generation === modalGeneration) {
+                setModalFeedback(text('Master Key copied — save it offline, then click Lock below', '主密钥已复制 — 请妥善离线保存后点击下方锁定'));
+            }
+        }).catch(() => {
+            if (generation === modalGeneration) keyDisplay.select();
+        });
+    };
+
+    const applyCommittedKey = async (rawKey: string, origin: 'generated' | 'imported', expectedFingerprint: string | null): Promise<void> => {
+        resetArmed = false;
+        offerExplicitCreate = false;
+        const committing = commitOneTimeVaultKey(rawKey, origin, expectedFingerprint);
+        rawKey = '';
+        const res = await committing;
+        rekeyExpanded = false;
+        if (res.resolution === 'initialized') {
+            setModalFeedback(latestSnapshot?.connected
+                ? text(
+                    `New Master Key stored (#${res.keyFingerprint.slice(0, 8)}). Click "Reset Vault with Current Key" below if the previous key was lost.`,
+                    `新主密钥已保存（#${res.keyFingerprint.slice(0, 8)}）。若原密钥已遗失，请点击下方“用当前密钥重置保险箱”。`,
+                )
+                : text(
+                    `Master Key stored in this browser (#${res.keyFingerprint.slice(0, 8)}). Now choose a folder or connect your server.`,
+                    `主密钥已保存在此浏览器（#${res.keyFingerprint.slice(0, 8)}）。现在可选择文件夹或连接服务器。`,
+                ));
+            return;
+        }
+        const synced = await runSyncAndNotify();
+        if (res.resolution === 'rekeyed') {
+            setModalFeedback(text(
+                `Rotated to new Master Key (#${res.keyFingerprint.slice(0, 8)}) · Saved ${synced.saved} conversations`,
+                `已轮换启用新主密钥（#${res.keyFingerprint.slice(0, 8)}）并重新加密同步 ${synced.saved} 条会话`,
+            ));
+            return;
+        }
+        setModalFeedback(text(
+            `Master Key verified · Restored ${synced.restored}, Saved ${synced.saved}`,
+            `主密钥已验证解锁并完成同步（恢复 ${synced.restored} 条，保存 ${synced.saved} 条）`,
+        ));
+    };
+
+    const onConfirmOneTimeKey = (): void => {
+        const draft = ephemeralOneTimeDraft;
+        if (!draft) return;
+        void runAction(() => {
+            wipeEphemeralKeyInputs();
+            return applyCommittedKey(draft.value, 'generated', draft.expectedFingerprint);
+        });
+    };
+
+    const onImportKey = (): void => {
+        const candidate = importKeyInput.value.trim();
+        if (!candidate) return;
+        void runAction(() => {
+            wipeEphemeralKeyInputs();
+            return applyCommittedKey(candidate, 'imported', latestSnapshot?.keyFingerprint ?? null);
+        });
+    };
+
     const onPickLocalFolder = (): void => {
         if (internalBusy || externalBusy) return;
         const pickerPromise = pickVaultDirectoryHandle();
         void runAction(async () => {
             const handle = await pickerPromise;
-            const connected = await defaultCloudSyncEngine.connectLocalFolderVault(handle);
-            cachedRecoveryKey = connected.recoveryKey;
+            await defaultCloudSyncEngine.connectLocalFolderVault(handle);
             await defaultCloudSyncEngine.setAutoSyncEnabled(true);
             const synced = await runSyncAndNotify();
             setModalFeedback(text(
@@ -308,22 +433,33 @@ export function mountCloudVaultPanel(callbacks: {
 
     const onOpenModal = (): void => {
         setModalFeedback('');
-        keyRevealed = false;
-        resetArmed = false;
+        clearModalState();
+        const generation = modalGeneration;
         void refresh().then(() => {
+            if (!mounted || generation !== modalGeneration) return;
             if (isDialog(modal) && !modal.open) modal.showModal();
             if (latestSnapshot?.keyMismatch) importKeyInput.focus();
-        });
+        }).catch(() => {});
+    };
+
+    const clearModalState = (): void => {
+        modalGeneration++;
+        resetArmed = false;
+        rekeyExpanded = false;
+        offerExplicitCreate = false;
+        wipeEphemeralKeyInputs();
     };
 
     const onCloseModal = (): void => {
-        keyRevealed = false;
-        resetArmed = false;
+        clearModalState();
         if (isDialog(modal) && modal.open) modal.close();
         paint();
     };
+    const onDialogClosed = (): void => {
+        if (!isDialog(modal) || !modal.open) clearModalState();
+    };
 
-    const onConnectCloud = (): void => {
+    const connectCloudWithMode = (explicitMode?: CloudAuthKeyMode): void => {
         void runAction(async () => {
             const serverUrl = serverInput.value.trim();
             const accessCode = accessCodeInput.value.trim() || undefined;
@@ -331,8 +467,8 @@ export function mountCloudVaultPanel(callbacks: {
                 setModalFeedback(text('Enter your Cloud Vault server URL', '请填写云同步服务器地址'), true);
                 return;
             }
-            const connected = await defaultCloudSyncEngine.connectCloudVault(serverUrl, accessCode);
-            cachedRecoveryKey = connected.recoveryKey;
+            offerExplicitCreate = false;
+            await defaultCloudSyncEngine.connectCloudVault(serverUrl, accessCode, explicitMode);
             await defaultCloudSyncEngine.setAutoSyncEnabled(true);
             const synced = await runSyncAndNotify();
             setModalFeedback(text(
@@ -343,12 +479,14 @@ export function mountCloudVaultPanel(callbacks: {
         });
     };
 
+    const onConnectCloud = (): void => connectCloudWithMode();
+    const onCreateCloudExplicit = (): void => connectCloudWithMode('create');
+
     const onDisconnect = (): void => {
         void runAction(async () => {
             await defaultCloudSyncEngine.disconnect({ revokeRemoteTokens: false });
-            cachedRecoveryKey = null;
-            keyRevealed = false;
             userPickedTab = false;
+            offerExplicitCreate = false;
             setModalFeedback(text('Disconnected from Encrypted Vault', '已断开加密保险箱连接'));
             callbacks.onStatus(() => text('Encrypted Vault disconnected', '已断开加密保险箱'));
         });
@@ -363,43 +501,6 @@ export function mountCloudVaultPanel(callbacks: {
             );
             setModalFeedback(msg);
             callbacks.onStatus(() => msg);
-        });
-    };
-
-    const onRevealKey = (): void => {
-        keyRevealed = !keyRevealed;
-        paint();
-    };
-
-    const onCopyKey = (): void => {
-        if (!cachedRecoveryKey) return;
-        void navigator.clipboard.writeText(cachedRecoveryKey).then(() => {
-            setModalFeedback(text('Recovery key copied to clipboard', '恢复密钥已复制到剪贴板'));
-        }).catch(() => {
-            keyRevealed = true;
-            paint();
-            keyDisplay.select();
-        });
-    };
-
-    const onImportKey = (): void => {
-        const candidate = importKeyInput.value.trim();
-        if (!candidate) return;
-        resetArmed = false;
-        void runAction(async () => {
-            const imported = await defaultCloudSyncEngine.importRecoveryKey(candidate);
-            cachedRecoveryKey = await defaultCloudSyncEngine.exportRecoveryKey();
-            importKeyInput.value = '';
-            const synced = await runSyncAndNotify();
-            setModalFeedback(imported.resolution === 'rekeyed'
-                ? text(
-                    `Switched Master Key & re-encrypted vault · Saved ${synced.saved} conversations`,
-                    `已切换为新恢复密钥并重新加密同步（保存 ${synced.saved} 条会话）`,
-                )
-                : text(
-                    `Recovery key verified · Restored ${synced.restored}, Saved ${synced.saved}`,
-                    `恢复密钥已验证解锁并完成同步（恢复 ${synced.restored} 条，保存 ${synced.saved} 条）`,
-                ));
         });
     };
 
@@ -441,6 +542,11 @@ export function mountCloudVaultPanel(callbacks: {
     const selectLocal = () => onSelectTab('local-folder');
     const selectCloud = () => onSelectTab('cloud-server');
 
+    btnToggleRekey.addEventListener('click', onToggleRekey);
+    btnGenerateOneTimeKey.addEventListener('click', onGenerateOneTimeKey);
+    btnCopyKey.addEventListener('click', onCopyKey);
+    btnConfirmOneTimeKey.addEventListener('click', onConfirmOneTimeKey);
+    btnImportKey.addEventListener('click', onImportKey);
     btnTabLocal.addEventListener('click', selectLocal);
     btnTabCloud.addEventListener('click', selectCloud);
     btnLocalPick.addEventListener('click', onPickLocalFolder);
@@ -450,12 +556,13 @@ export function mountCloudVaultPanel(callbacks: {
     includeDetailToggle.addEventListener('change', onIncludeDetailChange);
     btnManage.addEventListener('click', onOpenModal);
     btnCloseModal.addEventListener('click', onCloseModal);
+    modal.addEventListener('cancel', clearModalState);
+    modal.addEventListener('close', onDialogClosed);
+    window.addEventListener('pagehide', clearModalState);
     btnConnect.addEventListener('click', onConnectCloud);
+    btnCreateRemoteVault.addEventListener('click', onCreateCloudExplicit);
     btnDisconnect.addEventListener('click', onDisconnect);
     btnSyncNow.addEventListener('click', onSyncNow);
-    btnRevealKey.addEventListener('click', onRevealKey);
-    btnCopyKey.addEventListener('click', onCopyKey);
-    btnImportKey.addEventListener('click', onImportKey);
     btnResetVault.addEventListener('click', onResetVault);
 
     void refresh().then(() => silentAutoSync()).catch(() => {});
@@ -472,9 +579,16 @@ export function mountCloudVaultPanel(callbacks: {
             paint();
         },
         unmount() {
+            mounted = false;
+            clearModalState();
             unsubscribeAutoEnqueue();
             window.removeEventListener('online', onOnline);
             window.removeEventListener('focus', onWindowFocus);
+            btnToggleRekey.removeEventListener('click', onToggleRekey);
+            btnGenerateOneTimeKey.removeEventListener('click', onGenerateOneTimeKey);
+            btnCopyKey.removeEventListener('click', onCopyKey);
+            btnConfirmOneTimeKey.removeEventListener('click', onConfirmOneTimeKey);
+            btnImportKey.removeEventListener('click', onImportKey);
             btnTabLocal.removeEventListener('click', selectLocal);
             btnTabCloud.removeEventListener('click', selectCloud);
             btnLocalPick.removeEventListener('click', onPickLocalFolder);
@@ -484,12 +598,13 @@ export function mountCloudVaultPanel(callbacks: {
             includeDetailToggle.removeEventListener('change', onIncludeDetailChange);
             btnManage.removeEventListener('click', onOpenModal);
             btnCloseModal.removeEventListener('click', onCloseModal);
+            modal.removeEventListener('cancel', clearModalState);
+            modal.removeEventListener('close', onDialogClosed);
+            window.removeEventListener('pagehide', clearModalState);
             btnConnect.removeEventListener('click', onConnectCloud);
+            btnCreateRemoteVault.removeEventListener('click', onCreateCloudExplicit);
             btnDisconnect.removeEventListener('click', onDisconnect);
             btnSyncNow.removeEventListener('click', onSyncNow);
-            btnRevealKey.removeEventListener('click', onRevealKey);
-            btnCopyKey.removeEventListener('click', onCopyKey);
-            btnImportKey.removeEventListener('click', onImportKey);
             btnResetVault.removeEventListener('click', onResetVault);
         },
     };

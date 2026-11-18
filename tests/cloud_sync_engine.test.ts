@@ -8,6 +8,8 @@ import { readConversation } from '../src/l2/readConversation.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import { createMockCloudVaultHttp } from './helpers/mockCloudVaultHttp.js';
+import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/cloud/vaultKeySetup.js';
+import { putCloudSyncSession } from '../src/l3a/cloudSyncStore.js';
 
 const SERVER_URL = 'https://vault.gemini-exporter.test';
 
@@ -31,11 +33,13 @@ test('vaultClient rejects insecure non-loopback HTTP URLs and normalizes HTTPS o
     assert.equal(normalizeCloudServerUrl('http://localhost:8787/api/'), 'http://localhost:8787/api');
 });
 
-test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retry, Chrome Sync keyring sharing, and 409 optimistic conflict auto-heal across devices', async () => {
+test('CloudSyncEngine: explicit creation and manual pairing retain auto-enqueue, offline retry and conflict healing', async () => {
     const backend = createMockCloudVaultHttp();
     const sharedChromeSync: Record<string, unknown> = {};
     let networkOffline = false;
     let clockMs = Date.now();
+    let recoveryKey = '';
+    let fingerprint = '';
 
     const transport = async (url: string, init?: RequestInit): Promise<Response> => {
         if (networkOffline) throw new TypeError('Failed to fetch: network offline');
@@ -64,10 +68,21 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
             }, { title: 'Old Pre-Toggle', titleSource: 'provider', updatedAt: 1000 });
             assert.equal(backend.inspectRawBlobs().size, 0, 'nothing uploaded while Cloud Sync is disabled');
 
-            // Connect with derived key & flip the auto-sync switch ON -> automatically backs up existing history immediately!
+            recoveryKey = await prepareOneTimeVaultKey();
+            assert.equal((await engineA.getStatusSnapshot()).hasRecoveryKey, false, 'a draft does not initialize custody');
+            const setup = createVaultKeySetup(engineA.activateVaultKeyring);
+            const committed = await setup(recoveryKey, 'generated', null);
+            fingerprint = committed.keyFingerprint;
+            assert.equal((await engineA.getStatusSnapshot()).keyOrigin, 'generated');
+            await assert.rejects(setup(await prepareOneTimeVaultKey(), 'generated', null), { code: 'CLOUD_KEY_CHANGED' });
+            await assert.rejects(engineA.connectCloudVault(SERVER_URL, undefined, 'unlock'), { code: 'CLOUD_VAULT_NOT_FOUND' });
+            assert.equal(backend.inspectTenantCount(), 0, 'unlock never provisions a tenant');
+            // Newly generated key automatically uses mode='create' on first Cloud Vault connection, then transitions keyOrigin to 'imported'
             const connectedA = await engineA.connectCloudVault(SERVER_URL);
-            assert.equal(connectedA.createdNewKey, true);
-            assert.match(connectedA.recoveryKey, /^GEK1-/);
+            assert.equal(connectedA.keyFingerprint, fingerprint);
+            assert.equal((await engineA.getStatusSnapshot()).keyOrigin, 'imported');
+            assert.equal('recoveryKey' in connectedA, false);
+            assert.deepEqual(sharedChromeSync, {}, 'initialization never writes Chrome Sync');
             await engineA.setIncludeDetail(true);
             await engineA.setAutoSyncEnabled(true);
             await engineA.waitForIdle();
@@ -115,7 +130,7 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
         envA.restore();
     }
 
-    // ================= DEVICE B (Fresh DB, same Chrome Sync bag!) =================
+    // ================= DEVICE B (Fresh DB, same Chrome Sync account) =================
     const envB = indexStorage();
     try {
         await envB.ready;
@@ -126,8 +141,11 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
         });
         const unsubscribeB = engineB.installAutoEnqueueListener();
         try {
-            const connectedB = await engineB.connectCloudVault(SERVER_URL);
-            assert.equal(connectedB.createdNewKey, false, 'Device B automatically inherited Master Key from chrome.storage.sync!');
+            await assert.rejects(engineB.connectCloudVault(SERVER_URL, undefined, 'unlock'), { code: 'CLOUD_KEY_NOT_INITIALIZED' });
+            await createVaultKeySetup(engineB.activateVaultKeyring)(recoveryKey, 'imported', null);
+            const connectedB = await engineB.connectCloudVault(SERVER_URL, undefined, 'unlock');
+            assert.equal(connectedB.keyFingerprint, fingerprint);
+            assert.equal(backend.inspectTenantCount(), 1);
             await engineB.setIncludeDetail(true);
             await engineB.setAutoSyncEnabled(true);
             await engineB.waitForIdle();
@@ -172,7 +190,8 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
             client: createCloudVaultClient(transport),
             now: () => clockMs,
         });
-        await engineC.connectCloudVault(SERVER_URL);
+        await createVaultKeySetup(engineC.activateVaultKeyring)(recoveryKey, 'imported', null);
+        await engineC.connectCloudVault(SERVER_URL, undefined, 'unlock');
         await engineC.setIncludeDetail(true);
 
         // Device C has NOT pulled yet (thinks remoteRevision is 0), and has an older local draft (savedAt: 1500)
@@ -194,7 +213,58 @@ test('CloudSyncEngine end-to-end: post-toggle auto-enqueue, network failure retr
         assert.ok(convergedOnC);
         assert.equal(convergedOnC.index.title, 'User Renamed Topic');
         assert.ok(JSON.stringify(convergedOnC.detail.messages).includes('Device B newer answer v3'));
+
+        // Connected key rotation: if user forgot saved key, generating a fresh key while connected switches cleanly to a new Cloud Vault tenant
+        const rotatedRecoveryKey = await prepareOneTimeVaultKey();
+        const rotateOutcome = await createVaultKeySetup(engineC.activateVaultKeyring)(rotatedRecoveryKey, 'generated', fingerprint);
+        assert.equal(rotateOutcome.resolution, 'rekeyed');
+        assert.notEqual(rotateOutcome.keyFingerprint, fingerprint);
+        assert.equal(backend.inspectTenantCount(), 2);
+        const postRotateSync = await engineC.syncNow();
+        assert.equal(postRotateSync.push.uploaded, 2, 'both local conversations immediately backed up into rotated Cloud Vault');
     } finally {
         envC.restore();
     }
+});
+
+test('an expired session renews with unlock from the installed key without a plaintext copy', async () => {
+    const env = indexStorage();
+    try {
+        await env.ready;
+        const mock = createMockCloudVaultHttp();
+        const authModes: unknown[] = [];
+        const client = createCloudVaultClient(async (url, init) => {
+            const request = new Request(url, init);
+            if (url.endsWith('/v2/auth/key')) authModes.push(Reflect.get(await request.clone().json(), 'mode'));
+            return mock.handler(request);
+        });
+        const engine = createCloudSyncEngine({ client });
+        await createVaultKeySetup(engine.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
+        const { session } = await engine.connectCloudVault(SERVER_URL, undefined, 'create');
+        await putCloudSyncSession({ ...session, expiresAt: 1 });
+        await createCloudSyncEngine({ client }).pullChanges();
+        assert.deepEqual(authModes, ['create', 'unlock']);
+        assert.equal(mock.inspectTenantCount(), 1);
+    } finally {
+        env.restore();
+    }
+});
+
+test('transport blocks canonical key text before fetch and surfaces the server retry deadline', async () => {
+    let requests = 0;
+    const client = createCloudVaultClient(async () => {
+        requests++;
+        return Response.json({ error: { code: 'RATE_LIMITED' } }, { status: 429, headers: { 'Retry-After': '60' } });
+    });
+    const key = await prepareOneTimeVaultKey();
+    const auth = { serverUrl: SERVER_URL, keyFingerprint: '0'.repeat(32), authToken: '1'.repeat(64), mode: 'unlock' as const };
+    await assert.rejects(client.authenticateKey({ ...auth, accessCode: key }), { code: 'CLOUD_ENVELOPE_INVALID' });
+    await assert.rejects(client.getVaultStatus(SERVER_URL, key), { code: 'CLOUD_ENVELOPE_INVALID' });
+    await assert.rejects(client.authenticateKey({ ...auth, serverUrl: `${SERVER_URL}/${key}` }), { code: 'CLOUD_ENVELOPE_INVALID' });
+    assert.equal(requests, 0);
+    const started = Date.now();
+    await assert.rejects(client.authenticateKey(auth), (error: unknown) => error instanceof Error
+        && 'code' in error && error.code === 'CLOUD_RATE_LIMITED' && 'retryAt' in error
+        && typeof error.retryAt === 'number' && error.retryAt >= started + 60_000);
+    assert.equal(requests, 1);
 });

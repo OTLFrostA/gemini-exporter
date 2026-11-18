@@ -38,7 +38,6 @@ export function portableVaultSubject(keyring: VaultKeyring): string {
  */
 export async function sealCloudConversation(options: {
     readonly keyring: VaultKeyring;
-    readonly ownerSubject?: string;
     readonly revision: number;
     readonly account: Readonly<Account>;
     readonly conversation: PortableConversationSource;
@@ -56,11 +55,10 @@ export async function sealCloudConversation(options: {
         options.account.providerAccountId,
         options.conversation.index.key.conversationId,
     );
-    const aadSubject = options.ownerSubject ?? portableVaultSubject(options.keyring);
     const envelope = await sealUtf8Record(
         options.keyring,
         jsonText,
-        { ownerSubject: aadSubject, blindRecordId, revision: options.revision },
+        { ownerSubject: portableVaultSubject(options.keyring), blindRecordId, revision: options.revision },
         options.sealOptions,
     );
     return { blindRecordId, envelope };
@@ -72,17 +70,15 @@ export async function sealCloudConversation(options: {
  */
 export async function openCloudConversation(options: {
     readonly keyring: VaultKeyring;
-    readonly ownerSubject?: string;
     readonly blindRecordId: string;
     readonly revision: number;
     readonly envelope: Uint8Array;
     readonly openOptions?: OpenOptions;
 }): Promise<PortableCloudConversation> {
-    const aadSubject = options.ownerSubject ?? portableVaultSubject(options.keyring);
     const jsonText = await openUtf8Record(
         options.keyring,
         options.envelope,
-        { ownerSubject: aadSubject, blindRecordId: options.blindRecordId, revision: options.revision },
+        { ownerSubject: portableVaultSubject(options.keyring), blindRecordId: options.blindRecordId, revision: options.revision },
         options.openOptions,
     );
     let portable: PortableCloudConversation;

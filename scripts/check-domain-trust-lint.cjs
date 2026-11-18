@@ -31,7 +31,7 @@ const files = ['src/l2', 'src/l3a', 'src/l3b', 'src/application', 'src/l4']
         'src/runtime/api/contentReady.ts', 'src/runtime/api/contentAccountRegistry.ts',
         'src/runtime/api/contentDomainIngestion.ts', 'src/runtime/api/contentSettings.ts',
         'src/runtime/capabilities/platformAuthorization.ts', 'src/runtime/capabilities/platformInjection.ts',
-        'src/runtime/capabilities/googleCloudAuth.ts', 'src/runtime/capabilities/vaultFolderAuth.ts',
+        'src/runtime/capabilities/vaultFolderAuth.ts',
         'src/runtime/capabilities/platformDiscovery.ts', 'src/runtime/capabilities/chatgptDiscovery.ts',
         'src/runtime/capabilities/claudeDiscovery.ts', 'src/runtime/capabilities/grokDiscovery.ts',
         'src/ui/shared/platformAuthorization.ts', 'src/ui/shared/backoffNotice.ts', 'src/ui/shared/themeToggle.ts',

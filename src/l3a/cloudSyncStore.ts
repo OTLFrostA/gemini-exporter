@@ -4,17 +4,16 @@ import { isDirectoryHandle, type DirectoryHandle } from '../shared/types/directo
 
 export type { CloudVaultBackendType } from '../shared/types/cloudSync.js';
 
-const CLOUD_DB_NAME = 'gemini_exporter_cloud_v1';
-const CLOUD_DB_VERSION = 2;
+const CLOUD_DB_NAME = 'gemini_exporter_cloud_v2';
+const CLOUD_DB_VERSION = 1;
 
 export interface CloudSyncSessionState {
     readonly id: 'active';
-    readonly backend?: CloudVaultBackendType;
+    readonly backend: CloudVaultBackendType;
     readonly serverUrl: string;
     readonly ownerSubject: string;
     readonly sessionToken: string;
     readonly expiresAt: number;
-    readonly email?: string;
     readonly folderName?: string;
     readonly accessCode?: string;
     readonly keyMismatch?: boolean;
@@ -43,10 +42,15 @@ export interface CloudSyncedRecordState {
     readonly oversizedBytes?: number;
 }
 
-export interface CloudLocalKeyMirror {
+export type VaultKeyProvisionOrigin = 'generated' | 'imported';
+
+export interface StoredNonExtractableKeyring {
     readonly ownerSubject: string;
-    readonly recoveryKey: string;
-    readonly updatedAt: number;
+    readonly keyFingerprint: string;
+    readonly recordIdKey: CryptoKey;
+    readonly payloadKey: CryptoKey;
+    readonly authKey: CryptoKey;
+    readonly origin: VaultKeyProvisionOrigin;
 }
 
 interface PooledCloudDb {
@@ -158,6 +162,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function parseSessionState(raw: unknown): CloudSyncSessionState | null {
     if (!isPlainObject(raw)) return null;
     if (raw.id !== 'active'
+        || (raw.backend !== 'local-folder' && raw.backend !== 'cloud-server')
         || typeof raw.serverUrl !== 'string' || !raw.serverUrl
         || typeof raw.ownerSubject !== 'string' || !raw.ownerSubject
         || typeof raw.sessionToken !== 'string' || !raw.sessionToken
@@ -165,16 +170,14 @@ function parseSessionState(raw: unknown): CloudSyncSessionState | null {
         || typeof raw.pulledSeq !== 'number' || !Number.isSafeInteger(raw.pulledSeq) || raw.pulledSeq < 0) {
         return null;
     }
-    const backend: CloudVaultBackendType = raw.backend === 'local-folder' ? 'local-folder' : 'cloud-server';
     return {
         id: 'active',
-        backend,
+        backend: raw.backend,
         serverUrl: raw.serverUrl,
         ownerSubject: raw.ownerSubject,
         sessionToken: raw.sessionToken,
         expiresAt: raw.expiresAt,
         pulledSeq: raw.pulledSeq,
-        ...(typeof raw.email === 'string' && raw.email ? { email: raw.email } : {}),
         ...(typeof raw.folderName === 'string' && raw.folderName ? { folderName: raw.folderName } : {}),
         ...(typeof raw.accessCode === 'string' && raw.accessCode ? { accessCode: raw.accessCode } : {}),
         ...(raw.keyMismatch === true ? { keyMismatch: true } : {}),
@@ -405,21 +408,60 @@ export function clearSyncedCloudRecordsForOwner(ownerSubject: string): Promise<v
     });
 }
 
-export function getLocalKeyMirror(ownerSubject: string): Promise<string | null> {
+function isNonExtractableCryptoKey(value: unknown, algorithm: string): value is CryptoKey {
+    return value !== null
+        && typeof value === 'object'
+        && 'extractable' in value && value.extractable === false
+        && 'type' in value && value.type === 'secret'
+        && 'algorithm' in value && isPlainObject(value.algorithm) && value.algorithm.name === algorithm;
+}
+
+function parseStoredKeyring(raw: unknown): StoredNonExtractableKeyring | null {
+    if (!isPlainObject(raw)
+        || typeof raw.ownerSubject !== 'string'
+        || typeof raw.keyFingerprint !== 'string' || !/^[0-9a-f]{32}$/.test(raw.keyFingerprint)
+        || (raw.origin !== 'generated' && raw.origin !== 'imported')
+        || !isNonExtractableCryptoKey(raw.recordIdKey, 'HMAC')
+        || !isNonExtractableCryptoKey(raw.payloadKey, 'AES-GCM')
+        || !isNonExtractableCryptoKey(raw.authKey, 'HMAC')) return null;
+    return {
+        ownerSubject: raw.ownerSubject,
+        keyFingerprint: raw.keyFingerprint,
+        recordIdKey: raw.recordIdKey,
+        payloadKey: raw.payloadKey,
+        authKey: raw.authKey,
+        origin: raw.origin,
+    };
+}
+
+export function getStoredNonExtractableKeyring(ownerSubject: string): Promise<StoredNonExtractableKeyring | null> {
     return inCloudStores(['localKeys'], 'readonly', (tx, done) => {
         const req = tx.objectStore('localKeys').get(ownerSubject);
-        req.onsuccess = () => {
-            const raw: unknown = req.result;
-            const recoveryKey = isPlainObject(raw) && typeof raw.recoveryKey === 'string' ? raw.recoveryKey : null;
-            done(recoveryKey);
-        };
+        req.onsuccess = () => done(parseStoredKeyring(req.result));
     });
 }
 
-export function putLocalKeyMirror(ownerSubject: string, recoveryKey: string, nowMs = Date.now()): Promise<void> {
-    return inCloudStores(['localKeys'], 'readwrite', (tx, done) => {
-        const row: CloudLocalKeyMirror = { ownerSubject, recoveryKey, updatedAt: nowMs };
-        tx.objectStore('localKeys').put(row);
+export function activateStoredKeyring(
+    entry: StoredNonExtractableKeyring,
+    session?: CloudSyncSessionState,
+    previousOwnerSubject?: string,
+): Promise<void> {
+    const safeEntry = parseStoredKeyring(entry);
+    if (!safeEntry) {
+        return Promise.reject(new Error('Refusing to persist invalid CryptoKey handles in Vault store'));
+    }
+    return inCloudStores(['localKeys', 'session', 'syncedRecords', 'outbox'], 'readwrite', (tx, done) => {
+        tx.objectStore('localKeys').put(safeEntry);
+        if (previousOwnerSubject && previousOwnerSubject !== session?.ownerSubject) {
+            tx.objectStore('syncedRecords').delete(
+                IDBKeyRange.bound([previousOwnerSubject], [previousOwnerSubject, []]),
+            );
+        }
+        if (session) {
+            tx.objectStore('session').put(session);
+            tx.objectStore('syncedRecords').delete(IDBKeyRange.bound([session.ownerSubject], [session.ownerSubject, []]));
+            tx.objectStore('outbox').clear();
+        }
         done(undefined);
     });
 }

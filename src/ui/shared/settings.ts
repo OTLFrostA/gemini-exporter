@@ -106,6 +106,22 @@ const OPERATION_ERROR_MESSAGES: Readonly<Partial<Record<OperationErrorCode, read
         'Invalid or missing server access code. Check the access code configured on your Cloud Vault.',
         '服务器访问口令错误或未填写，请核对服务端配置的访问口令。',
     ],
+    CLOUD_KEY_NOT_INITIALIZED: [
+        'Initialize your Master Key first (generate a new key once or paste an existing GEK1 key).',
+        '请先初始化主密钥（随机生成新密钥或粘贴已有的 GEK1 主密钥）。',
+    ],
+    CLOUD_KEY_CHANGED: [
+        'The active Master Key changed in another tab. Review the current key before trying again.',
+        '主密钥已在另一标签页更改。请确认当前密钥后再试。',
+    ],
+    CLOUD_VAULT_NOT_FOUND: [
+        'No existing vault matches this Master Key on the server. Verify your key, or click "Create New Cloud Vault with Current Key".',
+        '云端未找到该主密钥对应的保险箱。请核对密钥，或点击“以此密钥新建云端保险箱”。',
+    ],
+    CLOUD_RATE_LIMITED: [
+        'Too many requests from this IP. Please wait before trying again.',
+        '当前 IP 请求过于频繁或触发安全冷却，请稍后再试。',
+    ],
     CLOUD_KEY_INVALID: [
         'Invalid recovery key format or checksum. Please verify every character.',
         '恢复密钥格式或校验和错误，请仔细核对每个字符。',
