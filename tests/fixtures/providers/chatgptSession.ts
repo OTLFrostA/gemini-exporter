@@ -82,6 +82,11 @@ const fixtureMap = {
     'C_CAPTURE_SESSION_05': () => ({
         user: { id: 'other' }, account: { id: 'workspace' }, accessToken: 'must-never-cross-worlds',
     }),
+    'C_BOUNDARY_PROVIDER_SESSION_01': () => ({
+        accessToken: 'boundary-token',
+        user: { id: 'boundary-user' },
+        account: { id: 'boundary-space' },
+    }),
 };
 export function sessionGen(key: keyof typeof fixtureMap): Record<string, unknown> {
     return fixtureMap[key]();

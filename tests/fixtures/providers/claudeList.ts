@@ -31,6 +31,14 @@ const fixtureMap = {
     'CL_LIST_BOUNDARY_BAD_SEARCH_STRING_01': () => ({ data: [], has_more: false, search_incomplete: 'true' }),
     'CL_LIST_BOUNDARY_BAD_SEARCH_NUMBER_01': () => ({ data: [], has_more: false, search_incomplete: 1 }),
     'CL_LIST_BOUNDARY_BAD_SEARCH_NULL_01': () => ({ data: [], has_more: false, search_incomplete: null }),
+    'CL_E2E_CLAUDE_SCAN_LIST_01': () => ({
+        data: [
+            { uuid: '11111111-1111-4111-8111-111111111111', name: 'Claude history from source', updated_at: '2026-10-02T00:00:00Z' },
+            { uuid: '22222222-2222-4222-8222-222222222222', name: 'Claude archive companion', updated_at: '2026-10-01T00:00:00Z' },
+        ],
+        has_more: false,
+        search_incomplete: false,
+    }),
 };
 
 /** Preserve malformed native variants so parser/provider boundary tests can reject them. */

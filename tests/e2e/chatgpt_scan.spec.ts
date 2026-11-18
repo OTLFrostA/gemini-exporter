@@ -1,15 +1,18 @@
 import { waitForAuthorization } from '../helpers/tourNavigation';
 import { test, expect } from './fixtures';
 import { openOptions } from './uiFixture';
+import { expectProviderDownloads } from './providerDownloads';
 import { listGen as chatgptListGen } from '../fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from '../fixtures/providers/chatgptSession.js';
+import { detailGen as chatgptDetailGen } from '../fixtures/providers/chatgptDetail.js';
 
 // Optional permission UI and remote HTTP are browser boundaries. The real
 // Workbench, discovery, account registry, provider, L2 and IDB run unchanged.
 async function source(page: import('@playwright/test').Page, allow: boolean) {
     const list = chatgptListGen('C_E2E_CHATGPT_SCAN_01');
     const session = chatgptSessionGen('C_E2E_CHATGPT_SCAN_02');
-    await page.evaluate(({ allow, list, session }) => {
+    const detail = chatgptDetailGen('C_E2E_CHATGPT_EXPORT_DETAIL_01');
+    await page.evaluate(({ allow, list, session, detail }) => {
         let granted = false;
         const query = chrome.tabs.query.bind(chrome.tabs);
         const nativeContains = chrome.permissions.contains.bind(chrome.permissions);
@@ -37,9 +40,12 @@ async function source(page: import('@playwright/test').Page, allow: boolean) {
             if (!url.startsWith('https://chatgpt.com/')) return original(input, init);
             calls.push(new URL(url).pathname);
             if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify(session));
-            return new Response(JSON.stringify(list));
+            const path = new URL(url).pathname;
+            if (path === '/backend-api/conversation/gpt-chat') return new Response(JSON.stringify(detail));
+            if (path === '/backend-api/conversations') return new Response(JSON.stringify(list));
+            throw new Error('Unexpected ChatGPT fixture endpoint: ' + path);
         };
-    }, { allow, list, session });
+    }, { allow, list, session, detail });
 }
 
 test('Connect ChatGPT selects its verified account and Sync All commits only its history', async ({ context, extensionId }) => {
@@ -71,6 +77,11 @@ test('Connect ChatGPT selects its verified account and Sync All commits only its
     expect(await page.evaluate(() => Reflect.get(window, 'chatgptHttpCalls'))).toContain('/backend-api/conversations');
     await expect(page.locator('#btnImportTakeout')).toBeEnabled();
     await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();
+
+    // Physical export through Options -> Application -> ChatGPTProvider.fetchConversationDetail
+    await page.locator('#btnSelectAll').click();
+    await expectProviderDownloads(page, 'chatgpt', 'gpt-chat', 'Derive Euler-Lagrange equation.', 'Stationary action requires');
+    expect(await page.evaluate(() => Reflect.get(window, 'chatgptHttpCalls'))).toContain('/backend-api/conversation/gpt-chat');
 });
 
 test('Declining ChatGPT site access leaves the registry and history untouched', async ({ context, extensionId }) => {

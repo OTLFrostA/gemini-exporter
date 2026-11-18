@@ -265,7 +265,30 @@ const fixtureMap = {
         message(leaf, null, 'assistant', 'One'),
         message(leaf, null, 'assistant', 'Two'),
     ]),
-
+    'CL_E2E_CLAUDE_EXPORT_DETAIL_01': () => ({
+        ...detail([
+            message(root, null, 'human', 'Explain Lagrange multipliers briefly.'),
+            {
+                uuid: leaf,
+                parent_message_uuid: root,
+                sender: 'assistant',
+                created_at: '2026-10-02T00:00:00.000Z',
+                content: [
+                    { type: 'thinking', thinking: 'Derive constrained extremum condition.' },
+                    { type: 'text', text: 'At a constrained extremum, $\\nabla f = \\lambda \\nabla g$.\n\n```python\ndef lagrangian(x, lam):\n    return f(x) - lam * g(x)\n```' },
+                ],
+            },
+        ]),
+        name: 'Claude history from source',
+    }),
+    'CL_E2E_CLAUDE_EXPORT_COMPANION_01': () => ({
+        ...detail([
+            message(root, null, 'human', 'What is a feasible direction?'),
+            message(leaf, root, 'assistant', 'A feasible direction stays inside the constraint set.'),
+        ]),
+        uuid: '22222222-2222-4222-8222-222222222222',
+        name: 'Claude archive companion',
+    }),
 };
 
 export function detailGen(key: keyof typeof fixtureMap) {
