@@ -503,6 +503,33 @@
     <button id="btnCloudModalClose" type="button" aria-label="Close">×</button>
   </div>
 
+  <div id="vaultKeyLockedRow" class="cloud-modal-row" style="justify-content:space-between;margin-bottom:8px;" hidden>
+    <span id="vaultKeyFingerprintLabel" class="stat" style="font-weight:600;color:var(--text);"></span>
+    <button id="btnToggleRekey" type="button" class="ghost small" data-ui-en="Change Key" data-ui-zh="更换密钥">更换密钥</button>
+  </div>
+
+  <div id="vaultKeySetupBox" class="cloud-modal-section" style="margin-bottom:10px;">
+    <div class="cloud-modal-row" style="justify-content:space-between;">
+      <span class="stat" style="font-weight:600;color:var(--text);" data-ui-en="Set up your Master Key" data-ui-zh="设置主密钥">设置主密钥</span>
+      <button id="btnGenerateOneTimeKey" type="button" class="ghost small" data-ui-en="Generate Random Key" data-ui-zh="随机生成新密钥">随机生成新密钥</button>
+    </div>
+    <div id="oneTimeDraftPanel" class="cloud-modal-field" style="margin-top:6px;margin-bottom:6px;" hidden>
+      <div class="cloud-modal-row">
+        <input id="cloudRecoveryKeyDisplay" class="cloud-modal-input" type="text" readonly autocomplete="off" spellcheck="false" aria-label="Master Key" style="flex:1;font-family:ui-monospace,monospace;">
+        <button id="btnCloudCopyKey" type="button" class="ghost small" data-ui-en="Copy" data-ui-zh="复制">复制</button>
+      </div>
+      <div class="stat" style="margin:6px 0;color:var(--warn);" data-ui-en="Save this key offline. You'll need it to pair another browser. After confirmation, it can't be shown again." data-ui-zh="请离线保存此密钥。配对其他浏览器时需要它，确认后将无法再次查看。">请离线保存此密钥。配对其他浏览器时需要它，确认后将无法再次查看。</div>
+      <button id="btnConfirmOneTimeKey" type="button" class="primary" style="width:100%;" data-ui-en="I Saved It — Lock & Activate Key" data-ui-zh="我已离线保存，锁定并启用密钥">我已离线保存，锁定并启用密钥</button>
+    </div>
+    <div class="cloud-modal-field" style="margin-bottom:0;">
+      <label for="cloudImportKeyInput" data-ui-en="Enter an Existing GEK1 Master Key" data-ui-zh="输入已有的 GEK1 主密钥">输入已有的 GEK1 主密钥</label>
+      <div class="cloud-modal-row">
+        <input id="cloudImportKeyInput" class="cloud-modal-input" type="password" autocomplete="off" spellcheck="false" placeholder="GEK1-XXXXX-..." style="flex:1;font-family:ui-monospace,monospace;">
+        <button id="btnCloudImportKey" type="button" class="ghost small" data-ui-en="Use Key" data-ui-zh="使用此密钥">使用此密钥</button>
+      </div>
+    </div>
+  </div>
+
   <div class="cloud-modal-tabs" role="tablist">
     <button id="btnVaultTabLocal" type="button" role="tab" aria-selected="true" class="cloud-modal-tab" data-ui-en="📁 Local Encrypted Folder" data-ui-zh="📁 本地加密文件夹">📁 本地加密文件夹</button>
     <button id="btnVaultTabCloud" type="button" role="tab" aria-selected="false" class="cloud-modal-tab" data-ui-en="☁️ Cloud Vault Server" data-ui-zh="☁️ 云同步服务器">☁️ 云同步服务器</button>
@@ -525,7 +552,8 @@
       <input id="cloudAccessCodeInput" class="cloud-modal-input" type="password" autocomplete="off" placeholder="••••••••">
     </div>
     <div class="cloud-modal-row">
-      <button id="btnCloudConnect" type="button" class="primary" style="width:100%;" data-ui-en="Connect Server & Enable Auto Encrypted Sync" data-ui-zh="连接服务器并开启自动加密同步">连接服务器并开启自动加密同步</button>
+      <button id="btnCloudConnect" type="button" class="primary" style="width:100%;" data-ui-en="Unlock Existing Cloud Vault" data-ui-zh="解锁已有云端保险箱">解锁已有云端保险箱</button>
+      <button id="btnCloudCreateRemoteVault" type="button" class="ghost small" style="width:100%;" hidden data-ui-en="Create New Cloud Vault with Current Key" data-ui-zh="以此密钥新建云端保险箱">以此密钥新建云端保险箱</button>
     </div>
   </div>
 
@@ -545,23 +573,8 @@
       </span>
       <input type="checkbox" id="cloudIncludeDetailToggle" class="toggle">
     </label>
-    <div class="cloud-modal-field" style="margin-top:0;margin-bottom:0;">
-      <label for="cloudRecoveryKeyDisplay" data-ui-en="Master Recovery Key (Keep offline for non-Chrome browsers)" data-ui-zh="主恢复密钥（妥善离线备份，供跨浏览器恢复）">主恢复密钥（妥善离线备份，供跨浏览器恢复）</label>
-      <div class="cloud-modal-row">
-        <input id="cloudRecoveryKeyDisplay" class="cloud-modal-input" type="text" readonly style="flex:1;font-family:ui-monospace,monospace;">
-        <button id="btnCloudRevealKey" type="button" class="ghost small" data-ui-en="Show" data-ui-zh="显示">显示</button>
-        <button id="btnCloudCopyKey" type="button" class="ghost small" data-ui-en="Copy" data-ui-zh="复制">复制</button>
-      </div>
-    </div>
-    <div class="cloud-modal-field" style="margin-bottom:0;">
-      <label for="cloudImportKeyInput" data-ui-en="Import Recovery Key from Another Device" data-ui-zh="从其他设备导入恢复密钥">从其他设备导入恢复密钥</label>
-      <div class="cloud-modal-row">
-        <input id="cloudImportKeyInput" class="cloud-modal-input" type="text" placeholder="GEK1-XXXXX-..." style="flex:1;font-family:ui-monospace,monospace;">
-        <button id="btnCloudImportKey" type="button" class="ghost small" data-ui-en="Import" data-ui-zh="导入">导入</button>
-      </div>
-    </div>
     <div id="cloudKeyMismatchBox" class="export-issues" style="margin-top:4px;" hidden>
-      <div id="cloudKeyMismatchText" style="margin-bottom:8px;line-height:1.45;" data-ui-en="Existing encrypted data uses a different key. Syncing is paused so nothing is overwritten — import the original Recovery Key above, or reset the vault if that key was lost." data-ui-zh="检测到此保险箱已由另一把密钥加密，已暂停写入以防数据冲突。请在上方粘贴导入原恢复密钥解锁；若原密钥已遗失，可用当前密钥重置保险箱。">检测到此保险箱已由另一把密钥加密，已暂停写入以防数据冲突。请在上方粘贴导入原恢复密钥解锁；若原密钥已遗失，可用当前密钥重置保险箱。</div>
+      <div id="cloudKeyMismatchText" style="margin-bottom:8px;line-height:1.45;" data-ui-en="Existing encrypted data uses a different key. Syncing is paused so nothing is overwritten — enter the original Master Key above, or reset the vault if that key was lost." data-ui-zh="检测到此保险箱已由另一把密钥加密，已暂停写入以防数据冲突。请在上方输入原主密钥解锁；若原密钥已遗失，可用当前密钥重置保险箱。">检测到此保险箱已由另一把密钥加密，已暂停写入以防数据冲突。请在上方输入原主密钥解锁；若原密钥已遗失，可用当前密钥重置保险箱。</div>
       <div class="cloud-modal-row" style="justify-content:flex-end;">
         <button id="btnCloudResetVault" type="button" class="ghost small" style="color:var(--warn);" data-ui-en="Reset Vault with Current Key" data-ui-zh="用当前密钥重置保险箱">用当前密钥重置保险箱</button>
       </div>

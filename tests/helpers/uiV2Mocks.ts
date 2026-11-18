@@ -110,11 +110,9 @@ export function installUiV2Mocks(): void {
                 enabled: false, includeDetail: false, connected: false, pulledSeq: 0,
                 pendingOutbox: 0, failedOutbox: 0, oversizedSkipped: 0, hasRecoveryKey: false,
             }),
-            exportRecoveryKey: async () => null,
             installAutoEnqueueListener: () => () => {},
             connectLocalFolderVault: () => unconfigured('Application.cloudSync.connectLocalFolderVault'),
             connectCloudVault: () => unconfigured('Application.cloudSync.connectCloudVault'),
-            connectWithGoogleIdToken: () => unconfigured('Application.cloudSync.connect'),
             disconnect: async () => {},
             setAutoSyncEnabled: async () => {},
             setIncludeDetail: async () => {},
@@ -125,14 +123,14 @@ export function installUiV2Mocks(): void {
                 pull: { downloaded: 0, accepted: 0, changed: 0, pulledSeq: 0 },
                 push: { uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 },
             }),
-            importRecoveryKey: () => unconfigured('Application.cloudSync.importRecoveryKey'),
             resetVaultWithCurrentKey: async () => {},
             reconcilePostToggleAccount: async () => {},
             waitForIdle: async () => {},
         },
     });
-    stub('../../src/runtime/capabilities/googleCloudAuth.js', {
-        launchGoogleOidcIdTokenFlow: () => unconfigured('Runtime.launchGoogleOidcIdTokenFlow'),
+    stub('../../src/application/cloud/vaultKeySetup.js', {
+        prepareOneTimeVaultKey: () => unconfigured('Application.vaultKeySetup.prepareOneTimeVaultKey'),
+        commitOneTimeVaultKey: () => unconfigured('Application.vaultKeySetup.commitOneTimeVaultKey'),
     });
     stub('../../src/runtime/capabilities/vaultFolderAuth.js', {
         inspectVaultDirectoryStatus: async () => ({ state: 'missing' as const }),

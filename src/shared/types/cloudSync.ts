@@ -9,13 +9,12 @@ export const CLOUD_DEFAULT_USER_QUOTA_BYTES = 100 * 1024 * 1024; // 100 MiB
 
 export type CloudVaultBackendType = 'local-folder' | 'cloud-server';
 
-export interface CloudAuthGoogleRequest {
-    readonly idToken: string;
-}
+export type CloudAuthKeyMode = 'create' | 'unlock';
 
 export interface CloudAuthKeyRequest {
     readonly keyFingerprint: string;
     readonly authToken: string;
+    readonly mode: CloudAuthKeyMode;
     readonly accessCode?: string;
 }
 
@@ -23,8 +22,6 @@ export interface CloudAuthSessionResponse {
     readonly sessionToken: string;
     readonly ownerSubject: string;
     readonly expiresAt: number;
-    /** Ephemeral display hint extracted from the Google ID token; never persisted by the server. */
-    readonly email?: string;
 }
 
 export interface CloudVaultStatusResponse {
@@ -64,6 +61,7 @@ export interface CloudErrorResponse {
             | 'QUOTA_EXCEEDED'
             | 'REVISION_CONFLICT'
             | 'KEY_FINGERPRINT_MISMATCH'
+            | 'VAULT_NOT_FOUND'
             | 'NOT_FOUND'
             | 'RATE_LIMITED'
             | 'INTERNAL_ERROR';

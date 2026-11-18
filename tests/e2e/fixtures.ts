@@ -11,15 +11,7 @@ let authorizedExtensionPath: string | undefined;
 
 const isHeaded = process.argv.includes('--headed');
 
-export const test = base.extend<{
-  context: BrowserContext;
-  grantGemini: boolean;
-  extensionId: string;
-}>({
-  // Existing source-flow tests use a Gemini-authorized staging copy. Dedicated
-  // permission tests explicitly select the unchanged shipping manifest.
-  grantGemini: [true, { option: true }],
-  context: async ({ grantGemini }, use) => {
+export async function launchExtensionContext(grantGemini = true): Promise<BrowserContext> {
     let extensionPath = pathToExtension;
     if (grantGemini && !authorizedExtensionPath) {
       const staged = fs.mkdtempSync(path.join(os.tmpdir(), 'exporter-authorized-'));
@@ -58,8 +50,21 @@ export const test = base.extend<{
       });
     }
     await context.addInitScript({ content: domainFixtureBrowser });
-    await use(context);
-    await context.close();
+    return context;
+}
+
+export const test = base.extend<{
+  context: BrowserContext;
+  grantGemini: boolean;
+  extensionId: string;
+}>({
+  // Existing source-flow tests use a Gemini-authorized staging copy. Dedicated
+  // permission tests explicitly select the unchanged shipping manifest.
+  grantGemini: [true, { option: true }],
+  context: async ({ grantGemini }, use) => {
+    const context = await launchExtensionContext(grantGemini);
+    try { await use(context); }
+    finally { await context.close(); }
   },
   extensionId: async ({ context }, use) => {
     let [background] = context.serviceWorkers();

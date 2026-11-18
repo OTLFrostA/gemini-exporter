@@ -7,7 +7,7 @@ import {
     type CloudRecordMeta,
 } from '../../shared/types/cloudSync.js';
 import { isRecord } from '../../shared/utils/typeGuards.js';
-import type { CloudVaultClient } from './vaultClient.js';
+import type { VaultRecordClient } from './vaultClient.js';
 
 export const LOCAL_VAULT_OWNER_SUBJECT = 'local:vault';
 export const LOCAL_VAULT_SERVER_URL = 'local-vault://directory';
@@ -113,6 +113,9 @@ async function readManifestFromDir(rootDir: DirectoryHandle): Promise<LocalVault
     const keyFingerprint = typeof parsed.keyFingerprint === 'string' && KEY_FP_PATTERN.test(parsed.keyFingerprint)
         ? parsed.keyFingerprint
         : undefined;
+    if (!keyFingerprint && (parsed.keyFingerprint !== undefined || Object.keys(records).length > 0)) {
+        throw new OperationError('CLOUD_PAYLOAD_INVALID', 'Vault manifest requires a valid key fingerprint');
+    }
     return {
         schema: 'e2ee-vault-manifest',
         version: 1,
@@ -148,14 +151,14 @@ async function withVaultLock<T>(work: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Local Encrypted Folder implementation of `CloudVaultClient`.
+ * Local Encrypted Folder implementation of `VaultRecordClient`.
  * Stores identical `GEE1` zero-knowledge `AES-256-GCM` ciphertexts (`records/<blindId>.gee1`)
  * and blind sequence metadata (`vault-manifest.json`) directly in a user-chosen local folder.
  */
 export function createLocalFolderVaultClient(
     resolveDirectory: () => Promise<DirectoryHandle>,
     now: () => number = Date.now,
-): CloudVaultClient {
+): VaultRecordClient {
     const requireWritableDirectory = async (): Promise<DirectoryHandle> => {
         const handle = await resolveDirectory();
         const perm = await handle.queryPermission({ mode: 'readwrite' });
@@ -169,24 +172,6 @@ export function createLocalFolderVaultClient(
     };
 
     return {
-        async authenticateKey(input) {
-            return {
-                sessionToken: 'local-folder-session',
-                ownerSubject: `vault:${input.keyFingerprint}`,
-                expiresAt: Number.MAX_SAFE_INTEGER,
-            };
-        },
-
-        async authenticateGoogle() {
-            return {
-                sessionToken: 'local-folder-session',
-                ownerSubject: LOCAL_VAULT_OWNER_SUBJECT,
-                expiresAt: Number.MAX_SAFE_INTEGER,
-            };
-        },
-
-        async logoutAll() {},
-
         async getVaultStatus() {
             return withVaultLock(async () => {
                 const dir = await requireWritableDirectory();
@@ -206,6 +191,9 @@ export function createLocalFolderVaultClient(
             if (!BLIND_ID_PATTERN.test(input.blindRecordId)) {
                 throw new OperationError('CLOUD_ENVELOPE_INVALID', 'Invalid blindRecordId');
             }
+            if (!KEY_FP_PATTERN.test(input.keyFingerprint)) {
+                throw new OperationError('CLOUD_ENVELOPE_INVALID', 'Invalid vault key fingerprint');
+            }
             if (input.envelope.byteLength > CLOUD_MAX_RECORD_BYTES) {
                 throw new OperationError('CLOUD_RECORD_TOO_LARGE', 'Encrypted record exceeds 2 MiB ceiling');
             }
@@ -221,7 +209,7 @@ export function createLocalFolderVaultClient(
                 input.signal?.throwIfAborted();
                 const rootDir = await requireWritableDirectory();
                 const manifest = await readManifestFromDir(rootDir);
-                if (manifest.keyFingerprint && input.keyFingerprint && manifest.keyFingerprint !== input.keyFingerprint) {
+                if (manifest.keyFingerprint && manifest.keyFingerprint !== input.keyFingerprint) {
                     throw new OperationError(
                         'CLOUD_KEY_MISMATCH',
                         'This vault is encrypted with a different Master Key. Import the original Recovery Key to unlock it.',
@@ -251,10 +239,9 @@ export function createLocalFolderVaultClient(
                     [input.blindRecordId]: meta,
                 };
                 const nextUsedBytes = manifest.usedBytes - (existing?.byteLength ?? 0) + meta.byteLength;
-                const lockedFp = manifest.keyFingerprint ?? input.keyFingerprint;
                 await writeManifestToDir(rootDir, {
                     ...manifest,
-                    ...(lockedFp ? { keyFingerprint: lockedFp } : {}),
+                    keyFingerprint: input.keyFingerprint,
                     nextSeq: changeSeq + 1,
                     usedBytes: nextUsedBytes,
                     records: nextRecords,

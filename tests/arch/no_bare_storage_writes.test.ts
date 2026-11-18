@@ -23,7 +23,8 @@ function sourceHits(pattern: string, root: string = REPO_ROOT): Array<{ file: st
     // Include newly created source files before staging/committing: git grep omits them.
     const out: string = execFileSync('git', ['-C', root, 'ls-files', '--cached', '--others',
         '--exclude-standard', '--', '*.ts'], { encoding: 'utf8' });
-    const files = [...new Set(out.trim().split('\n').filter(file => file.startsWith('src/')))];
+    // --cached also reports paths deleted from the working tree but still in the index.
+    const files = [...new Set(out.trim().split('\n').filter(file => file.startsWith('src/') && fs.existsSync(path.join(root, file))))];
     return files.flatMap(file => (fs.readFileSync(path.join(root, file), 'utf8') as string)
         .split('\n').flatMap((text, index) => text.includes(pattern) ? [{ file, line: index + 1, text }] : []));
 }
