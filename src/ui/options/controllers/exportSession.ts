@@ -41,7 +41,7 @@ export async function runExportSession(run: ExportRunDiagnostic, options: Export
     let active = true;
     const backoff = createBackoffNotice();
     const message = () => text(
-        `Prepared ${prepared.size} conversations · delivered ${delivered.size} documents · downloaded ${downloaded} attachments`,
+        `Prepared ${prepared.size} conversation${prepared.size === 1 ? '' : 's'} · delivered ${delivered.size} document${delivered.size === 1 ? '' : 's'} · downloaded ${downloaded} attachment${downloaded === 1 ? '' : 's'}`,
         `已准备 ${prepared.size} 条会话 · 已交付正文 ${delivered.size} 条 · 已下载 ${downloaded} 个附件`)
         + (backoff.message() ? ` · ${backoff.message()}` : '');
     const paintProgress = () => {

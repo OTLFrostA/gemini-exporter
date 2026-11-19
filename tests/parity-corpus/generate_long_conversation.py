@@ -5,7 +5,7 @@ Deterministic (seeded) so the committed JSON is reproducible. The fixture is
 NOT hand-written: regenerate with
     python3 generate_long_conversation.py --messages 121 --out long-conversation-121.json
 
-Every message carries a unique message id, source array order, and
+Messages follow source array order (the AST carries no message ids) with
 mixed Chinese/English content so the HTML/PDF parity harness has realistic
 long-document material (page breaks, repeated headings, mid-document tables
 and code blocks).
@@ -57,9 +57,12 @@ def paragraph(*children):
     return {"type": "paragraph", "children": list(children)}
 
 
+def cell(column, t):
+    return {"column": column, "colSpan": 1, "rowSpan": 1, "children": [text(t)]}
+
+
 def build_message(idx, role, rng):
     """idx is 1-based. Returns a DisplayMessage dict."""
-    mid = f"{'u' if role == 'user' else 'a'}{idx}"
     tpl = rng.choice(USER_TEMPLATES if role == "user" else ASSISTANT_TEMPLATES)
     n = (idx + 1) // 2  # round number
     blocks = [paragraph(text(tpl.format(n=n)))]
@@ -67,21 +70,16 @@ def build_message(idx, role, rng):
     # more than plain paragraphs.
     if role == "assistant" and idx % 10 == 0:
         blocks.append({
-            "type": "code", "language": "python",
+            "type": "code",
             "code": f"def round_{n}():\n    return 'parity-check-{n}'\n",
+            "language": "python",
         })
     if role == "assistant" and idx % 15 == 0:
         blocks.append({
             "type": "table",
             "columnAlignments": ["left", "right"],
-            "headerRows": [[
-                {"children": [text("指标")], "column": 0, "colSpan": 1, "rowSpan": 1},
-                {"children": [text("第 %d 轮" % n)], "column": 1, "colSpan": 1, "rowSpan": 1},
-            ]],
-            "rows": [[
-                {"children": [text("消息数")], "column": 0, "colSpan": 1, "rowSpan": 1},
-                {"children": [text(str(idx))], "column": 1, "colSpan": 1, "rowSpan": 1},
-            ]],
+            "headerRows": [[cell(0, "指标"), cell(1, "第 %d 轮" % n)]],
+            "rows": [[cell(0, "消息数"), cell(1, str(idx))]],
         })
     if role == "assistant" and idx % 21 == 0:
         blocks.append({
@@ -94,14 +92,7 @@ def build_message(idx, role, rng):
             strong("中英文混排"), text(" 与 "),
             {"type": "inlineCode", "code": f"round_{n}"}, text(" 的行内代码。"),
         ))
-    msg = {
-        "id": mid,
-        "type": "message",
-        "label": "you" if role == "user" else "assistant",
-        "variant": "bubble" if role == "user" else "flow",
-        "blocks": blocks,
-    }
-    return msg
+    return {"blocks": blocks, "role": role}
 
 
 def main():
@@ -123,20 +114,19 @@ def main():
         else:
             asst_i += 1
             idx = asst_i
-        msg = build_message(idx, role, rng)
-        messages.append(msg)
+        messages.append(build_message(idx, role, rng))
 
     fixture = {
         "document": {
-            "schemaVersion": 2,
-            "metadata": {"id": "long-conversation-121", "provider": "gemini"},
-            "header": {"title": "长会话：121 消息 parity 语料", "providerLabel": "gemini", "date": "2026-09-26", "messageCount": len(messages)},
             "messages": messages,
+            "metadata": {"id": "long-conversation-121", "provider": "gemini", "updatedAt": 1790380800000},
+            "title": "长会话：121 消息 parity 语料",
         },
         "resourceIds": [],
     }
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(fixture, f, ensure_ascii=False, indent=2)
+        f.write("\n")
     print(f"wrote {args.out}: {len(messages)} messages, "
           f"{sum(len(m['blocks']) for m in messages)} blocks")
 

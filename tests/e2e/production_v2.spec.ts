@@ -14,11 +14,15 @@ const accountId = '10000000-0000-4000-8000-000000000001';
 let bundle: string;
 test.beforeAll(async () => {
     const output = await build({ stdin: { resolveDir: path.resolve(__dirname, '../..'), loader: 'ts', contents: `
+        import { installApplicationHost } from './src/runtime/api/applicationHost.ts';
+        installApplicationHost();
         import * as storage from './src/l3a/storageService.ts';
         import * as domain from './src/l2/ingestion.ts';
         import { readConversation } from './src/l2/readConversation.ts';
         import { resolveScanTarget } from './src/runtime/capabilities/tabService.ts';
         import { runLiveSave } from './src/runtime/background/liveSaveHandler.ts';
+        import { installProviderHost } from './src/runtime/api/providerHost.ts';
+        installProviderHost();
         Object.assign(globalThis, { productionProbe: { ...storage, ...domain, readConversation, resolveScanTarget, runLiveSave } });
     ` }, bundle: true, write: false, format: 'iife', platform: 'browser', conditions: ['worker', 'browser'], logLevel: 'silent',
         define: { __EXT_VERSION__: '"2.0.0"' } });

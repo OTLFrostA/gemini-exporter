@@ -28,6 +28,7 @@ GLOBAL_FILES = {
     "package.json",
     "package-lock.json",
     "tsconfig.json",
+    "playwright.config.ts",
     "build.js",
     "manifest.json",
     ".github/workflows/test.yml",
@@ -168,6 +169,10 @@ class DependencyGraph:
         return visited
 
 
+class GitChangeError(RuntimeError):
+    pass
+
+
 def get_git_changed_files(base_ref: Optional[str] = None, base_dir: str = REPO_DIR) -> Set[str]:
     """从 Git 获取当前工作树中的所有改动文件（含未暂存、暂存、未跟踪与分支差异）"""
     changed: Set[str] = set()
@@ -177,9 +182,15 @@ def get_git_changed_files(base_ref: Optional[str] = None, base_dir: str = REPO_D
             res = subprocess.run(cmd_list, cwd=base_dir, capture_output=True, text=True)
             if res.returncode == 0:
                 return [line.strip() for line in res.stdout.splitlines() if line.strip()]
-        except Exception:
-            pass
-        return []
+        except OSError as exc:
+            raise GitChangeError(f"Failed to run {' '.join(cmd_list)}: {exc}") from exc
+        raise GitChangeError(f"{' '.join(cmd_list)} failed: {res.stderr.strip()}")
+
+    if base_ref:
+        try:
+            run_cmd(["git", "rev-parse", "--verify", "--end-of-options", f"{base_ref}^{{commit}}"])
+        except GitChangeError as exc:
+            raise GitChangeError(f"Invalid Git base ref '{base_ref}': {exc}") from exc
 
     for f in run_cmd(["git", "ls-files", "--others", "--exclude-standard"]):
         changed.add(normalize_repo_path(f, base_dir))
@@ -232,7 +243,7 @@ class ImpactAnalysisResult:
         else:
             unit_set = set()
             for f in self.affected_files:
-                if f.startswith("tests/") and (f.endswith(".test.ts") or f.endswith((".test.js", ".test.cjs"))):
+                if f.startswith("tests/") and (f.endswith((".test.ts", ".test.js", ".test.cjs")) or (f.endswith(".py") and f in self.all_unit_tests)):
                     unit_set.add(f)
             for prefix, suites in COMPONENT_UNIT_MAP.items():
                 if any(f.startswith(prefix) for f in self.affected_files):
@@ -284,7 +295,7 @@ def analyze_impact(
             p = normalize_repo_path(os.path.join(root, f), base_dir)
             if p.startswith("tests/e2e/") and p.endswith(".spec.ts"):
                 all_e2e_specs.append(p)
-            elif p.startswith("tests/") and not p.startswith("tests/e2e/") and (p.endswith(".test.ts") or p.endswith((".test.js", ".test.cjs"))):
+            elif p.startswith("tests/") and not p.startswith("tests/e2e/") and (p.endswith((".test.ts", ".test.js", ".test.cjs")) or (f.startswith("test_") and f.endswith(".py"))):
                 all_unit_tests.append(p)
 
     norm_changed = {normalize_repo_path(f, base_dir) for f in changed_files if f}
@@ -292,7 +303,8 @@ def analyze_impact(
     if not norm_changed:
         return ImpactAnalysisResult([], set(), False, True, all_unit_tests, all_e2e_specs)
 
-    if any(f in GLOBAL_FILES for f in norm_changed):
+    # Fixture readers use filesystem APIs, not imports, so the graph cannot track them.
+    if any(f in GLOBAL_FILES or f.startswith("tests/fixtures/") for f in norm_changed):
         return ImpactAnalysisResult(list(norm_changed), norm_changed, True, False, all_unit_tests, all_e2e_specs)
 
     if all(STATIC_DOCS_PATTERN.match(f) for f in norm_changed):
@@ -323,7 +335,10 @@ def main():
     if args.files is not None:
         changed_files = set(args.files)
     else:
-        changed_files = get_git_changed_files(base_ref=args.base)
+        try:
+            changed_files = get_git_changed_files(base_ref=args.base)
+        except GitChangeError as exc:
+            parser.exit(1, f"Error: {exc}\n")
 
     graph = DependencyGraph()
     result = analyze_impact(changed_files, graph=graph)

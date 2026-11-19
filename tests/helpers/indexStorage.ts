@@ -1,14 +1,18 @@
 import { IDBFactory, IDBObjectStore, IDBKeyRange } from 'fake-indexeddb';
+import { installProviderHost } from '../../src/runtime/api/providerHost.js';
 import { resetIndexCoverageSessions } from '../../src/l2/indexCoverage.js';
 import { openStorageDB } from '../../src/l3a/idb.js';
 import { insertAccountIfAbsent } from '../../src/l3a/storageService.js';
 import { fixtureAccount } from './domainFixture.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountIds.js';
 import { beforeEach, afterEach } from 'node:test';
+import { installApplicationHost } from '../../src/runtime/api/applicationHost.js';
 
 
 /** Production Storage over a fresh IndexedDB test backend; Chrome Settings/IPC are boundary doubles. */
 export function indexStorage(seed: Record<string, unknown> = {}, options: { seedAccounts?: boolean } = {}) {
+    installApplicationHost();
+    installProviderHost();
     const previous = globalThis.chrome, previousDB = globalThis.indexedDB, previousRange = globalThis.IDBKeyRange;
     const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
     // Node's fake browser environment needs the extension-origin Web Locks contract.

@@ -1,5 +1,4 @@
 import { OperationError } from '../../../shared/errors/operationError.js';
-import { readAccountContextReply } from '../../../shared/types/accountContextReply.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
@@ -18,47 +17,20 @@ import { ProviderRegistry } from '../providerRegistry.js';
 import { GeminiAPIClient, ConfirmedGeminiConversationNotFound } from './geminiClient.js';
 import credentials from './api/credentialManager.js';
 import { geminiListObservation } from './listObservation.js';
-import { resolveCurrentAccount } from '../../../runtime/content/accountContext.js';
+import { providerHost } from '../providerHost.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
 import type { DomainAsset } from '../../../l2/conversationDetail.js';
 import type { ConversationKey } from '../../../l2/conversationKey.js';
 import type { ResourceBytes } from '../../../shared/resources/resourceResult.js';
-
-/** Runtime routing is frozen before acquisition, never inferred from SID or Slot. */
-async function resolveRoute(accountId: string): Promise<string> {
-    if (typeof document !== 'undefined' && location.hostname === 'gemini.google.com') {
-        const context = await resolveCurrentAccount();
-        if (context?.accountId === accountId) return context.slot;
-    } else if (typeof chrome !== 'undefined' && chrome.tabs) {
-        const failures: string[] = [];
-        const tabs = [...await chrome.tabs.query({ url: ['https://gemini.google.com/*'] })]
-            .sort((a, b) => Number(!!b.active) - Number(!!a.active));
-        for (const tab of tabs) {
-            if (tab.id === undefined) continue;
-            try {
-                const parsed = readAccountContextReply(await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' }));
-                if (!parsed.ok) {
-                    failures.push(`tab ${tab.id}: ${parsed.error ?? 'invalid reply'}`);
-                    continue;
-                }
-                const context = parsed.accountContext;
-                if (context && context.accountId === accountId && context.slot && /^u\d+$/.test(context.slot)) {
-                    return context.slot;
-                }
-                failures.push(`tab ${tab.id}: ${context === null ? 'unknown account' : 'account or slot mismatch'}`);
-            } catch (error) { failures.push(`tab ${tab.id}: ${error instanceof Error ? error.message : String(error)}`); }
-        }
-        throw new OperationError('SOURCE_PAGE_UNAVAILABLE', 'No verified Gemini account route: ' + (failures.join('; ') || 'no Gemini tabs'));
-    }
-    throw new OperationError('SOURCE_PAGE_UNAVAILABLE', 'No verified Gemini account route');
-}
 
 export class GeminiProvider implements GeminiProviderContract {
     readonly id = 'gemini';
     readonly name = 'Google Gemini';
     readonly hostPatterns = ['https://gemini.google.com/*', 'https://bard.google.com/*'];
     private client: GeminiProviderClient | null;
-    constructor(client?: GeminiProviderClient, private route = resolveRoute, private readonly resources?: SourceResourceContext) { this.client = client ?? null; }
+    constructor(client?: GeminiProviderClient,
+        private route = (accountId: string) => providerHost().resolveGeminiRoute(accountId),
+        private readonly resources?: SourceResourceContext) { this.client = client ?? null; }
     private getClient(): GeminiProviderClient { return this.client ??= new GeminiAPIClient(); }
     private async context(accountId: string) {
         const account = await requireProviderAccount('gemini', accountId);

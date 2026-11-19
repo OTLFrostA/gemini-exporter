@@ -1,4 +1,4 @@
-import { text } from '../../shared/settings.js';
+import { englishCount, text } from '../../shared/settings.js';
 import { resourceIssueKind } from '../../../shared/resources/resourceResult.js';
 import type { ExportIssueGroup } from '../state/exportIssues.js';
 
@@ -57,8 +57,8 @@ export function failureGroupLabel(group: ExportIssueGroup): string {
     const reason = label ? text(...label) : group.severity === 'warning' ? text('Export warning', '导出警告') : text('Unknown error', '未知错误');
     const count = group.conversations.length;
     return reason + (group.httpStatus !== undefined ? ` (HTTP ${group.httpStatus})` : '')
-        + ' · ' + (count ? text(`${count} conversations`, `${count} 条会话`) : text('Export task', '导出任务'))
-        + ' · ' + text(`${group.occurrences} occurrences`, `${group.occurrences} 次`);
+        + ' · ' + (count ? text(englishCount(count, 'conversation'), `${count} 条会话`) : text('Export task', '导出任务'))
+        + ' · ' + text(englishCount(group.occurrences, 'occurrence'), `${group.occurrences} 次`);
 }
 export function copyExportFailures(groups: readonly ExportIssueGroup[]): string {
     return groups.map(group => [failureGroupLabel(group),

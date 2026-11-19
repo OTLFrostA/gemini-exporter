@@ -9,12 +9,16 @@ import os
 import sys
 import time
 import base64
+import io
 import tempfile
 import struct
 import zlib
 import json
 import zipfile
 import unittest
+import glob
+import subprocess
+import socket
 from unittest.mock import patch, MagicMock
 from typing import Dict, Any, List, Optional
 
@@ -89,6 +93,83 @@ class TestVisualSandbox(unittest.TestCase):
     def tearDown(self):
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_switch_page_missing_target_preserves_connection(self):
+        self.sandbox._is_mock = False
+        self.sandbox.active_target = "gemini"
+        self.sandbox.env = MagicMock()
+        self.sandbox.env.ensure_tab.return_value = None
+        for tabs in ([], [{"type": "page", "url": "about:blank",
+                           "webSocketDebuggerUrl": "ws://unrelated"}]):
+            with self.subTest(tabs=tabs), patch("scripts.visual_agent.playground.get_tabs", return_value=tabs), patch("scripts.visual_agent.playground.CDPConnection") as connect:
+                with self.assertRaisesRegex(RuntimeError, "无法定位或创建目标标签页: options"):
+                    self.sandbox.switch_page("options")
+                connect.assert_not_called()
+                self.assertIs(self.sandbox.cdp, self.mock_cdp)
+                self.assertEqual(self.sandbox.active_target, "gemini")
+
+    def test_switch_page_resolves_matching_tab_after_ensure_returns_none(self):
+        self.sandbox._is_mock = False
+        self.sandbox.env = MagicMock()
+        self.sandbox.env.ensure_tab.return_value = None
+        tabs = [{"type": "page", "url": "about:blank", "webSocketDebuggerUrl": "ws://unrelated"},
+                {"type": "page", "url": "chrome-extension://exporter/options.html",
+                 "webSocketDebuggerUrl": "ws://options"}]
+        with patch("scripts.visual_agent.playground.get_tabs", return_value=tabs), patch("scripts.visual_agent.playground.CDPConnection", return_value=self.mock_cdp) as connect:
+            self.assertTrue(self.sandbox.switch_page("options"))
+            connect.assert_called_once_with("ws://options")
+
+    def test_switch_page_missing_options_real_chromium(self):
+        from scripts.cdp_client import CDPConnection, get_tabs
+        from scripts.framework.environment import TestEnvironment
+
+        executables = glob.glob(os.path.expanduser("~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome"))
+        if not executables:
+            self.skipTest("Playwright Chromium is not installed")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        with tempfile.TemporaryDirectory() as profile:
+            browser = subprocess.Popen([
+                executables[-1], "--headless=new", "--no-sandbox", "--disable-gpu",
+                "--no-first-run", "--remote-allow-origins=*",
+                f"--remote-debugging-port={port}", f"--user-data-dir={profile}", "about:blank"
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            cdp = None
+            env = None
+            try:
+                deadline = time.monotonic() + 15
+                tabs = []
+                while time.monotonic() < deadline:
+                    try:
+                        tabs = [tab for tab in get_tabs(port) if tab.get("type") == "page"]
+                    except Exception:
+                        pass
+                    if tabs and all(tab.get("url") == "about:blank" for tab in tabs):
+                        break
+                    time.sleep(0.1)
+                self.assertTrue(tabs, "Chromium CDP did not become ready")
+                self.assertTrue(all(tab.get("url") == "about:blank" for tab in tabs))
+                env = TestEnvironment(port=port, output_dir=self.temp_dir)
+                self.assertIsNone(env.ensure_tab("options"))
+                cdp = CDPConnection(tabs[0]["webSocketDebuggerUrl"])
+                playground = VisualSandbox(cdp=cdp, port=port, active_target="gemini",
+                                           env=env, output_dir=self.temp_dir)
+                with patch("scripts.visual_agent.playground.CDPConnection", wraps=CDPConnection) as connect:
+                    with self.assertRaisesRegex(RuntimeError, "无法定位或创建目标标签页: options"):
+                        playground.switch_page("options")
+                    connect.assert_not_called()
+                self.assertIs(playground.cdp, cdp)
+                self.assertEqual(playground.active_target, "gemini")
+                with open(os.path.join(self.temp_dir, ".playground_state.json")) as state:
+                    self.assertEqual(json.load(state)["target"], "gemini")
+            finally:
+                if cdp:
+                    cdp.close()
+                if env and env.browser_cdp:
+                    env.browser_cdp.close()
+                browser.terminate()
+                browser.wait(timeout=10)
 
     def test_viewport_normalization(self):
         # 1. 归一化坐标转换 (0.5, 0.5) -> (640, 400)
@@ -359,13 +440,17 @@ class TestVisualQAAgent(unittest.TestCase):
         self.assertTrue(event.resolved)
 
     def test_execute_visual_step_wait_on(self):
-        provider = MockCustomVisionProvider([
-            VisualAction(action_type=VisualActionType.WAIT_ON, condition="custom_wait", timeout=1, thought="Wait on event")
-        ])
-        agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
+        self.mock_cdp.eval_return = False
+        for condition, expected in (("  IDLE  ", True), ("custom_wait", False)):
+            with self.subTest(condition=condition):
+                provider = MockCustomVisionProvider([
+                    VisualAction(action_type=VisualActionType.WAIT_ON, condition=condition,
+                                 timeout=1, thought="Wait on event")
+                ])
+                agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
 
-        res = agent.execute_visual_step("step_wait", "等待沙盒事件")
-        self.assertTrue(res)
+                res = agent.execute_visual_step("step_wait", "等待沙盒事件")
+                self.assertIs(res, expected)
 
     def test_scorecard_reporting(self):
         self.scorecard.record_feature("向导防撞", "引导交互", "PASS", 1.2, "0 遮挡通过")
@@ -580,6 +665,51 @@ tags:
         self.assertGreaterEqual(len(self.scorecard.self_healing_events), 1)
         self.assertIn("verify_fn", self.scorecard.self_healing_events[0].reason)
 
+    def assert_mission_failure(self, provider, reason):
+        mission = TestMission(
+            mission_id="m_fail",
+            name="Provider failure",
+            description="Provider failures must fail the mission without verifiers",
+            instructions=["Click the export button"]
+        )
+        agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
+        with patch.object(agent, "log") as log:
+            result = agent.run_mission(mission)
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.message, "Mission step failed")
+        self.assertEqual(result.steps_taken, 1)
+        self.assertEqual(len(result.history), 1)
+        self.assertEqual(result.history[0]["action"], "FAIL")
+        self.assertIn(reason, result.history[0]["thought"])
+        self.assertTrue(any(reason in call.args[0] and call.args[1] == "FAIL"
+                            for call in log.call_args_list))
+        self.assertEqual(self.scorecard.features_explored[-1]["status"], "FAIL")
+
+    def test_run_mission_reports_failure_from_provider(self):
+        for thought in ("Provider cannot complete the action", None):
+            with self.subTest(thought=thought):
+                provider = MockCustomVisionProvider([
+                    VisualAction(action_type=VisualActionType.FAIL, thought=thought)
+                ])
+                self.assert_mission_failure(provider, thought or "执行动作: FAIL")
+                self.assertEqual(provider.call_count, 1)
+
+    @patch("urllib.request.urlopen")
+    def test_run_mission_reports_failure_on_endpoint_error(self, mock_urlopen):
+        mock_urlopen.side_effect = OSError("Endpoint unavailable")
+        provider = CustomAIVisionProvider(endpoint="http://mock-ai:8000/v1/chat")
+        self.assert_mission_failure(provider, "Endpoint unavailable")
+        mock_urlopen.assert_called_once()
+
+    @patch("urllib.request.urlopen")
+    def test_run_mission_reports_failure_on_unparseable_response(self, mock_urlopen):
+        response = mock_urlopen.return_value.__enter__.return_value
+        response.read.return_value = b'{"choices": [{"message": {"content": "not JSON"}}]}'
+        provider = CustomAIVisionProvider(endpoint="http://mock-ai:8000/v1/chat")
+        self.assert_mission_failure(provider, "自定义 AI 接口请求失败:")
+        mock_urlopen.assert_called_once()
+
     def test_run_mission_end_to_end(self):
         mission = TestMission(
             mission_id="m_tour",
@@ -695,6 +825,25 @@ class TestVisualCliArguments(unittest.TestCase):
             main()
         open_playground.assert_called_once_with(port=9333, target_page="gemini")
         open_playground.return_value.capture_screen.assert_called_once()
+
+    def test_wait_on_reports_unknown_condition_as_failure(self):
+        from scripts.visual_agent.cli import main
+        condition = "download_compelete"
+        argv = ["cli.py", "wait-on", "--condition", condition, "--timeout", "0", "--json"]
+        with tempfile.TemporaryDirectory() as output_dir:
+            playground = VisualSandbox(cdp=MagicMock(), output_dir=output_dir)
+            stdout = io.StringIO()
+            with patch("scripts.visual_agent.cli.open_visual_playground", return_value=playground), \
+                    patch.object(sys, "argv", argv), patch("sys.stdout", stdout):
+                with self.assertRaises(SystemExit) as exit_info:
+                    main()
+
+        result = json.loads(stdout.getvalue())
+        self.assertEqual(exit_info.exception.code, 2)
+        self.assertIs(result["success"], False)
+        self.assertEqual(result["condition"], condition)
+        self.assertIn("Unknown wait condition", result["message"])
+        self.assertIn(condition, result["message"])
 
 
 if __name__ == "__main__":

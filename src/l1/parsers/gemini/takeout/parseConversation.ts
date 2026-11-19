@@ -32,7 +32,7 @@ export function parseGeminiTakeoutConversation(raw: GeminiTakeoutRaw, context: G
     const ids = [...new Set(activities.flatMap(activity => activity.conversationIds))];
     const id = context.targetConvId?.replace(/^c_/, '') ?? (ids.length === 1 ? ids[0] : undefined);
     if (!id || !ids.includes(id)) throw new TypeError('Takeout requires an existing targetConvId when no single conversation can be selected');
-    return buildConversation(id, activities, createTakeoutResourceResolver(raw.archiveFiles ?? {}, raw.activityPath), context);
+    return buildConversation(id, activities, createTakeoutResourceResolver(raw.archiveFiles ?? {}, raw.activityPath));
 }
 
 /** Batch decoding shares the same source evidence and per-conversation Domain construction. */
@@ -42,7 +42,7 @@ export function parseGeminiTakeoutArchive(raw: GeminiTakeoutRaw, context: Conver
     const ids = [...new Set(activities.flatMap(activity => activity.conversationIds))];
     if (!ids.length) throw new TypeError('Takeout has no recognized conversation identities');
     const resolveResource = createTakeoutResourceResolver(raw.archiveFiles ?? {}, raw.activityPath);
-    return ids.map(id => buildConversation(id, activities, resolveResource, context));
+    return ids.map(id => buildConversation(id, activities, resolveResource));
 }
 
 /** Large ZIP inputs yield during decoding and Domain construction without changing semantics. */
@@ -58,13 +58,13 @@ export async function parseGeminiTakeoutArchiveAsync(raw: GeminiTakeoutRaw, cont
     const resolve = createTakeoutResourceResolver(raw.archiveFiles ?? {}, raw.activityPath);
     const results: GeminiTakeoutParseResult[] = [];
     for (const [id, selected] of groups) {
-        results.push(buildConversation(id, selected, resolve, context));
+        results.push(buildConversation(id, selected, resolve));
         if (results.length % 50 === 0) await new Promise<void>(resume => setTimeout(resume, 0));
     }
     return results;
 }
 
-function buildConversation(id: string, activities: TakeoutActivityEvidence[], resolveResource: ReturnType<typeof createTakeoutResourceResolver>, context: ConversationParseContext): GeminiTakeoutParseResult {
+function buildConversation(id: string, activities: TakeoutActivityEvidence[], resolveResource: ReturnType<typeof createTakeoutResourceResolver>): GeminiTakeoutParseResult {
     const diagnostics: Diagnostic[] = [];
     const contentDiagnostics: Diagnostic[] = [];
     const messages: DomainMessage[] = [];

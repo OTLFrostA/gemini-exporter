@@ -62,6 +62,18 @@ test('T1.4: convertMathWithMitex respects notation and display flags', async () 
     assert.ok(typeof typst === 'string' && typst.length > 0);
 });
 
+test('Document references and citations fail closed without matching escaped commands', () => {
+    for (const command of ['ref', 'eqref', 'cite']) {
+        const source = `x + \\${command}{eq1}`;
+        const result = convertMathWithMitex(source);
+        assert.strictEqual(result.typst, undefined);
+        assert.strictEqual(result.diagnostic?.code, 'TYPST_MATH_CONVERT_FAILED');
+        assert.ok(result.diagnostic?.message.includes(source));
+    }
+    assert.ok(convertMathWithMitex(String.raw`x \\ref`).typst);
+    assert.ok(convertMathWithMitex(String.raw`\text{reference citation}`).typst);
+});
+
 test('T2.1: Representative standard LaTeX: Arithmetic and fractions', async () => {
     const res1 = convertMathWithMitex('a + b - c \\times d / e');
     assert.ok(res1.typst, 'Arithmetic converts cleanly');
