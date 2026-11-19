@@ -22,6 +22,18 @@ interface MemoryDirNode {
     subdirs: Map<string, MemoryDirNode>;
 }
 
+const memoryDirectoryHandles = new WeakSet<object>();
+const clone = globalThis.structuredClone;
+
+test.before(() => {
+    // fake-indexeddb uses Node's structuredClone, which cannot clone browser file-system capabilities.
+    globalThis.structuredClone = (value, options) => (
+        typeof value === 'object' && value !== null && memoryDirectoryHandles.has(value)
+            ? value : clone(value, options)
+    );
+});
+test.after(() => { globalThis.structuredClone = clone; });
+
 function createMemoryDirectoryHandle(name = 'MockEncryptedFolder', initialPerm: PermissionState = 'granted') {
     let permission: PermissionState = initialPerm;
     const files = new Map<string, Uint8Array<ArrayBuffer>>();
@@ -66,7 +78,7 @@ function createMemoryDirectoryHandle(name = 'MockEncryptedFolder', initialPerm: 
 
     function makeDir(dirName: string, fileMap: Map<string, Uint8Array<ArrayBuffer>>, dirMap: Map<string, MemoryDirNode>): MemoryDirNode {
         const proto = {
-            isSameEntry: async () => false,
+            isSameEntry: async (other: FileSystemHandle) => other === handle,
             queryPermission: async () => permission,
             requestPermission: async () => permission,
             async getFileHandle(fileName: string, options?: FileSystemGetFileOptions) {
@@ -101,8 +113,9 @@ function createMemoryDirectoryHandle(name = 'MockEncryptedFolder', initialPerm: 
         const handle = Object.assign(Object.create(proto) as Record<string, unknown>, {
             kind: 'directory' as const,
             name: dirName,
-        });
-        return { handle: handle as unknown as DirectoryHandle, files: fileMap, subdirs: dirMap };
+        }) as unknown as DirectoryHandle;
+        memoryDirectoryHandles.add(handle);
+        return { handle, files: fileMap, subdirs: dirMap };
     }
 
     const root = makeDir(name, files, subdirs);
@@ -138,7 +151,6 @@ test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-r
 
         // Connect CloudSyncEngine in default local-folder mode!
         const engine = createCloudSyncEngine();
-        // Temporarily stub setStoredLocalVaultHandle compatibility by storing a serializable marker on handle
         const unsubscribe = engine.installAutoEnqueueListener();
         try {
             const acc = await getOrCreateAccount('gemini', 'gaia-local-test', 'local@example.com');
@@ -243,6 +255,56 @@ test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-r
         }
     } finally {
         env.restore();
+    }
+});
+
+test('switching to a different same-named vault restores and saves against the new directory', async () => {
+    const oldFolder = createMemoryDirectoryHandle('Vault');
+    const newFolder = createMemoryDirectoryHandle('Vault');
+    const recoveryKey = await prepareOneTimeVaultKey();
+    const addIndex = (accountId: string, conversationId: string, title: string, updatedAt: number) =>
+        ingestIndexes(accountId, [{ conversationId, fields: { title, titleSource: 'provider', updatedAt } }]);
+
+    const source = indexStorage();
+    try {
+        const writer = createCloudSyncEngine();
+        await createVaultKeySetup(writer.activateVaultKeyring)(recoveryKey, 'imported', null);
+        await writer.connectLocalFolderVault(newFolder.handle);
+        const account = await getOrCreateAccount('gemini', 'gaia-vault-switch');
+        await addIndex(account.id, 'shared', 'Newer title', 20_000);
+        await addIndex(account.id, 'new-folder-only', 'Restore from new folder', 20_000);
+        await writer.setAutoSyncEnabled(true);
+        await writer.waitForIdle();
+        assert.equal(newFolder.subdirs.get('records')?.files.size, 2);
+    } finally {
+        source.restore();
+    }
+
+    const target = indexStorage();
+    try {
+        const syncer = createCloudSyncEngine();
+        await createVaultKeySetup(syncer.activateVaultKeyring)(recoveryKey, 'imported', null);
+        await syncer.connectLocalFolderVault(oldFolder.handle);
+        const account = await getOrCreateAccount('gemini', 'gaia-vault-switch');
+        await addIndex(account.id, 'shared', 'Older title', 10_000);
+        await addIndex(account.id, 'old-folder-only', 'Save into new folder', 10_000);
+        await syncer.setAutoSyncEnabled(true);
+        await syncer.waitForIdle();
+        const syncedBefore = await syncer.pullChanges();
+        assert.equal(syncedBefore.pulledSeq, 2);
+        const connector = createCloudSyncEngine();
+        assert.equal((await connector.connectLocalFolderVault(oldFolder.handle)).session.pulledSeq, 2);
+        assert.equal((await connector.connectLocalFolderVault(newFolder.handle)).session.pulledSeq, 0);
+
+        const result = await syncer.syncNow();
+        assert.equal(result.pull.downloaded, 2, 'old revisions must not suppress records from the new folder');
+        assert.equal((await getIndex({ accountId: account.id, conversationId: 'new-folder-only' }))?.title, 'Restore from new folder');
+        assert.equal((await getIndex({ accountId: account.id, conversationId: 'shared' }))?.title, 'Newer title');
+        assert.equal(result.push.uploaded, 1, 'the old folder acknowledgement must not suppress saving to the new folder');
+        assert.equal(newFolder.subdirs.get('records')?.files.size, 3);
+        assert.equal(oldFolder.subdirs.get('records')?.files.size, 2);
+    } finally {
+        target.restore();
     }
 });
 

@@ -482,6 +482,22 @@ export function getStoredLocalVaultHandle(): Promise<DirectoryHandle | null> {
     });
 }
 
+export function putLocalVaultConnection(
+    session: CloudSyncSessionState,
+    handle: DirectoryHandle,
+    resetSyncedRecords: boolean,
+): Promise<void> {
+    return inCloudStores(['session', 'vaultHandles', 'syncedRecords'], 'readwrite', (tx, done) => {
+        tx.objectStore('session').put(session);
+        tx.objectStore('vaultHandles').put(handle, 'local-vault');
+        if (resetSyncedRecords) {
+            const range = IDBKeyRange.bound([session.ownerSubject], [session.ownerSubject, []]);
+            tx.objectStore('syncedRecords').delete(range);
+        }
+        done(undefined);
+    });
+}
+
 export function setStoredLocalVaultHandle(handle: DirectoryHandle | null): Promise<void> {
     return inCloudStores(['vaultHandles'], 'readwrite', (tx, done) => {
         const store = tx.objectStore('vaultHandles');

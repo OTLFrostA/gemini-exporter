@@ -27,6 +27,7 @@ import {
     getSyncedCloudRecordByBlindId,
     listDueCloudOutbox,
     putCloudSyncSession,
+    putLocalVaultConnection,
     putSyncedCloudRecord,
     recordCloudOutboxFailure,
     removeCloudOutboxKey,
@@ -162,14 +163,11 @@ export function createCloudSyncEngine(deps: {
 } = {}): CloudSyncEngine & { activateVaultKeyring: ActivateKeyring } {
     const remoteClient = deps.client ?? createCloudVaultClient();
     const now = deps.now ?? Date.now;
-    let inMemoryVaultHandle: DirectoryHandle | null = null;
     const resolveLocalHandle = async (): Promise<DirectoryHandle> => {
-        if (inMemoryVaultHandle) return inMemoryVaultHandle;
         const stored = await getStoredLocalVaultHandle();
         if (!stored) {
             throw new OperationError('DIRECTORY_PERMISSION_REQUIRED', 'No local encrypted vault folder configured');
         }
-        inMemoryVaultHandle = stored;
         return stored;
     };
     const localClient = deps.localFolderClient ?? createLocalFolderVaultClient(resolveLocalHandle, now);
@@ -666,13 +664,10 @@ export function createCloudSyncEngine(deps: {
             if (!initialized) {
                 throw new OperationError('CLOUD_KEY_NOT_INITIALIZED', 'Initialize your Master Key before connecting a Vault folder');
             }
-            inMemoryVaultHandle = handle;
-            await setStoredLocalVaultHandle(handle);
             const existingSession = await getCloudSyncSession();
-            const pulledSeq = existingSession?.backend === 'local-folder'
-                && existingSession.folderName === handle.name
-                ? existingSession.pulledSeq
-                : 0;
+            const existingHandle = existingSession?.backend === 'local-folder'
+                ? await getStoredLocalVaultHandle() : null;
+            const sameFolder = existingHandle !== null && await handle.isSameEntry(existingHandle).catch(() => false);
             const session: CloudSyncSessionState = {
                 id: 'active',
                 backend: 'local-folder',
@@ -681,10 +676,10 @@ export function createCloudSyncEngine(deps: {
                 sessionToken: 'local-folder-session',
                 expiresAt: Number.MAX_SAFE_INTEGER,
                 folderName: handle.name,
-                pulledSeq,
+                pulledSeq: sameFolder ? existingSession?.pulledSeq ?? 0 : 0,
                 enabledSinceAt: existingSession?.enabledSinceAt ?? now(),
             };
-            await putCloudSyncSession(session);
+            await putLocalVaultConnection(session, handle, !sameFolder);
             return {
                 session,
                 keyFingerprint: initialized.keyFingerprint,
@@ -736,7 +731,6 @@ export function createCloudSyncEngine(deps: {
                 await remoteClient.logoutAll(session.serverUrl, session.sessionToken).catch(() => {});
             }
             if (session?.backend === 'local-folder') {
-                inMemoryVaultHandle = null;
                 await setStoredLocalVaultHandle(null);
             }
             await updateSettings({ cloudSyncEnabled: false });
@@ -791,11 +785,10 @@ export function createCloudSyncEngine(deps: {
             const connected = session !== null;
             let folderPermissionRequired = false;
             if (connected && session?.backend === 'local-folder') {
-                const storedHandle = inMemoryVaultHandle ?? await getStoredLocalVaultHandle();
+                const storedHandle = await getStoredLocalVaultHandle();
                 if (!storedHandle) {
                     folderPermissionRequired = true;
                 } else {
-                    inMemoryVaultHandle = storedHandle;
                     try {
                         folderPermissionRequired = (await storedHandle.queryPermission({ mode: 'readwrite' })) !== 'granted';
                     } catch {
