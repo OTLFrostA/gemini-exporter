@@ -21,7 +21,7 @@ test('body delivery advances its counter while attachments remain active, and ca
             h.exportOptions.onBodyDelivered(key);
             h.exportOptions.onResourceProgress({key,completed:0,total:2,downloaded:0});
         });
-        assert.equal(await page.locator('#progText').textContent(),'Prepared 1 conversations · delivered 1 documents · downloaded 0 attachments');
+        assert.equal(await page.locator('#progText').textContent(),'Prepared 1 conversation · delivered 1 document · downloaded 0 attachments');
         assert.equal(await page.locator('body').getAttribute('data-busy'),'true');
         assert.equal(await page.locator('#splitDeliveryHint').count(),0);
         assert.equal(await page.locator('.status-exported').count(),0);
@@ -115,7 +115,7 @@ test('Folder export updates persisted item badges and the bar before the full ba
         assert.match(await page.locator('[data-chat-id="one"] .status-exported').textContent() ?? '', /^Export successful \(.+\)$/);
         assert.equal(await page.locator('[data-chat-id="two"] .status-exported').count(), 0);
         assert.match(await page.locator('#bar').getAttribute('style') ?? '', /width:\s*50%/);
-        assert.equal(await page.locator('#status').textContent(), 'Prepared 1 conversations · delivered 1 documents · downloaded 0 attachments');
+        assert.equal(await page.locator('#status').textContent(), 'Prepared 1 conversation · delivered 1 document · downloaded 0 attachments');
 
         await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
         await page.waitForFunction(() => document.body.dataset.busy !== 'true');
