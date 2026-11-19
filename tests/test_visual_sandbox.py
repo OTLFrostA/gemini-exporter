@@ -360,13 +360,17 @@ class TestVisualQAAgent(unittest.TestCase):
         self.assertTrue(event.resolved)
 
     def test_execute_visual_step_wait_on(self):
-        provider = MockCustomVisionProvider([
-            VisualAction(action_type=VisualActionType.WAIT_ON, condition="custom_wait", timeout=1, thought="Wait on event")
-        ])
-        agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
+        self.mock_cdp.eval_return = False
+        for condition, expected in (("  IDLE  ", True), ("custom_wait", False)):
+            with self.subTest(condition=condition):
+                provider = MockCustomVisionProvider([
+                    VisualAction(action_type=VisualActionType.WAIT_ON, condition=condition,
+                                 timeout=1, thought="Wait on event")
+                ])
+                agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
 
-        res = agent.execute_visual_step("step_wait", "等待沙盒事件")
-        self.assertTrue(res)
+                res = agent.execute_visual_step("step_wait", "等待沙盒事件")
+                self.assertIs(res, expected)
 
     def test_scorecard_reporting(self):
         self.scorecard.record_feature("向导防撞", "引导交互", "PASS", 1.2, "0 遮挡通过")
