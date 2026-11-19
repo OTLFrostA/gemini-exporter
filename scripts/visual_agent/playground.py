@@ -315,6 +315,7 @@ class VisualPlayground:
         """
         px_x, px_y = self._to_pixel(x, y)
         btn = "left" if button.lower() == "left" else "right"
+        started = time.time()
 
         self.cdp.call("Input.dispatchMouseEvent", {
             "type": "mouseMoved",
@@ -347,7 +348,7 @@ class VisualPlayground:
             "norm_coords": [x, y],
             "button": btn,
             "label": label,
-            "timestamp": time.time()
+            "timestamp": started
         })
 
     def mouse_scroll(self, delta_y: int, x: float = 0.5, y: float = 0.5):
@@ -464,6 +465,7 @@ class VisualPlayground:
             "Right": {"windowsVirtualKeyCode": 39, "key": "ArrowRight", "code": "ArrowRight"},
             "Space": {"windowsVirtualKeyCode": 32, "key": " ", "code": "Space"},
         }
+        started = time.time()
         # Background extension tabs need keyboard focus without stealing OS focus.
         self.cdp.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
         entry = KEY_MAP.get(key)
@@ -504,7 +506,7 @@ class VisualPlayground:
             "action": "press_key",
             "key": key,
             "modifiers": modifiers,
-            "timestamp": time.time()
+            "timestamp": started
         })
 
     def wait_on(
@@ -553,7 +555,9 @@ class VisualPlayground:
             previous = {}
             min_mtime = kwargs.get("min_mtime")
             if min_mtime is None:
-                min_mtime = t0
+                # In-process agents can trigger a download before they decide to wait.
+                min_mtime = next((entry["timestamp"] for entry in reversed(self.history)
+                                  if entry["action"] in ("mouse_click", "press_key")), t0)
 
             found_file = None
             while time.time() - t0 < timeout:

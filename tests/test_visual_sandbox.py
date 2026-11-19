@@ -405,6 +405,27 @@ class TestVisualQAAgent(unittest.TestCase):
         res = agent.execute_visual_step("step_wait", "等待沙盒事件")
         self.assertTrue(res)
 
+    def test_mission_accepts_download_completed_during_export_click(self):
+        path = os.path.join(self.temp_dir, "conversation.zip")
+        call = self.mock_cdp.call
+
+        def complete_download_on_click(method, params=None):
+            if method == "Input.dispatchMouseEvent" and params["type"] == "mouseReleased":
+                with zipfile.ZipFile(path, "w") as archive:
+                    archive.writestr("conversation.md", "# Exported conversation")
+            return call(method, params)
+
+        provider = MockCustomVisionProvider([
+            VisualAction(action_type=VisualActionType.CLICK, x=0.5, y=0.5),
+            VisualAction(action_type=VisualActionType.WAIT_ON, condition="zip_downloaded", timeout=2),
+        ])
+        agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
+        mission = TestMission(mission_id="export", name="Export conversation", description="Wait for the export",
+                              instructions=["Export", "Wait for ZIP"])
+        with patch.object(self.mock_cdp, "call", side_effect=complete_download_on_click):
+            result = agent.run_mission(mission)
+        self.assertTrue(result.success, result)
+
     def test_scorecard_reporting(self):
         self.scorecard.record_feature("向导防撞", "引导交互", "PASS", 1.2, "0 遮挡通过")
         self.scorecard.record_risk(VisualRisk(
