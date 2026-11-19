@@ -10,6 +10,9 @@ Implements the frozen [Application design](https://app.notion.com/p/3fb5d4d759e1
   belongs to L1. Local reads are validated by L2 before composition.
 - `importTakeout`, `importOpenAI`: offline archive import workflows orchestrating L1 archive
   decoding, L2 Detail admission, lazy task-resource retention and Runtime invalidation.
+- `cloud/`: optional encrypted vault sync. The engine orchestrates L1 vault transport,
+  L3a keyring and outbox storage, and L2 admission of restored records. This workflow
+  is independent of file export and Live Save.
 - `getSettings`, `updateSettings`, `isLiveSaveEffective`: defaults and explicit
   patches; ineffective Live Save does not reset the user's enabled preference.
 - `clearLocalExportRecords`: clear export history only.
@@ -26,9 +29,10 @@ duplicate keys and body corrections wait for their earlier writes. Cancellation 
 started writes and acquisitions before releasing readers, without starting queued
 writes. Attachment expiry recovery still refreshes once through L1.
 
-Browser output with multiple physical files automatically becomes ZIP. Folder
-output writes each conversation group and finalizes its ExportRecord only after
-actual delivery. Cancellation preserves records for already delivered groups.
+Browser output with multiple physical files automatically becomes one ZIP. Folder
+output writes Markdown, HTML and JSON documents before their attachments and
+finalizes each ExportRecord only after actual delivery. Cancellation preserves
+records for already delivered groups.
 There is no `useZip` option or alternate Live Save writer. Live Save submits
 Markdown + Folder Writer with `skipUnchanged: false` after a changed passive Detail
 commit or a verified reply-completion event. Following the 2026-10-20 design decision,

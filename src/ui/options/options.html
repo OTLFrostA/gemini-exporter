@@ -582,7 +582,7 @@
   </div>
   <div id="cloudModalFeedback" role="status" aria-live="polite" hidden></div>
 </dialog>
-<!-- PR5: JSZip stays external (UMD global), bundled workbench follows -->
+<!-- Load the JSZip global before the workbench bundle. -->
 <script src="/lib/jszip.min.js"></script>
 <script src="/dist/ui/options.js"></script>
 </body>

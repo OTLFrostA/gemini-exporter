@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md) · [简体中文](./USER_GUIDE_zh.md)
 
-Gemini Exporter saves supported Google Gemini conversations locally. It does **not** provide hosted backup or cloud synchronization.
+Gemini Exporter saves supported Google Gemini conversations locally. The optional Encrypted Vault can also back up conversation records to a local encrypted folder or sync them to a compatible server you configure.
 
 ## Connect a platform
 
@@ -17,16 +17,17 @@ Open **Site access** in the Workbench, select the platforms you need, and click 
 | **Markdown** (`.md`) | Notes, Obsidian, Logseq, or readable long-term archives |
 | **HTML** (`.html`) | Offline browser reading, including formatted math and light/dark viewing |
 | **PDF** (`.pdf`) | Portable reading and sharing; compiled locally via Typst/WASM |
+| **Word** (`.docx`) | Editable documents; supported equations are native Word math |
 | **JSON** (`.json`) | Machine-readable structured conversation archives |
 
-Images and other available attachments may be included alongside Markdown, HTML, or JSON in `assets/` and `files/`. PDF embeds applicable visual resources and may output original attached files separately.
+Images and other available attachments may be included alongside Markdown, HTML, or JSON in `assets/` and `files/`. PDF and Word embed applicable visual resources and may include original attachments as separate files.
 
-Choose either **Browser download** or **Save to local folder** in the Workbench. When a browser download contains multiple files, they are automatically packaged as one ZIP. Local-folder delivery writes files directly without this ZIP step. Large batches generally work better with an authorized folder than in-memory browser ZIP packaging.
+Choose either **Browser download** or **Save to local folder** in the Workbench. Browser downloads bundle multiple files into one ZIP; extract it as a whole to preserve links to attachments. Local-folder delivery writes files directly, with Markdown, HTML and JSON documents written before their attachments. Large batches generally work better with an authorized folder than in-memory browser ZIP packaging.
 
 ## Export the current conversation
 
 1. Open a supported conversation on [Gemini](https://gemini.google.com) while signed in.
-2. In the extension popup, select **Markdown**, **PDF**, **HTML**, or **JSON**.
+2. In the extension popup, select **Markdown**, **PDF**, **HTML**, **Word**, or **JSON**.
 3. Click **Export Current Conversation** to start a browser download.
 
 ## Back up several conversations
@@ -51,6 +52,16 @@ Live Save writes Markdown updates to a user-authorized local folder when Gemini 
 3. Enable **Live Save** inside the local-folder card.
 
 Switching to **Browser download** or a non-Markdown format **pauses** Live Save; your on/off preference remains saved. If browser permissions expire after a restart, reauthorize the folder when prompted.
+
+## Encrypted Vault
+
+The vault is separate from **Live Save** and from ordinary file exports. In the Workbench, choose **Manage** on the **E2EE Encrypted Vault** card.
+
+1. Generate a GEK1 master key, save it offline, and confirm to activate it. You cannot display it again after confirmation. To use an existing vault, enter its original GEK1 key instead.
+2. Choose **Local Encrypted Folder** and authorize a folder, or choose **Cloud Vault Server** and enter the HTTPS URL of a v2-compatible server and its access code if required. Use **Create & Connect Cloud Vault** with a new key, or **Unlock Existing Cloud Vault** with the original key.
+3. Connecting enables automatic backup. Use the vault toggle to pause it or choose **Sync Now** to sync manually. The vault backs up the conversation catalog by default; it does not back up exported files or original attachment bytes.
+
+Keep the original key to unlock existing data or pair another browser. If the vault reports a key mismatch, enter its original key. Resetting the vault is destructive and cannot recover data encrypted with a lost key.
 
 ## Import older history with Google Takeout
 
@@ -90,8 +101,8 @@ Keep the Workbench page open to export original ZIP attachments. After closing o
 
 **What happens when ChatGPT returns 429?** The current export stops immediately and the account cools down for at least one hour, or longer if required by `Retry-After`. The UI shows the reason and cooldown deadline; retry manually after it expires. The account deadline survives workbench reloads and browser restarts. Diagnostics retain rate-limit and cooldown observations.
 
-Stopping or cancelling a Markdown, HTML or JSON browser export still delivers prepared documents and attachments from conversations whose resource processing has completed. Extract the document and attachment ZIPs into the same directory. Unfinished attachments do not count as success and do not create complete export records. Packaging or delivery failures are reported separately. PDF and Word must finish rendering before delivery; files already written in folder mode remain saved.
+Stopping or cancelling a Markdown, HTML or JSON browser export still delivers prepared documents and completed attachments together. Conversations with unfinished attachment processing are not recorded as successful. Packaging or delivery failures are reported separately. PDF and Word must finish rendering before delivery; files already written in folder mode remain saved.
 
-Markdown, HTML and JSON deliver documents separately from attachments: folder exports write each document first; browser exports deliver a document ZIP after document preparation, followed by an attachment ZIP. PDF and Word prepare attachments before rendering. Within one export task, ChatGPT document reads and attachment-locator requests still observe the same account cooldown.
+Within one export task, ChatGPT document reads and attachment-locator requests observe the same account cooldown.
 
 **Does source reply completion determine export success?** It does not determine the outcome by itself. Finished replies, interruptions, handoffs, user-message tails, tool steps and unconfirmed completion describe the source. Complete body coverage with successful file delivery remains a successful export; actual missing content, missing attachments and delivery failures are reported separately. Explicit completion on a hidden assistant node can establish termination without exposing that node's hidden content in the exported file.

@@ -39,7 +39,16 @@ The precise contracts are in [Account Registry](docs/account-registry.md), [Doma
 
 ## Privacy and validation
 
-The extension processes exports on the user device without developer telemetry or a hosted chat backup service. Optional source websites are contacted through the authenticated browser session; local file and attachment handling remain user-initiated or enabled through Live Save.
+The extension processes exports on the user device without developer telemetry. Optional source websites are contacted through the authenticated browser session; local file and attachment handling remain user-initiated or enabled through Live Save.
+
+The optional Encrypted Vault is a separate Application workflow, not an L4 export
+format. `src/application/cloud/` syncs encrypted conversation records through
+`src/l1/cloud/` to an authorized local folder or a user-configured v2 Cloud Vault
+server. Catalog records are synced by default; locally stored Detail is opt-in
+and original attachment bytes are not included. The GEK1 master key is generated
+or entered locally; L3a retains non-extractable derived keys, not the recovery
+text. Background listens for committed conversation changes and processes the
+durable outbox; restored records go through L2 admission.
 
 `npm test` is the offline TypeScript/unit/build/Playwright gate. [Tier 2](docs/tier2-platform-plugins.md) uses a separately authenticated browser and real exported files. A green previous run or a subset of features is not a current complete Tier 2 pass. The [module unit-test isolation rules](docs/v2-unit-isolation.md) distinguish isolated module tests from cross-layer integration suites.
 

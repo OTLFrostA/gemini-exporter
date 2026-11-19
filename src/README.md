@@ -9,12 +9,14 @@ defines the module boundaries used by this directory tree:
 | `l1/sniffer` | L1: passive Gemini request/response capture and source message bridge |
 | `l1/parsers`, `l1/protocol` | L1: source decoding, provider wire schemas and unbound parse results |
 | `l1/imports`, `l1/resources` | L1: offline archive decoding/binding and temporary resource acquisition |
+| `l1/cloud` | L1: encrypted vault transport for a local folder or v2 Cloud Vault server |
 | `l2` | [L2](https://app.notion.com/p/3fb5d4d759e1814aaa92ee02a21419a7): Domain schemas, account identity, Index/Detail admission and Coverage |
 | `l3a` | [L3a](https://app.notion.com/p/3fb5d4d759e1816dbc65c1cd23854e00): passive IndexedDB, Settings and directory-handle persistence |
 | `l3b/ast`, `l3b/compose` | [L3b](https://app.notion.com/p/3fb5d4d759e181ed9ea7cffc849a5769): document AST and composition |
 | `l4/format` | [L4](https://app.notion.com/p/3fb5d4d759e18131aaf0ecbe526d5ace): Markdown/HTML/JSON/DOCX/Typst rendering, PDF compiler, sandbox and bundled resources |
 | `l4/packaging`, `l4/delivery` | L4: archive paths, ZIP writer, browser downloads and filesystem writer |
 | `application` | [Application](https://app.notion.com/p/3fb5d4d759e181169ed3dfed880a093a): sync/export/import workflows, Settings defaults and record cleanup |
+| `application/cloud` | Application: encrypted vault key setup, record codec and sync orchestration |
 | `ui` | [UI](https://app.notion.com/p/3fb5d4d759e181cdad0fc2f778766999): Popup, Options, badge, guidance and presentation helpers |
 | `runtime` | [Runtime](https://app.notion.com/p/3fc5d4d759e181378680fb979175bc38): background/content entrypoints, IPC, account routing, readiness and browser capabilities |
 | `migration` | Independent one-time, nondestructive v1 metadata/preferences migration |
@@ -26,20 +28,18 @@ Live Save sends a ConversationKey to Background, then uses the same Application
 Markdown export workflow. Business bodies and directory handles do not travel in
 Chrome JSON messages.
 
-Markdown, HTML and JSON use independent document and attachment deliveries.
+Markdown, HTML and JSON prepare documents independently of attachments.
 The source pipeline composes documents and reserves local attachment paths from
 Domain metadata before any attachment bytes are required. Folder export writes
-each document immediately and fills its attachment paths separately. Browser
-export downloads the documents and an `attachments_*.zip` independently; extract
-both into the same directory. PDF and DOCX retain a single complete delivery
+each document first and fills its attachment paths separately. Browser export
+waits for resource processing and delivers the documents and available attachments
+together, in one ZIP when there are multiple files. PDF and DOCX finish rendering
 after their embedded media has been prepared.
 
-Attachment failures preserve the initial document and produce a corrected document
-with failure placeholders, together with a JSON report
-under `attachment-reports/`. A source refresh that changes a document or its
-resource identities includes the corrected document at its original filename in
-the attachment delivery. Merge it with the initial document download, replacing
-that earlier file. Successful attachment acquisitions are reused within the task.
+Attachment failures produce a document with failure placeholders and a JSON report
+under `attachment-reports/`. Corrections replace the document at its original
+path, whether staged for browser delivery or already written to a folder.
+Successful attachment acquisitions are reused within the task.
 Browser downloads use a separate attachment directory per task. Markdown, HTML
 and JSON folder exports use stable `assets/<provider>/<accountId>/<conversationId>/` and `files/...` paths.
 Before acquisition, Application asks L4 Delivery whether each planned file exists;
@@ -48,9 +48,9 @@ Same-path content changes retain the local file; delete it to acquire it again.
 Folder document names and batch collision suffixes retain their existing rules.
 PDF/DOCX embedded media still require acquisition. Previous task-scoped folders
 are left untouched and are not searched for reusable attachments.
-Only completion of both deliveries commits the full ExportRecord; the transient
-body-delivery callback updates progress independently. Cancelling outstanding
-attachments cannot retract an already delivered document.
+Folder exports commit the ExportRecord after document and attachment writes
+finish. The body-delivery callback updates progress independently. Cancelling
+outstanding attachments cannot retract an already delivered document.
 
 The explicit UI diagnostic JSON download includes conversation titles and IDs.
 Gemini structured-body rejection diagnostics also retain the full failed native
