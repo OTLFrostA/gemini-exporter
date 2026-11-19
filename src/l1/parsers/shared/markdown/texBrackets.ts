@@ -1,5 +1,5 @@
-// Fenced code blocks (backticks or tildes) and inline code spans keep their backslashes and dollars.
-const CODE_SPAN = /(`{3,}[\s\S]*?(?:`{3,}|$)|~{3,}[\s\S]*?(?:~{3,}|$)|`+[^`\n]+`+)/g;
+import type { Nodes } from 'mdast';
+import { parseMarkdownAst } from './parseMarkdown.js';
 
 const BRACKET_DISPLAY_OWN_LINES = /^[ \t]*\\\[(?<block>[\s\S]+?)\\\][ \t]*$/gm;
 const BRACKET_DISPLAY_INLINE = /\\\[(?<display>[\s\S]+?)\\\]/g;
@@ -9,10 +9,22 @@ const BRACKET_INLINE = /\\\((?<inline>(?:(?!\\\()[^\r\n])+?)\\\)/g;
 /** Transform only prose segments outside fenced and inline Markdown code spans. */
 export function transformMarkdownOutsideCode(source: string, transform: (prose: string) => string): string {
     if (!source) return source;
-    const parts = source.split(CODE_SPAN);
-    for (let i = 0; i < parts.length; i += 2) {
-        parts[i] = transform(parts[i] ?? '');
+    const parts: string[] = [];
+    let cursor = 0;
+    function visit(node: Nodes): void {
+        if (node.type === 'code' || node.type === 'inlineCode') {
+            const start = node.position?.start.offset;
+            const end = node.position?.end.offset;
+            if (start !== undefined && end !== undefined) {
+                parts.push(transform(source.slice(cursor, start)), source.slice(start, end));
+                cursor = end;
+            }
+        } else if ('children' in node) {
+            for (const child of node.children) visit(child);
+        }
     }
+    visit(parseMarkdownAst(source));
+    parts.push(transform(source.slice(cursor)));
     return parts.join('');
 }
 

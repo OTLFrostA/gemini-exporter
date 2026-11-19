@@ -354,14 +354,18 @@ const CANDIDATE_BODY_EXTRACTORS: readonly CandidateBodyTextExtractor[] = [
     body => (isWireArray(body) && typeof body[0] === 'string' && body[0].length > 3 ? body[0] : null),
 ];
 
+function candidateBody(cand: unknown): unknown {
+    const candidateSlots = isWireArray(cand) ? cand : null;
+    if (candidateSlots === null) return cand;
+    const body = candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY];
+    if (body !== undefined) return body;
+    if (typeof candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] === 'string') return undefined;
+    return candidateSlots.length === 1 ? candidateSlots[0] : candidateSlots;
+}
+
 export function extractCandidateText(cand: unknown): string {
     if (!cand) return '';
-    const candidateSlots = isWireArray(cand) ? cand : null;
-    const body: unknown = candidateSlots !== null
-        ? (candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
-            ? candidateSlots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
-            : (candidateSlots.length === 1 ? candidateSlots[0] : candidateSlots))
-        : cand;
+    const body = candidateBody(cand);
 
     for (const extractor of CANDIDATE_BODY_EXTRACTORS) {
         const text = extractor(body);
@@ -370,12 +374,14 @@ export function extractCandidateText(cand: unknown): string {
     return '';
 }
 
+export function userTextContainer(userPayload: unknown[]): unknown[] {
+    return isWireArray(userPayload[0]) ? userPayload[0] : userPayload;
+}
+
 function extractUserText(userPayload: unknown): string {
-    if (!isWireArray(userPayload) || userPayload.length === 0) return '';
-    const first = userPayload[0];
-    if (typeof first === 'string') return first;
-    if (isWireArray(first) && typeof first[0] === 'string') return first[0];
-    return '';
+    if (!isWireArray(userPayload)) return '';
+    const text = userTextContainer(userPayload)[0];
+    return typeof text === 'string' ? text : '';
 }
 
 /** Resolve legacy nested text chunks strictly inside the candidate's BODY slot;
@@ -383,10 +389,7 @@ function extractUserText(userPayload: unknown): string {
 function extractModelResponseText(candidate: unknown): string {
     const direct = extractCandidateText(candidate);
     if (direct) return direct;
-    const slots = isWireArray(candidate) ? candidate : null;
-    const bodyScope = slots !== null && slots.length > 1
-        ? slots[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
-        : candidate;
+    const bodyScope = candidateBody(candidate);
     if (!bodyScope) return '';
     const textArr: string[] = [];
     deepWalk(bodyScope, node => {

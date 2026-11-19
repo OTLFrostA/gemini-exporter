@@ -69,6 +69,7 @@ npm test
 
 # 或分别单独执行
 npm run test:unit    # 运行 python3 tests/run_tests.py (当前全量单元测试套件)
+npm run test:unit -- --filter test_integrity_model  # 按文件名筛选 Python 或 JS/TS（含 CommonJS）单元测试
 npx playwright test  # 运行当前全量 Playwright 用例 (需先 node build.js)
 ```
 

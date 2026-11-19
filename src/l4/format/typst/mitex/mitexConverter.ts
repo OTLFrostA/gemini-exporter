@@ -51,6 +51,12 @@ export function convertMathWithMitex(
 
     try {
         const preprocessed = preprocessLatex(source);
+        // Conversation formulas have no document labels or bibliography to resolve.
+        for (const [command] of preprocessed.matchAll(/\\(?:[a-zA-Z]+|[^])/g)) {
+            if (command === '\\ref' || command === '\\eqref' || command === '\\cite') {
+                throw new Error(`Unsupported document command ${command}`);
+            }
+        }
         // MiTeX currently prints the optional TeX row-gap argument literally.
         // Consume only a numeric physical length after a row break; it is
         // layout metadata, never an authored matrix entry or optional root.

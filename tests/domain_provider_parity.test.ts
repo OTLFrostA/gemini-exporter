@@ -3,15 +3,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import { composeFixture } from './helpers/documentFixture.js';
+import type { DocumentAst, DisplayBlock } from '../src/l3b/ast/ast.js';
 
-async function assertDomainParity(conversation: Conversation): Promise<void> {
+async function assertDomainDocument(conversation: Conversation, expected: DocumentAst): Promise<void> {
     const { conversation: domain, resourceHints } = historicalFixture(conversation);
-    const [legacyResult, domainResult] = await Promise.all([
-        composeFixture(historicalFixture(conversation, { providerId: 'gemini' }).conversation, resourceHints),
-        composeFixture(domain, resourceHints),
-    ]);
-    assert.deepEqual(domainResult.document, legacyResult.document);
+    const result = await composeFixture(domain, resourceHints);
+    assert.deepEqual(result.document, expected);
 }
+
+const paragraph = (text: string): DisplayBlock => ({ type: 'paragraph', children: [{ type: 'text', text }] });
+const reasoning = (text: string): DisplayBlock => ({
+    type: 'disclosure', kind: 'reasoning', title: 'Thinking Process', blocks: [paragraph(text)],
+});
+const expectedMetadata = { id: 'd2-conversation', provider: 'gemini' };
 
 const metadata = {
     id: 'd2-conversation',
@@ -29,7 +33,14 @@ test('Domain composition preserves provider parsing for an RPC conversation', as
             { id: 'model-1', role: 'model', content: 'Answer', timestamp: 1_700_000_001_000 },
         ],
     };
-    await assertDomainParity(conversation);
+    await assertDomainDocument(conversation, {
+        title: 'Document parity',
+        metadata: { ...expectedMetadata, updatedAt: 1_700_000_001_000 },
+        messages: [
+            { role: 'user', timestamp: 1_700_000_000_000, blocks: [paragraph('Question')] },
+            { role: 'assistant', timestamp: 1_700_000_001_000, blocks: [paragraph('Answer')] },
+        ],
+    });
 });
 
 test('Domain composition preserves provider parsing for attachments and generated media', async () => {
@@ -46,7 +57,13 @@ test('Domain composition preserves provider parsing for attachments and generate
             }],
         }],
     };
-    await assertDomainParity(conversation);
+    await assertDomainDocument(conversation, {
+        title: 'Document parity', metadata: expectedMetadata,
+        messages: [{ role: 'assistant', blocks: [
+            paragraph('Generated image'),
+            { type: 'image', resourceId: 'resource-307c26709cfd66cc', alt: 'Image' },
+        ] }],
+    });
 });
 
 test('Domain composition preserves provider parsing for citations and documents', async () => {
@@ -62,7 +79,17 @@ test('Domain composition preserves provider parsing for citations and documents'
             }],
         }],
     };
-    await assertDomainParity(conversation);
+    await assertDomainDocument(conversation, {
+        title: 'Document parity', metadata: expectedMetadata,
+        messages: [{ role: 'assistant', blocks: [
+            reasoning('Considering sources'),
+            { type: 'paragraph', children: [
+                { type: 'text', text: 'Research ' },
+                { type: 'citation', id: 'citation-0', label: '[1]', href: 'https://example.test/source' },
+            ] },
+            { type: 'file', resourceId: 'resource-51a850dd7c9aaa21', label: 'Research report', kind: 'file', byteLength: 10 },
+        ], sources: [{ id: 'citation-0', label: 'Source', href: 'https://example.test/source', number: 1 }] }],
+    });
 });
 
 test('Domain composition preserves provider parsing after flattening turns-only input', async () => {
@@ -77,5 +104,13 @@ test('Domain composition preserves provider parsing after flattening turns-only 
     const domain = historicalFixtureDomain(conversation);
     assert.equal('turns' in domain, false);
     assert.deepEqual(domain.detail.messages.map((message) => message.role), ['user', 'assistant', 'user', 'assistant']);
-    await assertDomainParity(conversation);
+    await assertDomainDocument(conversation, {
+        title: 'Document parity', metadata: expectedMetadata,
+        messages: [
+            { role: 'user', timestamp: 1_700_000_000_000, blocks: [paragraph('Question')] },
+            { role: 'assistant', timestamp: 1_700_000_000_000, blocks: [reasoning('Reasoning'), paragraph('Answer')] },
+            { role: 'user', blocks: [paragraph('Follow-up')] },
+            { role: 'assistant', blocks: [paragraph('Follow-up answer')] },
+        ],
+    });
 });

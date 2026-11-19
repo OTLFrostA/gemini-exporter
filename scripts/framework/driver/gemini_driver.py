@@ -641,6 +641,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         """
         CDPActions.click_new_chat(self.cdp)
 
+        state = None
         start_t = time.time()
         while time.time() - start_t < timeout:
             state = self.cdp.eval(f"""
@@ -661,6 +662,8 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             if state and state.get("isAppRoute") and state.get("bubbleCount") == 0 and state.get("hasEditor") and state.get("hasModeBtn"):
                 break
             time.sleep(0.5)
+        else:
+            raise RuntimeError(f"New chat readiness timed out after {timeout}s; last state: {state!r}")
 
         self.ensure_model(target_model="3.8 Flash", target_thinking=True, force_menu_check=False)
 
@@ -679,6 +682,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             get_gateway().safe_navigate(self.cdp, target_url)
             time.sleep(2.0)
 
+        state = None
         start_t = time.time()
         while time.time() - start_t < timeout:
             state = self.cdp.eval(f"""
@@ -692,6 +696,8 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             if state:
                 break
             time.sleep(0.5)
+        else:
+            raise RuntimeError(f"Chat {chat_id_clean!r} readiness timed out after {timeout}s; last state: {state!r}")
 
         self.ensure_model(target_model="3.8 Flash", target_thinking=True, force_menu_check=False)
 

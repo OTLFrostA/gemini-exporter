@@ -604,10 +604,9 @@ class VisualPlayground:
             )
 
         else:
-            time.sleep(min(timeout, 1.0))
             return WaitResult(
-                success=True,
-                message=f"通用等待完成 ({condition})",
+                success=False,
+                message=f"Unknown wait condition: {condition!r}",
                 elapsed=time.time() - t0
             )
 
@@ -675,8 +674,6 @@ class VisualPlayground:
                 target_tab = next((t for t in tabs if t.get("type", "page") == "page" and "popup.html" in t.get("url", "")), None)
             elif norm_target == "options":
                 target_tab = next((t for t in tabs if t.get("type", "page") == "page" and "options.html" in t.get("url", "")), None)
-            if not target_tab and tabs:
-                target_tab = tabs[0]
 
         if not target_tab:
             raise RuntimeError(f"无法定位或创建目标标签页: {target}")

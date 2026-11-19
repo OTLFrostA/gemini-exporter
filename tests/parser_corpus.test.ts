@@ -13,6 +13,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const os = require('node:os');
 const path = require('path');
 
 const { runCorpus } = require('../scripts/parser_migration/run_corpus.ts');
@@ -108,4 +109,62 @@ test('Parser Migration Corpus: Injectable runner executes with real Typst compil
     assert.strictEqual(diffReport.math.candidate.compileFailures, 0, 'Candidate compiled expressions in WASM');
     assert.strictEqual(diffReport.math.candidate.converted, diffReport.math.expressions);
     assert.ok(diffReport.math.diffCount > 0, 'Intentionally different math converter must trigger a differential result');
+});
+
+test('Parser Migration Corpus: same LaTeX in inline and display mode compiles each conversion', async (t: import('node:test').TestContext) => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'parser-corpus-'));
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+    const corpusPath = path.join(directory, 'corpus.json');
+    fs.writeFileSync(corpusPath, JSON.stringify({
+        corpusSets: {
+            synthetic_fixtures: {
+                mathExpressions: [
+                    { id: 'inline-x', latex: 'x', display: false },
+                    { id: 'display-x', latex: 'x', display: true },
+                ],
+            },
+        },
+    }));
+    const convert = (latex: string, display: boolean) => ({ typst: display ? latex : 'geeUnknownMathSymbol()' });
+    const { math } = await runCorpus({
+        corpusPath,
+        outputPath: path.join(directory, 'report.json'),
+        baselineConverter: convert,
+        candidateConverter: convert,
+        compileTypst: true,
+    });
+
+    const expected = { converted: 2, conversionFailures: 0, compileFailures: 1 };
+    assert.deepStrictEqual({ baseline: math.baseline, candidate: math.candidate }, { baseline: expected, candidate: expected });
+    assert.strictEqual(math.compileFailures, 1);
+});
+
+test('Parser Migration Corpus: candidate output differing only in node IDs reports no markdown diff', async () => {
+    const { historicalFixture } = require('./helpers/nativeFixture.ts');
+    const stampIds = (value: any, prefix: string): any => {
+        if (Array.isArray(value)) return value.map((item, i) => stampIds(item, `${prefix}.${i}`));
+        if (!value || typeof value !== 'object') return value;
+        const stamped: Record<string, any> = {};
+        for (const [key, child] of Object.entries(value)) stamped[key] = stampIds(child, `${prefix}.${key}`);
+        if (typeof value.type === 'string') stamped.id = `candidate-${prefix}`;
+        return stamped;
+    };
+
+    const report = await runCorpus({
+        corpusPath: CORPUS_PATH,
+        outputPath: path.join(__dirname, 'output/corpus_report_ephemeral_ids.json'),
+        corpusCategory: 'synthetic_fixtures',
+        compileTypst: false,
+        candidateConverter: undefined,
+        candidateParser: async (content: string, id: string) => {
+            const parsed = await historicalFixture({ id, messages: [{ id: 'm1', role: 'user', content }] }, { providerId: 'gemini' });
+            const message = parsed.conversation.detail.messages[0];
+            message.content = stampIds(message.content, id);
+            return parsed;
+        },
+    });
+
+    assert.ok(report.markdown.documents > 0);
+    assert.strictEqual(report.markdown.candidate.parseFailures, 0);
+    assert.strictEqual(report.markdown.diffCount, 0, JSON.stringify(report.diffs.slice(0, 3)));
 });

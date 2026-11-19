@@ -232,7 +232,7 @@ class TestGeminiDriverSuite(unittest.TestCase):
             with patch.object(driver, "ensure_model", return_value=True) as mock_model:
                 # Mock state polling: ready on first check
                 cdp.eval_responses = [
-                    {"isAppRoute": True, "bubbleCount": 0, "hasEditor": True}
+                    {"isAppRoute": True, "bubbleCount": 0, "hasEditor": True, "hasModeBtn": True}
                 ]
                 session = driver.new_chat(timeout=5.0)
 
@@ -241,6 +241,41 @@ class TestGeminiDriverSuite(unittest.TestCase):
                 self.assertIsInstance(session, GeminiChatSession)
                 self.assertIsNone(session.chat_id)
                 self.assertEqual(driver.active_session, session)
+
+    def test_chat_readiness_timeout(self):
+        not_ready = {"isAppRoute": True, "bubbleCount": 2, "hasEditor": False, "hasModeBtn": False}
+        for method, states in (("new_chat", [not_ready, None]), ("open_chat", [False, None])):
+            for state in states:
+                with self.subTest(method=method, state=state):
+                    cdp = MockCDP()
+                    cdp.eval_responses = [None, state]
+                    driver = GeminiDriver(cdp)
+                    previous_session = GeminiChatSession(driver, chat_id="previous")
+                    driver.active_session = previous_session
+                    with patch("scripts.framework.actions.CDPActions.click_new_chat"), \
+                         patch.object(driver, "get_current_chat_id", return_value="target"), \
+                         patch.object(driver, "ensure_model") as model, \
+                         patch("scripts.framework.driver.gemini_driver.time.sleep"), \
+                         patch("scripts.framework.driver.gemini_driver.time.time", side_effect=[0, 0, 0.5, 1]):
+                        args = ("target",) if method == "open_chat" else ()
+                        with self.assertRaisesRegex(RuntimeError, "readiness timed out") as error:
+                            getattr(driver, method)(*args, timeout=1)
+                        self.assertIn(repr(state), str(error.exception))
+                        model.assert_not_called()
+                        self.assertIs(driver.active_session, previous_session)
+
+    def test_chat_readiness_zero_timeout(self):
+        for method in ("new_chat", "open_chat"):
+            with self.subTest(method=method):
+                driver = GeminiDriver(MockCDP())
+                with patch("scripts.framework.actions.CDPActions.click_new_chat"), \
+                     patch.object(driver, "get_current_chat_id", return_value="target"), \
+                     patch.object(driver, "ensure_model") as model:
+                    args = ("target",) if method == "open_chat" else ()
+                    with self.assertRaisesRegex(RuntimeError, "last state: None"):
+                        getattr(driver, method)(*args, timeout=0)
+                    model.assert_not_called()
+                    self.assertIsNone(driver.active_session)
 
     def test_gemini_driver_open_chat_flow(self):
         cdp = MockCDP()
@@ -284,4 +319,3 @@ class TestGeminiDriverSuite(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

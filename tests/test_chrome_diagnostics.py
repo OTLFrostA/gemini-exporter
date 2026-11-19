@@ -15,6 +15,50 @@ from scripts.framework.features import FeatureRegistry
 
 
 class TestChromeDiagnostics(unittest.TestCase):
+    def test_session_accepts_launcher_metadata_before_cdp_verification(self):
+        with tempfile.TemporaryDirectory() as directory:
+            process = SimpleNamespace(pid=123, poll=lambda: 5, returncode=5)
+            with patch('scripts.launch_test_chrome.ensure_port_free'), \
+                    patch('scripts.launch_test_chrome.subprocess.Popen', return_value=process):
+                with self.assertRaisesRegex(RuntimeError, 'exited during startup'):
+                    main(['--chrome', 'chrome', '--profile', directory, '--repo', directory])
+            metadata = json.loads((Path(directory) / 'chrome-launch.json').read_text())
+            self.assertIsNone(metadata['browser'])
+            context = SimpleNamespace(port=9222, output_dir=directory,
+                                      registry=FeatureRegistry(standard=False))
+            dag = SimpleNamespace(cases={}, run=lambda context, target_ids=None: True)
+            session = PlatformSession(dag, context, Mock(return_value=True), Mock())
+            version = {'Browser': 'Chrome/test', 'webSocketDebuggerUrl': 'ws://original'}
+            with patch.dict('os.environ', {'GEMINI_EXPORTER_TEST_PROFILE': directory}), \
+                    patch('scripts.chrome_diagnostics.browser_version', return_value=version), \
+                    patch('scripts.framework.tab_cleanup.get_tabs', return_value=[]), \
+                    patch('scripts.framework.tab_cleanup.get_browser_ws_url', return_value='ws://original'), \
+                    patch('scripts.framework.tab_cleanup.CDPConnection'), \
+                    patch('scripts.framework.tab_cleanup.time.monotonic', side_effect=[0, 3]):
+                report = {}
+                self.assertTrue(run_session(session, report), report.get('traceback'))
+            session.prepare.assert_called_once()
+            session.close.assert_called_once()
+            self.assertIsNone(report['chrome_diagnostics']['failure'])
+
+    def test_unavailable_launcher_metadata_does_not_block_diagnostics(self):
+        for contents in (None, 'not json', 'null', '[]', '42', '"metadata"', '{}',
+                         '{"browser": null}', '{"browser": []}', '{"browser": 42}',
+                         '{"browser": "browser"}'):
+            with self.subTest(contents=contents), tempfile.TemporaryDirectory() as directory:
+                if contents is not None:
+                    (Path(directory) / 'chrome-launch.json').write_text(contents)
+                diag = BrowserDiagnostics(9222, directory)
+                with patch.dict('os.environ', {'GEMINI_EXPORTER_TEST_PROFILE': directory}), \
+                        patch('scripts.chrome_diagnostics.browser_version', return_value={
+                            'Browser': 'Chrome/test', 'webSocketDebuggerUrl': 'ws://original'}):
+                    diag.start()
+                    diag.checkpoint('export')
+                    diag.finish()
+                self.assertIsNone(diag.launch_metadata)
+                self.assertIsNone(diag.failure)
+                self.assertIn('connected', (diag.output / 'events.jsonl').read_text())
+
     def test_occupied_port_is_rejected_without_launch(self):
         with socket.socket() as server:
             server.bind(('127.0.0.1', 0))

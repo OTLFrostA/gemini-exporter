@@ -72,7 +72,7 @@ test('attachment locator 404 is a source-unavailable warning in diagnostics and 
     const summary = exportSummary({ exported: 1, partial: 1, skipped: 0, failed: [], aborted: false,
         expiredConversations: 1, otherPartial: 0,
         attachmentIssues: [{ ...issue, resourceId: 'missing', name: 'report.md' }] }, true);
-    assert.match(summary, /1 conversations contain unavailable source attachments \(1 attachments\)/);
+    assert.match(summary, /1 conversation contains unavailable source attachments \(1 attachment\)/);
     assert.doesNotMatch(summary, /Attachment download failed|retry later|Other incomplete/);
 });
 
@@ -80,7 +80,7 @@ test('missing download locators have a known cause without claiming a server exp
     const summary = exportSummary({ exported: 1, partial: 1, skipped: 0, failed: [], aborted: false,
         otherPartial: 1,
         attachmentIssues: [{ code: 'RESOURCE_LOCATOR_UNAVAILABLE', resourceId: 'report', name: 'Research report' }] }, true);
-    assert.match(summary, /Download location unavailable: 1 attachments/);
+    assert.match(summary, /Download location unavailable: 1 attachment(?:;|$)/);
     assert.match(summary, /Other incomplete conversations: 1/);
     assert.doesNotMatch(summary, /unknown cause|unavailable source attachments|retry later/);
 });
@@ -100,7 +100,7 @@ test('normal mode hides attachment warnings while retaining body failures and co
     assert.match(developer, /unavailable source attachments/);
     assert.match(developer, /Attachment download failed/);
     assert.match(developer, /Attachment processing failed/);
-    assert.match(developer, /Access restricted/);
+    assert.match(developer, /Access restricted: 1 attachment(?:;|$)/);
 });
 
 test('source termination metadata never becomes an export failure, even for legacy warning events', () => {

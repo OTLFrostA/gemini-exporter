@@ -16,8 +16,8 @@ type Check<T> = (value: unknown) => value is T;
 type Fields<T> = { [K in keyof T]-?: Check<T[K]> };
 const text: Check<string> = (v): v is string => typeof v === 'string';
 const number: Check<number> = (v): v is number => typeof v === 'number' && Number.isFinite(v);
-const sourceTime: Check<number> = (v): v is number => typeof v === 'number' && Number.isSafeInteger(v);
-const byteLength: Check<number> = (v): v is number => sourceTime(v) && v >= 0;
+const sourceTime: Check<number> = (v): v is number => typeof v === 'number' && Number.isSafeInteger(v) && Math.abs(v) <= 8.64e15;
+const byteLength: Check<number> = (v): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 const boolean: Check<boolean> = (v): v is boolean => typeof v === 'boolean';
 const optional = <T>(check: Check<T>): Check<T | undefined> => (v): v is T | undefined => v === undefined || check(v);
 const array = <T>(check: Check<T>): Check<T[]> => (v): v is T[] => {
