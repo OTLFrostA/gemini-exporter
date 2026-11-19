@@ -310,6 +310,7 @@ def test_custom_dataset_loading():
     print("  ✓ Custom dataset loader & format validation verified")
 
 def test_scenario_pool_pipeline():
+    import subprocess
     import tempfile
     import shutil
     import subprocess
@@ -418,6 +419,10 @@ def test_scenario_pool_pipeline():
             raise AssertionError("Empty pool accepted consumption")
 
     print("  ✓ Scenario pool pipeline, 20-scenario diversity, consume, archive & top-up verified")
+    res = subprocess.run([sys.executable, "-m", "unittest", "tests.test_generate_scenario_chats"],
+                         cwd=BASE_DIR, capture_output=True, text=True)
+    assert res.returncode == 0, f"Scenario generator CLI regression checks failed: {res.stderr or res.stdout}"
+    print("  ✓ Scenario generator CLI exit status regression checks passed")
 
 def test_online_scenario_provider_and_lifecycle_tracker():
     import tempfile
