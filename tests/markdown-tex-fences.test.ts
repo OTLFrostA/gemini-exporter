@@ -11,6 +11,11 @@ for (const [name, code] of [
     ['non-line closing run', '````text\nbefore ```` after\n\\(x+y\\)\n````'],
     ['closing run with text', '````text\n```` not a closer\n\\(x+y\\)\n````'],
     ['inline span', '`\\(x+y\\)`'],
+    ['list continuation', '1. Step\n   ```text\n   \\(x+y\\)\n   ```'],
+    ['list marker opener', '- ```text\n  \\(x+y\\)\n  ```'],
+    ['blockquote', '> ```text\n> \\(x+y\\)\n> ```'],
+    ['nested containers', '> 1. - ```text\n>      \\(x+y\\)\n>      ```'],
+    ['nested list continuation', '1. Step\n   - Nested\n     ```text\n     \\(x+y\\)\n     ```'],
 ] as const) {
     test(`TeX shielding: ${name}`, () => {
         assert.equal(transformMarkdownOutsideCode(`\\(a+b\\)\n${code}\n\\(c+d\\)`, normalizeTexBracketsInProse),

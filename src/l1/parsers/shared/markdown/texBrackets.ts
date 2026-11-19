@@ -1,5 +1,6 @@
 // Fenced code blocks (backticks or tildes) and inline code spans keep their backslashes and dollars.
-const CODE_SPAN = /^ {0,3}(`{3,}|~{3,})[^\r\n]*(?:\r?\n|$)|`+[^`\n]+`+/gm;
+const CONTAINER_PREFIX = '[ \\t]*(?:(?:>[ \\t]*|(?:[-+*]|\\d+[.)])[ \\t]+)[ \\t]*)*';
+const CODE_SPAN = new RegExp(`^${CONTAINER_PREFIX}(\`{3,}|~{3,})[^\\r\\n]*(?:\\r?\\n|$)|\`+[^\`\\n]+\`+`, 'gm');
 
 const BRACKET_DISPLAY_OWN_LINES = /^[ \t]*\\\[(?<block>[\s\S]+?)\\\][ \t]*$/gm;
 const BRACKET_DISPLAY_INLINE = /\\\[(?<display>[\s\S]+?)\\\]/g;
@@ -17,7 +18,7 @@ export function transformMarkdownOutsideCode(source: string, transform: (prose: 
         parts.push(transform(source.slice(cursor, match.index)));
         const fence = match[1];
         if (fence) {
-            const closing = new RegExp(`^ {0,3}${fence[0]}{${fence.length},}[ \\t]*\\r?$`, 'gm');
+            const closing = new RegExp(`^${CONTAINER_PREFIX}${fence[0]}{${fence.length},}[ \\t]*\\r?$`, 'gm');
             closing.lastIndex = spans.lastIndex;
             const end = closing.exec(source);
             spans.lastIndex = end ? closing.lastIndex : source.length;
