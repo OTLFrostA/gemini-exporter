@@ -152,12 +152,11 @@ test('failed manifest update preserves the previous client backup', async () => 
     await assert.rejects(put(1, 2), { code: 'FILE_WRITE_FAILED' });
     folder.setRecordCloseFailure(false);
     assert.deepEqual(await client.getEncryptedRecord(args), before);
-    assert.equal(folder.subdirs.get('records')!.files.size, 1);
     folder.setManifestCloseFailure(true);
     await assert.rejects(put(1, 2), { code: 'FILE_WRITE_FAILED' });
     folder.setManifestCloseFailure(false);
     assert.deepEqual(await client.getEncryptedRecord(args), before);
-    assert.equal(folder.subdirs.get('records')!.files.size, 1);
+    assert.equal(folder.subdirs.get('records')!.files.size, 2);
     assert.equal((await put(1, 3)).status, 'committed');
     assert.equal(folder.subdirs.get('records')!.files.size, 1);
     const committed = await client.getEncryptedRecord(args);
@@ -168,6 +167,47 @@ test('failed manifest update preserves the previous client backup', async () => 
     assert.deepEqual(await client.getEncryptedRecord(args), committed);
     assert.equal((await put(2, 5)).status, 'committed', 'cleanup failure must not reject a committed update');
     assert.equal((await client.getEncryptedRecord(args))?.revision, 3);
+});
+
+test('failed manifest update recovery keeps the mixed-version manifest and record layout', async () => {
+    const folder = createMemoryDirectoryHandle();
+    const client = createLocalFolderVaultClient(async () => folder.handle);
+    const args = { serverUrl: '', sessionToken: '', blindRecordId: 'c'.repeat(64), keyFingerprint: 'd'.repeat(32) };
+    const put = async (revision: number, value: number) => {
+        const envelope = new Uint8Array(32).fill(value);
+        envelope.set([0x47, 0x45, 0x45, 0x31]);
+        const sha256 = Buffer.from(await crypto.subtle.digest('SHA-256', envelope)).toString('hex');
+        return client.putEncryptedRecord({ ...args, expectedRevision: revision, envelope, sha256 });
+    };
+    const assertLegacyLayout = async (revision: number) => {
+        const manifest = JSON.parse(new TextDecoder().decode(folder.files.get('vault-manifest.json'))) as {
+            records: Record<string, Record<string, unknown>>;
+        };
+        assert.deepEqual(Object.keys(manifest).sort(), ['schema', 'version', 'ownerSubject', 'keyFingerprint', 'nextSeq', 'usedBytes', 'records'].sort());
+        assert.deepEqual(Object.keys(manifest.records[args.blindRecordId]).sort(), ['blindRecordId', 'revision', 'changeSeq', 'byteLength', 'sha256', 'updatedAt'].sort());
+        const record = await client.getEncryptedRecord(args);
+        assert.equal(record?.revision, revision);
+        assert.deepEqual(folder.subdirs.get('records')!.files.get(`${args.blindRecordId}.gee1`), record?.envelope);
+        assert.deepEqual([...folder.subdirs.get('records')!.files.keys()], [`${args.blindRecordId}.gee1`]);
+    };
+    await put(0, 1);
+    const original = await client.getEncryptedRecord(args);
+    folder.setManifestCloseFailure(true);
+    await assert.rejects(put(1, 2), { code: 'FILE_WRITE_FAILED' });
+    await assert.rejects(put(1, 3), { code: 'FILE_WRITE_FAILED' });
+    assert.deepEqual(await client.getEncryptedRecord(args), original, 'a retry must not overwrite the valid backup with uncommitted bytes');
+    const files = folder.subdirs.get('records')!.files;
+    const backupName = `${args.blindRecordId}.prev.gee1`;
+    const preserved = files.get(backupName)!;
+    files.set(backupName, preserved.slice(0, -1));
+    await assert.rejects(client.getEncryptedRecord(args), { code: 'CLOUD_DECRYPT_AUTH_FAILED' });
+    await assert.rejects(put(1, 4), { code: 'CLOUD_DECRYPT_AUTH_FAILED' });
+    files.set(backupName, preserved);
+    folder.setManifestCloseFailure(false);
+    await put(1, 4);
+    await assertLegacyLayout(2);
+    await put(2, 5);
+    await assertLegacyLayout(3);
 });
 
 test('failed manifest update preserves the previous backup through real sync and index-only updates', async () => {
@@ -429,7 +469,7 @@ test('switching to a different same-named vault restores and saves against the n
 
         const records = newFolder.subdirs.get('records')?.files;
         assert.ok(records);
-        const fileName = [...records.keys()].find(name => name.startsWith(latest.blindRecordId))!;
+        const fileName = `${latest.blindRecordId}.gee1`;
         const corrupted = new Uint8Array(backup.envelope);
         corrupted[corrupted.length - 1] ^= 0xff;
         records.set(fileName, corrupted);
