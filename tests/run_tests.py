@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import re
+from pathlib import Path
 
 try:
     if hasattr(sys.stdout, "reconfigure"):
@@ -164,9 +165,14 @@ def test_javascript_syntax():
     assert res.returncode == 0, f"TypeScript syntax check failed (tsc --noEmit):\n{res.stdout}\n{res.stderr}"
     print(f"  ✓ TypeScript strict syntax validated (tsc --noEmit)")
 
+def discover_unit_tests():
+    return sorted(str(path) for path in Path(BASE_DIR, "tests").rglob("*")
+                  if path.is_file() and path.name.endswith((".test.js", ".test.ts", ".test.cjs"))
+                  and "e2e" not in path.relative_to(Path(BASE_DIR, "tests")).parts)
+
+
 def test_javascript_unit_tests(target_tests=None):
     import subprocess
-    import glob
     import shutil
 
     # npm test and the TypeScript require hook already require Node.
@@ -178,22 +184,18 @@ def test_javascript_unit_tests(target_tests=None):
     ] if candidate and os.path.exists(candidate)), None)
     assert node_bin, "Node.js is required for the TypeScript unit test suite"
 
-    test_files = sorted(set(
-        glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js"))
-        + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts"))
-        + glob.glob(os.path.join(BASE_DIR, "tests", "arch", "*.test.ts"))
-    ))
+    test_files = discover_unit_tests()
     if target_tests is not None:
-        norm_targets = {os.path.normpath(t).replace("\\", "/") for t in target_tests}
-        norm_bases = {os.path.basename(t) for t in target_tests}
+        norm_targets = {os.path.normpath(os.path.join(BASE_DIR, t)) for t in target_tests}
+        missing = norm_targets - set(test_files)
+        assert not missing, f"Selected unit suites were not discovered: {sorted(missing)}"
         test_files = [
             tf for tf in test_files
-            if os.path.relpath(tf, BASE_DIR).replace("\\", "/") in norm_targets
-            or os.path.basename(tf) in norm_bases
+            if tf in norm_targets
         ]
         if not test_files:
             print("  ✓ 无受影响的 JavaScript/TypeScript 单元测试需要执行。")
-            return
+            return 0
 
     register_hook = os.path.join(BASE_DIR, "tests", "ts_register.js")
     preload_hook = os.path.join(BASE_DIR, "tests", "helpers", "l1V2UnitPreload.cjs")
@@ -251,6 +253,7 @@ def test_javascript_unit_tests(target_tests=None):
         assert False, f"Unit test failed in {rel}:\n{res.stdout}\n{res.stderr}"
     elapsed = time.monotonic() - started
     print(f"  ⚡ Executed {len(test_files)} unit suites in {elapsed:.1f}s (workers={max_workers})")
+    return len(test_files)
 
 def test_content_badge_flicker_prevention():
     """Verify Badge visual layout invariants in CSS; runtime Badge behavior is covered by ui_v2 suites."""
@@ -590,7 +593,6 @@ def test_impact_analyzer_suite():
 
 def run_all():
     import argparse
-    import glob
     parser = argparse.ArgumentParser(description="Gemini Exporter 综合测试套件")
     parser.add_argument("--changed", action="store_true", help="仅执行当前 Git 改动及其传递依赖影响的测试")
     parser.add_argument("--filter", default=None, help="按关键字或文件名过滤单元测试 (如 --filter storage)")
@@ -600,7 +602,7 @@ def run_all():
 
     if args.filter:
         print(f"🔍 正在按关键字过滤单元测试: '{args.filter}'")
-        all_test_files = sorted(set(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")) + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts")) + glob.glob(os.path.join(BASE_DIR, "tests", "arch", "*.test.ts"))))
+        all_test_files = discover_unit_tests()
         matching = [tf for tf in all_test_files if args.filter.lower() in os.path.relpath(tf, BASE_DIR).lower()]
         if not matching:
             print(f"❌ 未找到匹配关键字 '{args.filter}' 的单元测试！")
@@ -623,7 +625,9 @@ def run_all():
             changed = set(args.files) if args.files else get_git_changed_files(base_ref=args.base, base_dir=BASE_DIR)
             graph = DependencyGraph(base_dir=BASE_DIR)
             result = analyze_impact(changed, graph=graph, base_dir=BASE_DIR)
-
+        except Exception as e:
+            print(f"⚠️ 依赖分析器出现异常 ({e})，回退执行全量测试套件...")
+        else:
             if result.is_docs_only:
                 print("⚡ [增量测试] 检测到仅有文档/静态资源改动，无需执行单元测试套件。")
                 print("=" * 60)
@@ -677,14 +681,11 @@ def run_all():
                     test_impact_analyzer_suite()
 
                 test_javascript_syntax()
-                test_javascript_unit_tests(target_tests=result.target_unit_tests)
+                executed = test_javascript_unit_tests(target_tests=result.target_unit_tests)
                 print("=" * 60)
-                print(f"🎉 全部受影响单元测试 ({len(result.target_unit_tests)} 个套件) 均顺利通过！")
+                print(f"🎉 全部受影响单元测试 ({executed} 个套件) 均顺利通过！")
                 print("=" * 60)
                 return
-        except Exception as e:
-            print(f"⚠️ 依赖分析器出现异常 ({e})，回退执行全量测试套件...")
-
     # 全量默认执行路径 (Backward Compatible)
     test_json_files()
     test_manifest_structure()
