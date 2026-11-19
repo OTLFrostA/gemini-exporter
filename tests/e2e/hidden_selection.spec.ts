@@ -21,13 +21,11 @@ test('search preserves selection, explains hidden items and exports the full sel
     await expect(page.locator('#list .item')).toHaveCount(1);
     await expect(page.locator('#selectedStat')).toHaveText('3 of 3 selected');
     await expect(notice).toContainText('2 selected conversations hidden by search');
-    if (process.env.HIDDEN_SELECTION_EVIDENCE) await page.screenshot({ path: '/home/ubuntu/evidence/after.png' });
 
     const pending = page.waitForEvent('download');
     await page.locator('#btnExport').click();
     const download = await pending;
-    const destination = process.env.HIDDEN_SELECTION_EVIDENCE
-        ? '/home/ubuntu/evidence/hidden-selection.zip' : testInfo.outputPath('hidden-selection.zip');
+    const destination = testInfo.outputPath('hidden-selection.zip');
     await download.saveAs(destination);
     const zip = await JSZip.loadAsync(await readFile(destination));
     const entries: string[] = Object.keys(zip.files).filter(name => name.endsWith('.md'));
@@ -52,4 +50,6 @@ test('search preserves selection, explains hidden items and exports the full sel
     await expect(page.locator('[data-chat-id="visible"] input')).toBeChecked();
     await expect(page.locator('[data-chat-id="hidden-one"] input')).not.toBeChecked();
     await expect(page.locator('[data-chat-id="hidden-two"] input')).not.toBeChecked();
+    await search.fill('Ocean');
+    await expect(page.locator('#hiddenSelectionText')).toHaveText('1 selected conversation hidden by search');
 });

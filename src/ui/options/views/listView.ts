@@ -62,7 +62,7 @@ function updateStat(state: ConversationViewState): void {
     const hiddenCount = state.hiddenBySearch().length;
     elementById('hiddenSelectionNotice').hidden = hiddenCount === 0;
     elementById('hiddenSelectionText').textContent = hiddenCount
-        ? text(`${hiddenCount} selected conversations hidden by search`, `已选 ${hiddenCount} 个会话未在搜索结果中显示`) : '';
+        ? text(`${hiddenCount} selected ${hiddenCount === 1 ? 'conversation' : 'conversations'} hidden by search`, `已选 ${hiddenCount} 个会话未在搜索结果中显示`) : '';
     requiredElement('button', 'btnDeselectHidden').disabled = document.body.dataset.foregroundBusy === 'true';
     elementById('selectedStat').textContent =
         text(`${state.selected.size} of ${total} selected`, `已选 ${state.selected.size} / ${total}`);
