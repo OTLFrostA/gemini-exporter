@@ -604,10 +604,9 @@ class VisualPlayground:
             )
 
         else:
-            time.sleep(min(timeout, 1.0))
             return WaitResult(
-                success=True,
-                message=f"通用等待完成 ({condition})",
+                success=False,
+                message=f"Unknown wait condition: {condition!r}",
                 elapsed=time.time() - t0
             )
 

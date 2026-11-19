@@ -9,6 +9,7 @@ import os
 import sys
 import time
 import base64
+import io
 import tempfile
 import struct
 import zlib
@@ -695,6 +696,25 @@ class TestVisualCliArguments(unittest.TestCase):
             main()
         open_playground.assert_called_once_with(port=9333, target_page="gemini")
         open_playground.return_value.capture_screen.assert_called_once()
+
+    def test_wait_on_reports_unknown_condition_as_failure(self):
+        from scripts.visual_agent.cli import main
+        condition = "download_compelete"
+        argv = ["cli.py", "wait-on", "--condition", condition, "--timeout", "0", "--json"]
+        with tempfile.TemporaryDirectory() as output_dir:
+            playground = VisualSandbox(cdp=MagicMock(), output_dir=output_dir)
+            stdout = io.StringIO()
+            with patch("scripts.visual_agent.cli.open_visual_playground", return_value=playground), \
+                    patch.object(sys, "argv", argv), patch("sys.stdout", stdout):
+                with self.assertRaises(SystemExit) as exit_info:
+                    main()
+
+        result = json.loads(stdout.getvalue())
+        self.assertEqual(exit_info.exception.code, 2)
+        self.assertIs(result["success"], False)
+        self.assertEqual(result["condition"], condition)
+        self.assertIn("Unknown wait condition", result["message"])
+        self.assertIn(condition, result["message"])
 
 
 if __name__ == "__main__":
