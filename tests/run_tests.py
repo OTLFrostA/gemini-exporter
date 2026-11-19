@@ -537,6 +537,14 @@ def test_visual_sandbox_suite():
     assert res.returncode == 0, f"test_visual_sandbox.py failed: {res.stderr or res.stdout}"
     print("  ✓ Tier 3 Visual Sandbox & Autonomous QA Agent test suite passed")
 
+def test_visual_scorecard_suite():
+    import subprocess
+    cmd = [sys.executable, os.path.join(BASE_DIR, "tests", "test_visual_scorecard.py")]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    assert res.returncode == 0, f"test_visual_scorecard.py failed: {res.stderr or res.stdout}"
+    print(res.stderr.strip())
+    print("  ✓ Visual Scorecard HTML escaping test suite passed")
+
 def test_framework_environment_suite():
     import subprocess
     cmd = [sys.executable, os.path.join(BASE_DIR, "tests", "test_framework_environment.py")]
@@ -602,15 +610,23 @@ def run_all():
         print(f"🔍 正在按关键字过滤单元测试: '{args.filter}'")
         all_test_files = sorted(set(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")) + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts")) + glob.glob(os.path.join(BASE_DIR, "tests", "arch", "*.test.ts"))))
         matching = [tf for tf in all_test_files if args.filter.lower() in os.path.relpath(tf, BASE_DIR).lower()]
-        if not matching:
+        python_suites = {"tests/test_visual_scorecard.py": test_visual_scorecard_suite}
+        matching_python = {path: run for path, run in python_suites.items() if args.filter.lower() in path.lower()}
+        total = len(matching) + len(matching_python)
+        if not total:
             print(f"❌ 未找到匹配关键字 '{args.filter}' 的单元测试！")
             sys.exit(1)
-        print(f"🧪 匹配到 {len(matching)} 个单元测试套件:")
+        print(f"🧪 匹配到 {total} 个单元测试套件:")
         for m in matching:
             print(f"  • {os.path.relpath(m, BASE_DIR)}")
-        test_javascript_unit_tests(target_tests=matching)
+        for path in matching_python:
+            print(f"  • {path}")
+        if matching:
+            test_javascript_unit_tests(target_tests=matching)
+        for run in matching_python.values():
+            run()
         print("=" * 60)
-        print(f"🎉 全部 {len(matching)} 个过滤测试均顺利通过！")
+        print(f"🎉 全部 {total} 个过滤测试均顺利通过！")
         print("=" * 60)
         return
 
@@ -704,6 +720,7 @@ def run_all():
     test_platform_driver_suite()
     test_pipeline_decoupling_suite()
     test_visual_sandbox_suite()
+    test_visual_scorecard_suite()
     test_framework_environment_suite()
     test_tier2_platforms_suite()
     test_dag_subgraph_suite()
