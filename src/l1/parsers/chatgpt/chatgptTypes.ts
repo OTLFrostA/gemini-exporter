@@ -93,5 +93,3 @@ export function chatGPTApiBase(origin: string): string {
     }
     return 'https://chatgpt.com/backend-api';
 }
-
-export const CHATGPT_HOSTS = ['chatgpt.com', 'chat.openai.com'];
