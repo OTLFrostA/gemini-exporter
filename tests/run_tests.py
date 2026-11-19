@@ -588,6 +588,14 @@ def test_impact_analyzer_suite():
     assert res.returncode == 0, f"test_impact_analyzer.py failed: {res.stderr or res.stdout}"
     print("  ✓ Test Impact Analyzer & Dependency Graph test suite passed")
 
+def test_provenance_cli_suite():
+    import subprocess
+    res = subprocess.run([sys.executable, os.path.join(BASE_DIR, "tests", "test_provenance_cli.py")],
+                         capture_output=True, text=True)
+    assert res.returncode == 0, f"Provenance CLI regression checks failed: {res.stderr or res.stdout}"
+    print("  ✓ Provenance CLI regression checks passed")
+
+
 def run_all():
     import argparse
     import glob
@@ -675,6 +683,8 @@ def run_all():
                     test_tier2_assertions_suite()
                 if any("impact_analyzer" in f for f in affected):
                     test_impact_analyzer_suite()
+                if any("provenance" in f for f in affected):
+                    test_provenance_cli_suite()
 
                 test_javascript_syntax()
                 test_javascript_unit_tests(target_tests=result.target_unit_tests)
@@ -709,6 +719,7 @@ def run_all():
     test_dag_subgraph_suite()
     test_tier2_assertions_suite()
     test_impact_analyzer_suite()
+    test_provenance_cli_suite()
     test_javascript_syntax()
     test_javascript_unit_tests()
 

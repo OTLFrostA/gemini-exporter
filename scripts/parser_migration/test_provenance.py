@@ -7,7 +7,7 @@ CLI tool for inspecting and verifying test provenance classification (Section 5 
 Usage:
   python3 scripts/parser_migration/test_provenance.py --summary
   python3 scripts/parser_migration/test_provenance.py --tier P0
-  python3 scripts/parser_migration/test_provenance.py --domain markdown
+  python3 scripts/parser_migration/test_provenance.py --domain chatgpt
 """
 
 import os
@@ -87,13 +87,14 @@ def list_suites(manifest, filter_tier=None, filter_domain=None):
         print(f"    Notes:  {s.get('notes', 'N/A')}\n")
 
 def main():
+    manifest = load_manifest()
+    domains = sorted({s["domain"] for s in manifest["suites"]})
     parser = argparse.ArgumentParser(description="Test Provenance Classification Inspector")
     parser.add_argument("--summary", action="store_true", help="Print overall provenance summary")
     parser.add_argument("--tier", choices=["P0", "P1", "P2", "P3", "P4"], help="Filter by tier")
-    parser.add_argument("--domain", choices=["markdown", "latex", "domain", "document_ast", "provider_parser", "typst_payload"], help="Filter by domain")
+    parser.add_argument("--domain", choices=domains, help="Filter by domain")
     args = parser.parse_args()
 
-    manifest = load_manifest()
     if args.tier or args.domain:
         list_suites(manifest, filter_tier=args.tier, filter_domain=args.domain)
     else:
