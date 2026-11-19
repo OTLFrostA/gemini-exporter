@@ -104,6 +104,7 @@ def run_scenarios(dataset_path, port=CDP_DEFAULT_PORT, delay=2, only_id=None):
     driver = GeminiPlatformDriver(cdp)
 
     results = []
+    failed_scenarios = 0
 
     try:
         # 严格校验并锁定模型为 3.8 Flash + High
@@ -125,6 +126,7 @@ def run_scenarios(dataset_path, port=CDP_DEFAULT_PORT, delay=2, only_id=None):
             cdp.eval("location.href = 'https://gemini.google.com/app'")
             if not driver.ensure_ready(timeout=30.0):
                 print(f"    ❌ 页面加载就绪超时，跳过此场景")
+                failed_scenarios += 1
                 continue
 
             time.sleep(1.5)
@@ -146,6 +148,9 @@ def run_scenarios(dataset_path, port=CDP_DEFAULT_PORT, delay=2, only_id=None):
 
                 if turn_idx < len(turns):
                     time.sleep(delay)
+
+            if successful_turns != len(turns):
+                failed_scenarios += 1
 
             results.append({
                 "id": sc_id,
@@ -169,6 +174,7 @@ def run_scenarios(dataset_path, port=CDP_DEFAULT_PORT, delay=2, only_id=None):
         print(f"{status} | 会话 ID: {r['chat_id'] or '未知'} | 轮数: {r['successful_turns']}/{r['total_turns']} | {r['title']}")
     print("=" * 65)
     print("💡 接下来可切换至 Gemini Exporter 工作台点击【增量扫描】，即可查验新生成的多轮会话！")
+    return 1 if failed_scenarios else 0
 
 
 if __name__ == "__main__":
@@ -195,7 +201,7 @@ if __name__ == "__main__":
         ds_path = tmp_f.name
 
     try:
-        run_scenarios(dataset_path=ds_path, port=args.port, delay=args.delay, only_id=args.only)
+        sys.exit(run_scenarios(dataset_path=ds_path, port=args.port, delay=args.delay, only_id=args.only))
     finally:
         if args.pool and ds_path and os.path.isfile(ds_path):
             try:

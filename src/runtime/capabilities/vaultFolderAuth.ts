@@ -1,6 +1,6 @@
 import { OperationError } from '../../shared/errors/operationError.js';
 import { isDirectoryHandle, type DirectoryHandle } from '../../shared/types/directoryHandle.js';
-import { getStoredLocalVaultHandle } from '../../l3a/cloudSyncStore.js';
+import { getStoredLocalVaultHandle } from '../../l3a/vaultStorageService.js';
 
 export type VaultDirectoryStatus =
     | { readonly state: 'missing' }

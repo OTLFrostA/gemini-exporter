@@ -12,11 +12,13 @@ const STUB_PDF_COMPILER_NAME = 'stub-pdf-compiler';
 
 /** Computes real xref byte offsets so the output passes structural PDF verification. */
 export function buildMinimalValidPdf(): Uint8Array {
+    const content = 'BT /F1 24 Tf 72 720 Td (stub pdf) Tj ET';
+    const contentLength = new TextEncoder().encode(content).byteLength;
     const objects = [
         '<< /Type /Catalog /Pages 2 0 R >>',
         '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
         '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
-        '<< /Length 44 >>\nstream\nBT /F1 24 Tf 72 720 Td (stub pdf) Tj ET\nendstream',
+        `<< /Length ${contentLength} >>\nstream\n${content}\nendstream`,
         '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
     ];
     let body = '%PDF-1.4\n';

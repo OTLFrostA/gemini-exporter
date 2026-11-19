@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 import type { ForegroundTaskStatus, ScanEvidence, TaskFeedback } from '../state/foregroundTask.js';
-import { text } from '../../shared/settings.js';
+import { englishCount, text } from '../../shared/settings.js';
 import { failureGroupLabel } from './exportFailures.js';
 import type { ExportIssueGroup } from '../state/exportIssues.js';
 import type { ConversationSourceSummary } from '../../shared/conversationSourceSummary.js';
@@ -33,7 +33,7 @@ function FailureCard({ groups, failedCount, dismissed, developerMode, task, read
         || /(?:^|_)(?:ASSET|IMAGE)(?:_|$)/.test(group.diagnostic.code)));
     const hasErrors = failedCount > 0 || visibleGroups.some(group => group.severity === 'error');
     const title = hasErrors
-        ? failedCount ? text(`${failedCount} conversations failed · Issue groups: ${visibleGroups.length}`,
+        ? failedCount ? text(`${englishCount(failedCount, 'conversation')} failed · Issue groups: ${visibleGroups.length}`,
             `${failedCount} 条会话导出失败 · ${visibleGroups.length} 组问题`)
             : text(`Export errors · Issue groups: ${visibleGroups.length}`, `导出错误 · ${visibleGroups.length} 组问题`)
         : text(`Export warnings · Issue groups: ${visibleGroups.length}`, `导出警告 · ${visibleGroups.length} 组提示`);

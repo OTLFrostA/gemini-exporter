@@ -8,6 +8,7 @@ import {
     decompressUtf8GzipBounded,
     deriveBlindRecordId,
     deriveVaultKeyring,
+    encodeLengthPrefixedTuple,
     formatRecoveryKey,
     generateMasterKeyBytes,
     openUtf8Record,
@@ -102,6 +103,49 @@ test('boundedGzip - compresses repetitive JSON effectively and aborts streaming 
     await assert.rejects(
         decompressUtf8GzipBounded(new Uint8Array([1, 2, 3, 4])),
         (err: unknown) => err instanceof OperationError && err.code === 'CLOUD_DECOMPRESSION_LIMIT',
+    );
+});
+
+async function gzipInvalidUtf8(): Promise<Uint8Array<ArrayBuffer>> {
+    const stream = new Blob([new Uint8Array([0xff, 0xfe])]).stream().pipeThrough(new CompressionStream('gzip'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+test('boundedGzip - maps invalid UTF-8 to a cloud OperationError with its cause', async () => {
+    await assert.rejects(
+        decompressUtf8GzipBounded(await gzipInvalidUtf8()),
+        (err: unknown) => err instanceof OperationError
+            && err.code === 'CLOUD_DECOMPRESSION_LIMIT'
+            && err.cause instanceof TypeError,
+    );
+});
+
+test('aeadEnvelope - maps authenticated invalid UTF-8 to a cloud OperationError with its cause', async () => {
+    const keyring = await deriveVaultKeyring(generateMasterKeyBytes());
+    const context = {
+        ownerSubject: 'google-sub-12345',
+        blindRecordId: await deriveBlindRecordId(keyring, 'gemini', 'acct-1', 'invalid-utf8'),
+        revision: 1,
+    };
+    const additionalData = encodeLengthPrefixedTuple([
+        'GEE1-AAD', context.ownerSubject, context.blindRecordId, String(context.revision),
+    ]);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv, additionalData, tagLength: 128 },
+        keyring.payloadKey,
+        await gzipInvalidUtf8(),
+    ));
+    const envelope = new Uint8Array(4 + iv.byteLength + ciphertext.byteLength);
+    envelope.set(new TextEncoder().encode('GEE1'));
+    envelope.set(iv, 4);
+    envelope.set(ciphertext, 4 + iv.byteLength);
+
+    await assert.rejects(
+        openUtf8Record(keyring, envelope, context),
+        (err: unknown) => err instanceof OperationError
+            && err.code === 'CLOUD_DECOMPRESSION_LIMIT'
+            && err.cause instanceof TypeError,
     );
 });
 

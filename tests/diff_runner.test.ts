@@ -82,16 +82,20 @@ test('Differential Runner: Math comparison defaults all diffs to D_CANNOT_DETERM
 
 test('Differential Runner: Ignores ephemeral IDs when content is identical', () => {
     const bundleA = [{
+                    id: 'block-a',
                     type: 'paragraph',
                     children: [{
+                        id: 'strong-a',
                         type: 'strong',
-                        children: [{ type: 'text', text: 'Important' }],
+                        children: [{ id: 'text-a', type: 'text', text: 'Important' }],
                     }],
                 }];
 
     const bundleB = [{
+                    id: 'block-b',
                     type: 'paragraph',
                     children: [{
+                        id: 'strong-b',
                         type: 'strong',
                         children: [{ type: 'text', text: 'Important' }],
                     }],

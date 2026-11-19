@@ -2,21 +2,28 @@ import { stripHtmlTags as utilsStripHtmlTags } from "../../../../shared/utils/ti
 
 export const stripHtmlTags = utilsStripHtmlTags;
 
-/**
- * Safely unescapes basic HTML entities in a single pass to prevent double-unescaping vulnerabilities.
- */
-function unescapeHtmlEntities(str: string): string {
-    if (!str) return '';
-    return str.replace(/&(?:amp|lt|gt|quot|#39);/g, (match) => {
-        switch (match) {
-            case '&amp;': return '&';
-            case '&lt;': return '<';
-            case '&gt;': return '>';
-            case '&quot;': return '"';
-            case '&#39;': return "'";
-            default: return match;
-        }
-    });
+function decodeBasicHtmlEntity(entity: string): string {
+    switch (entity) {
+        case '&amp;': return '&';
+        case '&lt;': return '<';
+        case '&gt;': return '>';
+        case '&quot;': return '"';
+        case '&apos;':
+        case '&#39;': return "'";
+        case '&nbsp;': return '\u00a0';
+        default: return entity;
+    }
+}
+
+function decodePromptText(html: string): string {
+    return stripHtmlTags(html)
+        .replace(/&(?:amp|lt|gt|quot|apos|nbsp|#(\d+)|#[xX]([\da-fA-F]+));/g, (entity, decimal?: string, hex?: string) => {
+            if (!decimal && !hex) return decodeBasicHtmlEntity(entity);
+            const codePoint = hex ? parseInt(hex, 16) : Number(decimal);
+            if (codePoint === 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) return '\ufffd';
+            return String.fromCodePoint(codePoint);
+        })
+        .replace(/[\u202f\xa0]/g, ' ').trim();
 }
 
 function parseTakeoutPrompt(block: string): { promptText: string; hasExplicitPrompt: boolean } {
@@ -25,11 +32,11 @@ function parseTakeoutPrompt(block: string): { promptText: string; hasExplicitPro
     const promptMatch = block.match(/(?:Prompted|已提示|提示|プロンプト|Demande|Preguntado)\s*([\s\S]*?)(?:<br\s*\/?>|\n)/i);
     if (promptMatch) {
         hasExplicitPrompt = true;
-        promptText = stripHtmlTags(promptMatch[1]).replace(/&nbsp;/g, ' ').replace(/[\u202f\xa0]/g, ' ').trim();
+        promptText = decodePromptText(promptMatch[1]);
     } else {
         const contentCellMatchFallback = block.match(/<div class="content-cell[^>]*>([\s\S]*?)(?:<br\s*\/?>|\n)/i);
         if (contentCellMatchFallback) {
-            promptText = stripHtmlTags(contentCellMatchFallback[1]).replace(/&nbsp;/g, ' ').replace(/[\u202f\xa0]/g, ' ').trim();
+            promptText = decodePromptText(contentCellMatchFallback[1]);
         }
     }
     return { promptText, hasExplicitPrompt };
@@ -188,7 +195,7 @@ function decodeActivityBlock(block: string, index: number): TakeoutActivityEvide
     const cellEnd = cellOffset + rawCell.length;
     const media: TakeoutActivityEvidence['media'] = [];
     for (const match of block.matchAll(/(?:src|href)=["']([^#"'>]+?)["']/gi)) {
-        const uri = unescapeHtmlEntities(match[1]).trim();
+        const uri = match[1].replace(/&(?:amp|lt|gt|quot|#39);/g, decodeBasicHtmlEntity).trim();
         if (/^(?:https?:|\/\/|javascript:|mailto:|data:)/i.test(uri) || /\.html?$/i.test(uri)) continue;
         const position = match.index;
         const inPromptCell = hasExplicitPrompt && cellOffset >= 0 && position >= cellOffset && position < responseStart;
