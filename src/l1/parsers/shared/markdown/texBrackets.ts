@@ -1,6 +1,7 @@
 // Fenced code blocks (backticks or tildes) and inline code spans keep their backslashes and dollars.
 const CONTAINER_PREFIX = '[ \\t]*(?:(?:>[ \\t]*|(?:[-+*]|\\d+[.)])[ \\t]+)[ \\t]*)*';
-const CODE_SPAN = new RegExp(`^${CONTAINER_PREFIX}(\`{3,}|~{3,})[^\\r\\n]*(?:\\r?\\n|$)|\`+[^\`\\n]+\`+`, 'gm');
+const FENCE_OPENER = '(`{3,}(?=[^`\\r\\n]*\\r?$)|~{3,})[^\\r\\n]*(?:\\r?\\n|$)';
+const CODE_SPAN = new RegExp(`^${CONTAINER_PREFIX}${FENCE_OPENER}|\`+[^\`\\n]+\`+`, 'gm');
 
 const BRACKET_DISPLAY_OWN_LINES = /^[ \t]*\\\[(?<block>[\s\S]+?)\\\][ \t]*$/gm;
 const BRACKET_DISPLAY_INLINE = /\\\[(?<display>[\s\S]+?)\\\]/g;

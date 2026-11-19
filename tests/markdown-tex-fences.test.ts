@@ -28,6 +28,15 @@ test('TeX shielding keeps unclosed fences literal through EOF', () => {
     assert.equal(transformMarkdownOutsideCode(source, normalizeTexBracketsInProse), source.replace('\\(a+b\\)', '$a+b$'));
 });
 
+test('backticks in an info string invalidate a backtick fence, not a tilde fence', () => {
+    const source = '```code``` then \\(x\\)\nFollowing \\(y\\)';
+    assert.equal(transformMarkdownOutsideCode(source, normalizeTexBracketsInProse),
+        '```code``` then $x$\nFollowing $y$');
+    const tilde = '~~~code`info\n\\(x\\)\n~~~\nFollowing \\(y\\)';
+    assert.equal(transformMarkdownOutsideCode(tilde, normalizeTexBracketsInProse),
+        '~~~code`info\n\\(x\\)\n~~~\nFollowing $y$');
+});
+
 test('TeX shielding handles empty input and propagates transform errors', () => {
     assert.equal(transformMarkdownOutsideCode('', () => { throw new Error('unused'); }), '');
     assert.throws(() => transformMarkdownOutsideCode('prose', () => { throw new Error('failed'); }), /failed/);
