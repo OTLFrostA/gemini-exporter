@@ -6,6 +6,7 @@ import io
 import json
 import os
 import re
+import runpy
 import subprocess
 from pathlib import Path
 import sys
@@ -1663,6 +1664,29 @@ class Tier2LifecycleOrderingTests(unittest.TestCase):
 
 
 class ScenarioIdentityTests(unittest.TestCase):
+    def test_zip_spec_fails_when_asserter_import_fails(self):
+        original_import = __import__
+
+        def import_without_asserter(name, *args, **kwargs):
+            if name == 'tests.helpers.export_spec_asserter':
+                raise ImportError('export spec dependency unavailable')
+            return original_import(name, *args, **kwargs)
+
+        with patch('builtins.__import__', side_effect=import_without_asserter):
+            assertions = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/framework/assertions.py'))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            zip_path = Path(tmp) / 'export.zip'
+            with zipfile.ZipFile(zip_path, 'w') as archive:
+                archive.writestr('conversation_aaaaaa.md', '# Conversation\n')
+            ok, message, _ = assertions['CDPAssertions'].assert_exported_zip_spec(
+                str(zip_path), str(Path(tmp) / 'extracted'),
+                min_conversations=5, chat_id='c_zzzzzz')
+
+        self.assertFalse(ok, message)
+        self.assertIn('ImportError', message)
+        self.assertIn('export spec dependency unavailable', message)
+
     def check_prompt(self, exported, expected, evidence=None):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / 'export.zip'
