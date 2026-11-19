@@ -15,6 +15,9 @@ import zlib
 import json
 import zipfile
 import unittest
+import glob
+import subprocess
+import socket
 from unittest.mock import patch, MagicMock
 from typing import Dict, Any, List, Optional
 
@@ -89,6 +92,83 @@ class TestVisualSandbox(unittest.TestCase):
     def tearDown(self):
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_switch_page_missing_target_preserves_connection(self):
+        self.sandbox._is_mock = False
+        self.sandbox.active_target = "gemini"
+        self.sandbox.env = MagicMock()
+        self.sandbox.env.ensure_tab.return_value = None
+        for tabs in ([], [{"type": "page", "url": "about:blank",
+                           "webSocketDebuggerUrl": "ws://unrelated"}]):
+            with self.subTest(tabs=tabs), patch("scripts.visual_agent.playground.get_tabs", return_value=tabs), patch("scripts.visual_agent.playground.CDPConnection") as connect:
+                with self.assertRaisesRegex(RuntimeError, "无法定位或创建目标标签页: options"):
+                    self.sandbox.switch_page("options")
+                connect.assert_not_called()
+                self.assertIs(self.sandbox.cdp, self.mock_cdp)
+                self.assertEqual(self.sandbox.active_target, "gemini")
+
+    def test_switch_page_resolves_matching_tab_after_ensure_returns_none(self):
+        self.sandbox._is_mock = False
+        self.sandbox.env = MagicMock()
+        self.sandbox.env.ensure_tab.return_value = None
+        tabs = [{"type": "page", "url": "about:blank", "webSocketDebuggerUrl": "ws://unrelated"},
+                {"type": "page", "url": "chrome-extension://exporter/options.html",
+                 "webSocketDebuggerUrl": "ws://options"}]
+        with patch("scripts.visual_agent.playground.get_tabs", return_value=tabs), patch("scripts.visual_agent.playground.CDPConnection", return_value=self.mock_cdp) as connect:
+            self.assertTrue(self.sandbox.switch_page("options"))
+            connect.assert_called_once_with("ws://options")
+
+    def test_switch_page_missing_options_real_chromium(self):
+        from scripts.cdp_client import CDPConnection, get_tabs
+        from scripts.framework.environment import TestEnvironment
+
+        executables = glob.glob(os.path.expanduser("~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome"))
+        if not executables:
+            self.skipTest("Playwright Chromium is not installed")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        with tempfile.TemporaryDirectory() as profile:
+            browser = subprocess.Popen([
+                executables[-1], "--headless=new", "--no-sandbox", "--disable-gpu",
+                "--no-first-run", "--remote-allow-origins=*",
+                f"--remote-debugging-port={port}", f"--user-data-dir={profile}", "about:blank"
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            cdp = None
+            env = None
+            try:
+                deadline = time.monotonic() + 15
+                tabs = []
+                while time.monotonic() < deadline:
+                    try:
+                        tabs = [tab for tab in get_tabs(port) if tab.get("type") == "page"]
+                    except Exception:
+                        pass
+                    if tabs and all(tab.get("url") == "about:blank" for tab in tabs):
+                        break
+                    time.sleep(0.1)
+                self.assertTrue(tabs, "Chromium CDP did not become ready")
+                self.assertTrue(all(tab.get("url") == "about:blank" for tab in tabs))
+                env = TestEnvironment(port=port, output_dir=self.temp_dir)
+                self.assertIsNone(env.ensure_tab("options"))
+                cdp = CDPConnection(tabs[0]["webSocketDebuggerUrl"])
+                playground = VisualSandbox(cdp=cdp, port=port, active_target="gemini",
+                                           env=env, output_dir=self.temp_dir)
+                with patch("scripts.visual_agent.playground.CDPConnection", wraps=CDPConnection) as connect:
+                    with self.assertRaisesRegex(RuntimeError, "无法定位或创建目标标签页: options"):
+                        playground.switch_page("options")
+                    connect.assert_not_called()
+                self.assertIs(playground.cdp, cdp)
+                self.assertEqual(playground.active_target, "gemini")
+                with open(os.path.join(self.temp_dir, ".playground_state.json")) as state:
+                    self.assertEqual(json.load(state)["target"], "gemini")
+            finally:
+                if cdp:
+                    cdp.close()
+                if env and env.browser_cdp:
+                    env.browser_cdp.close()
+                browser.terminate()
+                browser.wait(timeout=10)
 
     def test_viewport_normalization(self):
         # 1. 归一化坐标转换 (0.5, 0.5) -> (640, 400)
