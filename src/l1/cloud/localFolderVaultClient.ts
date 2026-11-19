@@ -257,10 +257,8 @@ export function createLocalFolderVaultClient(
                 const backupFilename = `${input.blindRecordId}.prev.gee1`;
                 if (existing) {
                     const current = await readRecordFile(recordsDir, filename);
-                    if (current && await matchesRecord(current, existing)) {
-                        await writeBytesToFile(recordsDir, backupFilename, current);
-                    } else if (!await matchesRecord(await readRecordFile(recordsDir, backupFilename), existing)) {
-                        throw new OperationError('CLOUD_DECRYPT_AUTH_FAILED', 'No valid committed local vault ciphertext to preserve');
+                    if (await matchesRecord(current, existing)) {
+                        await writeBytesToFile(recordsDir, backupFilename, current!);
                     }
                 }
 

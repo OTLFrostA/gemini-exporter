@@ -201,7 +201,7 @@ test('failed manifest update recovery keeps the mixed-version manifest and recor
     const preserved = files.get(backupName)!;
     files.set(backupName, preserved.slice(0, -1));
     await assert.rejects(client.getEncryptedRecord(args), { code: 'CLOUD_DECRYPT_AUTH_FAILED' });
-    await assert.rejects(put(1, 4), { code: 'CLOUD_DECRYPT_AUTH_FAILED' });
+    await assert.rejects(put(1, 4), { code: 'FILE_WRITE_FAILED' }, 'with no valid committed copy left, an update still overwrites instead of blocking repair');
     files.set(backupName, preserved);
     folder.setManifestCloseFailure(false);
     await put(1, 4);
