@@ -484,11 +484,11 @@ test('ID-only candidates have no body while nested single-element text remains s
 });
 
 test('known behavior: a malformed image tuple is eligible for generic user-file fallback', () => {
-    const raw = [['https://lh3.googleusercontent.com/example', 'wrong-width', 200]];
+    const raw = [['', ['https://lh3.googleusercontent.com/example', 'wrong-width', 200]]];
     assert.deepEqual(extractImages(raw), []);
     assert.deepEqual(extractUserFiles(raw), [{
         sourceUrl: 'https://lh3.googleusercontent.com/example', fileName: 'attachment',
-        id: 'wrong-width', thumbnailUrl: undefined
+        thumbnailUrl: undefined
     }]);
     assert.deepEqual(extractDocumentsMeta(raw), []);
 });
