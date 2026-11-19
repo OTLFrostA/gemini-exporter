@@ -18,6 +18,10 @@ const BLIND_ID_PATTERN = /^[0-9a-f]{64}$/;
 const KEY_FP_PATTERN = /^[0-9a-f]{32}$/;
 const MIN_GEE1_BYTES = 4 + 12 + 16;
 
+interface LocalRecordMeta extends CloudRecordMeta {
+    readonly filename?: string;
+}
+
 interface LocalVaultManifest {
     readonly schema: 'e2ee-vault-manifest';
     readonly version: 1;
@@ -25,7 +29,7 @@ interface LocalVaultManifest {
     readonly keyFingerprint?: string;
     readonly nextSeq: number;
     readonly usedBytes: number;
-    readonly records: Record<string, CloudRecordMeta>;
+    readonly records: Record<string, LocalRecordMeta>;
 }
 
 function emptyManifest(): LocalVaultManifest {
@@ -56,7 +60,7 @@ function isNotFoundError(error: unknown): boolean {
     return error instanceof Error && error.name === 'NotFoundError';
 }
 
-function parseMetaRecord(raw: unknown): CloudRecordMeta | null {
+function parseMetaRecord(raw: unknown): LocalRecordMeta | null {
     if (!isRecord(raw)
         || typeof raw.blindRecordId !== 'string' || !BLIND_ID_PATTERN.test(raw.blindRecordId)
         || typeof raw.revision !== 'number' || !Number.isSafeInteger(raw.revision) || raw.revision < 1
@@ -66,6 +70,8 @@ function parseMetaRecord(raw: unknown): CloudRecordMeta | null {
         || typeof raw.updatedAt !== 'number' || !Number.isSafeInteger(raw.updatedAt)) {
         return null;
     }
+    if (raw.filename !== undefined && (typeof raw.filename !== 'string'
+        || !new RegExp(`^${raw.blindRecordId}\\.[0-9a-f-]{36}\\.gee1$`).test(raw.filename))) return null;
     return {
         blindRecordId: raw.blindRecordId,
         revision: raw.revision,
@@ -73,6 +79,7 @@ function parseMetaRecord(raw: unknown): CloudRecordMeta | null {
         byteLength: raw.byteLength,
         sha256: raw.sha256,
         updatedAt: raw.updatedAt,
+        ...(typeof raw.filename === 'string' ? { filename: raw.filename } : {}),
     };
 }
 
@@ -100,7 +107,7 @@ async function readManifestFromDir(rootDir: DirectoryHandle): Promise<LocalVault
         || !isRecord(parsed.records)) {
         throw new OperationError('CLOUD_PAYLOAD_INVALID', 'Invalid vault-manifest.json schema in local encrypted folder');
     }
-    const records: Record<string, CloudRecordMeta> = {};
+    const records: Record<string, LocalRecordMeta> = {};
     let computedBytes = 0;
     for (const [key, val] of Object.entries(parsed.records)) {
         const meta = parseMetaRecord(val);
@@ -143,6 +150,18 @@ async function writeManifestToDir(rootDir: DirectoryHandle, manifest: LocalVault
     await writeBytesToFile(rootDir, MANIFEST_FILENAME, encoded);
 }
 
+function recordFilename(meta: LocalRecordMeta): string {
+    return meta.filename ?? `${meta.blindRecordId}.gee1`;
+}
+
+async function removeRecordFile(dir: FileSystemDirectoryHandle, filename: string): Promise<void> {
+    try {
+        await dir.removeEntry(filename);
+    } catch {
+        // Orphan cleanup must not affect the committed manifest.
+    }
+}
+
 async function withVaultLock<T>(work: () => Promise<T>): Promise<T> {
     if (typeof navigator !== 'undefined' && navigator.locks?.request) {
         return navigator.locks.request(LOCAL_VAULT_LOCK, () => work());
@@ -152,7 +171,7 @@ async function withVaultLock<T>(work: () => Promise<T>): Promise<T> {
 
 /**
  * Local Encrypted Folder implementation of `VaultRecordClient`.
- * Stores identical `GEE1` zero-knowledge `AES-256-GCM` ciphertexts (`records/<blindId>.gee1`)
+ * Stores identical `GEE1` zero-knowledge `AES-256-GCM` ciphertexts in `records/`
  * and blind sequence metadata (`vault-manifest.json`) directly in a user-chosen local folder.
  */
 export function createLocalFolderVaultClient(
@@ -222,30 +241,40 @@ export function createLocalFolderVaultClient(
                 }
 
                 const recordsDir = await rootDir.getDirectoryHandle(RECORDS_SUBDIR, { create: true });
-                await writeBytesToFile(recordsDir, `${input.blindRecordId}.gee1`, input.envelope);
+                const filename = existing
+                    ? `${input.blindRecordId}.${crypto.randomUUID()}.gee1`
+                    : `${input.blindRecordId}.gee1`;
 
                 const nextRevision = currentRevision + 1;
                 const changeSeq = manifest.nextSeq;
-                const meta: CloudRecordMeta = {
+                const meta: LocalRecordMeta = {
                     blindRecordId: input.blindRecordId,
                     revision: nextRevision,
                     changeSeq,
                     byteLength: input.envelope.byteLength,
                     sha256: actualSha,
                     updatedAt: now(),
+                    ...(existing ? { filename } : {}),
                 };
-                const nextRecords: Record<string, CloudRecordMeta> = {
+                const nextRecords: Record<string, LocalRecordMeta> = {
                     ...manifest.records,
                     [input.blindRecordId]: meta,
                 };
                 const nextUsedBytes = manifest.usedBytes - (existing?.byteLength ?? 0) + meta.byteLength;
-                await writeManifestToDir(rootDir, {
-                    ...manifest,
-                    keyFingerprint: input.keyFingerprint,
-                    nextSeq: changeSeq + 1,
-                    usedBytes: nextUsedBytes,
-                    records: nextRecords,
-                });
+                try {
+                    await writeBytesToFile(recordsDir, filename, input.envelope);
+                    await writeManifestToDir(rootDir, {
+                        ...manifest,
+                        keyFingerprint: input.keyFingerprint,
+                        nextSeq: changeSeq + 1,
+                        usedBytes: nextUsedBytes,
+                        records: nextRecords,
+                    });
+                } catch (error) {
+                    await removeRecordFile(recordsDir, filename);
+                    throw error;
+                }
+                if (existing) await removeRecordFile(recordsDir, recordFilename(existing));
 
                 return { status: 'committed', meta };
             });
@@ -265,7 +294,7 @@ export function createLocalFolderVaultClient(
                 let fileHandle: FileSystemFileHandle;
                 try {
                     const recordsDir = await rootDir.getDirectoryHandle(RECORDS_SUBDIR, { create: false });
-                    fileHandle = await recordsDir.getFileHandle(`${input.blindRecordId}.gee1`, { create: false });
+                    fileHandle = await recordsDir.getFileHandle(recordFilename(meta), { create: false });
                 } catch (error) {
                     if (isNotFoundError(error)) return null;
                     throw new OperationError('FILE_WRITE_FAILED', 'Failed reading local encrypted .gee1 file', undefined, { cause: error });
