@@ -5,6 +5,9 @@ import { openOptions, seedConversations, exposeUIStorage, accountId } from './ui
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
+const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
+test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
+
 test('Skip exported upgrades a text-only Workbench export to a ZIP containing its image', async ({ context, extensionId }, testInfo) => {
     const page = await openOptions(context, extensionId);
     await seedConversations(page, [{ id: 'asset-upgrade', title: 'Attachment coverage regression' }]);
@@ -47,9 +50,6 @@ test('Skip exported upgrades a text-only Workbench export to a ZIP containing it
         .toMatchObject({ status: 'ok', includeAssets: true });
     await page.screenshot({ path: testInfo.outputPath('asset-upgrade.png'), fullPage: true });
 });
-
-const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
-test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 
 test('v2 Workbench exports two Domain conversations as a real ZIP and commits separate records', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
