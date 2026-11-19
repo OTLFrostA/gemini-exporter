@@ -16,10 +16,25 @@ for (const [name, code] of [
     ['blockquote', '> ```text\n> \\(x+y\\)\n> ```'],
     ['nested containers', '> 1. - ```text\n>      \\(x+y\\)\n>      ```'],
     ['nested list continuation', '1. Step\n   - Nested\n     ```text\n     \\(x+y\\)\n     ```'],
+    ['list marker is not a top-level closer', '```text\n- ```\n\\(x+y\\)\n```'],
+    ['quote marker is not a top-level closer', '```text\n> ```\n\\(x+y\\)\n```'],
+    ['four-space indentation is not a closer', '```text\n    ```\n\\(x+y\\)\n```'],
 ] as const) {
     test(`TeX shielding: ${name}`, () => {
         assert.equal(transformMarkdownOutsideCode(`\\(a+b\\)\n${code}\n\\(c+d\\)`, normalizeTexBracketsInProse),
             `$a+b$\n${code}\n$c+d$`);
+    });
+}
+
+for (const [name, code] of [
+    ['blockquote ends an unclosed fence', '> ```text\n> \\(x+y\\)'],
+    ['list ends an unclosed fence', '- ```text\n  \\(x+y\\)'],
+    ['indented backticks are code, not a fence opener', '    ```text\n    \\(x+y\\)'],
+    ['indented code', '    literal \\(x+y\\)'],
+] as const) {
+    test(`TeX shielding: ${name}`, () => {
+        assert.equal(transformMarkdownOutsideCode(`${code}\n\nFollowing \\(z\\)`, normalizeTexBracketsInProse),
+            `${code}\n\nFollowing $z$`);
     });
 }
 

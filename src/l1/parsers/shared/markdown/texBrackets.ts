@@ -1,7 +1,5 @@
-// Fenced code blocks (backticks or tildes) and inline code spans keep their backslashes and dollars.
-const CONTAINER_PREFIX = '[ \\t]*(?:(?:>[ \\t]*|(?:[-+*]|\\d+[.)])[ \\t]+)[ \\t]*)*';
-const FENCE_OPENER = '(`{3,}(?=[^`\\r\\n]*\\r?$)|~{3,})[^\\r\\n]*(?:\\r?\\n|$)';
-const CODE_SPAN = new RegExp(`^${CONTAINER_PREFIX}${FENCE_OPENER}|\`+[^\`\\n]+\`+`, 'gm');
+import type { Nodes } from 'mdast';
+import { parseMarkdownAst } from './parseMarkdown.js';
 
 const BRACKET_DISPLAY_OWN_LINES = /^[ \t]*\\\[(?<block>[\s\S]+?)\\\][ \t]*$/gm;
 const BRACKET_DISPLAY_INLINE = /\\\[(?<display>[\s\S]+?)\\\]/g;
@@ -11,22 +9,21 @@ const BRACKET_INLINE = /\\\((?<inline>(?:(?!\\\()[^\r\n])+?)\\\)/g;
 /** Transform only prose segments outside fenced and inline Markdown code spans. */
 export function transformMarkdownOutsideCode(source: string, transform: (prose: string) => string): string {
     if (!source) return source;
-    const spans = new RegExp(CODE_SPAN);
     const parts: string[] = [];
     let cursor = 0;
-    let match: RegExpExecArray | null;
-    while ((match = spans.exec(source)) !== null) {
-        parts.push(transform(source.slice(cursor, match.index)));
-        const fence = match[1];
-        if (fence) {
-            const closing = new RegExp(`^${CONTAINER_PREFIX}${fence[0]}{${fence.length},}[ \\t]*\\r?$`, 'gm');
-            closing.lastIndex = spans.lastIndex;
-            const end = closing.exec(source);
-            spans.lastIndex = end ? closing.lastIndex : source.length;
+    function visit(node: Nodes): void {
+        if (node.type === 'code' || node.type === 'inlineCode') {
+            const start = node.position?.start.offset;
+            const end = node.position?.end.offset;
+            if (start !== undefined && end !== undefined) {
+                parts.push(transform(source.slice(cursor, start)), source.slice(start, end));
+                cursor = end;
+            }
+        } else if ('children' in node) {
+            for (const child of node.children) visit(child);
         }
-        parts.push(source.slice(match.index, spans.lastIndex));
-        cursor = spans.lastIndex;
     }
+    visit(parseMarkdownAst(source));
     parts.push(transform(source.slice(cursor)));
     return parts.join('');
 }
