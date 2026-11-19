@@ -472,11 +472,15 @@ test('sanitized Tier-2 wire fixtures retain structured nodes and search images t
 });
 
 
-test('known behavior: an ID-only candidate becomes model content through the single-element fallback', () => {
-    // Existing fallback treats a one-element candidate as its text body.
-    assert.equal(extractCandidateText(['rc_missing']), 'rc_missing');
+test('ID-only candidates have no body while nested single-element text remains supported', () => {
+    for (const candidate of [['rc_missing'], ['candidate-without-prefix'], ['rc_missing', undefined], ['rc_missing', null]]) {
+        assert.equal(extractCandidateText(candidate), '');
+        assert.equal(decodeTurn(turn('Prompt', null, [candidate]))?.candidate?.text, '');
+    }
+    assert.equal(extractCandidateText([['text']]), 'text');
+    assert.equal(extractCandidateText(['rc_valid', [['rc_literal answer']]]), 'rc_literal answer');
     const parsed = decodeGeminiDetail(geminiDetailGen('G_BOUNDARY_DETAIL_08'));
-    assert.equal(parsed.messages.find(m => m.role === 'model')?.content, 'rc_missing');
+    assert.deepEqual(parsed.messages.map(message => [message.role, message.content]), [['user', 'Missing body prompt']]);
 });
 
 test('known behavior: a malformed image tuple is eligible for generic user-file fallback', () => {
