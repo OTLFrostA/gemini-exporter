@@ -12,6 +12,7 @@ import * as path from 'node:path';
 let bundle: string;
 test.beforeAll(async () => {
     const modules = [
+        "import { installApplicationHost } from './src/runtime/api/applicationHost.ts'; installApplicationHost();",
         "import { mediaSources, mediaBytes } from './tests/helpers/mediaSourceFixture.ts';",
         "import { importTakeout } from './src/application/imports/importTakeout.ts';",
         "import { createSourceResourceContext } from './src/l1/resources/sourceResources.ts';",

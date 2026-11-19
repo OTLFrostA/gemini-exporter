@@ -1,10 +1,9 @@
+import { applicationHost } from '../host.js';
 import { OperationError, type OperationErrorCode } from '../../shared/errors/operationError.js';
 import type { Account } from '../../l2/accountRegistry.js';
 import { ingestDetail, ingestDetailsBatch } from '../../l2/ingestion.js';
 import type { SourceConversationParseResult } from '../../l1/parsers/parsingResult.js';
 import type { SourceResourceContext } from '../../l1/resources/sourceResources.js';
-import { getAccount } from '../../runtime/api/accountRegistry.js';
-import { notifyDomainChanged } from '../../runtime/api/domainChanges.js';
 import type { SourcePlatform } from '../../shared/platformHosts.js';
 
 export async function requireImportTargetAccount(
@@ -14,7 +13,7 @@ export async function requireImportTargetAccount(
     message: string,
 ): Promise<Account> {
     if (!accountId) throw new OperationError(errorCode, message);
-    const account = await getAccount(accountId);
+    const account = await applicationHost().getAccount(accountId);
     if (!account || account.providerId !== expectedProvider) {
         throw new OperationError(errorCode, message);
     }
@@ -88,10 +87,10 @@ export async function admitArchivedConversations<Item>(options: {
         }
 
         if ((offset + slice.length) % sliceSize === 0) {
-            notifyDomainChanged(options.accountId);
+            applicationHost().notifyDomainChanged(options.accountId);
             await new Promise<void>(resolve => setTimeout(resolve, 0));
         }
     }
-    notifyDomainChanged(options.accountId);
+    applicationHost().notifyDomainChanged(options.accountId);
     return { acceptedIds, addedCount, rejectedCount, incompleteQuality };
 }

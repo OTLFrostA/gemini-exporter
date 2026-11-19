@@ -64,7 +64,7 @@ for(const format of ['html','markdown','json'] as const)test(`Popup ${format} ph
     await expect(popup.locator('#status')).not.toContainText('Attachment');
     await expect(popup.locator('#status')).not.toContainText('Download location unavailable');
     await options.locator('#devToggle').check();
-    await expect(popup.locator('#status')).toContainText('Download location unavailable: 1 attachments');
+    await expect(popup.locator('#status')).toContainText(/Download location unavailable: 1 attachment(?:;|$)/);
     await expect(popup.locator('#status')).not.toContainText('unknown cause');
     await expect(popup.locator('#status')).not.toContainText('Conversation export failed:');
     await options.locator('#devToggle').uncheck();

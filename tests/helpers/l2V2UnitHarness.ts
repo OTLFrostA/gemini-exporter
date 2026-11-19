@@ -92,7 +92,7 @@ const updateConversationAtomically: typeof import('../../src/l3a/storageService.
         return decision.result;
     };
 
-const updateConversationsAtomically: typeof import('../../src/l3a/conversationStore.js').updateConversationsAtomically =
+const updateConversationsAtomically: typeof import('../../src/l3a/batchStorageService.js').updateConversationsAtomically =
     async items => {
         checkWrite();
         const results = [];
@@ -145,15 +145,15 @@ const storage = {
     deleteStoredConversation, insertAccountIfAbsent, admitAccountAtomically, putAccount,
 } satisfies Partial<typeof import('../../src/l3a/storageService.js')>;
 
-const getConversationSnapshot: typeof import('../../src/l3a/conversationStore.js').getConversationSnapshot =
+const getConversationSnapshot: typeof import('../../src/l3a/batchStorageService.js').getConversationSnapshot =
     async key => ({
         index: indexes.get(address(key)) ?? null,
         detail: details.get(address(key)) ?? null,
     });
-const conversationStoreMock = {
+const batchStorageMock = {
     getConversationSnapshot,
     updateConversationsAtomically,
-} satisfies Partial<typeof import('../../src/l3a/conversationStore.js')>;
+} satisfies Partial<typeof import('../../src/l3a/batchStorageService.js')>;
 
 type Loader = { _load(request: string, parent?: NodeModule | null, isMain?: boolean): unknown };
 const loader = Module as unknown as Loader;
@@ -166,7 +166,7 @@ loader._load = (request, parent, isMain) => {
     const caller = parent?.filename.replace(/\\/g, '/') ?? '';
     if (caller.includes('/src/l2/')) {
         if (request === '../l3a/storageService.js') return storage;
-        if (request === '../l3a/conversationStore.js') return conversationStoreMock;
+        if (request === '../l3a/batchStorageService.js') return batchStorageMock;
         if (['../l1/', '../l3a/', '../l3b/', '../l4/', '../application/', '../runtime/', '../ui/', '../migration/'].some(part => request.includes(part)))
             throw new Error('Unmocked L2 external-v2 runtime dependency: ' + request);
     }

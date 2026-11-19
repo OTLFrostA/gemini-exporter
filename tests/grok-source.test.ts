@@ -19,6 +19,13 @@ import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 const fixture = () => grokDetailGen('GR_DETAIL_TEXT_01');
 
+test('Grok parser preserves TeX inside a longer fence containing shorter backticks', () => {
+    const f = fixture();
+    f.bodies.responses[1].message = '````text\nbefore\n```\n\\(x+y\\)\n````';
+    const answer = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id).conversation.detail.messages[1];
+    assert.ok(answer.content.some(block => block.type === 'code' && block.code === 'before\n```\n\\(x+y\\)'));
+});
+
 test('observed Grok tree and batch payload preserve text, table, Python and TeX in Markdown and HTML', () => {
     const f = fixture(), copy = structuredClone(f);
     const parsed = parseGrokConversation(f.metadata, f.tree, f.bodies, f.id);

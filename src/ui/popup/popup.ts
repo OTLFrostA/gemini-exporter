@@ -1,3 +1,5 @@
+import { installApplicationHost } from '../../runtime/api/applicationHost.js';
+
 import { OperationError } from '../../shared/errors/operationError.js';
 import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { createBackoffNotice } from '../shared/backoffNotice.js';
@@ -19,6 +21,8 @@ import { runExport } from '../../application/export/runExport.js';
 import { EXPORT_FORMATS, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
 import { createOptimisticThemeToggle } from '../shared/themeToggle.js';
 import { readSettings } from '../shared/readSettings.js';
+
+installApplicationHost();
 
 /** Only the explicitly opened Popup inspects its active tab; URLs never establish Account identity. */
 export function platformForTabUrl(url: string | undefined): SourcePlatform | null {
