@@ -8,6 +8,7 @@ Unit tests for scripts/test_impact_analyzer.py (Test Impact Analysis & Dependenc
 import os
 import subprocess
 import sys
+import json
 import tempfile
 import unittest
 import shutil
@@ -207,6 +208,22 @@ class TestImpactAnalyzer(unittest.TestCase):
         self.assertTrue(res.is_docs_only)
         self.assertEqual(len(res.target_unit_tests), 0)
         self.assertEqual(len(res.target_e2e_specs), 0)
+
+    def test_playwright_config_cli_triggers_all(self):
+        result = subprocess.run(
+            [sys.executable, os.path.join(scripts_dir, "test_impact_analyzer.py"),
+             "--files", "playwright.config.ts", "--json"],
+            cwd=BASE_DIR, capture_output=True, text=True, check=True,
+        )
+        impact = json.loads(result.stdout)
+        self.assertTrue(impact["is_all_affected"])
+        self.assertFalse(impact["is_docs_only"])
+        self.assertEqual(impact["changed_files"], ["playwright.config.ts"])
+        all_tests = analyze_impact({"package.json"}, graph=self.graph, base_dir=BASE_DIR)
+        self.assertTrue(impact["target_unit_tests"])
+        self.assertTrue(impact["target_e2e_specs"])
+        self.assertEqual(impact["target_unit_tests"], all_tests.target_unit_tests)
+        self.assertEqual(impact["target_e2e_specs"], all_tests.target_e2e_specs)
 
     def test_fixture_changes_fall_back_to_all_tests(self):
         for target in (
