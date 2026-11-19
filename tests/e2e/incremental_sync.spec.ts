@@ -60,11 +60,16 @@ test('diagnostic download includes the failed scan page and its native error env
     }, scanSid)).toBe(false);
 });
 
-for (const duringLoad of [false, true]) test(`Options sync uses a fresh native RPC credential ${duringLoad ? 'received during' : 'received after'} page load`, async ({ context, extensionId }) => {
+for (const { scenario, duringLoad, reload } of [
+    { scenario: 'uses a fresh native RPC credential received after page load' },
+    { scenario: 'uses a fresh native RPC credential received during page load', duringLoad: true },
+    { scenario: 'uses a rotated inline credential after reload without a native RPC', reload: true },
+]) test(`Options sync ${scenario}`, async ({ context, extensionId }) => {
     const gemini = await context.newPage();
+    let inlineToken = 'stale-inline-token';
     await gemini.route('https://gemini.google.com/**', route => route.fulfill({
         contentType: 'text/html',
-        body: '<script>window.WIZ_global_data={qDCSke:"10000000001","SNlM0e":"stale-inline-token"}</script>'
+        body: `<script>window.WIZ_global_data={qDCSke:"10000000001","SNlM0e":"${inlineToken}"}</script>`
             + (duringLoad ? '<img src="/defer-load.png">' : ''),
     }));
     let finishImage!: () => void;
@@ -101,10 +106,14 @@ for (const duringLoad of [false, true]) test(`Options sync uses a fresh native R
         finishImage();
     }
     await gemini.waitForLoadState('load');
+    if (reload) {
+        inlineToken = 'rotated-inline-token';
+        await gemini.reload();
+    }
 
     await options.click('#btnSyncAll');
     await expect(options.locator('#scanStatus')).toContainText('invalid Gemini response');
-    expect(scanCredential).toEqual({ sid: 'native-sid', at: 'fresh-network-token' });
+    expect(scanCredential).toEqual({ sid: 'native-sid', at: reload ? inlineToken : 'fresh-network-token' });
 });
 
 test('trusted provider-limit window is persisted by L2/L3a and reused for v2 early stop without losing existing facts', async ({ context, extensionId }) => {

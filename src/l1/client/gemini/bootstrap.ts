@@ -33,6 +33,8 @@ function isDev(): boolean {
 }
 
 type BootstrapCredential = GeminiStoredCredential;
+// Only this document's RPC can supersede its original inline token.
+let nativeToken: { sid: string; at: string; slot: string; accountId: string; inlineAt: string } | undefined;
 
 function updateContextCreds(creds: BootstrapCredential): void {
     window.__gemExporterContentContext?.setCredentials(creds);
@@ -190,7 +192,7 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
     try {
         if (!isExtAlive()) return null;
         const slot = detectSlotFromUrl();
-        const atFromPage = extractAtFromPage();
+        const atFromPage = extractAtFromPage(!nativeToken);
         const account = await resolveCurrentAccount();
         const blFromPage = extractBlFromPage();
         if (blFromPage) {
@@ -224,8 +226,11 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
         if (scopedEntries.length > 0) {
             scopedEntries.sort(([, a], [, b]) => (b.lastUsed || 0) - (a.lastUsed || 0));
             const [bestKey, best] = scopedEntries[0];
+            const keepNativeToken = nativeToken && nativeToken.sid === best.sid && nativeToken.at === best.at
+                && nativeToken.slot === slot && nativeToken.accountId === account?.accountId
+                && (!nativeToken.inlineAt || nativeToken.inlineAt === atFromPage);
             if (account?.accountId && !best.accountId) best.accountId = account.accountId;
-            if (atFromPage && !best.rpcToken && best.at !== atFromPage) {
+            if (atFromPage && !keepNativeToken && best.at !== atFromPage) {
                 best.at = atFromPage;
                 best.lastUsed = Date.now();
                 if (blFromPage) best.bl = blFromPage;
@@ -242,7 +247,7 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
                     map.set(String(best.sid || bestKey), best);
                     await saveCredentials(map);
                 }
-                if (best.rpcToken) updateContextCreds(best);
+                if (keepNativeToken) updateContextCreds(best);
                 else if (atFromPage) updateContextCreds({ at: atFromPage });
             }
         }
@@ -292,12 +297,12 @@ function receiveRpcCredentials(message: unknown, sender: chrome.runtime.MessageS
                 sid,
                 accountSlot: slot,
                 accountId: verifiedAccountId ?? (sameToken ? old?.accountId : undefined),
-                rpcToken: p.at && verifiedAccountId ? true : sameToken ? old?.rpcToken : undefined,
                 lastUsed: Date.now(),
                 bl: p.bl || old?.bl || (samePageSlot ? extractBlFromPage() : '') || Proto.BL_FALLBACK,
             };
             map.set(sid, credential);
             await saveCredentials(map, { at, sid });
+            if (p.at && verifiedAccountId) nativeToken = { sid, at: p.at, slot, accountId: verifiedAccountId, inlineAt: pageAt };
             if (samePageSlot && (verifiedAccountId || !pageAt || at === pageAt)) updateContextCreds(credential);
         } catch (error) {
             if (!getErrorMessage(error).includes('Extension context invalidated')) console.warn('RPC credential update failed');
@@ -319,7 +324,7 @@ export function initBootstrap(): void {
     const rpcAccounts: RpcAccounts = new Map();
     const onCredentials = (message: unknown, sender: chrome.runtime.MessageSender) => receiveRpcCredentials(message, sender, rpcAccounts);
     chrome.runtime.onMessage?.addListener(onCredentials);
-    registerCleanup(() => chrome.runtime.onMessage?.removeListener(onCredentials));
+    registerCleanup(() => { chrome.runtime.onMessage?.removeListener(onCredentials); nativeToken = undefined; });
 
     const receive = (e: MessageEvent<unknown>) => {
         if (e.source !== window) return;
