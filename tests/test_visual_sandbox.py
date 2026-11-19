@@ -9,6 +9,7 @@ import os
 import sys
 import time
 import base64
+import io
 import tempfile
 import struct
 import zlib
@@ -439,13 +440,17 @@ class TestVisualQAAgent(unittest.TestCase):
         self.assertTrue(event.resolved)
 
     def test_execute_visual_step_wait_on(self):
-        provider = MockCustomVisionProvider([
-            VisualAction(action_type=VisualActionType.WAIT_ON, condition="custom_wait", timeout=1, thought="Wait on event")
-        ])
-        agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
+        self.mock_cdp.eval_return = False
+        for condition, expected in (("  IDLE  ", True), ("custom_wait", False)):
+            with self.subTest(condition=condition):
+                provider = MockCustomVisionProvider([
+                    VisualAction(action_type=VisualActionType.WAIT_ON, condition=condition,
+                                 timeout=1, thought="Wait on event")
+                ])
+                agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
 
-        res = agent.execute_visual_step("step_wait", "等待沙盒事件")
-        self.assertTrue(res)
+                res = agent.execute_visual_step("step_wait", "等待沙盒事件")
+                self.assertIs(res, expected)
 
     def test_scorecard_reporting(self):
         self.scorecard.record_feature("向导防撞", "引导交互", "PASS", 1.2, "0 遮挡通过")
@@ -820,6 +825,25 @@ class TestVisualCliArguments(unittest.TestCase):
             main()
         open_playground.assert_called_once_with(port=9333, target_page="gemini")
         open_playground.return_value.capture_screen.assert_called_once()
+
+    def test_wait_on_reports_unknown_condition_as_failure(self):
+        from scripts.visual_agent.cli import main
+        condition = "download_compelete"
+        argv = ["cli.py", "wait-on", "--condition", condition, "--timeout", "0", "--json"]
+        with tempfile.TemporaryDirectory() as output_dir:
+            playground = VisualSandbox(cdp=MagicMock(), output_dir=output_dir)
+            stdout = io.StringIO()
+            with patch("scripts.visual_agent.cli.open_visual_playground", return_value=playground), \
+                    patch.object(sys, "argv", argv), patch("sys.stdout", stdout):
+                with self.assertRaises(SystemExit) as exit_info:
+                    main()
+
+        result = json.loads(stdout.getvalue())
+        self.assertEqual(exit_info.exception.code, 2)
+        self.assertIs(result["success"], False)
+        self.assertEqual(result["condition"], condition)
+        self.assertIn("Unknown wait condition", result["message"])
+        self.assertIn(condition, result["message"])
 
 
 if __name__ == "__main__":
