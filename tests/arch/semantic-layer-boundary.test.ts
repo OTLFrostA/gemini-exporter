@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { transformSync } from 'esbuild';
+import { specifiers, tokens } from '../helpers/moduleSpecifiers.js';
 
 const root = resolve(__dirname, '../..');
 const core = resolve(root, 'src');
@@ -15,61 +16,6 @@ function files(dir: string): string[] {
 }
 const sources = new Map(files(core).map(file => [relative(core, file).replace(/\\/g, '/'), file]));
 
-/** Ignore comments, strings and regex bodies while retaining literal module specifiers. */
-interface Token { value: string; literal?: boolean }
-function tokens(source: string): Token[] {
-    const result: Token[] = [];
-    let index = 0;
-    while (index < source.length) {
-        const rest = source.slice(index);
-        if (/^\s/.test(rest)) { index++; continue; }
-        if (rest.startsWith('//')) { const end = source.indexOf('\n', index); index = end < 0 ? source.length : end; continue; }
-        if (rest.startsWith('/*')) { const end = source.indexOf('*/', index + 2); index = end < 0 ? source.length : end + 2; continue; }
-        const quote = source[index];
-        if (quote === "'" || quote === '"' || quote === '`') {
-            let value = '', escaped = false;
-            index++;
-            while (index < source.length) {
-                const char = source[index++];
-                if (escaped) { value += char; escaped = false; }
-                else if (char === '\\') escaped = true;
-                else if (char === quote) break;
-                else value += char;
-            }
-            result.push({ value, literal: quote !== '`' || !value.includes('${') });
-            continue;
-        }
-        const previous = result.at(-1)?.value;
-        if (quote === '/' && (!previous || /^(?:[=(,:!?;{\[]|return|case|=>)$/.test(previous))) {
-            index++;
-            let bracket = false;
-            while (index < source.length) {
-                const char = source[index++];
-                if (char === '\\') index++;
-                else if (char === '[') bracket = true;
-                else if (char === ']') bracket = false;
-                else if (char === '/' && !bracket) break;
-            }
-            while (/[a-z]/i.test(source[index] ?? '') && index < source.length) index++;
-            result.push({ value: '<regex>' });
-            continue;
-        }
-        const word = /^[$\w]+/.exec(rest);
-        const value = word?.[0] ?? quote;
-        result.push({ value }); index += value.length;
-    }
-    return result;
-}
-function specifiers(source: string): string[] {
-    const stream = tokens(source), result: string[] = [];
-    stream.forEach((token, index) => {
-        if (token.literal) return;
-        const next = stream[index + 1], arg = stream[index + 2];
-        if ((token.value === 'from' || token.value === 'import') && next?.literal) result.push(next.value);
-        else if ((token.value === 'import' || token.value === 'require') && next?.value === '(' && arg?.literal) result.push(arg.value);
-    });
-    return result;
-}
 /** esbuild determines runtime edges; source tokens retain erased type-only dependencies. */
 function dependencies(file: string, text = readFileSync(file, 'utf8')): Edge[] {
     const output = transformSync(text, { loader: file.endsWith('.tsx') ? 'tsx' : file.endsWith('.ts') ? 'ts' : 'js', format: 'esm', legalComments: 'none' }).code;

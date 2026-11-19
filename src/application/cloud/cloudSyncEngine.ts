@@ -36,13 +36,13 @@ import {
     type CloudSyncSessionState,
     type CloudSyncedRecordState,
     type CloudVaultBackendType,
-} from '../../l3a/cloudSyncStore.js';
+} from '../../l3a/vaultStorageService.js';
 import type { DirectoryHandle } from '../../shared/types/directoryHandle.js';
 import {
     activateVaultKeyring,
     getInitializedVaultKeyring,
     type VaultKeyProvisionOrigin,
-} from '../../l3a/cloudKeyringStore.js';
+} from '../../l3a/vaultStorageService.js';
 import {
     createCloudVaultClient,
     normalizeCloudServerUrl,
@@ -79,7 +79,7 @@ async function sha256BytesHex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
 }
 
 export type { CloudVaultBackendType } from '../../shared/types/cloudSync.js';
-export type { VaultKeyProvisionOrigin } from '../../l3a/cloudKeyringStore.js';
+export type { VaultKeyProvisionOrigin } from '../../l3a/vaultStorageService.js';
 
 export interface CloudSyncStatusSnapshot {
     readonly enabled: boolean;
