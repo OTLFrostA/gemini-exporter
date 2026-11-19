@@ -619,8 +619,11 @@ def run_all():
         if scripts_dir not in sys.path:
             sys.path.insert(0, scripts_dir)
         try:
-            from test_impact_analyzer import get_git_changed_files, analyze_impact, DependencyGraph
-            changed = set(args.files) if args.files else get_git_changed_files(base_ref=args.base, base_dir=BASE_DIR)
+            from test_impact_analyzer import get_git_changed_files, analyze_impact, DependencyGraph, GitChangeError
+            try:
+                changed = set(args.files) if args.files else get_git_changed_files(base_ref=args.base, base_dir=BASE_DIR)
+            except GitChangeError as e:
+                parser.exit(1, f"Error: {e}\n")
             graph = DependencyGraph(base_dir=BASE_DIR)
             result = analyze_impact(changed, graph=graph, base_dir=BASE_DIR)
 

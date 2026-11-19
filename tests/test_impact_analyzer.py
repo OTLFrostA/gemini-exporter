@@ -6,8 +6,12 @@ Unit tests for scripts/test_impact_analyzer.py (Test Impact Analysis & Dependenc
 """
 
 import os
+import subprocess
 import sys
+import tempfile
 import unittest
+from contextlib import contextmanager
+from unittest.mock import patch
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 scripts_dir = os.path.join(BASE_DIR, "scripts")
@@ -16,6 +20,7 @@ if scripts_dir not in sys.path:
 
 from test_impact_analyzer import (
     DependencyGraph,
+    get_git_changed_files,
     analyze_impact,
     normalize_repo_path,
     resolve_import_path,
@@ -27,6 +32,51 @@ class TestImpactAnalyzer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.graph = DependencyGraph(base_dir=BASE_DIR)
+
+    @contextmanager
+    def git_repo(self):
+        with tempfile.TemporaryDirectory() as repo:
+            subprocess.run(["git", "init", "-b", "main", repo], check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-c", "user.name=Test", "-c", "user.email=test@example.com",
+                 "commit", "--allow-empty", "-m", "Initial commit"],
+                cwd=repo, check=True, capture_output=True,
+            )
+            yield repo
+
+    def test_invalid_base_fails_incremental_runner(self):
+        with self.git_repo() as repo:
+            env = dict(os.environ, GIT_DIR=os.path.join(repo, ".git"), GIT_WORK_TREE=repo)
+            result = subprocess.run(
+                [sys.executable, os.path.join(BASE_DIR, "scripts", "run_changed_tests.py"),
+                 "--base", "review/nonexistent-base"],
+                cwd=BASE_DIR, env=env, capture_output=True, text=True,
+            )
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Invalid Git base ref", result.stderr)
+        self.assertIn("review/nonexistent-base", result.stderr)
+        self.assertNotIn("INCREMENTAL TESTS PASSED", result.stdout)
+
+    def test_valid_base_and_default_detect_same_changes(self):
+        with self.git_repo() as repo:
+            self.assertEqual(get_git_changed_files("HEAD", repo), set())
+            self.assertEqual(get_git_changed_files(base_dir=repo), set())
+            with open(os.path.join(repo, "README.md"), "w", encoding="utf-8") as file:
+                file.write("Documentation\n")
+            self.assertEqual(get_git_changed_files("HEAD", repo), {"README.md"})
+            self.assertEqual(get_git_changed_files(base_dir=repo), {"README.md"})
+
+    def test_git_diff_failure_is_not_an_empty_change_set(self):
+        run = subprocess.run
+
+        def fail_diff(command, **kwargs):
+            if command[:2] == ["git", "diff"]:
+                return subprocess.CompletedProcess(command, 128, "", "diff failed")
+            return run(command, **kwargs)
+
+        with patch("test_impact_analyzer.subprocess.run", side_effect=fail_diff):
+            with self.assertRaisesRegex(RuntimeError, "diff failed"):
+                get_git_changed_files("HEAD")
 
     def test_storage_service_transitive_dependencies(self):
         """核心断言：修改底层 storageService.ts 必须传递影响所有依赖它的模块与测试"""

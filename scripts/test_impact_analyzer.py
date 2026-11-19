@@ -168,6 +168,10 @@ class DependencyGraph:
         return visited
 
 
+class GitChangeError(RuntimeError):
+    pass
+
+
 def get_git_changed_files(base_ref: Optional[str] = None, base_dir: str = REPO_DIR) -> Set[str]:
     """从 Git 获取当前工作树中的所有改动文件（含未暂存、暂存、未跟踪与分支差异）"""
     changed: Set[str] = set()
@@ -177,9 +181,15 @@ def get_git_changed_files(base_ref: Optional[str] = None, base_dir: str = REPO_D
             res = subprocess.run(cmd_list, cwd=base_dir, capture_output=True, text=True)
             if res.returncode == 0:
                 return [line.strip() for line in res.stdout.splitlines() if line.strip()]
-        except Exception:
-            pass
-        return []
+        except OSError as exc:
+            raise GitChangeError(f"Failed to run {' '.join(cmd_list)}: {exc}") from exc
+        raise GitChangeError(f"{' '.join(cmd_list)} failed: {res.stderr.strip()}")
+
+    if base_ref:
+        try:
+            run_cmd(["git", "rev-parse", "--verify", "--end-of-options", f"{base_ref}^{{commit}}"])
+        except GitChangeError as exc:
+            raise GitChangeError(f"Invalid Git base ref '{base_ref}': {exc}") from exc
 
     for f in run_cmd(["git", "ls-files", "--others", "--exclude-standard"]):
         changed.add(normalize_repo_path(f, base_dir))
@@ -323,7 +333,10 @@ def main():
     if args.files is not None:
         changed_files = set(args.files)
     else:
-        changed_files = get_git_changed_files(base_ref=args.base)
+        try:
+            changed_files = get_git_changed_files(base_ref=args.base)
+        except GitChangeError as exc:
+            parser.exit(1, f"Error: {exc}\n")
 
     graph = DependencyGraph()
     result = analyze_impact(changed_files, graph=graph)
