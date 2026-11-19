@@ -215,6 +215,33 @@ class V2MarkdownFormatContracts(unittest.TestCase):
 
 
 class UploadedAttachmentZipTests(unittest.TestCase):
+    def test_uploaded_file_is_bound_to_the_target_chat_and_exact_linked_bytes(self):
+        file_name = 'same.txt'
+        for target_present, linked_path, expected in (
+            (False, None, False),
+            (True, None, False),
+            (True, 'wrong_same.txt', False),
+            (True, 'right_same.txt', True),
+        ):
+            with self.subTest(target_present=target_present, linked_path=linked_path), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'files').mkdir()
+                (root / 'files' / 'right_same.txt').write_bytes(b'original')
+                (root / 'files' / 'wrong_same.txt').write_bytes(b'wrong')
+                other = root / f'Other_{OTHER[-6:]}.md'
+                other.write_text(f'---\nid: "{CID}"\n---\n[File](files/right_same.txt)', encoding='utf-8')
+                asserter = ExportSpecificationAsserter(directory)
+                asserter.md_files = [str(other)]
+                if target_present:
+                    target = root / 'Renamed.md'
+                    link = f'[File](files/{linked_path})' if linked_path else 'Mention same.txt only'
+                    target.write_text(f'---\nid: "{OTHER}"\n---\n{link}', encoding='utf-8')
+                    asserter.md_files.append(str(target))
+                asserter.assert_uploaded_test_files([{
+                    'file_name': file_name, 'chat_id': OTHER, 'sha256': hashlib.sha256(b'original').hexdigest(),
+                }])
+                self.assertEqual(not asserter.errors, expected, asserter.errors)
+
     def test_uploaded_file_requires_a_link_when_chat_id_is_not_in_markdown_filename(self):
         file_name = 'gemini_test_upload.txt'
         data = b'original uploaded test file'

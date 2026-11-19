@@ -17,11 +17,12 @@ import os
 import re
 import json
 import hashlib
+from pathlib import Path
 
 # Support direct CLI execution as well as framework imports.
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from scripts.framework.archive_resources import find_archive_resource, validate_archive_resources
+from scripts.framework.archive_resources import find_archive_resource, resource_references, validate_archive_resources
 
 # L4 renderer roles depend on persisted Settings.language; both locales use v2 labels.
 _V2_ROLE_HEADING = r'^(## (?:👤 (?:You|你)|🤖 (?:Assistant|助手)))$'
@@ -624,66 +625,43 @@ class ExportSpecificationAsserter:
     def assert_uploaded_test_files(self, uploaded_files):
         """断言现场动态上传的测试文件：files/ 目录下物理存在、非零字节、SHA256 完全一致、Markdown 链接存在"""
         print(f"\n[现场上传文件断言] 📎 校验现场动态上传的多格式文件附件 ({len(uploaded_files)} 个)...")
-        all_downloaded = []
-        for root, _, files in os.walk(self.export_root_dir):
-            for f in files:
-                all_downloaded.append((f, os.path.join(root, f)))
+        documents = [(Path(path), Path(path).read_text(encoding="utf-8")) for path in self.md_files]
+        for uploaded in uploaded_files:
+            target_name = uploaded["file_name"]
+            expected_sha = uploaded.get("sha256")
+            chat_id = str(uploaded.get("chat_id") or "").removeprefix("c_")
+            matching = []
+            for path, content in documents:
+                if chat_id:
+                    header = content.removeprefix("---\n").partition("\n---\n")
+                    identifier = re.search(r'''(?m)^id:[ \t]*["']?([^"'\s]+)''', header[0])
+                    if not content.startswith("---\n") or not header[1] or not identifier or identifier[1].removeprefix("c_") != chat_id:
+                        continue
+                matching.append((path, content))
 
-        for uf in uploaded_files:
-            target_name = uf.get("file_name")
-            expected_sha = uf.get("sha256")
-            chat_id = uf.get("chat_id")
-
-            matched_phys = [
-                fp for (fname, fp) in all_downloaded 
-                if fname == target_name or fname.endswith(f"_{target_name}") or target_name in fname
-            ]
-            if not matched_phys:
-                self.log_error("UploadedFileCheck", f"现场上传的测试文件 '{target_name}' 未在导出包 files/ 目录下找到！")
-                continue
-
-            phys_path = matched_phys[0]
-            fsize = os.path.getsize(phys_path)
-            if fsize == 0:
-                self.log_error(os.path.basename(phys_path), f"现场上传的测试文件 '{target_name}' 物理体积为 0 字节！")
-            else:
-                self.log_pass(os.path.basename(phys_path), f"现场上传的测试文件 '{target_name}' 物理落地有效 ({fsize} bytes)")
-
-            if expected_sha:
-                with open(phys_path, "rb") as f:
-                    actual_sha = hashlib.sha256(f.read()).hexdigest()
-                if actual_sha != expected_sha:
-                    self.log_error(os.path.basename(phys_path), f"现场上传的测试文件 '{target_name}' SHA256 不匹配: 实际 {actual_sha} != 预期 {expected_sha}")
+            for path, content in matching:
+                relative = path.relative_to(self.export_root_dir).as_posix()
+                # The exact resource referenced by this conversation must have the expected bytes.
+                for reference in resource_references(content, kind="link"):
+                    try:
+                        resolved = find_archive_resource(self.export_root_dir, relative, reference)
+                    except ValueError:
+                        continue
+                    if resolved is None:
+                        continue
+                    resource = Path(resolved)
+                    if resource.name != target_name and not resource.name.endswith(f"_{target_name}"):
+                        continue
+                    if expected_sha and hashlib.sha256(resource.read_bytes()).hexdigest() != expected_sha:
+                        continue
+                    self.log_pass(path.name, f"会话 Markdown 包含附件 '{target_name}' 的合规超链接引用且文件校验通过")
+                    break
                 else:
-                    self.log_pass(os.path.basename(phys_path), f"现场上传的测试文件 '{target_name}' SHA256 100% 物理一致 ({actual_sha[:16]}...)")
-
-            # 检查对应对话 markdown 中的链接
-            matched_md = None
-            if chat_id:
-                clean_cid = str(chat_id).replace("c_", "")
-                short_cid = clean_cid[-6:]
-                for fpath in self.md_files:
-                    fname = os.path.basename(fpath)
-                    if clean_cid in fname or short_cid in fname:
-                        matched_md = fpath
-                        break
-            if not matched_md and self.md_files:
-                for fpath in self.md_files:
-                    with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
-                        if target_name in f.read():
-                            matched_md = fpath
-                            break
-
-            if matched_md is None:
-                self.log_error("UploadedFileCheck", f"未找到匹配的会话 Markdown，缺少对附件 '{target_name}' 的超链接引用")
-                continue
-
-            with open(matched_md, "r", encoding="utf-8", errors="ignore") as f:
-                md_text = f.read()
-            if not self.has_attachment_link(md_text, target_name):
-                self.log_error(os.path.basename(matched_md), f"会话 Markdown 正文缺少对附件 '{target_name}' 的超链接引用")
+                    continue
+                break
             else:
-                self.log_pass(os.path.basename(matched_md), f"会话 Markdown 包含对附件 '{target_name}' 的合规超链接引用")
+                self.log_error("UploadedFileCheck",
+                               f"指定会话 Markdown 缺少对附件 '{target_name}' 的有效超链接引用，或链接文件未通过 SHA256 校验")
 
 
 if __name__ == "__main__":
