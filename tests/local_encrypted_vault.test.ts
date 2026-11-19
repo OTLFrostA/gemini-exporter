@@ -15,6 +15,7 @@ import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { clearLocalScanRecords } from '../src/application/localCleanup.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import { createMockCloudVaultHttp } from './helpers/mockCloudVaultHttp.js';
+import { getStoredLocalVaultHandle } from '../src/l3a/cloudSyncStore.js';
 
 interface MemoryDirNode {
     handle: DirectoryHandle;
@@ -139,6 +140,37 @@ test('vault target switch resync: local-folder', async () => {
         assert.equal((await engine.syncNow()).push.uploaded, 0, 'returning to A pulls its ledger without re-upload');
         assert.equal(count(0), 1);
     } finally {
+        env.restore();
+    }
+});
+
+test('vault target switch resync: shared folder identity overrides another engine cached handle', async () => {
+    const env = indexStorage();
+    const clone = globalThis.structuredClone;
+    const folders = [createMemoryDirectoryHandle('Vault'), createMemoryDirectoryHandle('Vault')];
+    globalThis.structuredClone = (value, options) => folders.some(folder => Object.is(folder.handle, value))
+        ? value : clone(value, options);
+    try {
+        await env.ready;
+        const first = createCloudSyncEngine();
+        const second = createCloudSyncEngine();
+        await createVaultKeySetup(first.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
+        await first.connectLocalFolderVault(folders[0].handle);
+        await second.connectLocalFolderVault(folders[1].handle);
+        assert.equal(await getStoredLocalVaultHandle(), folders[1].handle);
+        const account = await getOrCreateAccount('gemini', 'shared-target-switch');
+        await ingestIndexes(account.id, [{ conversationId: 'existing', fields: { title: 'Existing', titleSource: 'provider', updatedAt: 1000 } }]);
+        await second.setAutoSyncEnabled(true);
+        await second.waitForIdle();
+        assert.equal(folders[1].subdirs.get('records')?.files.size, 1);
+        const connected = await first.connectLocalFolderVault(folders[0].handle);
+        assert.equal((await first.syncNow()).push.uploaded, 1, 'B ledger must not suppress uploads to cached A');
+        assert.equal(connected.session.pulledSeq, 0);
+        assert.equal(folders[0].subdirs.get('records')?.files.size, 1);
+        await first.connectLocalFolderVault(folders[0].handle);
+        assert.equal((await first.syncNow()).push.uploaded, 0);
+    } finally {
+        globalThis.structuredClone = clone;
         env.restore();
     }
 });

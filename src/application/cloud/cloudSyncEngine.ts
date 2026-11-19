@@ -667,7 +667,7 @@ export function createCloudSyncEngine(deps: {
                 throw new OperationError('CLOUD_KEY_NOT_INITIALIZED', 'Initialize your Master Key before connecting a Vault folder');
             }
             const existingSession = await getCloudSyncSession();
-            const previousHandle = inMemoryVaultHandle ?? await getStoredLocalVaultHandle();
+            const previousHandle = await getStoredLocalVaultHandle();
             const sameTarget = existingSession?.backend === 'local-folder'
                 && previousHandle !== null
                 && await handle.isSameEntry(previousHandle);
