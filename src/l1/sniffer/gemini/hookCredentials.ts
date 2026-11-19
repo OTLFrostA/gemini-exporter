@@ -1,7 +1,7 @@
 import type { Account } from '../../../l2/accountRegistry.js';
 import { sniffUserProfileFromDom } from '../../parsers/gemini/dom/accountSniffer.js';
 import { geminiAccountObservation } from '../../client/gemini/accountObservation.js';
-import { CrossWorldEvents } from '../../protocol/gemini/protocol.js';
+import { CrossWorldEvents, parseRpcRequestId } from '../../protocol/gemini/protocol.js';
 import { createGeminiResponseRouter } from './responses/router.js';
 
 declare global {
@@ -26,14 +26,14 @@ declare global {
     // MAIN-world discovery can read Wiz globals; the isolated content script cannot.
     // Discovery is independent of whether Gemini has sent a credential-bearing RPC.
     let publishedAccount: string | undefined;
-    const publishAccount = (requestId?: string) => {
+    const publishAccount = (requestId?: string, rpcRequestId?: string) => {
         const observation = geminiAccountObservation(sniffUserProfileFromDom());
         const slot = getSlotFromUrl(location.href);
         const signature = JSON.stringify([slot, observation]);
-        if (requestId === undefined && signature === publishedAccount) return;
+        if (!requestId && !rpcRequestId && signature === publishedAccount) return;
         if (requestId === undefined) publishedAccount = signature;
         window.postMessage({ type: Events.ACCOUNT_OBSERVED,
-            payload: { observation, slot, ...(requestId ? { requestId } : {}) } }, location.origin);
+            payload: { observation, slot, ...(requestId ? { requestId } : {}), ...(rpcRequestId ? { rpcRequestId } : {}) } }, location.origin);
     };
     publishAccount();
     document.addEventListener('DOMContentLoaded', () => publishAccount(), { once: true });
@@ -82,6 +82,12 @@ declare global {
             if (m2 && m2[1]) slot = 'u' + m2[1];
         }
         return slot;
+    }
+
+    function publishRpcAccount(url: string): void {
+        const rpcId = getSlotFromUrl(url) === getSlotFromUrl(location.href)
+            ? parseRpcRequestId(new URL(url).searchParams.get('_reqid')) : undefined;
+        publishAccount(undefined, rpcId);
     }
 
     // Capture request ownership without decoding endpoint response semantics.
@@ -153,7 +159,7 @@ declare global {
         }
 
         try {
-            if (publicUrl.endsWith('/batchexecute')) publishAccount();
+            if (publicUrl.endsWith('/batchexecute')) publishRpcAccount(url);
             handler?.start(requestBody);
         } catch (e) {
             if (isDev()) console.debug('[GemExporter:hook]', e);
@@ -208,7 +214,7 @@ declare global {
             const handler = endpoint?.({ url: publicUrl, slot: getSlotFromUrl(sourceUrl), pagePath: location.pathname,
                 requestedAt, requestAccountObservation: captureRequestAccount(sourceUrl) });
             const requestBody = typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '';
-            if (publicUrl.endsWith('/batchexecute')) publishAccount();
+            if (publicUrl.endsWith('/batchexecute')) publishRpcAccount(sourceUrl);
             if (handler) {
                 handler.start(requestBody);
                 let ended = false;

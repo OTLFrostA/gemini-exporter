@@ -39,6 +39,10 @@ export const CrossWorldEvents = {
 const EVENTS = CrossWorldEvents;
 type CrossWorldEventType = typeof CrossWorldEvents[keyof typeof CrossWorldEvents];
 
+export function parseRpcRequestId(value: unknown): string | undefined {
+    return typeof value === 'string' && /^\d{1,9}$/.test(value) ? value : undefined;
+}
+
 export type DetailErrorCategory =
     | 'confirmed_deleted'
     | 'rate_limited'

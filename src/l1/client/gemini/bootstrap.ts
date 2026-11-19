@@ -1,5 +1,5 @@
 import { parseGeminiCredential, type GeminiStoredCredential } from '../../parsers/gemini/credentials.js';
-import { CrossWorldEvents, GeminiProtocol, type GeminiProtocolModule } from '../../protocol/gemini/protocol.js';
+import { CrossWorldEvents, GeminiProtocol, parseRpcRequestId, type GeminiProtocolModule } from '../../protocol/gemini/protocol.js';
 import type { GeminiCredentialsPayload } from '../../protocol/gemini/events.js';
 import { STORAGE_KEYS } from '../../../shared/utils/constants.js';
 import {
@@ -7,7 +7,7 @@ import {
     markCredSessionAccessFailed as sharedMarkFailed,
     withCredMapLock,
 } from './api/credStorage.js';
-import { resolveCurrentAccount } from '../../../runtime/content/accountContext.js';
+import { isCurrentAccount, matchesCurrentAccount, resolveCurrentAccount } from '../../../runtime/content/accountContext.js';
 import { GEMINI_RPC_CREDENTIALS } from '../../../runtime/api/geminiRpcCredentials.js';
 import { readAccountParameters } from '../../../l2/accountRegistry.js';
 import { registerCleanup } from '../../../runtime/content/cleanupRegistry.js';
@@ -196,9 +196,6 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
         if (blFromPage) {
             updateContextCreds({ bl: blFromPage });
         }
-        if (atFromPage) {
-            updateContextCreds({ at: atFromPage });
-        }
         const map = await loadCredentialsMap();
         // Strictly scope page-scraped tokens to entries matching BOTH this URL slot
         // and (when known) this verified accountId; never mutate another slot/account's sid.
@@ -228,7 +225,7 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
             scopedEntries.sort(([, a], [, b]) => (b.lastUsed || 0) - (a.lastUsed || 0));
             const [bestKey, best] = scopedEntries[0];
             if (account?.accountId && !best.accountId) best.accountId = account.accountId;
-            if (atFromPage && (!best.at || best.at !== atFromPage)) {
+            if (atFromPage && !best.rpcToken && best.at !== atFromPage) {
                 best.at = atFromPage;
                 best.lastUsed = Date.now();
                 if (blFromPage) best.bl = blFromPage;
@@ -239,12 +236,14 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
                 });
                 updateContextCreds(best);
                 if (isDev()) console.log('[Gemini Exporter] at refreshed from page', 'atLen', atFromPage.length);
-            } else if (blFromPage && best.bl !== blFromPage) {
-                best.bl = blFromPage;
-                map.set(String(best.sid || bestKey), best);
-                await saveCredentials(map);
-                updateContextCreds({ bl: blFromPage });
-                if (!atFromPage && isDev()) console.log('[Gemini Exporter] bl refreshed', 'blLen', blFromPage.length);
+            } else {
+                if (blFromPage && best.bl !== blFromPage) {
+                    best.bl = blFromPage;
+                    map.set(String(best.sid || bestKey), best);
+                    await saveCredentials(map);
+                }
+                if (best.rpcToken) updateContextCreds(best);
+                else if (atFromPage) updateContextCreds({ at: atFromPage });
             }
         }
     } catch (e) {
@@ -258,38 +257,48 @@ export function ensureCreds(): Promise<BootstrapCredential | null> {
     return withCredMapLock(ensureCredsOnce);
 }
 
-function receiveRpcCredentials(message: unknown, sender: chrome.runtime.MessageSender): void {
+type RpcAccounts = Map<string, { slot: string; observation: ReturnType<typeof readAccountParameters> }>;
+
+function receiveRpcCredentials(message: unknown, sender: chrome.runtime.MessageSender, rpcAccounts: RpcAccounts): void {
     if (sender.id !== chrome.runtime.id || sender.tab || !message || typeof message !== 'object'
         || !('action' in message) || message.action !== GEMINI_RPC_CREDENTIALS || !('payload' in message)) return;
     const pageSlot = detectSlotFromUrl();
+    const rawRequestId = 'requestId' in message ? message.requestId : undefined;
+    const requestId = parseRpcRequestId(rawRequestId);
     void withCredMapLock(async () => {
         try {
             const p = parseGeminiCredential(message.payload);
             const { sid } = p;
-            if (!sid || isOwnRpcRequest('requestId' in message ? message.requestId : undefined, sid)) return;
+            if (!sid || isOwnRpcRequest(rawRequestId, sid)) return;
             const slot = !p.accountSlot || p.accountSlot === 'default' ? pageSlot : p.accountSlot;
             const map = await loadCredentialsMap();
             const stored = map.get(sid);
             const old = stored && sameBootstrapSlot(stored.accountSlot, slot) ? stored : undefined;
             const account = slot === pageSlot ? await resolveCurrentAccount(undefined, slot) : null;
+            // The MAIN hook posts the account observation before sending the RPC.
+            // The account refresh above follows that post on the same page bus.
+            const captured = requestId ? rpcAccounts.get(requestId) : undefined;
+            if (captured && requestId) rpcAccounts.delete(requestId);
+            const matchesRpcAccount = captured?.slot === slot && matchesCurrentAccount(captured.observation);
             const samePageSlot = slot === detectSlotFromUrl();
             const pageAt = samePageSlot ? extractAtFromPage(false) : '';
-            // Delivery is document-scoped, but the active account can change within
-            // that document. Bind fresh network credentials only if the token agrees.
             const at = p.at || old?.at || pageAt;
             const sameToken = at === old?.at;
+            const verifiedAccountId = account && isCurrentAccount(account) && ((p.at && matchesRpcAccount) || (at && at === pageAt))
+                ? account.accountId : undefined;
             const credential: BootstrapCredential = {
                 ...(sameToken ? old : undefined),
                 at,
                 sid,
                 accountSlot: slot,
-                accountId: at && at === pageAt && account ? account.accountId : sameToken ? old?.accountId : undefined,
+                accountId: verifiedAccountId ?? (sameToken ? old?.accountId : undefined),
+                rpcToken: p.at && verifiedAccountId ? true : sameToken ? old?.rpcToken : undefined,
                 lastUsed: Date.now(),
                 bl: p.bl || old?.bl || (samePageSlot ? extractBlFromPage() : '') || Proto.BL_FALLBACK,
             };
             map.set(sid, credential);
             await saveCredentials(map, { at, sid });
-            if (samePageSlot && (!pageAt || at === pageAt)) updateContextCreds(credential);
+            if (samePageSlot && (verifiedAccountId || !pageAt || at === pageAt)) updateContextCreds(credential);
         } catch (error) {
             if (!getErrorMessage(error).includes('Extension context invalidated')) console.warn('RPC credential update failed');
         }
@@ -307,8 +316,10 @@ export function initBootstrap(): void {
     window.addEventListener('load', refresh, { once: true });
     registerCleanup(() => { document.removeEventListener('DOMContentLoaded', refresh); window.removeEventListener('load', refresh); });
 
-    chrome.runtime.onMessage?.addListener(receiveRpcCredentials);
-    registerCleanup(() => chrome.runtime.onMessage?.removeListener(receiveRpcCredentials));
+    const rpcAccounts: RpcAccounts = new Map();
+    const onCredentials = (message: unknown, sender: chrome.runtime.MessageSender) => receiveRpcCredentials(message, sender, rpcAccounts);
+    chrome.runtime.onMessage?.addListener(onCredentials);
+    registerCleanup(() => chrome.runtime.onMessage?.removeListener(onCredentials));
 
     const receive = (e: MessageEvent<unknown>) => {
         if (e.source !== window) return;
@@ -323,6 +334,14 @@ export function initBootstrap(): void {
             // The same-window payload is untrusted and is validated before Registry access.
             try {
                 const observation = payload.observation === null ? null : readAccountParameters(payload.observation);
+                const rpcRequestId = parseRpcRequestId('rpcRequestId' in payload ? payload.rpcRequestId : undefined);
+                if (rpcRequestId && observation) {
+                    rpcAccounts.set(rpcRequestId, { slot: payload.slot, observation });
+                    if (rpcAccounts.size > 128) {
+                        const oldest = rpcAccounts.keys().next();
+                        if (!oldest.done) rpcAccounts.delete(oldest.value);
+                    }
+                }
                 void resolveCurrentAccount(observation, payload.slot).catch(error => console.warn('[Gemini Exporter] Account discovery failed', getErrorMessage(error)));
             } catch (error) { if (isDev()) console.debug('[Gemini Exporter] Invalid account observation', error); }
             return;
