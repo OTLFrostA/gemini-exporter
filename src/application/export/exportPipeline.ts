@@ -1,12 +1,12 @@
+import { applicationHost } from '../host.js';
 import { OperationError, operationIssue, operationError } from '../../shared/errors/operationError.js';
 import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 import { createSemaphore } from '../../shared/utils/concurrency.js';
 import { ConfirmedSourceEmptyError } from '../../l1/client/sourceErrors.js';
 import { readConversation } from '../../l2/readConversation.js';
 import { getSettings } from '../settings/index.js';
-import { getAccount } from '../../runtime/api/accountRegistry.js';
 import { getIndex, listIndexes, getExportRecord, listExportRecords, putExportRecord, getDirectoryHandle } from '../../l3a/storageService.js';
-import { putExportRecords } from '../../l3a/exportRecordStore.js';
+import { putExportRecords } from '../../l3a/batchStorageService.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
 import type { DomainConversationIndex } from '../../l2/conversationIndex.js';
 import type { Account } from '../../l2/accountRegistry.js';
@@ -365,7 +365,7 @@ export async function executeExportWithSession(
         const loadAccountCached = (accountId: string): Promise<Account | null> => {
             const cached = accountCache.get(accountId);
             if (cached) return cached;
-            const pendingAccount = getAccount(accountId).catch((error: unknown) => {
+            const pendingAccount = applicationHost().getAccount(accountId).catch((error: unknown) => {
                 accountCache.delete(accountId);
                 throw error;
             });

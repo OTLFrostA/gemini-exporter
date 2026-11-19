@@ -542,7 +542,7 @@ function copyCode(btn) {
     var label = btn.querySelector('.copy-text');
     if (label) {
       var orig = label.textContent;
-      label.textContent = '已复制 ✓';
+      label.textContent = btn.dataset.copied;
       btn.classList.add('copied');
       setTimeout(function() {
         label.textContent = orig;

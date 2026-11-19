@@ -1,4 +1,5 @@
 import { decodeChatGPTDetail } from '../src/l1/parsers/chatgpt/decodeDetail.js';
+import { detailGen as chatgptDetailGen } from './fixtures/providers/chatgptDetail.js';
 import { parseChatGPTConversation } from '../src/l1/parsers/chatgpt/parseConversation.js';
 import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { ConfirmedSourceEmptyError } from '../src/l1/client/sourceErrors.js';
@@ -22,6 +23,34 @@ import type { ExportDiagnostic, ExportRecord, ExportItemUpdate } from '../src/ap
 import { __getZipConstructor, __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 
 const account = fixtureAccount('gemini');
+test('ChatGPT authored private-use prose survives parsing and Markdown export beside citations', async t => {
+    const host = v2ExportHost(t);
+    const raw = chatgptDetailGen('C_DETAIL_L1_SOURCE_01');
+    const question = raw.mapping.question?.message;
+    const answer = raw.mapping.answer?.message;
+    assert.ok(question && answer);
+    const authored = 'Logo: \uE000 / Icon: \uF000; control `\uE000`';
+    question.content = { content_type: 'text', parts: [authored] };
+    answer.content = { content_type: 'text', parts: [
+        'Source\uE200cite\uE202turn388160search0\uE202turn388160search1\uE201\uF000',
+    ] };
+    const parsed = parseChatGPTConversation({
+        conversation: decodeChatGPTDetail(raw, raw.id), assetsByNode: new Map(),
+    });
+    const key = { accountId: fixtureAccount('chatgpt').id, conversationId: raw.id };
+    await ingestDetail(key.accountId, key.conversationId, parsed.conversation.detail, parsed.conversation.index);
+    const result = await runExport(exportRequest([], { keys: [key] }));
+    assert.equal(result.exported, 1);
+    const markdown = await host.blobs[0].text();
+    assert.ok(markdown.includes(authored), JSON.stringify(markdown));
+    assert.ok(markdown.includes('Source\uF000'));
+    assert.doesNotMatch(markdown, /[\uE200-\uE202]|turn388160|cite/);
+    assert.deepEqual(parsed.conversation.detail.messages[0].content, [{ type: 'paragraph', children: [
+        { type: 'text', text: 'Logo: \uE000 / Icon: \uF000; control ' },
+        { type: 'inlineCode', code: '\uE000' },
+    ] }]);
+});
+
 const old: ExportRecord = { exportedAt: 90, format: 'markdown', status: 'ok', chatTime: 90 };
 const body = (text: string) => ({
     savedAt: 100,

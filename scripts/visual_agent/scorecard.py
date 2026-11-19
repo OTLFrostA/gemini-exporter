@@ -7,6 +7,7 @@ Outputs Markdown and HTML reports covering feature flow, visual clipping risks, 
 import os
 import json
 import time
+from html import escape
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 
@@ -121,8 +122,8 @@ class VisualUXScorecard:
             rel_p = os.path.relpath(s["path"], self.output_dir).replace("\\", "/")
             cards_html.append(f"""
             <div class="shot-card">
-              <div class="shot-title">{s['name']} <span class="shot-time">{s['time']}</span></div>
-              <img src="{rel_p}" alt="{s['name']}" loading="lazy" />
+              <div class="shot-title">{escape(s['name'], quote=True)} <span class="shot-time">{escape(s['time'], quote=True)}</span></div>
+              <img src="{escape(rel_p, quote=True)}" alt="{escape(s['name'], quote=True)}" loading="lazy" />
             </div>
             """)
 
@@ -131,7 +132,7 @@ class VisualUXScorecard:
             ai_box_html = f"""
             <div class="ai-box">
               <h3>🤖 Gemini 2.0 Flash 视觉模型审查意见</h3>
-              <pre style="white-space:pre-wrap; font-family:inherit;">{self.ai_review}</pre>
+              <pre style="white-space:pre-wrap; font-family:inherit;">{escape(self.ai_review, quote=True)}</pre>
             </div>
             """
 
@@ -164,7 +165,7 @@ class VisualUXScorecard:
     <p><strong>已体验特性:</strong> {len(self.features_explored)} 项 | <strong>自愈重试:</strong> {len(self.self_healing_events)} 次 | <strong>视觉风险:</strong> {len(self.visual_risks)} 项</p>
   </div>
   {ai_box_html}
-  <pre style="background:#1e293b; padding:20px; border-radius:8px; white-space:pre-wrap;">{md}</pre>
+  <pre style="background:#1e293b; padding:20px; border-radius:8px; white-space:pre-wrap;">{escape(md, quote=True)}</pre>
   <h2>📸 关键视觉执行节点画廊</h2>
   <div class="gallery-grid">
     {''.join(cards_html)}

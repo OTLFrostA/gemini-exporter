@@ -13,6 +13,7 @@ import type { AIProvider, ListFailureDiagnostics } from '../../src/l1/client/aiP
 import type { ExportArtifact } from '../../src/l4/artifacts.js';
 import type { SourceResourceContext } from '../../src/l1/resources/sourceResources.js';
 import type { DetailIngestResult } from '../../src/l2/ingestion.js';
+import { provideApplicationHost } from '../../src/application/host.js';
 
 // Application unit-test ports. No production implementation from L1/L2/L3b/L4,
 // Storage or Runtime is loaded. Real inter-module contracts belong to integration tests.
@@ -99,7 +100,7 @@ const sourceErrorPort: Pick<typeof import('../../src/l1/client/sourceErrors.js')
         }
     },
 };
-const domainChangePort: Pick<typeof import('../../src/runtime/api/domainChanges.js'), 'notifyDomainChanged'> = {
+const domainChangePort: Pick<import('../../src/application/host.js').ApplicationHost, 'notifyDomainChanged'> = {
     notifyDomainChanged(accountId) { state.notifications.push(accountId); },
 };
 const providerErrorPort: Pick<typeof import('../../src/l1/client/aiProvider.js'), 'ProviderListError'> = {
@@ -112,7 +113,6 @@ const providerErrorPort: Pick<typeof import('../../src/l1/client/aiProvider.js')
 };
 stubModule('../../src/l1/client/aiProvider.js', providerErrorPort);
 stubModule('../../src/l1/client/sourceErrors.js', sourceErrorPort);
-stubModule('../../src/runtime/api/domainChanges.js', domainChangePort);
 
 // L2 fact reading, UUID admission and Coverage are mocked at their public ports.
 // No real Domain schema validator or list-coverage algorithm executes here.
@@ -178,12 +178,14 @@ stubModule('../../src/l3a/storageService.js', {
         settings = { ...settings, ...patch };
     },
 });
-stubModule('../../src/runtime/api/accountRegistry.js', { async getAccount(id: string) {
+provideApplicationHost({ ...domainChangePort, async getOrCreateAccount() {
+    throw new Error('Unexpected account creation');
+}, async getAccount(id: string) {
     if (state.accountOverride !== undefined) return state.accountOverride;
     if (id === chatgptAccount.id) return { ...chatgptAccount };
     return { ...account, id };
 } });
-stubModule('../../src/l3a/exportRecordStore.js', {
+stubModule('../../src/l3a/batchStorageService.js', {
     async putExportRecords(entries: ReadonlyArray<{ key: ConversationKey; record: ExportRecord }>) {
         for (const entry of entries) {
             if (state.failRecord === entry.key.conversationId) throw new Error('record failed');

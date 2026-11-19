@@ -1,6 +1,5 @@
+import { applicationHost } from '../host.js';
 import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
-import { notifyDomainChanged } from '../../runtime/api/domainChanges.js';
-import { getAccount } from '../../runtime/api/accountRegistry.js';
 import { DEFAULT_ACCOUNT_KEY, isAccountId } from '../../l2/accountRegistry.js';
 import { defaultGeminiProvider } from '../../l1/client/gemini/geminiProvider.js';
 import { ProviderRegistry } from '../../l1/client/providerRegistry.js';
@@ -39,7 +38,7 @@ export async function scanAll(request: ScanRequest, options: {
         const taskResources = createSourceResourceContext();
         try {
             options.signal?.throwIfAborted();
-            const account = await getAccount(accountId);
+            const account = await applicationHost().getAccount(accountId);
             // Runtime resolves a verified online source; a local/offline default account
             // is not an online identity and must never launch a successful Scan All.
             if (!account || !['gemini', 'chatgpt', 'claude', 'grok'].includes(account.providerId) || account.providerAccountId === DEFAULT_ACCOUNT_KEY) {
@@ -53,7 +52,7 @@ export async function scanAll(request: ScanRequest, options: {
             let verifiedStop = false;
             const end = await provider.listConversations({ accountId, streamId: 'recent', signal: options.signal, onDiagnostic: options.onDiagnostic,
                 onPageCommitted: async info => {
-                    notifyDomainChanged(accountId);
+                    applicationHost().notifyDomainChanged(accountId);
                     counts.pagesFetched = info.page;
                     counts.conversationsFetched = info.totalObserved;
                     if (info.indexChanges) indexChanges = {
