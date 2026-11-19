@@ -64,7 +64,7 @@ test('a completed delivery creates one minimal v2 ExportRecord without modifying
     assert.match(await host.blobs[0].text(), /Answer for completion-success/);
     const record = await getExportRecord(key);
     assert.ok(record);
-    assert.deepEqual(Object.keys(record).sort(), ['chatTime', 'exportedAt', 'format', 'status']);
+    assert.deepEqual(Object.keys(record).sort(), ['chatTime', 'exportedAt', 'format', 'includeAssets', 'status']);
     assert.equal(record.format, 'markdown');
     assert.equal(record.status, 'ok');
     assert.equal(record.chatTime, 100, 'source version belongs to Detail, not the delivery clock');

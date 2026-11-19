@@ -51,7 +51,7 @@ test('real export writes a single canonical record; UI consumes the same key', a
     assert.equal((await runExport(exportRequest(['abc123']))).exported, 1);
     const stored = await listExportRecords(accountId);
     assert.deepEqual(Object.keys(stored), ['abc123']);
-    assert.deepEqual(Object.keys(stored.abc123).sort(), ['chatTime', 'exportedAt', 'format', 'status']);
+    assert.deepEqual(Object.keys(stored.abc123).sort(), ['chatTime', 'exportedAt', 'format', 'includeAssets', 'status']);
     const view = new ConversationViewState(); view.selectAccount(accountId); await view.refresh();
     assert.deepEqual(view.records, stored);
     assert.equal(view.records.c_abc123, undefined);

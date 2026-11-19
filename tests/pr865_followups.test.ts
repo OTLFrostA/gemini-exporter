@@ -226,8 +226,8 @@ test('unavailable resources mark delivered content partial; explicitly excluding
         assert.equal(withoutAssets.partial, 0, 'an explicit no-assets choice is not partial');
         assert.equal(assetFetches, attempts, 'no resources are acquired when includeAssets=false');
         assert.equal((await getExportRecord(key(id)))?.status, 'ok');
-        assert.equal((await runExport(request(id, { includeAssets: true, skipUnchanged: true }))).skipped, 1,
-            'v2 Skip considers last format/version/status, not includeAssets');
+        assert.equal((await runExport(request(id, { includeAssets: true, skipUnchanged: true }))).skipped, 0,
+            'a text-only export does not cover a subsequent attachment request');
     } finally {
         download.restore();
         restoreProvider();
@@ -315,7 +315,7 @@ test('ExportRecord.chatTime uses the delivered Detail version, never a newer Ind
 
 test('v2 Skip requires an ok record for the same format and a comparable body version', () => {
     const wanted = request('skip_rule', { skipUnchanged: true });
-    const record = { exportedAt: sourceTime + 10, format: 'markdown' as const,
+    const record = { exportedAt: sourceTime + 10, format: 'markdown' as const, includeAssets: true,
         status: 'ok' as const, chatTime: sourceTime };
     assert.equal(shouldSkipExport(record, sourceTime, wanted), true);
     assert.equal(shouldSkipExport({ ...record, sourceTurn: 'unfinished' }, sourceTime, wanted), false);

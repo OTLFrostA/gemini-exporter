@@ -36,7 +36,7 @@ test('v2 export freshness compares L1 source version to L2 Index rather than the
     const conversation = toDomain(parsed);
     const sourceVersion = conversation.detail.savedAt ?? parsed.sourceVersion;
     assert.equal(sourceVersion, parsed.sourceVersion);
-    const record: ExportRecord = { exportedAt: 1900000000000, chatTime: sourceVersion, format: 'markdown', status: 'ok' };
+    const record: ExportRecord = { exportedAt: 1900000000000, chatTime: sourceVersion, format: 'markdown', includeAssets: true, status: 'ok' };
     assert.equal(shouldSkipExport(record, conversation.index.updatedAt, request), true);
     assert.equal(shouldSkipExport(record, conversation.index.updatedAt! + 1, request), false);
     assert.equal(shouldSkipExport({ ...record, chatTime: undefined }, conversation.index.updatedAt, request), false);
@@ -84,7 +84,7 @@ test('L1 diagnostic differences cannot silently change L2 quality or Application
 
 for (const code of ['RESOURCE_SOURCE_EXPIRED', 'RESOURCE_LOCATOR_UNAVAILABLE']) {
     test(`skip permits same-version, same-format attachment 404 warnings: ${code}`, () => {
-        const base: ExportRecord = { exportedAt: 200, chatTime: 100, format: 'markdown', status: 'partial',
+        const base: ExportRecord = { exportedAt: 200, chatTime: 100, format: 'markdown', includeAssets: true, status: 'partial',
             attachmentIssues: [{ resourceId: 'image', name: 'image', code, httpStatus: 404 }] };
         const enabled = { ...request, format: 'markdown' as const, skipUnchanged: true };
         assert.equal(shouldSkipExport(base, 100, enabled), true);

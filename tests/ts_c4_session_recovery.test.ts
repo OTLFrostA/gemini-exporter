@@ -12,6 +12,7 @@ import type { ConversationKey } from '../src/l2/conversationKey.js';
 test.beforeEach(reset);
 
 const oldRecord: ExportRecord = {
+    includeAssets: true,
     exportedAt: 50,
     format: 'markdown',
     status: 'ok',
@@ -38,7 +39,7 @@ test('C4-v2-1: batch records are committed only after the final Browser delivery
     assert.deepEqual(events, ['delivery', 'record:first', 'record:second']);
     for (const target of [key(), key('second')]) {
         const record = records.get(address(target))!;
-        assert.deepEqual(Object.keys(record).sort(), ['chatTime', 'exportedAt', 'format', 'status']);
+        assert.deepEqual(Object.keys(record).sort(), ['chatTime', 'exportedAt', 'format', 'includeAssets', 'status']);
         assert.equal(record.status, 'ok');
         assert.equal(record.chatTime, 100);
     }

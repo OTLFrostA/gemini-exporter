@@ -5,6 +5,49 @@ import { openOptions, seedConversations, exposeUIStorage, accountId } from './ui
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
+test('Skip exported upgrades a text-only Workbench export to a ZIP containing its image', async ({ context, extensionId }, testInfo) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{ id: 'asset-upgrade', title: 'Attachment coverage regression' }]);
+    const source = await context.newPage();
+    await source.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html',
+        body: `<!doctype html><script>window.WIZ_global_data={qDCSke:'10000000001',SNlM0e:'token',cfb2h:'build'}</script><main>Offline source fixture</main>` }));
+    await source.goto('https://gemini.google.com/app/asset-upgrade');
+    await expect(source.locator('#geminiExportBadge')).toBeVisible();
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
+    await context.route('https://lh3.googleusercontent.com/fixture-image.png', route => route.fulfill({ contentType: 'image/png', body: png }));
+    await page.evaluate(async accountId => {
+        await Reflect.get(globalThis, 'uiFixture').ingestDetail(accountId, 'asset-upgrade', {
+            savedAt: 100, quality: { status: 'complete' },
+            assets: [{ id: 'image', kind: 'image', name: 'photo.png', mediaType: 'image/png', sourceUri: 'https://lh3.googleusercontent.com/fixture-image.png' }],
+            messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Export my image' }] }] },
+                { role: 'assistant', content: [{ type: 'image', assetId: 'image' }] }],
+        }, { title: 'Attachment coverage regression', titleSource: 'provider', updatedAt: 100 });
+    }, accountId);
+    await page.locator('#includeAssets').uncheck();
+    await page.locator('#skipExported').check();
+    await page.locator('#btnSelectAll').click();
+    const firstPending = page.waitForEvent('download');
+    await page.locator('#btnExport').click();
+    const first = await firstPending;
+    expect(first.suggestedFilename()).toMatch(/\.md$/);
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    await page.locator('#includeAssets').check();
+    const secondPending = page.waitForEvent('download');
+    await page.locator('#btnExport').click();
+    const second = await secondPending;
+    expect(second.suggestedFilename()).toMatch(/\.zip$/);
+    const destination = testInfo.outputPath('with-assets.zip');
+    await second.saveAs(destination);
+    const zip = await JSZip.loadAsync(await readFile(destination));
+    const images = Object.keys(zip.files).filter(name => name.endsWith('.png'));
+    expect(images).toHaveLength(1);
+    expect(Buffer.from(await zip.file(images[0]).async('uint8array'))).toEqual(png);
+    await expect(page.locator('#status')).toContainText('Successfully downloaded: 1');
+    expect(await page.evaluate(id => Reflect.get(globalThis, 'uiFixture').getExportRecord({ accountId: id, conversationId: 'asset-upgrade' }), accountId))
+        .toMatchObject({ status: 'ok', includeAssets: true });
+    await page.screenshot({ path: testInfo.outputPath('asset-upgrade.png'), fullPage: true });
+});
+
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
 
