@@ -580,6 +580,51 @@ tags:
         self.assertGreaterEqual(len(self.scorecard.self_healing_events), 1)
         self.assertIn("verify_fn", self.scorecard.self_healing_events[0].reason)
 
+    def assert_mission_failure(self, provider, reason):
+        mission = TestMission(
+            mission_id="m_fail",
+            name="Provider failure",
+            description="Provider failures must fail the mission without verifiers",
+            instructions=["Click the export button"]
+        )
+        agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
+        with patch.object(agent, "log") as log:
+            result = agent.run_mission(mission)
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.message, "Mission step failed")
+        self.assertEqual(result.steps_taken, 1)
+        self.assertEqual(len(result.history), 1)
+        self.assertEqual(result.history[0]["action"], "FAIL")
+        self.assertIn(reason, result.history[0]["thought"])
+        self.assertTrue(any(reason in call.args[0] and call.args[1] == "FAIL"
+                            for call in log.call_args_list))
+        self.assertEqual(self.scorecard.features_explored[-1]["status"], "FAIL")
+
+    def test_run_mission_reports_failure_from_provider(self):
+        for thought in ("Provider cannot complete the action", None):
+            with self.subTest(thought=thought):
+                provider = MockCustomVisionProvider([
+                    VisualAction(action_type=VisualActionType.FAIL, thought=thought)
+                ])
+                self.assert_mission_failure(provider, thought or "执行动作: FAIL")
+                self.assertEqual(provider.call_count, 1)
+
+    @patch("urllib.request.urlopen")
+    def test_run_mission_reports_failure_on_endpoint_error(self, mock_urlopen):
+        mock_urlopen.side_effect = OSError("Endpoint unavailable")
+        provider = CustomAIVisionProvider(endpoint="http://mock-ai:8000/v1/chat")
+        self.assert_mission_failure(provider, "Endpoint unavailable")
+        mock_urlopen.assert_called_once()
+
+    @patch("urllib.request.urlopen")
+    def test_run_mission_reports_failure_on_unparseable_response(self, mock_urlopen):
+        response = mock_urlopen.return_value.__enter__.return_value
+        response.read.return_value = b'{"choices": [{"message": {"content": "not JSON"}}]}'
+        provider = CustomAIVisionProvider(endpoint="http://mock-ai:8000/v1/chat")
+        self.assert_mission_failure(provider, "自定义 AI 接口请求失败:")
+        mock_urlopen.assert_called_once()
+
     def test_run_mission_end_to_end(self):
         mission = TestMission(
             mission_id="m_tour",
