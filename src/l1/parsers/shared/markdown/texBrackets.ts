@@ -1,5 +1,5 @@
 // Fenced code blocks (backticks or tildes) and inline code spans keep their backslashes and dollars.
-const CODE_SPAN = /(`{3,}[\s\S]*?(?:`{3,}|$)|~{3,}[\s\S]*?(?:~{3,}|$)|`+[^`\n]+`+)/g;
+const CODE_SPAN = /^ {0,3}(`{3,}|~{3,})[^\r\n]*(?:\r?\n|$)|`+[^`\n]+`+/gm;
 
 const BRACKET_DISPLAY_OWN_LINES = /^[ \t]*\\\[(?<block>[\s\S]+?)\\\][ \t]*$/gm;
 const BRACKET_DISPLAY_INLINE = /\\\[(?<display>[\s\S]+?)\\\]/g;
@@ -9,10 +9,23 @@ const BRACKET_INLINE = /\\\((?<inline>(?:(?!\\\()[^\r\n])+?)\\\)/g;
 /** Transform only prose segments outside fenced and inline Markdown code spans. */
 export function transformMarkdownOutsideCode(source: string, transform: (prose: string) => string): string {
     if (!source) return source;
-    const parts = source.split(CODE_SPAN);
-    for (let i = 0; i < parts.length; i += 2) {
-        parts[i] = transform(parts[i] ?? '');
+    const spans = new RegExp(CODE_SPAN);
+    const parts: string[] = [];
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+    while ((match = spans.exec(source)) !== null) {
+        parts.push(transform(source.slice(cursor, match.index)));
+        const fence = match[1];
+        if (fence) {
+            const closing = new RegExp(`^ {0,3}${fence[0]}{${fence.length},}[ \\t]*\\r?$`, 'gm');
+            closing.lastIndex = spans.lastIndex;
+            const end = closing.exec(source);
+            spans.lastIndex = end ? closing.lastIndex : source.length;
+        }
+        parts.push(source.slice(match.index, spans.lastIndex));
+        cursor = spans.lastIndex;
     }
+    parts.push(transform(source.slice(cursor)));
     return parts.join('');
 }
 
