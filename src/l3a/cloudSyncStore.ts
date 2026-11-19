@@ -24,6 +24,7 @@ export interface CloudSyncSessionState {
 export interface CloudOutboxEntry {
     readonly accountId: string;
     readonly conversationId: string;
+    readonly enqueueId: string | null;
     readonly queuedAt: number;
     readonly attempts: number;
     readonly nextRetryAt: number;
@@ -199,6 +200,7 @@ function parseOutboxEntry(raw: unknown): CloudOutboxEntry | null {
     return {
         accountId: raw.accountId,
         conversationId: raw.conversationId,
+        enqueueId: typeof raw.enqueueId === 'string' ? raw.enqueueId : null,
         queuedAt: raw.queuedAt,
         attempts: raw.attempts,
         nextRetryAt: raw.nextRetryAt,
@@ -273,6 +275,7 @@ export function enqueueCloudOutboxKeys(keys: readonly ConversationKey[], nowMs =
                 const next: CloudOutboxEntry = {
                     accountId: key.accountId,
                     conversationId: key.conversationId,
+                    enqueueId: crypto.randomUUID(),
                     queuedAt: prev?.queuedAt ?? nowMs,
                     attempts: 0,
                     nextRetryAt: 0,
@@ -319,37 +322,45 @@ export function countCloudOutbox(): Promise<{ total: number; failed: number }> {
     });
 }
 
-export function removeCloudOutboxKey(key: ConversationKey): Promise<void> {
+function mutateCurrentOutboxEntry(
+    tx: IDBTransaction,
+    entry: CloudOutboxEntry,
+    mutate: (store: IDBObjectStore, key: string[], current: CloudOutboxEntry) => void,
+): void {
+    const store = tx.objectStore('outbox');
+    const key = [entry.accountId, entry.conversationId];
+    const req = store.get(key);
+    req.onsuccess = () => {
+        const current = parseOutboxEntry(req.result);
+        if (current && current.enqueueId === entry.enqueueId) mutate(store, key, current);
+    };
+}
+
+export function removeCloudOutboxEntry(entry: CloudOutboxEntry): Promise<void> {
     return inCloudStores(['outbox'], 'readwrite', (tx, done) => {
-        tx.objectStore('outbox').delete([key.accountId, key.conversationId]);
+        mutateCurrentOutboxEntry(tx, entry, (store, key) => { store.delete(key); });
         done(undefined);
     });
 }
 
 export function recordCloudOutboxFailure(
-    key: ConversationKey,
+    entry: CloudOutboxEntry,
     nextRetryAt: number,
     errorCode: string,
     errorMessage: string,
-    nowMs = Date.now(),
 ): Promise<void> {
     return inCloudStores(['outbox'], 'readwrite', (tx, done) => {
-        const store = tx.objectStore('outbox');
-        const req = store.get([key.accountId, key.conversationId]);
-        req.onsuccess = () => {
-            const prev = parseOutboxEntry(req.result);
+        mutateCurrentOutboxEntry(tx, entry, (store, _, current) => {
             const updated: CloudOutboxEntry = {
-                accountId: key.accountId,
-                conversationId: key.conversationId,
-                queuedAt: prev?.queuedAt ?? nowMs,
-                attempts: (prev?.attempts ?? 0) + 1,
+                ...current,
+                attempts: current.attempts + 1,
                 nextRetryAt,
                 lastErrorCode: errorCode,
                 lastErrorMessage: errorMessage,
             };
             store.put(updated);
-            done(undefined);
-        };
+        });
+        done(undefined);
     });
 }
 
@@ -373,12 +384,12 @@ export function getSyncedCloudRecordByBlindId(
     });
 }
 
-export function putSyncedCloudRecord(state: CloudSyncedRecordState, clearFromOutbox = false): Promise<void> {
-    const stores: CloudStoreName[] = clearFromOutbox ? ['syncedRecords', 'outbox'] : ['syncedRecords'];
+export function putSyncedCloudRecord(state: CloudSyncedRecordState, entry?: CloudOutboxEntry): Promise<void> {
+    const stores: CloudStoreName[] = entry ? ['syncedRecords', 'outbox'] : ['syncedRecords'];
     return inCloudStores(stores, 'readwrite', (tx, done) => {
         tx.objectStore('syncedRecords').put(state);
-        if (clearFromOutbox) {
-            tx.objectStore('outbox').delete([state.accountId, state.conversationId]);
+        if (entry) {
+            mutateCurrentOutboxEntry(tx, entry, (store, key) => { store.delete(key); });
         }
         done(undefined);
     });

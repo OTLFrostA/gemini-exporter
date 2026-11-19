@@ -29,8 +29,9 @@ import {
     putCloudSyncSession,
     putSyncedCloudRecord,
     recordCloudOutboxFailure,
-    removeCloudOutboxKey,
+    removeCloudOutboxEntry,
     setStoredLocalVaultHandle,
+    type CloudOutboxEntry,
     type CloudSyncSessionState,
     type CloudVaultBackendType,
 } from '../../l3a/cloudSyncStore.js';
@@ -288,16 +289,16 @@ export function createCloudSyncEngine(deps: {
         session: CloudSyncSessionState,
         keyring: VaultKeyring,
         includeDetail: boolean,
-        key: ConversationKey,
-        attemptNumber: number,
+        entry: CloudOutboxEntry,
         signal?: AbortSignal,
     ): Promise<'uploaded' | 'skipped' | 'oversized' | 'retry'> => {
+        const key = { accountId: entry.accountId, conversationId: entry.conversationId };
         const [account, initialSource] = await Promise.all([
             getAccount(key.accountId),
             readLocalSyncSource(key, includeDetail),
         ]);
         if (!account || account.providerAccountId === DEFAULT_ACCOUNT_KEY || !initialSource) {
-            await removeCloudOutboxKey(key);
+            await removeCloudOutboxEntry(entry);
             return 'skipped';
         }
 
@@ -308,7 +309,7 @@ export function createCloudSyncEngine(deps: {
             const payloadSha256 = await sha256Utf8Hex(portableJson);
             const synced = await getSyncedCloudRecord(session.ownerSubject, key);
             if (synced && synced.payloadSha256 === payloadSha256 && synced.oversizedBytes === undefined) {
-                await removeCloudOutboxKey(key);
+                await removeCloudOutboxEntry(entry);
                 return 'skipped';
             }
 
@@ -339,7 +340,7 @@ export function createCloudSyncEngine(deps: {
                         payloadSha256,
                         syncedAt: now(),
                         oversizedBytes: portableJson.length,
-                    }, true);
+                    }, entry);
                     return 'oversized';
                 }
                 throw error;
@@ -368,7 +369,7 @@ export function createCloudSyncEngine(deps: {
                         remoteRevision: putOutcome.meta.revision,
                         payloadSha256,
                         syncedAt: now(),
-                    }, true);
+                    }, entry);
                     return 'uploaded';
                 }
 
@@ -404,11 +405,11 @@ export function createCloudSyncEngine(deps: {
                     remoteRevision: remote.revision,
                     payloadSha256: remoteSha256,
                     syncedAt: now(),
-                }, false);
+                });
 
                 const mergedLocal = await readLocalSyncSource(key, includeDetail);
                 if (!mergedLocal) {
-                    await removeCloudOutboxKey(key);
+                    await removeCloudOutboxEntry(entry);
                     return 'skipped';
                 }
                 currentSource = mergedLocal;
@@ -426,18 +427,18 @@ export function createCloudSyncEngine(deps: {
                     throw error;
                 }
                 const issue = operationIssue(error, 'CLOUD_SERVER_ERROR');
-                const delayMs = calculateBackoff(attemptNumber, {
+                const delayMs = calculateBackoff(entry.attempts, {
                     initialDelayMs: 2_000,
                     maxDelayMs: 5 * 60_000,
                     jitterMs: 500,
                     retryAfterMs: issue.retryAt ? Math.max(0, issue.retryAt - now()) : undefined,
                 });
-                await recordCloudOutboxFailure(key, now() + delayMs, issue.code, issue.message, now());
+                await recordCloudOutboxFailure(entry, now() + delayMs, issue.code, issue.message);
                 return 'retry';
             }
         }
 
-        await recordCloudOutboxFailure(key, now() + 10_000, 'REVISION_CONFLICT', 'Repeated concurrent revision conflict', now());
+        await recordCloudOutboxFailure(entry, now() + 10_000, 'REVISION_CONFLICT', 'Repeated concurrent revision conflict');
         return 'retry';
     };
 
@@ -464,8 +465,7 @@ export function createCloudSyncEngine(deps: {
 
                     for (const entry of due) {
                         signal?.throwIfAborted();
-                        const key = { accountId: entry.accountId, conversationId: entry.conversationId };
-                        const status = await pushSingleConversation(session, keyring, includeDetail, key, entry.attempts, signal);
+                        const status = await pushSingleConversation(session, keyring, includeDetail, entry, signal);
                         if (status === 'uploaded') uploaded++;
                         else if (status === 'skipped') skippedUnchanged++;
                         else if (status === 'oversized') oversizedSkipped++;
@@ -588,7 +588,7 @@ export function createCloudSyncEngine(deps: {
                                 remoteRevision: item.meta.revision,
                                 payloadSha256: item.payloadSha256,
                                 syncedAt: now(),
-                            }, false);
+                            });
                         }
                     }
 
