@@ -6,18 +6,24 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+import { buildSync } from 'esbuild';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SRC_ROOT = path.join(REPO_ROOT, 'src');
 
 /** Use the same import scan for the repository graph and the scanner regression. */
-function importSpecifiers(content: string): string[] {
-    const clean = content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-    const pattern = /(?:(?:import|export)\s+(?!type\s)(?:(?!from\b)[\s\S])+?\s+from\s+['"]([^'"]+)['"]|import\s+['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\))/g;
-    const found: string[] = [];
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(clean)) !== null) found.push(match[1] || match[2] || match[3]);
-    return found;
+function importSpecifiers(content: string, file = 'probe.ts'): string[] {
+    const result = buildSync({
+        stdin: { contents: content, sourcefile: file, loader: file.endsWith('.tsx') ? 'tsx' : 'ts' },
+        bundle: true,
+        external: ['*'],
+        format: 'esm',
+        metafile: true,
+        write: false,
+        logLevel: 'silent',
+        tsconfigRaw: { compilerOptions: { verbatimModuleSyntax: true } },
+    });
+    return Object.values(result.metafile.inputs).flatMap(input => input.imports.map(edge => edge.path));
 }
 
 
@@ -38,11 +44,13 @@ function getTsFiles(dir: string): string[] {
 test('import scanner preserves imports after comment markers inside literals', () => {
     assert.deepStrictEqual(importSpecifiers(`const url = "https://example.test"; import './same_line';
         const block = '/* not a comment */'; import './after_block';
+        const template = \`https://example.test/* literal */\`; import './after_template';
+        const interpolated = \`https://\${host}/path//suffix\`; import './after_interpolation';
         import { value } from
             './multiline';
         // import './ignored';
         /* import './also_ignored'; */
-    `), ['./same_line', './after_block', './multiline']);
+    `), ['./same_line', './after_block', './after_template', './after_interpolation', './multiline']);
     assert.deepStrictEqual(importSpecifiers(''), []);
     assert.deepStrictEqual(importSpecifiers(`const text = "import './fake'";`), []);
 });
@@ -54,7 +62,7 @@ test('arch: zero circular dependencies across all modules in src/', () => {
     for (const file of files) {
         const content = fs.readFileSync(file, 'utf8');
         const imports: string[] = [];
-        for (const spec of importSpecifiers(content)) {
+        for (const spec of importSpecifiers(content, file)) {
             if (!spec.startsWith('.')) continue;
             let resolved = path.resolve(path.dirname(file), spec);
             if (resolved.endsWith('.js')) resolved = resolved.slice(0, -3) + '.ts';

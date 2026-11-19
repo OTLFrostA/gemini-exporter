@@ -102,13 +102,19 @@ test('v1 migration stays isolated to worker readiness and remains covered by the
 });
 
 function renderer(owner: string): boolean {
-    return /^l4\/format\/(?:html|json|markdown|shared|typst)\//.test(owner);
+    return owner.startsWith('l4/format/');
 }
 test('renderer coverage includes DOCX and PDF dependency violations', () => {
     for (const owner of ['l4/format/docx/renderDocx.ts', 'l4/format/pdf/compileDocumentPdf.ts']) {
         assert.ok(sources.has(owner), `${owner} is scanned`);
         assert.ok(renderer(owner), `${owner} is a renderer`);
         assert.ok(forbidden(owner, 'l2/ingestion.ts'), `${owner} cannot ingest Domain data`);
+    }
+    assert.equal(forbidden('l4/format/pdf/compileDocumentPdf.ts', 'l4/format/pdf/errors.ts'), false);
+    assert.equal(forbidden('l4/format/docx/renderDocx.ts', 'l4/format/pdf/errors.ts'), true);
+    assert.equal(forbidden('l4/format/pdf/compileDocumentPdf.ts', 'l4/format/resources/imageContent.ts'), false);
+    for (const format of ['markdown', 'docx']) {
+        assert.equal(forbidden(`l4/format/${format}/probe.ts`, 'l4/format/resources/imageContent.ts'), true);
     }
 });
 function forbidden(owner: string, target: string): boolean {
@@ -123,6 +129,10 @@ function forbidden(owner: string, target: string): boolean {
     if (owner.startsWith('l3b/ast/')) return !target.startsWith('l3b/ast/') && target !== 'l2/conversationDetail.ts';
     if (owner.startsWith('l3b/compose/')) return !/^(l2\/|l3b\/|shared\/(?:diagnostics|utils)\/)/.test(target);
     if (renderer(owner)) {
+        const formatDirectory = owner.split('/').slice(0, 3).join('/') + '/';
+        if (target.startsWith(formatDirectory)) return false;
+        // PDF compilation validates embedded image bytes before rendering.
+        if (owner.startsWith('l4/format/pdf/') && target.startsWith('l4/format/resources/')) return false;
         // Packaging owns the type-only binding; JSON intentionally reads trusted Domain.
         if (target === 'l4/packaging/resourceBindings.ts') return false;
         if (owner === 'l4/format/json/serializeDomainJson.ts' && /^l2\//.test(target)) {
