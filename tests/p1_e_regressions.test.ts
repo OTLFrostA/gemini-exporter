@@ -156,7 +156,7 @@ test('P1-069b: extractImages 保留 googleusercontent host 的 URL', () => {
 });
 
 test('P1-069c: extractUserFiles 拒绝非 Google 媒体 host 的 URL', () => {
-    const files = attachments.extractUserFiles([["https://evil.com/doc.pdf", "doc.pdf", "id9"]]);
+    const files = attachments.extractUserFiles([["", ["https://evil.com/doc.pdf", "doc.pdf", "id9"]]]);
     assert.strictEqual(files.length, 0);
 });
 

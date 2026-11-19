@@ -116,7 +116,7 @@ test('capture v2 product screenshots from the real extension UI', async ({ conte
     });
     const popup = await openPopup(context, extensionId, chats[0].id);
     await popup.setViewportSize({ width: 360, height: 370 });
-    await expect(popup.locator('#formatTabs .tab-btn')).toHaveCount(4);
+    await expect(popup.locator('[data-format]')).toHaveCount(5);
     await expect(popup.locator('html')).toHaveAttribute('data-theme', 'light');
     await expect(popup.locator('#currentChatTitle')).toContainText('Organizing my AI notes');
     await popup.locator('body').screenshot({

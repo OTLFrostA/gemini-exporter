@@ -113,7 +113,11 @@ class AutonomousVisualAgent:
                 "timestamp": time.time()
             })
 
-            if action.action_type == VisualActionType.CLICK:
+            if action.action_type == VisualActionType.FAIL:
+                self.log(f"❌ Agent 自主判定目标失败: {thought}", "FAIL")
+                return False
+
+            elif action.action_type == VisualActionType.CLICK:
                 self.playground.mouse_click(action.x, action.y, label=step_name)
 
             elif action.action_type in (VisualActionType.TYPE, VisualActionType.PASTE):

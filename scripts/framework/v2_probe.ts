@@ -11,8 +11,10 @@ import { parseGeminiTakeoutZipArchive, readTakeoutBytes } from '../../src/l1/imp
 import { shouldSkipExport } from '../../src/application/export/runExport.js';
 import { refreshConversation } from '../../src/application/conversations/refreshConversation.js';
 import { readConversation } from '../../src/l2/readConversation.js';
+import { installApplicationHost } from '../../src/runtime/api/applicationHost.js';
 import { installProviderHost } from '../../src/runtime/api/providerHost.js';
 
+installApplicationHost();
 installProviderHost();
 
 export function accountId(): string {

@@ -6,10 +6,12 @@ import { insertAccountIfAbsent } from '../../src/l3a/storageService.js';
 import { fixtureAccount } from './domainFixture.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountIds.js';
 import { beforeEach, afterEach } from 'node:test';
+import { installApplicationHost } from '../../src/runtime/api/applicationHost.js';
 
 
 /** Production Storage over a fresh IndexedDB test backend; Chrome Settings/IPC are boundary doubles. */
 export function indexStorage(seed: Record<string, unknown> = {}, options: { seedAccounts?: boolean } = {}) {
+    installApplicationHost();
     installProviderHost();
     const previous = globalThis.chrome, previousDB = globalThis.indexedDB, previousRange = globalThis.IDBKeyRange;
     const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');

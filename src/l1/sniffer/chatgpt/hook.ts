@@ -3,6 +3,7 @@ import { installChatGPTSidebarCapture } from './sidebar.js';
 import { readCappedStreamLines } from '../shared/streamAndBridge.js';
 
 const HOOK_FLAG = '__gemExporterChatGPTHookInstalled';
+const IDENTITY_TIMEOUT_MS = 10_000;
 
 /** MAIN-world acquisition only. Tokens never cross the world/message boundary. */
 export function installChatGPTHook(): void {
@@ -12,7 +13,8 @@ export function installChatGPTHook(): void {
     const nativeFetch = original.bind(window);
     const identity = async (): Promise<string | null> => {
         try {
-            const response = await nativeFetch('/api/auth/session', { credentials: 'include' });
+            const response = await nativeFetch('/api/auth/session', {
+                credentials: 'include', signal: AbortSignal.timeout(IDENTITY_TIMEOUT_MS) });
             return response.ok ? chatGPTObservedIdentity(await response.json()) : null;
         } catch { return null; }
     };
@@ -25,19 +27,24 @@ export function installChatGPTHook(): void {
         const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
         const request = chatGPTRequest(url, method);
         if (!request) return nativeFetch(input, init);
-        const requestIdentity = await identity();
-        const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
-        const workspace = headers.get('ChatGPT-Account-ID');
-        const identityMatchesWorkspace = !workspace || chatGPTWorkspaceMatches(requestIdentity, workspace);
+        // Observation must never delay or detach the site's own request, so the
+        // session is sampled alongside it rather than before it.
+        const pendingIdentity = identity();
+        const workspace = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined)).get('ChatGPT-Account-ID');
         let body: unknown;
         try {
             const text = typeof init?.body === 'string' ? init.body : input instanceof Request ? await input.clone().text() : '';
             body = text ? JSON.parse(text) : null;
         } catch { body = null; }
         const response = await nativeFetch(input, init);
-        if (response.ok && requestIdentity && identityMatchesWorkspace) {
+        if (response.ok) {
             const copy = response.clone();
             void (async () => {
+                const requestIdentity = await pendingIdentity;
+                if (!requestIdentity || (workspace && !chatGPTWorkspaceMatches(requestIdentity, workspace))) {
+                    await copy.body?.cancel();
+                    return;
+                }
                 let responseBody: unknown, conversationId = request.conversationId;
                 if (request.kind === 'stream') {
                     const completed = await readCappedStreamLines(copy.body, 16 * 1024 * 1024, line => {

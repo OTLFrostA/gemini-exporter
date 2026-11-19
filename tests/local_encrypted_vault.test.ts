@@ -38,6 +38,9 @@ function createMemoryDirectoryHandle(name = 'MockEncryptedFolder', initialPerm: 
     let permission: PermissionState = initialPerm;
     const files = new Map<string, Uint8Array<ArrayBuffer>>();
     const subdirs = new Map<string, MemoryDirNode>();
+    let failManifestClose = false;
+    let failRecordClose = false;
+    let failRemove = false;
 
     function makeFileHandle(fileName: string, store: Map<string, Uint8Array<ArrayBuffer>>): FileSystemFileHandle {
         return {
@@ -66,6 +69,8 @@ function createMemoryDirectoryHandle(name = 'MockEncryptedFolder', initialPerm: 
                         }
                     },
                     async close() {
+                        if (failManifestClose && fileName === 'vault-manifest.json') throw new Error('Injected manifest close failure');
+                        if (failRecordClose && fileName.endsWith('.gee1')) throw new Error('Injected record close failure');
                         store.set(fileName, staged);
                     },
                     async abort() {},
@@ -106,6 +111,7 @@ function createMemoryDirectoryHandle(name = 'MockEncryptedFolder', initialPerm: 
                 return child.handle;
             },
             async removeEntry(entryName: string) {
+                if (failRemove) throw new Error('Injected cleanup failure');
                 fileMap.delete(entryName);
                 dirMap.delete(entryName);
             },
@@ -123,9 +129,140 @@ function createMemoryDirectoryHandle(name = 'MockEncryptedFolder', initialPerm: 
         handle: root.handle,
         files,
         subdirs,
+        setManifestCloseFailure(fail: boolean) { failManifestClose = fail; },
+        setRecordCloseFailure(fail: boolean) { failRecordClose = fail; },
+        setRemoveFailure(fail: boolean) { failRemove = fail; },
         setPermission(next: PermissionState) { permission = next; },
     };
 }
+
+test('failed manifest update preserves the previous client backup', async () => {
+    const folder = createMemoryDirectoryHandle();
+    const client = createLocalFolderVaultClient(async () => folder.handle);
+    const args = { serverUrl: '', sessionToken: '', blindRecordId: 'a'.repeat(64), keyFingerprint: 'b'.repeat(32) };
+    const put = async (revision: number, value: number) => {
+        const envelope = new Uint8Array(32).fill(value);
+        envelope.set([0x47, 0x45, 0x45, 0x31]);
+        const sha256 = Buffer.from(await crypto.subtle.digest('SHA-256', envelope)).toString('hex');
+        return client.putEncryptedRecord({ ...args, expectedRevision: revision, envelope, sha256 });
+    };
+    await put(0, 1);
+    const before = await client.getEncryptedRecord(args);
+    folder.setRecordCloseFailure(true);
+    await assert.rejects(put(1, 2), { code: 'FILE_WRITE_FAILED' });
+    folder.setRecordCloseFailure(false);
+    assert.deepEqual(await client.getEncryptedRecord(args), before);
+    folder.setManifestCloseFailure(true);
+    await assert.rejects(put(1, 2), { code: 'FILE_WRITE_FAILED' });
+    folder.setManifestCloseFailure(false);
+    assert.deepEqual(await client.getEncryptedRecord(args), before);
+    assert.equal(folder.subdirs.get('records')!.files.size, 2);
+    assert.equal((await put(1, 3)).status, 'committed');
+    assert.equal(folder.subdirs.get('records')!.files.size, 1);
+    const committed = await client.getEncryptedRecord(args);
+    folder.setRemoveFailure(true);
+    folder.setManifestCloseFailure(true);
+    await assert.rejects(put(2, 4), { code: 'FILE_WRITE_FAILED' });
+    folder.setManifestCloseFailure(false);
+    assert.deepEqual(await client.getEncryptedRecord(args), committed);
+    assert.equal((await put(2, 5)).status, 'committed', 'cleanup failure must not reject a committed update');
+    assert.equal((await client.getEncryptedRecord(args))?.revision, 3);
+});
+
+test('failed manifest update recovery keeps the mixed-version manifest and record layout', async () => {
+    const folder = createMemoryDirectoryHandle();
+    const client = createLocalFolderVaultClient(async () => folder.handle);
+    const args = { serverUrl: '', sessionToken: '', blindRecordId: 'c'.repeat(64), keyFingerprint: 'd'.repeat(32) };
+    const put = async (revision: number, value: number) => {
+        const envelope = new Uint8Array(32).fill(value);
+        envelope.set([0x47, 0x45, 0x45, 0x31]);
+        const sha256 = Buffer.from(await crypto.subtle.digest('SHA-256', envelope)).toString('hex');
+        return client.putEncryptedRecord({ ...args, expectedRevision: revision, envelope, sha256 });
+    };
+    const assertLegacyLayout = async (revision: number) => {
+        const manifest = JSON.parse(new TextDecoder().decode(folder.files.get('vault-manifest.json'))) as {
+            records: Record<string, Record<string, unknown>>;
+        };
+        assert.deepEqual(Object.keys(manifest).sort(), ['schema', 'version', 'ownerSubject', 'keyFingerprint', 'nextSeq', 'usedBytes', 'records'].sort());
+        assert.deepEqual(Object.keys(manifest.records[args.blindRecordId]).sort(), ['blindRecordId', 'revision', 'changeSeq', 'byteLength', 'sha256', 'updatedAt'].sort());
+        const record = await client.getEncryptedRecord(args);
+        assert.equal(record?.revision, revision);
+        assert.deepEqual(folder.subdirs.get('records')!.files.get(`${args.blindRecordId}.gee1`), record?.envelope);
+        assert.deepEqual([...folder.subdirs.get('records')!.files.keys()], [`${args.blindRecordId}.gee1`]);
+    };
+    await put(0, 1);
+    const original = await client.getEncryptedRecord(args);
+    folder.setManifestCloseFailure(true);
+    await assert.rejects(put(1, 2), { code: 'FILE_WRITE_FAILED' });
+    await assert.rejects(put(1, 3), { code: 'FILE_WRITE_FAILED' });
+    assert.deepEqual(await client.getEncryptedRecord(args), original, 'a retry must not overwrite the valid backup with uncommitted bytes');
+    const files = folder.subdirs.get('records')!.files;
+    const backupName = `${args.blindRecordId}.prev.gee1`;
+    const preserved = files.get(backupName)!;
+    files.set(backupName, preserved.slice(0, -1));
+    await assert.rejects(client.getEncryptedRecord(args), { code: 'CLOUD_DECRYPT_AUTH_FAILED' });
+    await assert.rejects(put(1, 4), { code: 'FILE_WRITE_FAILED' }, 'with no valid committed copy left, an update still overwrites instead of blocking repair');
+    files.set(backupName, preserved);
+    folder.setManifestCloseFailure(false);
+    await put(1, 4);
+    await assertLegacyLayout(2);
+    await put(2, 5);
+    await assertLegacyLayout(3);
+});
+
+test('failed manifest update preserves the previous backup through real sync and index-only updates', async () => {
+    const folder = createMemoryDirectoryHandle();
+    const recoveryKey = await prepareOneTimeVaultKey();
+    const source = indexStorage();
+    try {
+        await source.ready;
+        const engine = createCloudSyncEngine();
+        await createVaultKeySetup(engine.activateVaultKeyring)(recoveryKey, 'imported', null);
+        await engine.connectLocalFolderVault(folder.handle);
+        const account = await getOrCreateAccount('gemini', 'gaia-failed-update');
+        const save = (text: string, updatedAt: number) => ingestDetail(account.id, 'backup', {
+            savedAt: updatedAt, quality: { status: 'complete' }, assets: [],
+            messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text }] }] }],
+        }, { title: text, titleSource: 'provider', updatedAt });
+        await save('Revision one', 10_000);
+        await engine.setIncludeDetail(true);
+        await engine.setAutoSyncEnabled(true);
+        await engine.waitForIdle();
+        await save('Revision two', 20_000);
+        folder.setManifestCloseFailure(true);
+        assert.equal((await engine.syncNow()).push.retriedLater, 1);
+        folder.setManifestCloseFailure(false);
+    } finally {
+        source.restore();
+    }
+    const target = indexStorage();
+    try {
+        await target.ready;
+        const engine = createCloudSyncEngine();
+        await createVaultKeySetup(engine.activateVaultKeyring)(recoveryKey, 'imported', null);
+        await engine.connectLocalFolderVault(folder.handle);
+        assert.equal((await engine.pullChanges()).accepted, 1);
+        const account = await getOrCreateAccount('gemini', 'gaia-failed-update');
+        const key = { accountId: account.id, conversationId: 'backup' };
+        assert.match(JSON.stringify(await readConversation(key)), /Revision one/);
+        assert.doesNotMatch(JSON.stringify(await readConversation(key)), /Revision two/);
+        await ingestIndexes(account.id, [{ conversationId: 'backup', fields: { title: 'Index rename', titleSource: 'provider', updatedAt: 30_000 } }]);
+        await engine.setAutoSyncEnabled(true);
+        await engine.waitForIdle();
+        const client = createLocalFolderVaultClient(async () => folder.handle);
+        const args = { serverUrl: '', sessionToken: '' };
+        const [meta] = (await client.listChanges({ ...args, sinceSeq: 0 })).items;
+        assert.equal(meta.revision, 2);
+        const backup = await client.getEncryptedRecord({ ...args, blindRecordId: meta.blindRecordId });
+        assert.ok(backup);
+        const keyring = await deriveVaultKeyring(await parseRecoveryKey(recoveryKey));
+        const opened = await openCloudConversation({ keyring, blindRecordId: meta.blindRecordId, ...backup });
+        assert.equal(opened.index.title, 'Index rename');
+        assert.match(JSON.stringify(opened.detail), /Revision one/);
+    } finally {
+        target.restore();
+    }
+});
 
 test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-rot via SHA-256, and queues cleanly when directory permission reverts to prompt', async () => {
     const env = indexStorage();

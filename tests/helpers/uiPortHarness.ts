@@ -33,6 +33,7 @@ export const requestResourceAuthorization = async uri => {
 };
 export const hasPlatformAccess = async platform => h[platform+'Access'] ?? (platform==='gemini');
 export const preparePlatformTab = async () => {};
+export const installApplicationHost = () => {};
 export const installProviderHost = () => {};
 export const requestPlatformAuthorization = async platforms => {
  h.connectionRequests.push([platforms,navigator.userActivation.isActive]);

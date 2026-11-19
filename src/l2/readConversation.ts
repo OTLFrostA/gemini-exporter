@@ -1,7 +1,7 @@
 import type { ConversationKey } from './conversationKey.js';
 import { sameConversationKey } from './conversationKey.js';
 import { restoreDomainSnapshot, type TrustedDomain } from './runtimeValidation.js';
-import { getConversationSnapshot } from '../l3a/conversationStore.js';
+import { getConversationSnapshot } from '../l3a/batchStorageService.js';
 /** Persistence does not carry trust. L2 validates restored facts and requested ownership. */
 export async function readConversation(key: ConversationKey): Promise<TrustedDomain | null> {
     const { index, detail } = await getConversationSnapshot(key);

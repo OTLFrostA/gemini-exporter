@@ -246,14 +246,25 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
         return cid
 
     def generate(self):
-        provider = OnlineScenarioProvider()
-        scenarios = self.dataset
-        if scenarios is None:
+        # A retry must resume the scenarios this output directory already
+        # reserved, never pop fresh ones and post them in new conversations.
+        reservation = self.output/'scenarios.json'
+        dataset = self.dataset.get('scenarios') if isinstance(self.dataset, dict) else self.dataset
+        if reservation.exists():
+            scenarios = json.loads(reservation.read_text())
+            if dataset is not None and scenarios != dataset:
+                raise ValueError('Resume dataset changed; use a fresh output directory')
+        elif dataset is not None:
+            scenarios = dataset
+        else:
+            provider = OnlineScenarioProvider()
             scenarios = [provider.pop_scenario(min_turns=5), provider.pop_scenario(min_turns=8)]
-        if isinstance(scenarios, dict):
-            scenarios = scenarios.get('scenarios')
         if not isinstance(scenarios, list) or len(scenarios) != 2 or len(scenarios[0]['turns']) < 5 or len(scenarios[1]['turns']) < 8:
             raise ValueError('ChatGPT Tier 2 requires two full scenarios of at least 5 and 8 turns')
+        if not reservation.exists():
+            pending = reservation.with_suffix('.tmp')
+            pending.write_text(json.dumps(scenarios, ensure_ascii=False))
+            pending.replace(reservation)
         self.report['scenarios'] = scenarios
         self.save_report()
         ids = []
@@ -302,6 +313,9 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
             ids.append(cid)
         self.chat_ids = ids
         return {'conversationIds': ids, 'rounds': [len(s['turns']) for s in scenarios]}
+
+    def release_scenarios(self):
+        (self.output/'scenarios.json').unlink(missing_ok=True)
 
     def sync(self):
         from scripts.framework.assertions import assert_full_scan_coverage

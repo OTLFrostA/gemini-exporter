@@ -21,6 +21,7 @@ let bundle: string;
 test.beforeAll(async () => {
     const output = await build({
         stdin: { contents: [
+            "import { installApplicationHost } from './src/runtime/api/applicationHost.ts'; installApplicationHost();",
             "import * as storage from './src/l3a/storageService.ts';",
             "import { ingestDetail, ingestIndexes } from './src/l2/ingestion.ts';",
             "import { readConversation } from './src/l2/readConversation.ts';",

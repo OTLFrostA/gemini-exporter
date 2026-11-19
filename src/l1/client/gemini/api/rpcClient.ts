@@ -19,7 +19,7 @@ interface GeminiClientRpcClientModule {
     getApiUrl: (slot?: string | null) => string;
     nextReqid: () => string;
     generateFallbackSid: () => string;
-    postBatchexecute: (options: RpcRequestOptions) => Promise<Response>;
+    postBatchexecute: (options: RpcRequestOptions) => Promise<{ response: Response; text: string }>;
     mergeAbortSignals: (signals: Array<AbortSignal | null | undefined>) => AbortSignal | undefined;
 }
 
@@ -47,7 +47,7 @@ const nextReqid = GeminiProtocol.createReqidGenerator();
         return AbortSignal.any(active);
     }
 
-    async function postBatchexecute(options: RpcRequestOptions): Promise<Response> {
+    async function postBatchexecute(options: RpcRequestOptions): Promise<{ response: Response; text: string }> {
         const {
             api,
             rpcids,
@@ -78,7 +78,7 @@ const nextReqid = GeminiProtocol.createReqidGenerator();
         if (timeoutMs > 0 && typeof AbortController !== "undefined") {
             controller = new AbortController();
             timeoutId = setTimeout(() => {
-                try { controller?.abort(); } catch (_) {}
+                try { controller?.abort(new DOMException('Gemini RPC request timed out', 'TimeoutError')); } catch (_) {}
             }, timeoutMs);
         }
 
@@ -93,7 +93,16 @@ const nextReqid = GeminiProtocol.createReqidGenerator();
                 credentials: "include",
                 signal: mergeAbortSignals([signal, controller ? controller.signal : null])
             });
-            return resp;
+            let text = '';
+            try {
+                text = await resp.text();
+            } catch (error) {
+                if (resp.ok || signal?.aborted) throw error;
+            }
+            return { response: resp, text };
+        } catch (error) {
+            if (controller?.signal.aborted && !signal?.aborted) throw controller.signal.reason;
+            throw error;
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
         }
@@ -112,4 +121,3 @@ const GeminiClientRpcClient: GeminiClientRpcClientModule = {
 };
 
 export default GeminiClientRpcClient;
-
