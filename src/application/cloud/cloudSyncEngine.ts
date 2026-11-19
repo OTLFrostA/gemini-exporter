@@ -120,7 +120,7 @@ export interface CloudSyncEngine {
         session: CloudSyncSessionState;
         keyFingerprint: string;
     }>;
-    disconnect(options?: { revokeRemoteTokens?: boolean }): Promise<void>;
+    disconnect(): Promise<void>;
     setAutoSyncEnabled(enabled: boolean): Promise<void>;
     setIncludeDetail(includeDetail: boolean): Promise<void>;
     enqueueAllExistingHistory(): Promise<number>;
@@ -730,11 +730,8 @@ export function createCloudSyncEngine(deps: {
             };
         }),
 
-        disconnect: (options = {}) => withVaultOperation(async () => {
+        disconnect: () => withVaultOperation(async () => {
             const session = await getCloudSyncSession();
-            if (session && session.backend !== 'local-folder' && options.revokeRemoteTokens) {
-                await remoteClient.logoutAll(session.serverUrl, session.sessionToken).catch(() => {});
-            }
             if (session?.backend === 'local-folder') {
                 inMemoryVaultHandle = null;
                 await setStoredLocalVaultHandle(null);

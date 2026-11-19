@@ -106,7 +106,7 @@ test('Cloud Vault displays the key once, pairs isolated profiles manually, and s
     await page.locator('#cloudAccessCodeInput').fill(SERVER_INVITE_CODE);
     await page.locator('#btnCloudConnect').click();
 
-    await expect(page.locator('#cloudConnectedEmail')).toContainText('vault.example.test');
+    await expect(page.locator('#cloudConnectedTarget')).toContainText('vault.example.test');
     await expect(page.locator('#cloudSyncToggle')).toBeChecked();
     await expect(page.locator('#cloudIncludeDetailRow')).toBeHidden();
     // Enable full-body flag via internal settings API for this Markdown body round-trip assertion while UI keeps it hidden
@@ -263,7 +263,7 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
     await generateAndLockKey(page);
     await page.locator('#btnLocalVaultPick').click();
 
-    await expect(page.locator('#cloudConnectedEmail')).toContainText('LocalEncryptedVaultExperiment');
+    await expect(page.locator('#cloudConnectedTarget')).toContainText('LocalEncryptedVaultExperiment');
     await expect(page.locator('#cloudModalFeedback')).toContainText('Saved 1');
     await expect(page.locator('#cloudSyncToggle')).toBeChecked();
     await expect(page.locator('#cloudIncludeDetailRow')).toBeHidden();

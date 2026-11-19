@@ -24,5 +24,4 @@ export interface GlobalSettings {
     cloudSyncServerUrl?: string;
     /** Optional shared access/invite code for self-hosted Cloud Vault servers. */
     cloudSyncAccessCode?: string;
-    /** Legacy optional Google OAuth 2.0 Web Client ID. */
 }

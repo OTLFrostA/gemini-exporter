@@ -134,7 +134,6 @@ export interface CloudVaultClient extends VaultRecordClient {
         readonly accessCode?: string;
         readonly signal?: AbortSignal;
     }): Promise<CloudAuthSessionResponse>;
-    logoutAll(serverUrl: string, sessionToken: string, signal?: AbortSignal): Promise<void>;
 }
 
 export interface VaultRecordClient {
@@ -208,18 +207,6 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
                 ownerSubject: raw.ownerSubject,
                 expiresAt: raw.expiresAt,
             };
-        },
-
-        async logoutAll(serverUrl, sessionToken, signal) {
-            const base = normalizeCloudServerUrl(serverUrl);
-            const res = await fetchFn(`${base}/v2/auth/logout-all`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${sessionToken}` },
-                signal,
-            });
-            if (!res.ok) {
-                throwMappedHttpError(res.status, await readErrorDetails(res), res.headers.get('Retry-After'));
-            }
         },
 
         async getVaultStatus(serverUrl, sessionToken, signal) {
