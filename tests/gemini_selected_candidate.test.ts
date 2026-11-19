@@ -16,6 +16,14 @@ const candidates = [
 const parse = (wire: string) => parseGeminiRpcConversation(wire, { account: fixtureAccount('gemini'), providerId: 'gemini' });
 const answerText = (wire: string) => textOfBlocks(parse(wire).conversation.detail.messages[1].content);
 
+test('ID-only detail candidate does not become exported assistant text', () => {
+    const wire = geminiDetailGen('G_BOUNDARY_DETAIL_08');
+    const messages = parse(wire).conversation.detail.messages;
+    assert.deepEqual(messages.map(message => [message.role, textOfBlocks(message.content)]), [
+        ['user', 'Missing body prompt'],
+    ]);
+});
+
 test('selected wire answer exports one Assistant section and retains raw alternative evidence', () => {
     const wire = geminiDetailGen('G_SELECTED_CANDIDATE_01');
     const result = parse(wire);
