@@ -1,0 +1,72 @@
+"""Exercise the documented unit-test filter through its CLI."""
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class RunTestsFilterTests(unittest.TestCase):
+    def run_filter(self, keyword, root=ROOT):
+        return subprocess.run(
+            [sys.executable, "tests/run_tests.py", "--filter", keyword],
+            cwd=root,
+            capture_output=True,
+            encoding="utf-8",
+            timeout=60,
+        )
+
+    def assert_passed(self, result):
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_runs_a_python_suite_by_case_insensitive_filename(self):
+        result = self.run_filter("TEST_INTEGRITY_MODEL")
+        self.assert_passed(result)
+        self.assertIn("tests/test_integrity_model.py", result.stdout.replace("\\", "/"))
+        self.assertRegex(result.stderr, r"Ran [1-9]\d* tests?")
+
+    def test_runs_the_commonjs_migration_suite_by_filename(self):
+        result = self.run_filter("upgrade_v1")
+        self.assert_passed(result)
+        self.assertIn("Unit test suite passed: tests/upgrade_v1.test.cjs",
+                      result.stdout.replace("\\", "/"))
+
+    def test_runs_matching_languages_without_running_the_migration_twice(self):
+        result = self.run_filter("upgrade")
+        self.assert_passed(result)
+        output = result.stdout.replace("\\", "/")
+        self.assertIn("Unit test suite passed: tests/gemini_integrity_upgrade.test.ts", output)
+        self.assertIn("Unit test suite passed: tests/upgrade_v1.test.cjs", output)
+        self.assertIn("tests/test_upgrade_profile.py", output)
+        self.assertNotIn("tests/upgrade_released_v17.test.ts", output)
+
+    def test_no_match_is_an_error(self):
+        result = self.run_filter("not-a-real-gemini-exporter-suite")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("未找到", result.stdout)
+
+    def test_a_failing_python_suite_fails_the_filter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            tests_dir = Path(directory, "tests")
+            tests_dir.mkdir()
+            shutil.copyfile(ROOT / "tests/run_tests.py", tests_dir / "run_tests.py")
+            (tests_dir / "test_deliberate_failure.py").write_text(
+                "import unittest\n"
+                "class Failure(unittest.TestCase):\n"
+                "    def test_failure(self):\n"
+                "        self.fail('deliberate Python failure')\n",
+                encoding="utf-8",
+            )
+            result = self.run_filter("deliberate_failure", root=directory)
+
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("AssertionError: deliberate Python failure", result.stderr)
+        self.assertNotIn("均顺利通过", result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,3 +1,4 @@
+import glob
 import os
 import sys
 import json
@@ -14,6 +15,10 @@ print(" Gemini Exporter - Comprehensive Test Suite")
 print("=" * 60)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TESTS_DIR = os.path.join(BASE_DIR, "tests")
+
+# Tier 1 discovers the migration wrapper; a filter can also select its source directly.
+COMMONJS_SUITE_WRAPPERS = {"upgrade_v1.test.cjs": "upgrade_released_v17.test.ts"}
 
 def test_json_files():
     for jf in ["manifest.json", "package.json", "_locales/zh_CN/messages.json", "_locales/en/messages.json", "scripts/test_scenario_pool.json"]:
@@ -164,25 +169,15 @@ def test_javascript_syntax():
     assert res.returncode == 0, f"TypeScript syntax check failed (tsc --noEmit):\n{res.stdout}\n{res.stderr}"
     print(f"  ✓ TypeScript strict syntax validated (tsc --noEmit)")
 
+def javascript_unit_test_files():
+    return sorted(
+        glob.glob(os.path.join(TESTS_DIR, "*.test.js"))
+        + glob.glob(os.path.join(TESTS_DIR, "*.test.ts"))
+        + glob.glob(os.path.join(TESTS_DIR, "arch", "*.test.ts"))
+    )
+
 def test_javascript_unit_tests(target_tests=None):
-    import subprocess
-    import glob
-    import shutil
-
-    # npm test and the TypeScript require hook already require Node.
-    node_bin = next((candidate for candidate in [
-        shutil.which("node"),
-        os.path.expanduser("~/.local/node/bin/node"),
-        os.path.expanduser("~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"),
-        r"C:\Program Files\nodejs\node.exe",
-    ] if candidate and os.path.exists(candidate)), None)
-    assert node_bin, "Node.js is required for the TypeScript unit test suite"
-
-    test_files = sorted(set(
-        glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js"))
-        + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts"))
-        + glob.glob(os.path.join(BASE_DIR, "tests", "arch", "*.test.ts"))
-    ))
+    test_files = javascript_unit_test_files()
     if target_tests is not None:
         norm_targets = {os.path.normpath(t).replace("\\", "/") for t in target_tests}
         norm_bases = {os.path.basename(t) for t in target_tests}
@@ -193,7 +188,23 @@ def test_javascript_unit_tests(target_tests=None):
         ]
         if not test_files:
             print("  ✓ 无受影响的 JavaScript/TypeScript 单元测试需要执行。")
-            return
+    run_javascript_unit_tests(test_files)
+
+def run_javascript_unit_tests(test_files):
+    if not test_files:
+        return
+
+    import subprocess
+    import shutil
+
+    # npm test and the TypeScript require hook already require Node.
+    node_bin = next((candidate for candidate in [
+        shutil.which("node"),
+        os.path.expanduser("~/.local/node/bin/node"),
+        os.path.expanduser("~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"),
+        r"C:\Program Files\nodejs\node.exe",
+    ] if candidate and os.path.exists(candidate)), None)
+    assert node_bin, "Node.js is required for the TypeScript unit test suite"
 
     register_hook = os.path.join(BASE_DIR, "tests", "ts_register.js")
     preload_hook = os.path.join(BASE_DIR, "tests", "helpers", "l1V2UnitPreload.cjs")
@@ -588,9 +599,55 @@ def test_impact_analyzer_suite():
     assert res.returncode == 0, f"test_impact_analyzer.py failed: {res.stderr or res.stdout}"
     print("  ✓ Test Impact Analyzer & Dependency Graph test suite passed")
 
+def run_python_unit_tests(test_files):
+    import subprocess
+
+    for test_file in test_files:
+        rel = os.path.relpath(test_file, BASE_DIR)
+        result = subprocess.run([sys.executable, "-m", "unittest", rel], cwd=BASE_DIR)
+        if result.returncode:
+            sys.exit(result.returncode)
+        print(f"  ✓ Unit test suite passed: {rel}")
+
+def run_filtered_unit_tests(keyword):
+    print(f"🔍 正在按关键字过滤单元测试: '{keyword}'")
+    normalized_keyword = keyword.replace("\\", "/").lower()
+
+    def matches(path):
+        return normalized_keyword in os.path.relpath(path, BASE_DIR).replace(os.sep, "/").lower()
+
+    python_tests = sorted({
+        path for pattern in ("test_*.py", "*_test.py")
+        for path in glob.glob(os.path.join(TESTS_DIR, pattern))
+        if matches(path)
+    })
+    node_tests = {
+        path for path in (
+            javascript_unit_test_files()
+            + glob.glob(os.path.join(TESTS_DIR, "*.test.cjs"))
+            + glob.glob(os.path.join(TESTS_DIR, "arch", "*.test.cjs"))
+        ) if matches(path)
+    }
+    for source, wrapper in COMMONJS_SUITE_WRAPPERS.items():
+        if os.path.join(TESTS_DIR, source) in node_tests:
+            node_tests.discard(os.path.join(TESTS_DIR, wrapper))
+
+    matching = sorted([*python_tests, *node_tests])
+    if not matching:
+        print(f"❌ 未找到匹配关键字 '{keyword}' 的单元测试！")
+        sys.exit(1)
+    print(f"🧪 匹配到 {len(matching)} 个单元测试套件:")
+    for path in matching:
+        print(f"  • {os.path.relpath(path, BASE_DIR)}")
+    sys.stdout.flush()
+    run_python_unit_tests(python_tests)
+    run_javascript_unit_tests(sorted(node_tests))
+    print("=" * 60)
+    print(f"🎉 全部 {len(matching)} 个过滤测试均顺利通过！")
+    print("=" * 60)
+
 def run_all():
     import argparse
-    import glob
     parser = argparse.ArgumentParser(description="Gemini Exporter 综合测试套件")
     parser.add_argument("--changed", action="store_true", help="仅执行当前 Git 改动及其传递依赖影响的测试")
     parser.add_argument("--filter", default=None, help="按关键字或文件名过滤单元测试 (如 --filter storage)")
@@ -599,19 +656,7 @@ def run_all():
     args, _ = parser.parse_known_args()
 
     if args.filter:
-        print(f"🔍 正在按关键字过滤单元测试: '{args.filter}'")
-        all_test_files = sorted(set(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")) + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts")) + glob.glob(os.path.join(BASE_DIR, "tests", "arch", "*.test.ts"))))
-        matching = [tf for tf in all_test_files if args.filter.lower() in os.path.relpath(tf, BASE_DIR).lower()]
-        if not matching:
-            print(f"❌ 未找到匹配关键字 '{args.filter}' 的单元测试！")
-            sys.exit(1)
-        print(f"🧪 匹配到 {len(matching)} 个单元测试套件:")
-        for m in matching:
-            print(f"  • {os.path.relpath(m, BASE_DIR)}")
-        test_javascript_unit_tests(target_tests=matching)
-        print("=" * 60)
-        print(f"🎉 全部 {len(matching)} 个过滤测试均顺利通过！")
-        print("=" * 60)
+        run_filtered_unit_tests(args.filter)
         return
 
     if args.changed:
@@ -709,6 +754,7 @@ def run_all():
     test_dag_subgraph_suite()
     test_tier2_assertions_suite()
     test_impact_analyzer_suite()
+    run_python_unit_tests([os.path.join(TESTS_DIR, "test_run_tests_filter.py")])
     test_javascript_syntax()
     test_javascript_unit_tests()
 
