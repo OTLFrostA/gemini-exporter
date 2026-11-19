@@ -31,7 +31,6 @@ export interface GeminiResponseImageEvidence {
 export interface UserFileAttachment {
     sourceUrl: string;
     fileName: string;
-    id: string;
     thumbnailUrl?: string;
 }
 
@@ -472,7 +471,6 @@ export function extractUserFiles(turnUserArr: unknown): UserFileAttachment[] {
 
         const googleUrls: string[] = [];
         const filenames: string[] = [];
-        let fallbackId = '';
 
         for (let i = 0; i < node.length; i++) {
             const item = node[i];
@@ -487,8 +485,6 @@ export function extractUserFiles(turnUserArr: unknown): UserFileAttachment[] {
                 }
             } else if (itemMatchesFilename(trimmed)) {
                 filenames.push(trimmed);
-            } else if (trimmed && !fallbackId && trimmed.length < 100) {
-                fallbackId = trimmed;
             }
         }
 
@@ -518,11 +514,9 @@ export function extractUserFiles(turnUserArr: unknown): UserFileAttachment[] {
         }
         if (!fileName) fileName = 'attachment';
 
-        const id = fallbackId || fileName || sourceUrl;
         files.push({
             sourceUrl,
             fileName,
-            id,
             thumbnailUrl,
         });
     });
