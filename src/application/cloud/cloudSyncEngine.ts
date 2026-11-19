@@ -27,11 +27,14 @@ import {
     getSyncedCloudRecordByBlindId,
     listDueCloudOutbox,
     putCloudSyncSession,
+    putLocalVaultConnection,
     putSyncedCloudRecord,
     recordCloudOutboxFailure,
-    removeCloudOutboxKey,
+    removeCloudOutboxEntry,
     setStoredLocalVaultHandle,
+    type CloudOutboxEntry,
     type CloudSyncSessionState,
+    type CloudSyncedRecordState,
     type CloudVaultBackendType,
 } from '../../l3a/cloudSyncStore.js';
 import type { DirectoryHandle } from '../../shared/types/directoryHandle.js';
@@ -64,6 +67,10 @@ async function sha256Utf8Hex(text: string): Promise<string> {
     const bytes = toOwnedBytes(new TextEncoder().encode(text));
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
     return bytesToHex(digest);
+}
+
+function matchesSyncedPayload(synced: CloudSyncedRecordState | null, hash: string, indexOnly: boolean): boolean {
+    return synced !== null && (synced.payloadSha256 === hash || (indexOnly && synced.indexPayloadSha256 === hash));
 }
 
 async function sha256BytesHex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
@@ -120,7 +127,7 @@ export interface CloudSyncEngine {
         session: CloudSyncSessionState;
         keyFingerprint: string;
     }>;
-    disconnect(options?: { revokeRemoteTokens?: boolean }): Promise<void>;
+    disconnect(): Promise<void>;
     setAutoSyncEnabled(enabled: boolean): Promise<void>;
     setIncludeDetail(includeDetail: boolean): Promise<void>;
     enqueueAllExistingHistory(): Promise<number>;
@@ -162,14 +169,11 @@ export function createCloudSyncEngine(deps: {
 } = {}): CloudSyncEngine & { activateVaultKeyring: ActivateKeyring } {
     const remoteClient = deps.client ?? createCloudVaultClient();
     const now = deps.now ?? Date.now;
-    let inMemoryVaultHandle: DirectoryHandle | null = null;
     const resolveLocalHandle = async (): Promise<DirectoryHandle> => {
-        if (inMemoryVaultHandle) return inMemoryVaultHandle;
         const stored = await getStoredLocalVaultHandle();
         if (!stored) {
             throw new OperationError('DIRECTORY_PERMISSION_REQUIRED', 'No local encrypted vault folder configured');
         }
-        inMemoryVaultHandle = stored;
         return stored;
     };
     const localClient = deps.localFolderClient ?? createLocalFolderVaultClient(resolveLocalHandle, now);
@@ -288,42 +292,70 @@ export function createCloudSyncEngine(deps: {
         session: CloudSyncSessionState,
         keyring: VaultKeyring,
         includeDetail: boolean,
-        key: ConversationKey,
-        attemptNumber: number,
+        entry: CloudOutboxEntry,
         signal?: AbortSignal,
     ): Promise<'uploaded' | 'skipped' | 'oversized' | 'retry'> => {
+        const key = { accountId: entry.accountId, conversationId: entry.conversationId };
         const [account, initialSource] = await Promise.all([
             getAccount(key.accountId),
             readLocalSyncSource(key, includeDetail),
         ]);
         if (!account || account.providerAccountId === DEFAULT_ACCOUNT_KEY || !initialSource) {
-            await removeCloudOutboxKey(key);
+            await removeCloudOutboxEntry(entry);
             return 'skipped';
         }
 
         let currentSource: PortableConversationSource = initialSource;
         for (let conflictAttempt = 0; conflictAttempt < 3; conflictAttempt++) {
             signal?.throwIfAborted();
-            const portableJson = encodePortableCloudConversation(account, currentSource);
-            const payloadSha256 = await sha256Utf8Hex(portableJson);
+            const localPayloadSha256 = await sha256Utf8Hex(encodePortableCloudConversation(account, currentSource));
             const synced = await getSyncedCloudRecord(session.ownerSubject, key);
-            if (synced && synced.payloadSha256 === payloadSha256 && synced.oversizedBytes === undefined) {
-                await removeCloudOutboxKey(key);
+            const localFolder = session.backend === 'local-folder';
+            if (synced?.oversizedBytes === undefined
+                && matchesSyncedPayload(synced, localPayloadSha256, localFolder && !currentSource.detail)) {
+                await removeCloudOutboxEntry(entry);
                 return 'skipped';
             }
 
             const expectedRevision = synced?.remoteRevision ?? 0;
             const nextRevision = expectedRevision + 1;
-            let sealed: { blindRecordId: string; envelope: Uint8Array<ArrayBuffer> };
+            const activeClient = clientForSession(session);
             try {
-                sealed = await sealCloudConversation({
-                    keyring,
-                    revision: nextRevision,
-                    account,
-                    conversation: currentSource,
-                });
-            } catch (error) {
-                if (error instanceof OperationError && error.code === 'CLOUD_RECORD_TOO_LARGE') {
+                let sourceForWrite = currentSource;
+                let backupRevision = expectedRevision;
+                // Index-only updates may keep Detail already in this vault, but never add this browser's local Detail.
+                if (localFolder && synced && expectedRevision > 0 && !currentSource.detail) {
+                    const backedUp = await activeClient.getEncryptedRecord({
+                        serverUrl: session.serverUrl,
+                        sessionToken: session.sessionToken,
+                        blindRecordId: synced.blindRecordId,
+                        signal,
+                    });
+                    if (!backedUp) throw new OperationError('CLOUD_SERVER_ERROR', 'Acknowledged local vault record could not be read');
+                    backupRevision = backedUp.revision;
+                    const { detail } = await openCloudConversation({ keyring, blindRecordId: synced.blindRecordId, ...backedUp });
+                    if (detail) sourceForWrite = { ...currentSource, detail: { ...detail, key } };
+                }
+                const portableJson = encodePortableCloudConversation(account, sourceForWrite);
+                const payloadSha256 = sourceForWrite === currentSource ? localPayloadSha256 : await sha256Utf8Hex(portableJson);
+                const indexPayloadSha256 = localFolder && sourceForWrite.detail
+                    ? await sha256Utf8Hex(encodePortableCloudConversation(account, { index: sourceForWrite.index })) : undefined;
+                if (synced && synced.oversizedBytes === undefined && backupRevision === expectedRevision
+                    && matchesSyncedPayload(synced, payloadSha256, false)) {
+                    await putSyncedCloudRecord({ ...synced, indexPayloadSha256 }, entry);
+                    return 'skipped';
+                }
+
+                let sealed: Awaited<ReturnType<typeof sealCloudConversation>>;
+                try {
+                    sealed = await sealCloudConversation({
+                        keyring,
+                        revision: nextRevision,
+                        account,
+                        conversation: sourceForWrite,
+                    });
+                } catch (error) {
+                    if (!(error instanceof OperationError) || error.code !== 'CLOUD_RECORD_TOO_LARGE') throw error;
                     const blindId = await deriveBlindRecordId(
                         keyring,
                         account.providerId,
@@ -339,22 +371,17 @@ export function createCloudSyncEngine(deps: {
                         payloadSha256,
                         syncedAt: now(),
                         oversizedBytes: portableJson.length,
-                    }, true);
+                    }, entry);
                     return 'oversized';
                 }
-                throw error;
-            }
 
-            const envelopeSha256 = await sha256BytesHex(sealed.envelope);
-            const activeClient = clientForSession(session);
-            try {
                 const putOutcome = await activeClient.putEncryptedRecord({
                     serverUrl: session.serverUrl,
                     sessionToken: session.sessionToken,
                     blindRecordId: sealed.blindRecordId,
                     expectedRevision,
                     envelope: sealed.envelope,
-                    sha256: envelopeSha256,
+                    sha256: await sha256BytesHex(sealed.envelope),
                     keyFingerprint: keyring.keyFingerprint,
                     signal,
                 });
@@ -367,8 +394,9 @@ export function createCloudSyncEngine(deps: {
                         blindRecordId: sealed.blindRecordId,
                         remoteRevision: putOutcome.meta.revision,
                         payloadSha256,
+                        indexPayloadSha256,
                         syncedAt: now(),
-                    }, true);
+                    }, entry);
                     return 'uploaded';
                 }
 
@@ -403,12 +431,15 @@ export function createCloudSyncEngine(deps: {
                     blindRecordId: sealed.blindRecordId,
                     remoteRevision: remote.revision,
                     payloadSha256: remoteSha256,
+                    indexPayloadSha256: localFolder && remotePortable.detail
+                        ? await sha256Utf8Hex(encodePortableCloudConversation(account, { index: { ...remotePortable.index, key } }))
+                        : undefined,
                     syncedAt: now(),
-                }, false);
+                });
 
                 const mergedLocal = await readLocalSyncSource(key, includeDetail);
                 if (!mergedLocal) {
-                    await removeCloudOutboxKey(key);
+                    await removeCloudOutboxEntry(entry);
                     return 'skipped';
                 }
                 currentSource = mergedLocal;
@@ -426,18 +457,18 @@ export function createCloudSyncEngine(deps: {
                     throw error;
                 }
                 const issue = operationIssue(error, 'CLOUD_SERVER_ERROR');
-                const delayMs = calculateBackoff(attemptNumber, {
+                const delayMs = calculateBackoff(entry.attempts, {
                     initialDelayMs: 2_000,
                     maxDelayMs: 5 * 60_000,
                     jitterMs: 500,
                     retryAfterMs: issue.retryAt ? Math.max(0, issue.retryAt - now()) : undefined,
                 });
-                await recordCloudOutboxFailure(key, now() + delayMs, issue.code, issue.message, now());
+                await recordCloudOutboxFailure(entry, now() + delayMs, issue.code, issue.message);
                 return 'retry';
             }
         }
 
-        await recordCloudOutboxFailure(key, now() + 10_000, 'REVISION_CONFLICT', 'Repeated concurrent revision conflict', now());
+        await recordCloudOutboxFailure(entry, now() + 10_000, 'REVISION_CONFLICT', 'Repeated concurrent revision conflict');
         return 'retry';
     };
 
@@ -464,8 +495,7 @@ export function createCloudSyncEngine(deps: {
 
                     for (const entry of due) {
                         signal?.throwIfAborted();
-                        const key = { accountId: entry.accountId, conversationId: entry.conversationId };
-                        const status = await pushSingleConversation(session, keyring, includeDetail, key, entry.attempts, signal);
+                        const status = await pushSingleConversation(session, keyring, includeDetail, entry, signal);
                         if (status === 'uploaded') uploaded++;
                         else if (status === 'skipped') skippedUnchanged++;
                         else if (status === 'oversized') oversizedSkipped++;
@@ -531,6 +561,7 @@ export function createCloudSyncEngine(deps: {
                         meta: typeof meta;
                         portable: PortableCloudConversation;
                         payloadSha256: string;
+                        indexPayloadSha256?: string;
                     } | null> => {
                         const blob = await activeClient.getEncryptedRecord({
                             serverUrl: session.serverUrl,
@@ -546,10 +577,12 @@ export function createCloudSyncEngine(deps: {
                         // Compute canonical JSON hash so auto-enqueue recognizes this exact state as already synced
                         const tempAccountId = '00000000-0000-4000-8000-000000000000';
                         const tempKey = { accountId: tempAccountId, conversationId: portable.conversationId };
+                        const portableAccount = { id: tempAccountId, ...portable.account };
+                        const index = { ...portable.index, key: tempKey };
                         const canonicalJson = encodePortableCloudConversation(
-                            { id: tempAccountId, ...portable.account },
+                            portableAccount,
                             {
-                                index: { ...portable.index, key: tempKey },
+                                index,
                                 ...(portable.detail !== undefined ? { detail: { ...portable.detail, key: tempKey } } : {}),
                             },
                         );
@@ -558,6 +591,8 @@ export function createCloudSyncEngine(deps: {
                             meta: { ...meta, revision: blob.revision },
                             portable,
                             payloadSha256,
+                            indexPayloadSha256: session.backend === 'local-folder' && portable.detail
+                                ? await sha256Utf8Hex(encodePortableCloudConversation(portableAccount, { index })) : undefined,
                         };
                     }, signal);
 
@@ -587,8 +622,9 @@ export function createCloudSyncEngine(deps: {
                                 blindRecordId: item.meta.blindRecordId,
                                 remoteRevision: item.meta.revision,
                                 payloadSha256: item.payloadSha256,
+                                indexPayloadSha256: item.indexPayloadSha256,
                                 syncedAt: now(),
-                            }, false);
+                            });
                         }
                     }
 
@@ -625,7 +661,7 @@ export function createCloudSyncEngine(deps: {
                 const source: PortableConversationSource = detail ? { index: idx, detail } : { index: idx };
                 const json = encodePortableCloudConversation(acc, source);
                 const sha = await sha256Utf8Hex(json);
-                if (synced && synced.payloadSha256 === sha) continue;
+                if (matchesSyncedPayload(synced, sha, session.backend === 'local-folder' && !detail)) continue;
                 unsynced.push(idx.key);
             }
         }
@@ -666,13 +702,10 @@ export function createCloudSyncEngine(deps: {
             if (!initialized) {
                 throw new OperationError('CLOUD_KEY_NOT_INITIALIZED', 'Initialize your Master Key before connecting a Vault folder');
             }
-            inMemoryVaultHandle = handle;
-            await setStoredLocalVaultHandle(handle);
             const existingSession = await getCloudSyncSession();
-            const pulledSeq = existingSession?.backend === 'local-folder'
-                && existingSession.folderName === handle.name
-                ? existingSession.pulledSeq
-                : 0;
+            const existingHandle = existingSession?.backend === 'local-folder'
+                ? await getStoredLocalVaultHandle() : null;
+            const sameFolder = existingHandle !== null && await handle.isSameEntry(existingHandle).catch(() => false);
             const session: CloudSyncSessionState = {
                 id: 'active',
                 backend: 'local-folder',
@@ -681,10 +714,10 @@ export function createCloudSyncEngine(deps: {
                 sessionToken: 'local-folder-session',
                 expiresAt: Number.MAX_SAFE_INTEGER,
                 folderName: handle.name,
-                pulledSeq,
+                pulledSeq: sameFolder ? existingSession?.pulledSeq ?? 0 : 0,
                 enabledSinceAt: existingSession?.enabledSinceAt ?? now(),
             };
-            await putCloudSyncSession(session);
+            await putLocalVaultConnection(session, handle, !sameFolder);
             return {
                 session,
                 keyFingerprint: initialized.keyFingerprint,
@@ -730,13 +763,9 @@ export function createCloudSyncEngine(deps: {
             };
         }),
 
-        disconnect: (options = {}) => withVaultOperation(async () => {
+        disconnect: () => withVaultOperation(async () => {
             const session = await getCloudSyncSession();
-            if (session && session.backend !== 'local-folder' && options.revokeRemoteTokens) {
-                await remoteClient.logoutAll(session.serverUrl, session.sessionToken).catch(() => {});
-            }
             if (session?.backend === 'local-folder') {
-                inMemoryVaultHandle = null;
                 await setStoredLocalVaultHandle(null);
             }
             await updateSettings({ cloudSyncEnabled: false });
@@ -791,11 +820,10 @@ export function createCloudSyncEngine(deps: {
             const connected = session !== null;
             let folderPermissionRequired = false;
             if (connected && session?.backend === 'local-folder') {
-                const storedHandle = inMemoryVaultHandle ?? await getStoredLocalVaultHandle();
+                const storedHandle = await getStoredLocalVaultHandle();
                 if (!storedHandle) {
                     folderPermissionRequired = true;
                 } else {
-                    inMemoryVaultHandle = storedHandle;
                     try {
                         folderPermissionRequired = (await storedHandle.queryPermission({ mode: 'readwrite' })) !== 'granted';
                     } catch {
@@ -917,7 +945,7 @@ export function createCloudSyncEngine(deps: {
                     const source: PortableConversationSource = detail ? { index: idx, detail } : { index: idx };
                     const json = encodePortableCloudConversation(acc, source);
                     const sha = await sha256Utf8Hex(json);
-                    if (synced && synced.payloadSha256 === sha) continue;
+                    if (matchesSyncedPayload(synced, sha, session.backend === 'local-folder' && !detail)) continue;
                     candidates.push(idx.key);
                 }
                 if (candidates.length > 0) {

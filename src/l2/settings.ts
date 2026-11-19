@@ -16,13 +16,12 @@ export interface GlobalSettings {
     ratingPromptDismissed?: true;
     /** Automatically suggested large-batch folder delivery has already been shown. */
     directWritePromptCompleted?: true;
-    /** Opt-in automatic zero-knowledge E2EE cloud backup for subsequent conversation updates. */
+    /** Automatically sync conversation updates to the connected encrypted vault. */
     cloudSyncEnabled?: boolean;
     /** When false or omitted (default), only conversation Index metadata is synced; message bodies stay local. */
     cloudSyncIncludeDetail?: boolean;
-    /** Configured zero-knowledge Cloud Vault endpoint origin (HTTPS or local loopback). */
+    /** Configured Cloud Vault base URL (HTTPS or local loopback). */
     cloudSyncServerUrl?: string;
     /** Optional shared access/invite code for self-hosted Cloud Vault servers. */
     cloudSyncAccessCode?: string;
-    /** Legacy optional Google OAuth 2.0 Web Client ID. */
 }

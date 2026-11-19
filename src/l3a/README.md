@@ -3,14 +3,19 @@
 `storageService.ts` exports the frozen passive persistence API from the
 [Storage design](https://app.notion.com/p/3fb5d4d759e1816dbc65c1cd23854e00).
 
-One IndexedDB (`gemini_exporter_v2`, version 2) holds six stores and only the
+The conversation IndexedDB (`gemini_exporter_v2`, version 2) holds six stores and only the
 unique `accounts.providerIdentity` index. The public surface has 23 functions,
-including the narrowly scoped atomic Account admission port for L2. User cleanup
-atomically deletes Coverage + ExportRecord or ExportRecord alone, while retaining
-Account, Index and Detail. Raw partial Settings use one
+including the narrowly scoped atomic Account admission port for L2. Clearing scan
+records atomically deletes Index, Detail, Coverage and ExportRecord for the selected account.
+Export-history cleanup deletes only ExportRecords; both actions retain Account
+and directory handles. Raw partial Settings use one
 Chrome Storage key, and Patch uses an extension-origin Web Lock. Writes resolve after physical transaction completion;
 missing values return null/empty collections and IO errors reject. No memory
-fallback, resource bytes or persistent task state is stored here.
+fallback, resource bytes or persistent task state is stored in the conversation DB.
+
+The separate vault IndexedDB (`gemini_exporter_cloud_v2`) stores the vault session,
+outbox, sync receipts, non-extractable derived key handles and local vault folder
+handle. It does not store GEK1 recovery text.
 
 The v1-to-v2 schema upgrade revokes historical, unverified Gemini Detail
 completeness without deleting content or invalidating existing ExportRecords. It

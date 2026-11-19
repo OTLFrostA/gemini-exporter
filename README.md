@@ -19,10 +19,11 @@
 ## ✨ What you can do
 
 - **Save one chat or many.** Export the current conversation in one click, or scan and select conversations for batch backup.
-- **Choose your format.** **Markdown, HTML, PDF, or JSON**, with available images and file attachments.
-- **Choose where files go.** Use browser downloads or write directly to a local folder. Multiple browser-download files are automatically bundled into a ZIP.
+- **Choose your format.** **Markdown, HTML, PDF, Word (DOCX), or JSON**, with available images and file attachments.
+- **Choose where files go.** Use browser downloads or write directly to a local folder. Browser downloads bundle multiple files into one ZIP.
 - **Keep up with new replies.** Incremental scans, skip-unchanged exports, and **Live Save** for Markdown in a chosen local folder.
 - **Bring older chats back.** Import Google Takeout ZIP archives to supplement Gemini history accessible online.
+- **Back up to an encrypted vault.** Keep a separate encrypted copy in a local folder or sync to a compatible server you configure. See the [vault setup guide](./docs/USER_GUIDE.md#encrypted-vault).
 
 English/简体中文 interface · Dark/light theme · Export status and retry tools
 
@@ -32,7 +33,7 @@ English/简体中文 interface · Dark/light theme · Export status and retry to
 
 [Dark-mode workbench & local-folder settings](./store_assets/screenshot_2_1280x800.png) · [Quick-export popup](./store_assets/screenshot_popup_v2.png) · [Site access](./store_assets/screenshot_site_access_1280x800.png)
 
-*Captured on October 25, 2026 from the current source build in real Chrome on port 9222, using synced Gemini conversations.*
+*Captured on October 25, 2026 using synced Gemini conversations.*
 
 ## 🚀 Get started
 
@@ -50,7 +51,7 @@ English/简体中文 interface · Dark/light theme · Export status and retry to
 
 ## 🔒 Privacy first
 
-Your exports are processed on your device, not on a developer-operated server. The extension uses your existing browser sessions to retrieve requested conversations and resources from Google Gemini, or experimental ChatGPT, Claude and Grok sources after you grant their optional site access.
+Your exports are processed on your device. The extension uses your existing browser sessions to retrieve conversations and resources from authorized platforms. If you opt in to cloud vault sync, conversation records are encrypted on your device before they are sent to the server you configure.
 
 ## 🛠️ Build from source
 

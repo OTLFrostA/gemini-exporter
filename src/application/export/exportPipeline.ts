@@ -50,7 +50,7 @@ export interface ExportRunOptions {
     onProgress?: (progress: ExportProgress) => void;
     /** A usable body is ready for resource preparation; skipped targets do not count. */
     onConversationPrepared?: (key: ConversationKey) => void;
-    /** A document has reached its destination; browser delivery includes its attachments. */
+    /** The document was written to a folder or included in an initiated browser download. */
     onBodyDelivered?: (key: ConversationKey) => void;
     /** downloaded counts distinct successful resource identities across this task, including refreshes. */
     onResourceProgress?: (progress: { key: ConversationKey; completed: number; total: number; downloaded: number }) => void;
@@ -69,6 +69,7 @@ const comparable = (value: number | undefined): value is number => value !== und
 
 export function shouldSkipExport(record: ExportRecord | null, updatedAt: number | undefined, request: ExportRequest): boolean {
     if (!request.skipUnchanged || !record || record.format !== request.format) return false;
+    if (request.includeAssets && record.includeAssets !== true) return false;
     if (record.sourceTurn && record.sourceTurn !== 'finished' && record.sourceTurn !== 'interrupted') return false;
     const issues = record.attachmentIssues;
     const expiredOnly = record.status === 'partial' && record.otherContentMissing !== true
@@ -240,7 +241,7 @@ export async function executeExportWithSession(
         failures: Readonly<Record<string, ResourceFailure>>, otherContentMissing: boolean): Omit<ExportRecord, 'exportedAt'> => {
         const { conversation } = item;
         const partial = otherContentMissing || Object.keys(failures).length > 0;
-        return { format: request.format, status: partial ? 'partial' : 'ok',
+        return { format: request.format, includeAssets: request.includeAssets, status: partial ? 'partial' : 'ok',
             ...(request.delivery === 'folderWriter'
                 ? { folderBaseName: plan.fileName.replace(/\.[^.]+$/, '') }
                 : item.folderBaseName ? { folderBaseName: item.folderBaseName } : {}),

@@ -566,7 +566,7 @@
   </div>
 
   <div id="cloudConnectedAccountRow" class="cloud-modal-row" style="justify-content:space-between;margin-top:8px;" hidden>
-    <span id="cloudConnectedEmail" class="stat" style="font-weight:600;color:var(--text);"></span>
+    <span id="cloudConnectedTarget" class="stat" style="font-weight:600;color:var(--text);"></span>
     <div class="cloud-modal-row">
       <button id="btnCloudSyncNow" type="button" class="ghost small" data-ui-en="Sync Now" data-ui-zh="立即同步">立即同步</button>
       <button id="btnLocalVaultChangeDir" type="button" class="ghost small" hidden data-ui-en="Change Folder" data-ui-zh="更换目录">更换目录</button>
@@ -590,7 +590,7 @@
   </div>
   <div id="cloudModalFeedback" role="status" aria-live="polite" hidden></div>
 </dialog>
-<!-- PR5: JSZip stays external (UMD global), bundled workbench follows -->
+<!-- Load the JSZip global before the workbench bundle. -->
 <script src="/lib/jszip.min.js"></script>
 <script src="/dist/ui/options.js"></script>
 </body>

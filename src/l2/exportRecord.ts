@@ -14,6 +14,8 @@ export interface ExportRecord {
     folderBaseName?: string;
     exportedAt: number;
     format: ExportFormat;
+    /** Whether attachment acquisition was requested; absent legacy values provide no coverage guarantee. */
+    includeAssets?: boolean;
     status: 'ok' | 'partial';
     chatTime?: number;
     otherContentMissing?: boolean;

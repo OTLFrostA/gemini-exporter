@@ -1,6 +1,6 @@
 import { OperationError } from '../../shared/errors/operationError.js';
 import { isDirectoryHandle, type DirectoryHandle } from '../../shared/types/directoryHandle.js';
-import { getStoredLocalVaultHandle, setStoredLocalVaultHandle } from '../../l3a/cloudSyncStore.js';
+import { getStoredLocalVaultHandle } from '../../l3a/cloudSyncStore.js';
 
 export type VaultDirectoryStatus =
     | { readonly state: 'missing' }
@@ -21,7 +21,7 @@ export async function inspectVaultDirectoryStatus(): Promise<VaultDirectoryStatu
     }
 }
 
-/** Open the browser directory picker inside a user click gesture and persist the chosen Vault folder. */
+/** Open the browser directory picker inside a user click gesture. */
 export async function pickVaultDirectoryHandle(): Promise<DirectoryHandle> {
     if (typeof window === 'undefined' || typeof window.showDirectoryPicker !== 'function') {
         throw new OperationError('DIRECTORY_UNAVAILABLE', 'Directory picker unavailable');
@@ -34,7 +34,6 @@ export async function pickVaultDirectoryHandle(): Promise<DirectoryHandle> {
     if (perm !== 'granted') {
         throw new OperationError('DIRECTORY_PERMISSION_REQUIRED', 'Directory readwrite permission not granted');
     }
-    await setStoredLocalVaultHandle(picked);
     return picked;
 }
 
@@ -48,6 +47,5 @@ export async function reauthorizeVaultDirectoryHandle(): Promise<DirectoryHandle
     if (perm !== 'granted') {
         throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
     }
-    await setStoredLocalVaultHandle(handle);
     return handle;
 }

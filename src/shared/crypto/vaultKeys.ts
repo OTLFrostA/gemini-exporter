@@ -108,7 +108,7 @@ export async function deriveServerAuthToken(keyring: VaultKeyring): Promise<stri
 
 /**
  * Compute the deterministic 64-char hex blind record identifier for a conversation.
- * Reveals zero metadata (neither provider, account, nor conversation ID) to the server.
+ * Does not expose the underlying provider, account or conversation identifiers.
  */
 export async function deriveBlindRecordId(
     keyring: VaultKeyring,

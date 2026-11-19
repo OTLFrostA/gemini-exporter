@@ -9,7 +9,7 @@ import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import { createMockCloudVaultHttp } from './helpers/mockCloudVaultHttp.js';
 import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/cloud/vaultKeySetup.js';
-import { putCloudSyncSession } from '../src/l3a/cloudSyncStore.js';
+import { enqueueCloudOutboxKeys, listDueCloudOutbox, putCloudSyncSession } from '../src/l3a/cloudSyncStore.js';
 
 const SERVER_URL = 'https://vault.gemini-exporter.test';
 
@@ -224,6 +224,115 @@ test('CloudSyncEngine: explicit creation and manual pairing retain auto-enqueue,
         assert.equal(postRotateSync.push.uploaded, 2, 'both local conversations immediately backed up into rotated Cloud Vault');
     } finally {
         envC.restore();
+    }
+});
+
+test('CloudSyncEngine: a PUT acknowledgment preserves an update queued during upload', async () => {
+    const env = indexStorage();
+    try {
+        await env.ready;
+        const mock = createMockCloudVaultHttp();
+        const puts = [0, 1].map(() => {
+            let started!: (request: Request) => void;
+            let release!: () => void;
+            const request = new Promise<Request>(resolve => { started = resolve; });
+            const gate = new Promise<void>(resolve => { release = resolve; });
+            return { request, gate, started, release };
+        });
+        let putCount = 0;
+        const client = createCloudVaultClient(async (url, init) => {
+            const request = new Request(url, init);
+            if (request.method === 'PUT') {
+                const put = puts[putCount++];
+                if (put) {
+                    put.started(request);
+                    await put.gate;
+                }
+            }
+            return mock.handler(request);
+        });
+        const nowMs = Date.now();
+        const engine = createCloudSyncEngine({ client, now: () => nowMs });
+        await createVaultKeySetup(engine.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
+        await engine.connectCloudVault(SERVER_URL, undefined, 'create');
+        await engine.setAutoSyncEnabled(true);
+        await engine.waitForIdle();
+
+        const account = await getOrCreateAccount('gemini', 'gaia-outbox-race', 'race@example.com', 'Outbox Race');
+        const conversationId = 'c_outbox_race';
+        const key = { accountId: account.id, conversationId };
+        await ingestIndexes(account.id, [{
+            conversationId, fields: { title: 'Original', titleSource: 'provider', updatedAt: nowMs - 1 },
+        }]);
+        await enqueueCloudOutboxKeys([key], nowMs);
+
+        const flush = engine.flushOutbox();
+        try {
+            const original = await Promise.race([puts[0].request, flush.then(() => null)]);
+            assert.ok(original, 'the original upload reached PUT');
+            await ingestIndexes(account.id, [{
+                conversationId, fields: { title: 'Updated', titleSource: 'provider', updatedAt: nowMs },
+            }]);
+            await enqueueCloudOutboxKeys([key], nowMs);
+            assert.equal((await listDueCloudOutbox(nowMs)).length, 1, 'the update was queued before the ack');
+
+            puts[0].release();
+            const updated = await Promise.race([puts[1].request, flush.then(() => null)]);
+            assert.deepEqual(
+                (await listDueCloudOutbox(nowMs)).map(({ accountId, conversationId }) => ({ accountId, conversationId })),
+                [key],
+                'the first PUT acknowledgment must not remove the newer outbox entry',
+            );
+            assert.ok(updated, 'the next flush iteration uploads the newer entry');
+            assert.equal(updated.url, original.url);
+            assert.equal(updated.headers.get('X-Expected-Revision'), '1');
+        } finally {
+            for (const put of puts) put.release();
+            await flush;
+        }
+        assert.equal((await flush).uploaded, 2);
+        assert.deepEqual(await listDueCloudOutbox(nowMs), []);
+    } finally {
+        env.restore();
+    }
+});
+
+test('CloudSyncEngine uploads and acknowledges an outbox row written before enqueue identities', async () => {
+    const env = indexStorage();
+    try {
+        await env.ready;
+        const mock = createMockCloudVaultHttp();
+        const client = createCloudVaultClient((url, init) => mock.handler(new Request(url, init)));
+        const engine = createCloudSyncEngine({ client });
+        await createVaultKeySetup(engine.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
+        await engine.connectCloudVault(SERVER_URL, undefined, 'create');
+        const account = await getOrCreateAccount('gemini', 'gaia-outbox-legacy', 'legacy@example.com', 'Legacy Outbox');
+        const conversationId = 'c_outbox_legacy';
+        await ingestIndexes(account.id, [{ conversationId, fields: { title: 'Already queued', titleSource: 'provider' } }]);
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            const request = indexedDB.open('gemini_exporter_cloud_v2');
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const tx = db.transaction('outbox', 'readwrite');
+                tx.oncomplete = () => resolve();
+                tx.onabort = () => reject(tx.error);
+                tx.objectStore('outbox').put({
+                    accountId: account.id, conversationId, queuedAt: 1, attempts: 0, nextRetryAt: 0,
+                });
+            });
+        } finally {
+            db.close();
+        }
+        // Enable flushing without a full history scan, which would re-enqueue the legacy row.
+        await updateSettings({ cloudSyncEnabled: true });
+        assert.equal((await listDueCloudOutbox())[0]?.enqueueId, null);
+        assert.equal((await engine.flushOutbox()).uploaded, 1);
+        assert.deepEqual(await listDueCloudOutbox(), []);
+    } finally {
+        env.restore();
     }
 });
 

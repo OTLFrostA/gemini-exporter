@@ -106,7 +106,7 @@ test('Cloud Vault displays the key once, pairs isolated profiles manually, and s
     await page.locator('#cloudAccessCodeInput').fill(SERVER_INVITE_CODE);
     await page.locator('#btnCloudConnect').click();
 
-    await expect(page.locator('#cloudConnectedEmail')).toContainText('vault.example.test');
+    await expect(page.locator('#cloudConnectedTarget')).toContainText('vault.example.test');
     await expect(page.locator('#cloudSyncToggle')).toBeChecked();
     await expect(page.locator('#cloudIncludeDetailRow')).toBeHidden();
     // Enable full-body flag via internal settings API for this Markdown body round-trip assertion while UI keeps it hidden
@@ -227,6 +227,91 @@ test('Cloud Vault displays the key once, pairs isolated profiles manually, and s
     }
 });
 
+test('Options Sync Now preserves a same-conversation update queued by the background worker during PUT', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const server = createMockCloudVaultHttp({ serverAccessCode: SERVER_INVITE_CODE });
+    const putRevisions: string[] = [];
+    let releaseFirstPut!: () => void;
+    const firstPutGate = new Promise<void>(resolve => { releaseFirstPut = resolve; });
+    await context.route(`${VAULT_ORIGIN}/**`, async route => {
+        const req = route.request();
+        if (req.method() === 'PUT') {
+            putRevisions.push(req.headers()['x-expected-revision'] ?? '');
+            if (putRevisions.length === 1) await firstPutGate;
+        }
+        const body = req.postDataBuffer();
+        const response = await server.handler(new Request(req.url(), {
+            method: req.method(),
+            headers: req.headers(),
+            ...(body ? { body: new Uint8Array(body) } : {}),
+        }));
+        await route.fulfill({
+            status: response.status,
+            headers: Object.fromEntries(response.headers),
+            body: Buffer.from(await response.arrayBuffer()),
+        });
+    });
+    const sourceUrl = 'https://gemini.google.com/app/ace01234';
+    await context.route(sourceUrl, route => route.fulfill({ contentType: 'text/html', body: '<title>Gemini</title>' }));
+    const source = await context.newPage();
+    await source.goto(sourceUrl);
+    const page = await openOptions(context, extensionId);
+    await page.locator('#btnCloudVaultSetup').click();
+    await page.locator('#btnVaultTabCloud').click();
+    await generateAndLockKey(page);
+    await page.locator('#cloudServerUrlInput').fill(VAULT_ORIGIN);
+    await page.locator('#cloudAccessCodeInput').fill(SERVER_INVITE_CODE);
+    await page.locator('#btnCloudConnect').click();
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Saved 0');
+
+    const original = {
+        conversationId: 'c_outbox_ipc_race',
+        fields: { title: 'Original title', titleSource: 'provider', updatedAt: Date.now() },
+    };
+    await page.evaluate(async ({ accountId, original }) => {
+        await Reflect.get(globalThis, 'uiFixture').ingestIndexes(accountId, [original]);
+    }, { accountId, original });
+
+    try {
+        await page.locator('#btnCloudSyncNow').click();
+        await expect.poll(() => putRevisions).toEqual(['0']);
+
+        // Send the passive ingestion IPC from a real, authorized Gemini tab.
+        const response = await page.evaluate(async ({ accountId, original, sourceUrl }) => {
+            const [tab] = await chrome.tabs.query({ url: sourceUrl });
+            if (tab?.id === undefined) throw new Error('Missing Gemini source tab');
+            const [injection] = await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: (id, item) => chrome.runtime.sendMessage({ action: 'domainIngest', accountId: id, operation: 'indexes', items: [item] }),
+                args: [accountId, {
+                    ...original,
+                    fields: { ...original.fields, title: 'New title', updatedAt: original.fields.updatedAt + 1 },
+                }],
+            });
+            return injection.result;
+        }, { accountId, original, sourceUrl });
+        expect(response).toMatchObject({ ok: true });
+
+        // The worker requests this lock only after its outbox enqueue transaction commits.
+        await expect.poll(() => page.evaluate(async () => {
+            const { held, pending } = await navigator.locks.query();
+            const lock = 'gemini_exporter_cloud_sync_op_lock';
+            return held?.some(entry => entry.name === lock) && pending?.some(entry => entry.name === lock);
+        })).toBe(true);
+        expect(putRevisions).toEqual(['0']);
+    } finally {
+        releaseFirstPut();
+    }
+
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Saved 2');
+    await expect.poll(() => page.evaluate(async () => {
+        const { held, pending } = await navigator.locks.query();
+        return [...(held ?? []), ...(pending ?? [])].some(entry => entry.name === 'gemini_exporter_cloud_sync_op_lock');
+    })).toBe(false);
+    expect(putRevisions).toEqual(['0', '1']);
+    expect([...server.inspectRawBlobs().keys()]).toEqual([expect.stringMatching(/\/r2$/)]);
+});
+
 test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic .gee1 ciphertext write on disk -> zero plaintext leak -> wipe & local decryption restore', async ({ context, extensionId }) => {
     await seedRegistryAccounts(context);
     const page = await openOptions(context, extensionId);
@@ -263,7 +348,7 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
     await generateAndLockKey(page);
     await page.locator('#btnLocalVaultPick').click();
 
-    await expect(page.locator('#cloudConnectedEmail')).toContainText('LocalEncryptedVaultExperiment');
+    await expect(page.locator('#cloudConnectedTarget')).toContainText('LocalEncryptedVaultExperiment');
     await expect(page.locator('#cloudModalFeedback')).toContainText('Saved 1');
     await expect(page.locator('#cloudSyncToggle')).toBeChecked();
     await expect(page.locator('#cloudIncludeDetailRow')).toBeHidden();

@@ -11,16 +11,6 @@ export function isReservedRoute(id?: string | number | null): boolean {
     return RESERVED_ROUTES.has(clean);
 }
 
-export function isGeminiUrl(urlStr?: string | null): boolean {
-    if (!urlStr || typeof urlStr !== 'string') return false;
-    try {
-        const u = new URL(urlStr);
-        return u.protocol === 'https:' && u.hostname === 'gemini.google.com';
-    } catch {
-        return false;
-    }
-}
-
 export function detectSlotFromUrl(urlOrPath?: string | null): string {
     if (!urlOrPath || typeof urlOrPath !== 'string') return 'u0';
     try {

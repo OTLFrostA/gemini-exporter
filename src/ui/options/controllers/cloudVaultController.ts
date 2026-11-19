@@ -72,7 +72,7 @@ export function mountCloudVaultPanel(callbacks: {
     const btnCreateRemoteVault = control('button', 'btnCloudCreateRemoteVault');
     const btnDisconnect = control('button', 'btnCloudDisconnect');
     const connectedRow = el('cloudConnectedAccountRow');
-    const connectedLabel = el('cloudConnectedEmail');
+    const connectedLabel = el('cloudConnectedTarget');
     const actionsSection = el('cloudConnectedActions');
     const includeDetailRow = el('cloudIncludeDetailRow');
     const includeDetailToggle = control('input', 'cloudIncludeDetailToggle');
@@ -484,7 +484,7 @@ export function mountCloudVaultPanel(callbacks: {
 
     const onDisconnect = (): void => {
         void runAction(async () => {
-            await defaultCloudSyncEngine.disconnect({ revokeRemoteTokens: false });
+            await defaultCloudSyncEngine.disconnect();
             userPickedTab = false;
             offerExplicitCreate = false;
             setModalFeedback(text('Disconnected from Encrypted Vault', '已断开加密保险箱连接'));
