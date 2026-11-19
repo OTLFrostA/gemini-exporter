@@ -13,7 +13,7 @@ KEY_PATHS = {
 
 def assert_l3_contracts(evidence, expected_ids):
     layout = evidence['layout']
-    assert layout['name'] == 'gemini_exporter_v2' and layout['version'] == 1, 'L3a database identity'
+    assert layout['name'] == 'gemini_exporter_v2' and layout['version'] == 2, 'L3a database identity'
     stores = layout['stores']
     assert sorted(row['name'] for row in stores) == sorted(KEY_PATHS), 'L3a must have exactly six stores'
     for row in stores:

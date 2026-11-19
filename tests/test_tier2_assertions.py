@@ -6,6 +6,7 @@ import io
 import json
 import os
 import re
+import runpy
 import subprocess
 from pathlib import Path
 import sys
@@ -1579,6 +1580,50 @@ class SearchSelectionCounterexamples(unittest.TestCase):
 
 
 class GeminiDualParseTests(unittest.TestCase):
+    def run_node_check(self, directory, script):
+        from scripts.framework.gemini_dual_parse import run_check
+        root = Path(directory)
+        (root / 'tests').mkdir(exist_ok=True)
+        (root / 'scripts').mkdir(exist_ok=True)
+        (root / 'tests/ts_register.js').write_text('', encoding='utf-8')
+        (root / 'scripts/check_gemini_dual_parse.ts').write_text(script, encoding='utf-8')
+        return run_check(root, root / 'native', root / 'report')
+
+    def test_run_check_rejects_stale_summary_after_node_crash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / 'report'
+            report.mkdir()
+            summary = report / 'summary.json'
+            summary.write_text(json.dumps({'passed': False}), encoding='utf-8')
+            with self.assertRaisesRegex(RuntimeError, 'node crashed'):
+                self.run_node_check(directory, "throw new Error('node crashed');")
+            self.assertFalse(summary.exists())
+
+    def test_run_check_accepts_only_fresh_reports_with_matching_exit_status(self):
+        for passed, returncode in ((True, 0), (False, 1), (True, 1), (False, 0), (False, 2)):
+            with self.subTest(passed=passed, returncode=returncode), tempfile.TemporaryDirectory() as directory:
+                report = Path(directory) / 'report'
+                report.mkdir()
+                summary = {'passed': passed}
+                (report / 'summary.json').write_text('{stale invalid json', encoding='utf-8')
+                script = (
+                    "const fs = require('node:fs');"
+                    "const path = require('node:path');"
+                    "const output = process.argv[process.argv.indexOf('--output') + 1];"
+                    f"fs.writeFileSync(path.join(output, 'summary.json'), {json.dumps(json.dumps(summary))});"
+                    f"process.exitCode = {returncode};"
+                )
+                if returncode in (0, 1) and passed == (returncode == 0):
+                    self.assertEqual(self.run_node_check(directory, script), (passed, summary))
+                else:
+                    with self.assertRaisesRegex(RuntimeError, 'execution failed'):
+                        self.run_node_check(directory, script)
+
+    def test_run_check_rejects_missing_report_even_with_success_exit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(RuntimeError, 'produced no report'):
+                self.run_node_check(directory, '')
+
     def test_capture_requires_install_and_restores_after_read_failure(self):
         from scripts.framework.gemini_dual_parse import install_capture, finish_capture
         cdp = MagicMock(); cdp.eval.return_value = None
@@ -1703,6 +1748,29 @@ class Tier2LifecycleOrderingTests(unittest.TestCase):
 
 
 class ScenarioIdentityTests(unittest.TestCase):
+    def test_zip_spec_fails_when_asserter_import_fails(self):
+        original_import = __import__
+
+        def import_without_asserter(name, *args, **kwargs):
+            if name == 'tests.helpers.export_spec_asserter':
+                raise ImportError('export spec dependency unavailable')
+            return original_import(name, *args, **kwargs)
+
+        with patch('builtins.__import__', side_effect=import_without_asserter):
+            assertions = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts/framework/assertions.py'))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            zip_path = Path(tmp) / 'export.zip'
+            with zipfile.ZipFile(zip_path, 'w') as archive:
+                archive.writestr('conversation_aaaaaa.md', '# Conversation\n')
+            ok, message, _ = assertions['CDPAssertions'].assert_exported_zip_spec(
+                str(zip_path), str(Path(tmp) / 'extracted'),
+                min_conversations=5, chat_id='c_zzzzzz')
+
+        self.assertFalse(ok, message)
+        self.assertIn('ImportError', message)
+        self.assertIn('export spec dependency unavailable', message)
+
     def check_prompt(self, exported, expected, evidence=None):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / 'export.zip'

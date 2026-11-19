@@ -11,12 +11,13 @@ import unittest
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
+from scripts.framework.actions import CDPActions
 from scripts.framework.gateway import SafeInteractionGateway, SecurityViolationError, get_gateway
+from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
 
 
 class TestSelectorsSuite(unittest.TestCase):
@@ -69,7 +70,7 @@ class TestSafeInteractionGatewaySuite(unittest.TestCase):
 
     def test_safe_navigate_success(self):
         mock_cdp = MagicMock()
-        mock_cdp.call.return_value = {}
+        mock_cdp.call.return_value = {"result": {"frameId": "frame-1"}}
 
         res = self.gateway.safe_navigate(mock_cdp, "https://gemini.google.com/app")
         self.assertTrue(res)
@@ -82,17 +83,67 @@ class TestSafeInteractionGatewaySuite(unittest.TestCase):
 
     def test_safe_navigate_uses_logged_fallback_after_cdp_navigation_error(self):
         mock_cdp = MagicMock()
-        mock_cdp.call.side_effect = RuntimeError("Page.navigate failed")
         url = r'''https://gemini.google.com/app/notes?title="O'Brien\draft"'''
+        mock_cdp.call.side_effect = [
+            RuntimeError("Page.navigate failed"),
+            {"result": {"result": {"type": "string", "value": url}}},
+        ]
         self.assertTrue(self.gateway.safe_navigate(mock_cdp, url))
-        mock_cdp.call.assert_called_once_with("Page.navigate", {"url": url})
-        self.assertEqual(mock_cdp.eval.call_count, 1)
-        expression = mock_cdp.eval.call_args.args[0]
+        self.assertEqual(mock_cdp.call.call_count, 2)
+        self.assertEqual(mock_cdp.call.call_args_list[0].args, ("Page.navigate", {"url": url}))
+        method, params = mock_cdp.call.call_args.args
+        self.assertEqual(method, "Runtime.evaluate")
+        expression = params["expression"]
         prefix = "window.location.href = "
         self.assertTrue(expression.startswith(prefix))
         self.assertEqual(json.loads(expression[len(prefix):]), url)
         self.assertEqual(self.gateway.audit_log[-1]["action"], "NAVIGATE_FALLBACK")
         self.assertEqual(self.gateway.audit_log[-1]["status"], "SUCCESS")
+
+    def test_new_chat_retries_after_cdp_navigation_error_reply(self):
+        url = "https://gemini.google.com/app"
+        for navigate_reply in (
+            {"error": {"code": -32000, "message": "Navigation rejected"}},
+            {"result": {"frameId": "frame-1", "errorText": "net::ERR_ABORTED"}},
+        ):
+            with self.subTest(navigate_reply=navigate_reply):
+                gateway = SafeInteractionGateway()
+                cdp = MagicMock()
+                cdp.call.side_effect = [
+                    navigate_reply,
+                    {"result": {"result": {"type": "string", "value": url}}},
+                ]
+                with patch("scripts.framework.actions.get_gateway", return_value=gateway), \
+                     patch("scripts.framework.actions.time.sleep"):
+                    self.assertTrue(CDPActions.click_new_chat(cdp))
+                self.assertEqual(
+                    [(entry["action"], entry["status"]) for entry in gateway.audit_log],
+                    [("NAVIGATE_FALLBACK", "SUCCESS")],
+                )
+                self.assertEqual(
+                    [call.args[0] for call in cdp.call.call_args_list],
+                    ["Page.navigate", "Runtime.evaluate"],
+                )
+
+    def test_safe_navigate_audits_failed_cdp_fallback(self):
+        url = "https://gemini.google.com/app"
+        for fallback_reply, message in (
+            ({"error": {"code": -32000, "message": "Execution context unavailable"}}, "Execution context unavailable"),
+            ({"result": {"result": {"type": "object"}, "exceptionDetails": {"text": "Uncaught"}}}, "Uncaught"),
+        ):
+            with self.subTest(fallback_reply=fallback_reply):
+                gateway = SafeInteractionGateway()
+                cdp = MagicMock()
+                cdp.call.side_effect = [
+                    {"result": {"frameId": "frame-1", "errorText": "net::ERR_ABORTED"}},
+                    fallback_reply,
+                ]
+                self.assertFalse(gateway.safe_navigate(cdp, url))
+                self.assertEqual(len(gateway.audit_log), 1)
+                entry = gateway.audit_log[0]
+                self.assertEqual((entry["action"], entry["status"]), ("NAVIGATE", "FAILED"))
+                self.assertIn("net::ERR_ABORTED", entry["error"])
+                self.assertIn(message, entry["error"])
 
     def test_safe_navigate_blocked_raises_security_error(self):
         mock_cdp = MagicMock()

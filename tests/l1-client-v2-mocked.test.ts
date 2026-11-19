@@ -53,6 +53,23 @@ test('Gemini Client commits canonical keyless Index/page evidence before callbac
     assert.ok(ports.indexes.every(call => call.page?.valid && call.page?.requestKnown));
 });
 
+test('Gemini Client passes the host-provided slot to acquisition and rechecks it before committing', async () => {
+    ports.current = { providerId: 'gemini', accountId: GEMINI_ACCOUNT.id, slot: 'u2' };
+    const provider = new GeminiProvider({
+        ...client([]),
+        async getConversationList(_cursor, slot) {
+            assert.equal(slot, 'u2');
+            ports.current = { providerId: 'gemini', accountId: GEMINI_ACCOUNT.id, slot: 'u3' };
+            return parseList(geminiListPage().responseBody);
+        },
+    });
+    await assert.rejects(provider.listConversations({
+        accountId: GEMINI_ACCOUNT.id, streamId: 'recent',
+    }), { code: 'ACCOUNT_CHANGED' });
+    assert.deepEqual(ports.lookups, [GEMINI_ACCOUNT.id]);
+    assert.equal(ports.indexes.length, 0);
+});
+
 test('L1 preserves Index facts without certifying an untrusted page or default account', async () => {
     const untrusted = parseList(geminiListPage().responseBody);
     untrusted.pageEvidence.valid = false;
