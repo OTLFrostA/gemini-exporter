@@ -16,6 +16,7 @@ export function useSettings(settings: GlobalSettings, applyDocumentLanguage = tr
     }
 }
 export const text = (en: string, zh: string): string => language === 'zh' ? zh : en;
+export const englishCount = (count: number, noun: string): string => `${count} ${noun}${count === 1 ? '' : 's'}`;
 export const uiLocale = (): string => language === 'zh' ? 'zh-CN' : 'en-US';
 export const isDeveloperMode = (): boolean => developerMode;
 export function labelThemeToggle(button: HTMLButtonElement, settings?: GlobalSettings): void {

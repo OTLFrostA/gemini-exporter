@@ -10,6 +10,25 @@ const parse = (raw: { id: string }) => parseChatGPTConversation({
     conversation: decodeChatGPTDetail(raw, raw.id), assetsByNode: new Map(),
 });
 
+test('ChatGPT decoder and parser preserve TeX inside a longer fence containing shorter backticks', () => {
+    const raw = chatgptDetailGen('C_DETAIL_L1_SOURCE_01');
+    const message = raw.mapping.answer?.message;
+    assert.ok(message);
+    message.content = { content_type: 'text', parts: ['````text\nbefore\n```\n\\(x+y\\)\n````'] };
+    const answer = parse(raw).conversation.detail.messages[1];
+    assert.ok(answer.content.some(block => block.type === 'code' && block.code === 'before\n```\n\\(x+y\\)'));
+});
+
+test('ChatGPT decoder and parser preserve TeX inside a list-item fence', () => {
+    const raw = chatgptDetailGen('C_DETAIL_L1_SOURCE_01');
+    const message = raw.mapping.answer?.message;
+    assert.ok(message);
+    message.content = { content_type: 'text', parts: ['- ```text\n  \\(x+y\\)\n  ```'] };
+    const answer = parse(raw).conversation.detail.messages[1];
+    assert.ok(JSON.stringify(answer.content).includes('\\\\(x+y\\\\)'));
+    assert.ok(!JSON.stringify(answer.content).includes('$x+y$'));
+});
+
 test('ChatGPT source branch to root yields keyless complete Detail and millisecond source times', () => {
     const raw = chatgptDetailGen('C_DETAIL_L1_SOURCE_01');
     const original = structuredClone(raw.mapping);

@@ -172,18 +172,12 @@ export function decodeGeminiCandidateResources(
 function buildUserMessage(
     turn: DecodedGeminiTurn,
     resources: DecodedGeminiUserResources,
-    dedupSet: Set<string>,
-    docDedupSet: Set<string>
+    dedupSet: Set<string>
 ): GeminiMessageEvidence | null {
     const ts = turn.timestamp;
     const uText = turn.userText;
     const uImgs = filterNewImages(resources.images, dedupSet);
-    const uFiles = resources.files.filter((f: UserFileAttachment) => {
-        const key = f.id || f.sourceUrl || f.fileName;
-        if (!key || docDedupSet.has(key)) return false;
-        docDedupSet.add(key);
-        return true;
-    });
+    const uFiles = resources.files;
 
     if (!uText && !uImgs.length && !uFiles.length) return null;
 
@@ -194,21 +188,6 @@ function buildUserMessage(
         type: "image",
         isImage: true
     })) : void 0;
-
-    const formattedDocs = uFiles.length ? uFiles.map((f: UserFileAttachment) => {
-        return {
-            id: f.id,
-            title: f.fileName || "attachment",
-            createdAt: ts,
-            chipUrl: "",
-            sections: [],
-            links: [],
-            contentMarkdown: void 0,
-            url: f.sourceUrl,
-            candidates: f.thumbnailUrl ? [f.sourceUrl, f.thumbnailUrl] : [f.sourceUrl],
-            type: "file"
-        };
-    }) : void 0;
 
     const attachments: GeminiAttachmentEvidence[] = [];
     if (formattedImages) {
@@ -223,16 +202,13 @@ function buildUserMessage(
             });
         }
     }
-    if (formattedDocs) {
-        for (const d of formattedDocs) {
-            attachments.push({
-                type: "file",
-                name: d.title || d.id,
-                title: d.title,
-                url: d.url,
-                contentMarkdown: d.contentMarkdown
-            });
-        }
+    for (const file of uFiles) {
+        attachments.push({
+            type: "file",
+            name: file.fileName,
+            url: file.sourceUrl,
+            candidates: file.thumbnailUrl ? [file.sourceUrl, file.thumbnailUrl] : [file.sourceUrl],
+        });
     }
 
     const rawRequestId = turn.rawProviderRequestId;
@@ -246,7 +222,6 @@ function buildUserMessage(
         content: uText,
         timestamp: ts,
         images: formattedImages,
-        documents: formattedDocs,
         attachments: attachments.length ? attachments : void 0,
         attachmentCount: attachments.length,
         messageCount: 1,
@@ -372,7 +347,7 @@ export function decodeGeminiTurn(
     convId?: string
 ): GeminiMessageEvidence[] {
     const messages: GeminiMessageEvidence[] = [];
-    const userMessage = buildUserMessage(turn, decodeGeminiUserResources(rawTurn), dedupSet, docDedupSet);
+    const userMessage = buildUserMessage(turn, decodeGeminiUserResources(rawTurn), dedupSet);
     if (userMessage) messages.push(userMessage);
 
     if (turn.candidate) {

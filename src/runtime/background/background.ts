@@ -1,3 +1,5 @@
+import { installApplicationHost } from '../api/applicationHost.js';
+
 import { syncAllPlatformContentScripts } from '../capabilities/platformInjection.js';
 import { handleDomainIngestionMessage } from './domainStorageHandler.js';
 import { handleAccountRegistryMessage } from './accountRegistryHandler.js';
@@ -11,6 +13,8 @@ import { isAccountId } from '../../l2/accountRegistry.js';
 import { readConversationKey } from '../../l2/conversationKey.js';
 import { runLiveSave } from './liveSaveHandler.js';
 import { updateSettings } from '../../application/settings/index.js';
+
+installApplicationHost();
 
 initSessionAccessLevel();
 initLifecycleListeners();
