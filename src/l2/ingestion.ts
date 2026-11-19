@@ -42,6 +42,25 @@ function emitCommittedKeys(keys: readonly ConversationKey[]): void {
     }
 }
 
+/** An input is accepted if its supplied facts survive, or it contributes to the final stored row. */
+function acceptsIndexFacts(
+    incoming: DomainConversationIndex, merged: DomainConversationIndex, previous: DomainConversationIndex | null,
+): boolean {
+    const titleMatches = incoming.title === merged.title && incoming.titleSource === merged.titleSource;
+    let all = incoming.title === undefined || titleMatches;
+    let changed = titleMatches && incoming.title !== undefined
+        && (incoming.title !== previous?.title || incoming.titleSource !== previous?.titleSource);
+    const timestamps = ['createdAt', 'updatedAt', 'activityAt'] satisfies (keyof DomainConversationIndex)[];
+    for (const field of timestamps) {
+        const value = incoming[field];
+        if (value === undefined) continue;
+        const matches = value === merged[field];
+        all &&= matches;
+        changed ||= matches && value !== previous?.[field];
+    }
+    return all || changed;
+}
+
 /** Duplicate source rows merge in input order; Storage reads their current values under one transaction. */
 async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promise<IndexAdmissionResult> {
     const groups = new Map<string, DomainConversationIndex[]>();
@@ -57,15 +76,17 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
     await updateIndexesAtomically(entries.map(group => group[0].key), previous => {
         const changed: DomainConversationIndex[] = [];
         entries.forEach((group, i) => {
-            let merged = previous[i] ? restoreConversationIndex(previous[i]) : undefined;
+            const stored = previous[i];
+            let merged = stored ? restoreConversationIndex(stored) : undefined;
             for (const incoming of group) merged = mergeConversationIndex(merged, incoming);
+            if (!merged) return;
             for (const incoming of group) {
-                if (sameStoredFacts.index(merged, incoming)) changes.accepted++;
+                if (acceptsIndexFacts(incoming, merged, stored)) changes.accepted++;
                 else changes.rejected++;
             }
-            if (merged && !sameStoredFacts.index(merged, previous[i])) {
+            if (!sameStoredFacts.index(merged, stored)) {
                 changed.push(merged);
-                if (previous[i]) changes.updated++;
+                if (stored) changes.updated++;
                 else changes.added++;
             }
         });
