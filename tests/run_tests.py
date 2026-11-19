@@ -374,6 +374,11 @@ def test_scenario_pool_pipeline():
         assert restored_status["count"] == 20
 
     print("  ✓ Scenario pool pipeline, 20-scenario diversity, consume, archive & top-up verified")
+    import subprocess
+    res = subprocess.run([sys.executable, "-m", "unittest", "tests.test_generate_scenario_chats"],
+                         cwd=BASE_DIR, capture_output=True, text=True)
+    assert res.returncode == 0, f"Scenario generator CLI regression checks failed: {res.stderr or res.stdout}"
+    print("  ✓ Scenario generator CLI exit status regression checks passed")
 
 def test_online_scenario_provider_and_lifecycle_tracker():
     import tempfile
