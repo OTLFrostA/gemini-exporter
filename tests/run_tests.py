@@ -311,10 +311,33 @@ def test_custom_dataset_loading():
 
 def test_scenario_pool_pipeline():
     import tempfile
+    import shutil
+    import subprocess
     scripts_dir = os.path.join(BASE_DIR, "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from manage_scenario_pool import validate_pool, consume_scenarios, topup_scenarios
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        isolated_scripts = os.path.join(tmp_dir, "scripts")
+        os.makedirs(isolated_scripts)
+        for name in ["manage_scenario_pool.py", "test_scenario_pool.json"]:
+            shutil.copy2(os.path.join(scripts_dir, name), isolated_scripts)
+        script = os.path.join(isolated_scripts, "manage_scenario_pool.py")
+        corpus = os.path.join(isolated_scripts, "test_scenario_pool.json")
+        with open(corpus, "rb") as f:
+            original_corpus = f.read()
+        for count in [0, -1]:
+            for flags in [[], ["--dry-run"]]:
+                result = subprocess.run(
+                    [sys.executable, script, "consume", "--count", str(count), *flags],
+                    capture_output=True, text=True,
+                )
+                assert result.returncode != 0, f"CLI accepted count={count}: {result.stdout}"
+                assert "--count" in result.stderr and "positive integer" in result.stderr, result.stderr
+                assert not os.path.exists(os.path.join(tmp_dir, "temp")), "Invalid count wrote runtime state"
+                with open(corpus, "rb") as f:
+                    assert f.read() == original_corpus
 
     # Use an isolated corpus: Tier 2 may legitimately leave the real pool below 20/20.
     scenarios = [
@@ -333,6 +356,18 @@ def test_scenario_pool_pipeline():
         archive_path = os.path.join(tmp_dir, "archive.json")
         with open(pool_path, "w", encoding="utf-8") as f:
             json.dump(scenarios, f, ensure_ascii=False)
+
+        for count in [0, -1]:
+            for dry_run in [False, True]:
+                try:
+                    consume_scenarios(pool_path, count=count, archive_path=archive_path, dry_run=dry_run)
+                except ValueError as e:
+                    assert "positive integer" in str(e)
+                else:
+                    raise AssertionError(f"Library accepted count={count}")
+        with open(pool_path, "r", encoding="utf-8") as f:
+            assert json.load(f) == scenarios
+        assert not os.path.exists(archive_path)
 
         # Validate capacity and diversity without reading the real consumed.json.
         ok, errs, status = validate_pool(pool_path, strict_count=True)
@@ -372,6 +407,15 @@ def test_scenario_pool_pipeline():
         ok, errs, restored_status = validate_pool(pool_path, strict_count=True)
         assert ok, f"Restored scenario pool validation failed: {errs}"
         assert restored_status["count"] == 20
+
+        with open(pool_path, "w", encoding="utf-8") as f:
+            json.dump([], f)
+        try:
+            consume_scenarios(pool_path, count=2, archive_path=archive_path)
+        except ValueError as e:
+            assert "数量不足" in str(e)
+        else:
+            raise AssertionError("Empty pool accepted consumption")
 
     print("  ✓ Scenario pool pipeline, 20-scenario diversity, consume, archive & top-up verified")
 
