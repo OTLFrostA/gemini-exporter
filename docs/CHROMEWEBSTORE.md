@@ -1,6 +1,6 @@
 # Chrome Web Store Publication & Permissions Justification
 
-Current Chrome Web Store listing copy and permission rationale. Verify the published wording and the release `manifest.json` before submitting changes.
+Chrome Web Store listing reference and current source permission rationale. Verify the published wording and the release `manifest.json` before submitting changes.
 
 ---
 
@@ -44,6 +44,7 @@ unchecking a choice does not revoke previously granted access.
 | **ChatGPT (experimental)** | `chatgpt.com`, `chat.openai.com`, `images.openai.com` | Identify the signed-in account/workspace and retrieve requested conversations and images. |
 | **Claude (experimental)** | `claude.ai` | Identify the current organization and retrieve requested conversations and attachments. |
 | **Grok (experimental)** | `grok.com`, `assets.grok.com` | Retrieve requested conversations and available attachments using the signed-in Grok tab. |
+| **External images** | `cdn.sanity.io` | Read an image when the user separately authorizes the host from a failed attachment's details. |
 
 Use the release `manifest.json` as the authoritative permission list; temporary
 required permissions used for local staging must never enter a store package.
@@ -53,8 +54,8 @@ required permissions used for local staging must never enter a store package.
 ## 🛡️ Privacy & Compliance Declarations
 
 - **100% Client-Side Execution**: All parsing, image bundling, Markdown generation, and ZIP compression occur purely within the local browser sandbox.
-- **No Remote Telemetry**: Zero analytics, zero third-party tracking, zero external servers.
-- **No Credential Harvesting**: Never reads, stores, or transmits Google account passwords or authentication Cookies.
+- **No Remote Telemetry**: The extension has no analytics or tracking. It contacts authorized source sites to retrieve conversations and attachments. Optional cloud vault sync contacts the user-configured server and sends conversation records only after encrypting them locally.
+- **Existing browser sessions**: Source adapters use the user's existing browser login and do not ask for provider passwords. Vault authentication is separate from provider logins.
 
 ---
 
@@ -63,4 +64,3 @@ required permissions used for local staging must never enter a store package.
 Store listing titles, descriptions and graphics must describe the extension accurately and avoid deceptive affiliation, ranking or endorsement claims:
 - **No misleading status or endorsement**: Avoid unsupported superlatives or official-affiliation claims (such as `#1`, `Best`, `Official`, or `Recommended`). A factual statement about free pricing is not a ranking or endorsement claim; it must remain accurate.
 - **Factual & Feature-Oriented**: Titles and descriptions focus strictly on factual functionality (e.g., `Save All Your Chats`, `Client-Side • Unlimited • Offline`).
-

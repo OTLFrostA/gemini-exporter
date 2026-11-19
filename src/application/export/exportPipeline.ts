@@ -50,7 +50,7 @@ export interface ExportRunOptions {
     onProgress?: (progress: ExportProgress) => void;
     /** A usable body is ready for resource preparation; skipped targets do not count. */
     onConversationPrepared?: (key: ConversationKey) => void;
-    /** A document has reached its destination; browser delivery includes its attachments. */
+    /** The document was written to a folder or included in an initiated browser download. */
     onBodyDelivered?: (key: ConversationKey) => void;
     /** downloaded counts distinct successful resource identities across this task, including refreshes. */
     onResourceProgress?: (progress: { key: ConversationKey; completed: number; total: number; downloaded: number }) => void;

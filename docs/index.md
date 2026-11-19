@@ -7,7 +7,7 @@ permalink: /
 
 **Free, open-source and locally processed exports of your AI conversations.**
 
-Gemini Exporter exports supported Gemini conversations to portable local files. Source builds also include opt-in experimental ChatGPT, Claude and Grok adapters. Markdown, HTML, PDF and JSON are available; DOCX support is documented for the current source implementation.
+Gemini Exporter exports supported Gemini conversations to portable Markdown, HTML, PDF, Word (DOCX) and JSON files. Source builds also include opt-in experimental ChatGPT, Claude and Grok adapters. The optional Encrypted Vault can back up conversation records to a local folder or to a compatible server you configure.
 
 - [View Gemini Exporter on GitHub](https://github.com/OTLFrostA/gemini-exporter)
 - [Extension Privacy Policy](./PRIVACY_POLICY.html)

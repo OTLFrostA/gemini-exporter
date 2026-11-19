@@ -29,15 +29,16 @@ See [Preparing native provider fixtures](../docs/provider-wire-fixtures.md) for 
 ```mermaid
 flowchart TD
     subgraph Tier1 [第一层：CI 自动化极速门禁 Tier 1 - Fast & Headless Gate]
-        T1_A["python3 tests/run_tests.py<br>当前全量 TypeScript/Node 行为单元测试套件"]
-        T1_B["npx playwright test<br>当前全量无头端到端测试"]
-        T1_A --> T1_PASS["CI 门禁通过"]
-        T1_B --> T1_PASS
+        T1_Checks["scoped zero-any + TypeScript 类型检查"]
+        T1_Unit["npm run test:unit<br>全量单元及集成回归"]
+        T1_Build["构建生产 Bundle + test:release-fonts"]
+        T1_Browser["playwright test<br>全量浏览器集成测试"]
+        T1_Checks --> T1_Unit --> T1_Build --> T1_Browser --> T1_PASS["Tier 1 通过"]
     end
 
     subgraph Tier2 [第二层：真实 Chrome 特性驱动 E2E Tier 2 - Live Debug Staging]
         T2_CDP["./scripts/open_test_chrome.sh<br>独立调试 Chrome + CDP 9222 端口"]
-        T2_DAG["DAGRunner 拓扑依赖调度器<br>19 大模块化 Feature 局部容灾解耦"]
+        T2_DAG["DAGRunner 拓扑依赖调度器<br>按模块调度特性及其依赖"]
         T2_Life["完整生命周期闭环<br>安装 -> 向导 -> 会话 -> 基准导出 -> 追加置顶 -> 瞬态删除 -> Takeout 合流 -> 卸载"]
         T2_Asserter["ExportSpecificationAsserter<br>物理解压 ZIP + 字节级严格断言 (零 Storage 篡改后门)"]
         T2_CDP --> T2_DAG --> T2_Life --> T2_Asserter
@@ -63,7 +64,7 @@ flowchart TD
 
 ### 2. 运行命令
 ```bash
-# 执行完整 CI 门禁（scoped zero-any + 类型检查 + 当前全量单测 + 构建打包 + 当前全量无头集成用例）
+# 执行完整 Tier 1 门禁（scoped zero-any、类型检查、回归测试、构建、发布字体检查、Playwright）
 npm test
 
 # 或分别单独执行

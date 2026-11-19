@@ -1,8 +1,9 @@
 # React workbench trial
 
-This branch evaluates React in the Options conversation list and task panel,
-with a separate export-session controller. It is an experiment, not a completed
-migration of the workbench.
+This document records the React trial that introduced React to the Options
+conversation list and task panel, alongside a separate export-session controller.
+Those surfaces are now in the source tree; this was not a migration of the entire
+Workbench. Measurements and validation notes below refer to the trial.
 
 ## Ownership
 
@@ -71,21 +72,10 @@ substantial reduction in line count.
 
 ## Try it
 
-Run `npm ci` and `npm run build` in this worktree. Load this directory as an
-unpacked extension in a separate test Chrome profile, then open its Options.
-The shipping manifest is unchanged.
-
-The session's `temp/react-preview/` contains a standalone interactive mock
-preview and screenshot. Its banner identifies example data and simulated sync,
-export and permissions. Serve it with:
-
-```sh
-python3 -m http.server 4178 --bind 127.0.0.1 --directory temp/react-preview
-```
-
-The preview is local test evidence, ignored by Git and excluded from release.
-Real extension behavior is covered separately by the existing Tier 1 browser
-suite. No live-account Tier 2 or pure-visual Tier 3 acceptance is claimed.
+Run `npm ci` and `npm run build` in your checkout. Load it as an unpacked
+extension in a separate test Chrome profile, then open its Options page.
+The trial's standalone mock preview was local test evidence, not a checked-in
+artifact. Use the Tier 1 browser suite for current regression coverage.
 
 ## Phase 2: task and export-session boundaries
 
