@@ -49,8 +49,8 @@ test('Markdown preserves independently known creation/update facts and omits unk
 });
 
 test('L2 admission protects the L3b Unix-ms contract from fractional and unsafe source times', () => {
-    for (const value of [0.5, Number.MAX_SAFE_INTEGER + 1, Infinity, NaN]) {
-        for (const field of ['createdAt', 'updatedAt']) {
+    for (const value of [0.5, Number.MAX_SAFE_INTEGER + 1, Infinity, NaN, 8640000000000001, -8640000000000001]) {
+        for (const field of ['createdAt', 'updatedAt', 'activityAt']) {
             assert.throws(() => validateParserDomain({ ...base(), index: { ...base().index, [field]: value } }), TypeError);
         }
         assert.throws(() => validateParserDomain({ ...base(), detail: { ...base().detail,
@@ -64,4 +64,15 @@ test('L2 admission protects the L3b Unix-ms contract from fractional and unsafe 
         detail: { ...base().detail, messages: [{ role: 'assistant', timestamp: 0, content: [] }] } });
     const document = require('../src/l3b/compose/composeDomainDocument.js').composeDomainDocument(admitted, fixtureAccountFor(admitted));
     assert.equal(document.metadata.createdAt, 0); assert.equal(document.messages[0].timestamp, 0);
+});
+
+test('L2 admits both inclusive Date boundaries', () => {
+    for (const value of [-8640000000000000, 8640000000000000]) {
+        const domain = { index: { ...base().index, createdAt: value, updatedAt: value, activityAt: value },
+            detail: { ...base().detail, savedAt: value,
+                messages: [{ role: 'assistant' as const, timestamp: value, content: [] }],
+                assets: [{ id: 'image', kind: 'image' as const, generation: { time: value } }] } };
+        assert.deepEqual(validateParserDomain(domain), domain);
+        assert.deepEqual(restoreDomainSnapshot(domain), domain);
+    }
 });
