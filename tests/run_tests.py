@@ -602,12 +602,13 @@ def test_impact_analyzer_suite():
 def run_python_unit_tests(test_files):
     import subprocess
 
+    # Use qualified test module names while keeping sibling imports available.
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, (TESTS_DIR, env.get("PYTHONPATH"))))
     for test_file in test_files:
         rel = os.path.relpath(test_file, BASE_DIR)
         result = subprocess.run(
-            [sys.executable, "-m", "unittest", "discover",
-             "-s", os.path.dirname(rel), "-p", os.path.basename(rel)],
-            cwd=BASE_DIR,
+            [sys.executable, "-m", "unittest", rel], cwd=BASE_DIR, env=env,
         )
         if result.returncode:
             sys.exit(result.returncode)

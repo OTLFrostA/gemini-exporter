@@ -42,6 +42,13 @@ class RunTestsFilterTests(unittest.TestCase):
         self.assertIn("Unit test suite passed: tests/test_tier2_platforms.py", output)
         self.assertIn("Unit test suite passed: tests/platform_permissions.test.ts", output)
 
+    def test_runs_a_python_suite_named_like_the_module_it_tests(self):
+        result = self.run_filter("impact_analyzer")
+        self.assert_passed(result)
+        self.assertIn("Unit test suite passed: tests/test_impact_analyzer.py",
+                      result.stdout.replace("\\", "/"))
+        self.assertRegex(result.stderr, r"Ran [1-9]\d* tests?")
+
     def test_runs_matching_languages_without_running_the_migration_twice(self):
         result = self.run_filter("upgrade")
         self.assert_passed(result)
