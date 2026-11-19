@@ -100,8 +100,8 @@ test('TabAction marks supported platform tabs active and unrelated tabs inactive
         listeners.updated(0, { url: 'https://other.example/path' }, {});
         listeners.activated({ tabId: 10 });
 
-        const color = { 16: 'icons/icon16.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' };
-        const gray = { 16: 'icons/icon16_gray.png', 48: 'icons/icon48_gray.png', 128: 'icons/icon128_gray.png' };
+        const color = { 16: '/icons/icon16.png', 48: '/icons/icon48.png', 128: '/icons/icon128.png' };
+        const gray = { 16: '/icons/icon16_gray.png', 48: '/icons/icon48_gray.png', 128: '/icons/icon128_gray.png' };
         assert.deepEqual(icons, [
             { tabId: 0, path: color }, // Initial active-tab query must accept ID zero.
             { tabId: 7, path: color },

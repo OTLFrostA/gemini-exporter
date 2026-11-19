@@ -1,15 +1,15 @@
 import { platformForPageUrl } from '../../shared/platformHosts.js';
 
 const ACTION_COLOR_ICONS: Record<number, string> = {
-    16: 'icons/icon16.png',
-    48: 'icons/icon48.png',
-    128: 'icons/icon128.png'
+    16: '/icons/icon16.png',
+    48: '/icons/icon48.png',
+    128: '/icons/icon128.png'
 };
 
 const ACTION_GRAY_ICONS: Record<number, string> = {
-    16: 'icons/icon16_gray.png',
-    48: 'icons/icon48_gray.png',
-    128: 'icons/icon128_gray.png'
+    16: '/icons/icon16_gray.png',
+    48: '/icons/icon48_gray.png',
+    128: '/icons/icon128_gray.png'
 };
 
 function updateTabActionState(tabId?: number | null, url?: string | null): void {

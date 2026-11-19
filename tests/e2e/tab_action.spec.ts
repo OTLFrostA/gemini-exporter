@@ -20,10 +20,24 @@ test('toolbar action follows supported platform tab navigations', async () => {
         });
         try {
             const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+            await worker.evaluate(() => {
+                const results: { tabId?: number | null; error: string | null }[] = [];
+                Reflect.set(globalThis, 'tabActionIconResults', results);
+                const setIcon = chrome.action.setIcon.bind(chrome.action);
+                Object.defineProperty(chrome.action, 'setIcon', {
+                    value: (details: Parameters<typeof chrome.action.setIcon>[0]) => setIcon(details).then(() => {
+                        results.push({ tabId: details.tabId, error: null });
+                    }, error => {
+                        results.push({ tabId: details.tabId, error: String(error) });
+                        throw error;
+                    }),
+                });
+            });
             const page = await context.newPage();
             let tabId: number | undefined;
             await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Toolbar test</title><main>Stub platform page</main>' }));
             for (const url of ['https://gemini.google.com/app', 'https://chatgpt.com/c/fixture', 'https://chat.openai.com/', 'https://claude.ai/chat/fixture', 'https://grok.com/c/fixture', 'https://example.com/']) {
+                await worker.evaluate(() => { Reflect.get(globalThis, 'tabActionIconResults').length = 0; });
                 await page.goto(url);
                 tabId ??= await worker.evaluate(async () => {
                     const [tab] = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
@@ -33,7 +47,15 @@ test('toolbar action follows supported platform tab navigations', async () => {
                     ? 'Gemini Exporter (未激活 - 当前非支持的平台页面)' : 'Gemini Exporter (Active)';
                 const title = () => worker.evaluate(id => chrome.action.getTitle({ tabId: id }), tabId);
                 await expect.poll(title).toBe(expected);
+                const iconResults = () => worker.evaluate(id => {
+                    const results = Reflect.get(globalThis, 'tabActionIconResults') as { tabId?: number | null; error: string | null }[];
+                    return results.filter(result => result.tabId === id);
+                }, tabId);
+                await expect.poll(iconResults).not.toEqual([]);
+                expect((await iconResults()).map(result => result.error), url).toEqual(expect.arrayContaining([null]));
+                expect((await iconResults()).every(result => result.error === null), url).toBe(true);
                 console.log(`${url} -> ${await title()}`);
+                console.log(`setIcon resolved without rejection for ${url}`);
             }
         } finally { await context.close(); }
     } finally { fs.rmSync(staged, { recursive: true, force: true }); }
