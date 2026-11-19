@@ -690,9 +690,15 @@ export async function initWorkbench(): Promise<void> {
         state.filter = control('select', 'chatFilterSelect').value; renderConversations();
     });
     control('button', 'btnShowHiddenSelection').addEventListener('click', () => {
-        state.search = ''; control('input', 'chatSearchInput').value = '';
+        if (isBusy()) return;
+        const search = control('input', 'chatSearchInput');
+        const filter = control('select', 'chatFilterSelect');
+        state.search = '';
+        state.filter = 'all';
+        search.value = state.search;
+        filter.value = state.filter;
         renderConversations();
-        control('input', 'chatSearchInput').focus();
+        search.focus();
     });
     control('button', 'btnDeselectHidden').addEventListener('click', () => {
         if (isBusy()) return;

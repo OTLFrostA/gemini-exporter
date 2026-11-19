@@ -4,6 +4,31 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
+
+test('Show reveals a selected conversation hidden by both search and export status', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [
+        { id: 'orchard', title: 'Orchard planning' },
+        { id: 'ocean', title: 'Ocean research' },
+    ], { ocean: { format: 'markdown', exportedAt: 100, status: 'ok' } });
+    const ocean = page.locator('[data-chat-id="ocean"] input');
+    await ocean.check();
+
+    const search = page.locator('#chatSearchInput');
+    const status = page.locator('#chatFilterSelect');
+    await status.selectOption('no_record');
+    await search.fill('Orchard');
+    await expect(ocean).toBeHidden();
+    await expect(page.locator('#hiddenSelectionNotice')).toContainText('1 selected conversation hidden by search');
+
+    await page.locator('#btnShowHiddenSelection').click();
+    await expect(ocean).toBeChecked();
+    await expect(search).toHaveValue('');
+    await expect(status).toHaveValue('all');
+    await expect(page.locator('#hiddenSelectionNotice')).toBeHidden();
+});
+
 test('search preserves selection, explains hidden items and exports the full selection', async ({ context, extensionId }, testInfo) => {
     await seedRegistryAccounts(context);
     const page = await openOptions(context, extensionId);
