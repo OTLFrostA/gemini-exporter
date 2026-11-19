@@ -12,7 +12,7 @@ const htmlEntity = (char: string): string => htmlEntities[char] ?? char;
 
 function escapeText(text: string): string {
     return text.replace(/\\/g, '\\\\').replace(/[&<>]/g, htmlEntity)
-        .replace(/([`*_\[\]#~$])/g, '\\$1').replace(/^([ \t]*)(?=-+[ \t]*$|=+[ \t]*$)/gm, '$1\\')
+        .replace(/([`*_\[\]#~$])/g, '\\$1').replace(/^( {0,3})(?=-+[ \t]*$|=+[ \t]*$)/gm, '$1\\')
         .replace(/^(\s*)([-+] |\d+[.)] )/gm, (_, space: string, marker: string) => space + marker.replace(/[-+.)]/, '\\$&'));
 }
 
