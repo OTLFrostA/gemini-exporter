@@ -13,7 +13,7 @@ import GeminiClientCredentialManager, {
     resolveCred
 } from "./api/credentialManager.js";
 import GeminiClientRetryPolicy from "./api/retryPolicy.js";
-import GeminiClientRpcClient, {
+import {
     postBatchexecute,
     getApiUrl
 } from "./api/rpcClient.js";
@@ -40,7 +40,6 @@ interface GeminiAPIClientOptions {
 
 const credentialManager = GeminiClientCredentialManager;
 const retryPolicy = GeminiClientRetryPolicy;
-const rpcClient = GeminiClientRpcClient;
 const pagination = GeminiClientPagination;
 
     class GeminiAPIClient {
