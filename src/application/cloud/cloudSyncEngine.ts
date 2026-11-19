@@ -16,12 +16,14 @@ import { subscribeCommittedKeys } from '../../l2/ingestion.js';
 import { readConversation } from '../../l2/readConversation.js';
 import { getAccount, listAccounts, getDetail, getIndex, listIndexes } from '../../l3a/storageService.js';
 import {
+    activateVaultKeyring,
     clearCloudSyncSession,
     clearSyncedCloudRecordsForOwner,
     countCloudOutbox,
     countOversizedCloudRecords,
     enqueueCloudOutboxKeys,
     getCloudSyncSession,
+    getInitializedVaultKeyring,
     getStoredLocalVaultHandle,
     getSyncedCloudRecord,
     getSyncedCloudRecordByBlindId,
@@ -36,13 +38,9 @@ import {
     type CloudSyncSessionState,
     type CloudSyncedRecordState,
     type CloudVaultBackendType,
-} from '../../l3a/vaultStorageService.js';
-import type { DirectoryHandle } from '../../shared/types/directoryHandle.js';
-import {
-    activateVaultKeyring,
-    getInitializedVaultKeyring,
     type VaultKeyProvisionOrigin,
 } from '../../l3a/vaultStorageService.js';
+import type { DirectoryHandle } from '../../shared/types/directoryHandle.js';
 import {
     createCloudVaultClient,
     normalizeCloudServerUrl,
