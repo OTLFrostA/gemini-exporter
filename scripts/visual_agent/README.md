@@ -70,8 +70,10 @@ Use `click --wait-download --timeout 60` on the actual export button. It keeps r
 and waits for a newly written, nonempty, stable supported export file, without `.crdownload`.
 A single conversation without delivered attachments can produce `.md`, `.json`, `.html`, or
 `.pdf` directly; a ZIP is not always expected. ZIP candidates must also be valid archives.
-`wait-on --condition download_complete --min-mtime <timestamp>` supports either form;
-`zip_downloaded` remains a ZIP-only compatibility alias.
+`wait-on --condition download_complete` (also `export_complete`) ignores files whose
+modification time predates the wait. If the export may finish before a separate
+`wait-on` call, pass `--min-mtime <unix-timestamp>` captured just before triggering the
+export. `zip_downloaded` uses the same cutoff but only accepts ZIPs.
 
 ```bash
 python3 scripts/visual_agent/cli.py evaluate-export --file '/path/to/conversation.md' --min 1

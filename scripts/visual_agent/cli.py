@@ -60,12 +60,12 @@ def parse_args(argv=None):
 
     # 5. wait-on
     p_wait = subparsers.add_parser("wait-on", help="Deterministic blocking wait", parents=[common_parser])
-    p_wait.add_argument("--condition", type=str, required=True, help="Condition to await: stream_settled, download_complete, zip_downloaded, ui_idle, dom_pruned")
+    p_wait.add_argument("--condition", type=str, required=True, help="Condition to await: stream_settled, download_complete, export_complete, zip_downloaded, ui_idle, dom_pruned")
     p_wait.add_argument("--timeout", type=int, default=120, help="Timeout in seconds")
     p_wait.add_argument("--chat-id", type=str, default="", help="Chat ID for dom_pruned condition")
     p_wait.add_argument("--download-dir", type=str, default=None, help="Directory containing this test's downloaded export")
     p_wait.add_argument("--pattern", type=str, default=None, help="Optional downloaded filename pattern")
-    p_wait.add_argument("--min-mtime", type=float, default=0.0, help="Min mtime for download completion")
+    p_wait.add_argument("--min-mtime", type=float, help="Minimum download modification time as a Unix timestamp (default: when the wait starts)")
 
     # 6. switch-page
     p_switch = subparsers.add_parser("switch-page", help="Switch active page / tab silently in background", parents=[common_parser])
@@ -189,7 +189,7 @@ def main():
             extra["pattern"] = args.pattern
             if args.download_dir:
                 extra["download_dir"] = args.download_dir
-            if args.min_mtime:
+            if args.min_mtime is not None:
                 extra["min_mtime"] = args.min_mtime
             w_res = playground.wait_on(args.condition, timeout=args.timeout, **extra)
             res = {

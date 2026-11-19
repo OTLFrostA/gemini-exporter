@@ -551,11 +551,12 @@ class VisualPlayground:
             download_dir = kwargs.get("download_dir") or self.output_dir
             expected_pattern = kwargs.get("pattern") or ("*.zip" if cond == "zip_downloaded" else "*")
             previous = {}
-            min_mtime = kwargs.get("min_mtime", 0.0)
-            start_wait = time.time()
+            min_mtime = kwargs.get("min_mtime")
+            if min_mtime is None:
+                min_mtime = t0
 
             found_file = None
-            while time.time() - start_wait < timeout:
+            while time.time() - t0 < timeout:
                 time.sleep(0.8)
                 if os.path.isdir(download_dir):
                     matches = sorted(glob.glob(os.path.join(download_dir, expected_pattern)), key=os.path.getmtime, reverse=True)

@@ -15,6 +15,8 @@ import zlib
 import json
 import zipfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from unittest.mock import patch, MagicMock
 from typing import Dict, Any, List, Optional
 
@@ -160,10 +162,46 @@ class TestVisualSandbox(unittest.TestCase):
         with open(fake_zip, "wb") as f:
             f.write(b"PK\x05\x06" + b"\x00" * 18)  # 最小空 zip 标头
 
-        res = self.sandbox.wait_on("zip_downloaded", timeout=2, download_dir=self.temp_dir)
+        res = self.sandbox.wait_on("zip_downloaded", timeout=2, min_mtime=os.path.getmtime(fake_zip))
         self.assertTrue(res.success)
         self.assertIn("gemini_export_2026.zip", res.message)
         self.assertEqual(res.data["file_path"], fake_zip)
+
+    def _run_cli_export_wait(self, *args):
+        from scripts.visual_agent.cli import main
+
+        self.mock_cdp.close = MagicMock()
+        argv = ["cli.py", "wait-on", "--condition", "export_complete", "--timeout", "2", "--json", *args]
+        output = StringIO()
+        with patch("scripts.visual_agent.cli.open_visual_playground", return_value=self.sandbox), \
+                patch.object(sys, "argv", argv), redirect_stdout(output):
+            main_exit = 0
+            try:
+                main()
+            except SystemExit as error:
+                main_exit = error.code
+        return main_exit, json.loads(output.getvalue())
+
+    def test_cli_export_wait_rejects_preexisting_audit_report(self):
+        report = os.path.join(self.temp_dir, "previous-audit.md")
+        with open(report, "w", encoding="utf-8") as f:
+            f.write("# Previous audit report")
+
+        main_exit, result = self._run_cli_export_wait()
+        self.assertFalse(result["success"], result)
+        self.assertEqual(result["data"], {})
+        self.assertEqual(main_exit, 2)
+
+    def test_cli_export_wait_accepts_download_since_explicit_cutoff(self):
+        path = os.path.join(self.temp_dir, "conversation.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("# Exported conversation")
+        os.utime(path, (2, 2))
+
+        main_exit, result = self._run_cli_export_wait("--min-mtime", "1")
+        self.assertTrue(result["success"], result)
+        self.assertEqual(result["data"]["file_path"], path)
+        self.assertEqual(main_exit, 0)
 
     def test_zip_wait_accepts_current_names_and_rejects_old_or_unfinished_files(self):
         path = os.path.join(self.temp_dir, "Vector Clocks_12bb04.zip")
@@ -176,7 +214,7 @@ class TestVisualSandbox(unittest.TestCase):
             os.utime(path, None)
             with open(path + ".crdownload", "wb") as f:
                 f.write(b"unfinished")
-            pending = self.sandbox.wait_on("zip_downloaded", timeout=1)
+            pending = self.sandbox.wait_on("zip_downloaded", timeout=2, min_mtime=1)
             self.assertFalse(pending.success)
             os.remove(path + ".crdownload")
             ready = self.sandbox.wait_on("zip_downloaded", timeout=2, min_mtime=1)
