@@ -1,6 +1,7 @@
 import { installApplicationHost } from '../../runtime/api/applicationHost.js';
 
 import { listIndexes } from '../../application/conversations/catalogQueries.js';
+import { installProviderHost } from '../../runtime/api/providerHost.js';
 import { OperationError } from '../../shared/errors/operationError.js';
 import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { createBackoffNotice } from '../shared/backoffNotice.js';
@@ -42,6 +43,7 @@ import { mountTaskPanel } from './views/taskPanelView.js';
 import { mountCloudVaultPanel, type CloudVaultControllerHandle } from './controllers/cloudVaultController.js';
 
 installApplicationHost();
+installProviderHost();
 
 type Level = 'info' | 'warn' | 'error';
 type Action = 'export' | 'takeout' | 'cleanup';

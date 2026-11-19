@@ -15,6 +15,7 @@ function load(file: string, stubs: Record<string, unknown> = {}) {
     const original = Module._load;
     const ports = { 'src/l2/accountRegistry.js': mockAccountRegistry([A, B]),
         'src/runtime/api/applicationHost.js': { installApplicationHost() {} },
+        'src/runtime/api/providerHost.js': { installProviderHost() {} },
         'src/l1/client/platformAccess.js': { hasPlatformAccess: async () => true },
         'src/runtime/capabilities/platformInjection.js': { syncAllPlatformContentScripts: async () => [] },
         'src/application/cloud/cloudSyncEngine.js': {
