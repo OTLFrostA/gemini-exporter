@@ -239,12 +239,23 @@ export function getCloudSyncSession(): Promise<CloudSyncSessionState | null> {
     });
 }
 
-export function putCloudSyncSession(session: CloudSyncSessionState, resetSyncState = false): Promise<void> {
-    const stores: CloudStoreName[] = resetSyncState ? ['session', 'syncedRecords', 'outbox'] : ['session'];
-    return inCloudStores(stores, 'readwrite', (tx, done) => {
+export function putCloudSyncSession(session: CloudSyncSessionState): Promise<void> {
+    return inCloudStores(['session'], 'readwrite', (tx, done) => {
         tx.objectStore('session').put(session);
+        done(undefined);
+    });
+}
+
+export function putLocalVaultTarget(
+    session: CloudSyncSessionState,
+    handle: DirectoryHandle,
+    resetSyncState: boolean,
+): Promise<void> {
+    return inCloudStores(['session', 'vaultHandles', 'syncedRecords', 'outbox'], 'readwrite', (tx, done) => {
+        tx.objectStore('session').put(session);
+        tx.objectStore('vaultHandles').put(handle, 'local-vault');
         if (resetSyncState) {
-            tx.objectStore('syncedRecords').clear();
+            tx.objectStore('syncedRecords').delete(IDBKeyRange.bound([session.ownerSubject], [session.ownerSubject, []]));
             tx.objectStore('outbox').clear();
         }
         done(undefined);

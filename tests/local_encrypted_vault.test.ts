@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OperationError } from '../src/shared/errors/operationError.js';
-import type { DirectoryHandle } from '../src/shared/types/directoryHandle.js';
+import { IDBObjectStore } from 'fake-indexeddb';
 import { createLocalFolderVaultClient, LOCAL_VAULT_OWNER_SUBJECT } from '../src/l1/cloud/localFolderVaultClient.js';
 import { createCloudSyncEngine } from '../src/application/cloud/cloudSyncEngine.js';
 import { openCloudConversation } from '../src/application/cloud/cloudArchiveCodec.js';
@@ -15,105 +15,10 @@ import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { clearLocalScanRecords } from '../src/application/localCleanup.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import { createMockCloudVaultHttp } from './helpers/mockCloudVaultHttp.js';
-import { getStoredLocalVaultHandle } from '../src/l3a/cloudSyncStore.js';
+import { getCloudSyncSession, getStoredLocalVaultHandle, getSyncedCloudRecord, putSyncedCloudRecord, enqueueCloudOutboxKeys, countCloudOutbox } from '../src/l3a/cloudSyncStore.js';
+import { pickVaultDirectoryHandle } from '../src/runtime/capabilities/vaultFolderAuth.js';
+import { createMemoryDirectoryHandle } from './helpers/memoryVaultDirectory.js';
 
-interface MemoryDirNode {
-    handle: DirectoryHandle;
-    files: Map<string, Uint8Array<ArrayBuffer>>;
-    subdirs: Map<string, MemoryDirNode>;
-}
-
-function createMemoryDirectoryHandle(name = 'MockEncryptedFolder', initialPerm: PermissionState = 'granted') {
-    let permission: PermissionState = initialPerm;
-    const files = new Map<string, Uint8Array<ArrayBuffer>>();
-    const subdirs = new Map<string, MemoryDirNode>();
-
-    function makeFileHandle(fileName: string, store: Map<string, Uint8Array<ArrayBuffer>>): FileSystemFileHandle {
-        return {
-            kind: 'file',
-            name: fileName,
-            isSameEntry: async () => false,
-            async getFile() {
-                const bytes = store.get(fileName);
-                if (!bytes) {
-                    const err = new Error(`File not found: ${fileName}`);
-                    err.name = 'NotFoundError';
-                    throw err;
-                }
-                return new File([bytes], fileName);
-            },
-            async createWritable() {
-                let staged = new Uint8Array(0);
-                return {
-                    async write(data: BufferSource | Blob | string) {
-                        if (data instanceof Uint8Array) {
-                            const copy = new Uint8Array(data.byteLength);
-                            copy.set(data);
-                            staged = copy;
-                        } else if (typeof data === 'string') {
-                            staged = new Uint8Array(new TextEncoder().encode(data));
-                        }
-                    },
-                    async close() {
-                        store.set(fileName, staged);
-                    },
-                    async abort() {},
-                    async seek() {},
-                    async truncate() {},
-                } as unknown as FileSystemWritableFileStream;
-            },
-        } as FileSystemFileHandle;
-    }
-
-    function makeDir(dirName: string, fileMap: Map<string, Uint8Array<ArrayBuffer>>, dirMap: Map<string, MemoryDirNode>): MemoryDirNode {
-        const proto = {
-            isSameEntry: async (other: FileSystemHandle) => Object.is(other, handle),
-            queryPermission: async () => permission,
-            requestPermission: async () => permission,
-            async getFileHandle(fileName: string, options?: FileSystemGetFileOptions) {
-                if (!options?.create && !fileMap.has(fileName)) {
-                    const err = new Error(`File not found: ${fileName}`);
-                    err.name = 'NotFoundError';
-                    throw err;
-                }
-                if (options?.create && !fileMap.has(fileName)) {
-                    fileMap.set(fileName, new Uint8Array(0));
-                }
-                return makeFileHandle(fileName, fileMap);
-            },
-            async getDirectoryHandle(childName: string, options?: FileSystemGetDirectoryOptions) {
-                let child = dirMap.get(childName);
-                if (!child) {
-                    if (!options?.create) {
-                        const err = new Error(`Directory not found: ${childName}`);
-                        err.name = 'NotFoundError';
-                        throw err;
-                    }
-                    child = makeDir(childName, new Map(), new Map());
-                    dirMap.set(childName, child);
-                }
-                return child.handle;
-            },
-            async removeEntry(entryName: string) {
-                fileMap.delete(entryName);
-                dirMap.delete(entryName);
-            },
-        };
-        const handle = Object.assign(Object.create(proto) as Record<string, unknown>, {
-            kind: 'directory' as const,
-            name: dirName,
-        });
-        return { handle: handle as unknown as DirectoryHandle, files: fileMap, subdirs: dirMap };
-    }
-
-    const root = makeDir(name, files, subdirs);
-    return {
-        handle: root.handle,
-        files,
-        subdirs,
-        setPermission(next: PermissionState) { permission = next; },
-    };
-}
 
 test('vault target switch resync: local-folder', async () => {
     const env = indexStorage();
@@ -146,10 +51,7 @@ test('vault target switch resync: local-folder', async () => {
 
 test('vault target switch resync: shared folder identity overrides another engine cached handle', async () => {
     const env = indexStorage();
-    const clone = globalThis.structuredClone;
     const folders = [createMemoryDirectoryHandle('Vault'), createMemoryDirectoryHandle('Vault')];
-    globalThis.structuredClone = (value, options) => folders.some(folder => Object.is(folder.handle, value))
-        ? value : clone(value, options);
     try {
         await env.ready;
         const first = createCloudSyncEngine();
@@ -170,10 +72,74 @@ test('vault target switch resync: shared folder identity overrides another engin
         await first.connectLocalFolderVault(folders[0].handle);
         assert.equal((await first.syncNow()).push.uploaded, 0);
     } finally {
-        globalThis.structuredClone = clone;
         env.restore();
     }
 });
+
+for (const scenario of ['picker', 'shared-writer', 'atomic-switch', 'other-owner'] as const) {
+    test(`round3 local vault: ${scenario}`, async () => {
+        const env = indexStorage();
+        const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+        const folders = [createMemoryDirectoryHandle('A'), createMemoryDirectoryHandle('B')];
+        let picked = folders[0].handle;
+        Object.defineProperty(globalThis, 'window', { configurable: true, value: { showDirectoryPicker: async () => picked } });
+        try {
+            await env.ready;
+            const first = createCloudSyncEngine();
+            const second = createCloudSyncEngine();
+            await createVaultKeySetup(first.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
+            await first.connectLocalFolderVault(scenario === 'picker' ? await pickVaultDirectoryHandle() : picked);
+            const account = await getOrCreateAccount('gemini', 'round3');
+            const key = { accountId: account.id, conversationId: 'existing' };
+            await ingestIndexes(account.id, [{ conversationId: key.conversationId, fields: { title: 'Existing', titleSource: 'provider', updatedAt: 1000 } }]);
+            await first.setAutoSyncEnabled(true);
+            await first.waitForIdle();
+            assert.equal(folders[0].subdirs.get('records')?.files.size, 1);
+            if (scenario === 'picker') {
+                picked = folders[1].handle;
+                await first.connectLocalFolderVault(await pickVaultDirectoryHandle());
+                assert.equal((await first.syncNow()).push.uploaded, 1, 'picker must not overwrite the previous target before connection');
+                assert.equal(folders[1].subdirs.get('records')?.files.size, 1);
+            } else if (scenario === 'shared-writer') {
+                await second.connectLocalFolderVault(folders[1].handle);
+                await second.syncNow();
+                await ingestIndexes(account.id, [{ conversationId: 'new', fields: { title: 'New', titleSource: 'provider', updatedAt: 2000 } }]);
+                await first.syncNow();
+                assert.equal(folders[1].subdirs.get('records')?.files.size, 2, 'background engine must write to shared target B');
+                assert.equal(folders[0].subdirs.get('records')?.files.size, 1, 'old target A must stay unchanged');
+                folders[1].setPermission('prompt');
+                assert.equal((await first.getStatusSnapshot()).folderPermissionRequired, true);
+            } else if (scenario === 'atomic-switch') {
+                const session = await getCloudSyncSession();
+                const ledger = await getSyncedCloudRecord(LOCAL_VAULT_OWNER_SUBJECT, key);
+                await enqueueCloudOutboxKeys([key]);
+                const put = IDBObjectStore.prototype.put;
+                IDBObjectStore.prototype.put = function(value: unknown, key?: IDBValidKey) {
+                    if (this.name === 'vaultHandles') throw new Error('injected handle write failure');
+                    return arguments.length === 1 ? put.call(this, value) : put.call(this, value, key);
+                };
+                try {
+                    await assert.rejects(first.connectLocalFolderVault(folders[1].handle), /injected handle write failure/);
+                } finally {
+                    IDBObjectStore.prototype.put = put;
+                }
+                assert.deepEqual(await getCloudSyncSession(), session, 'failed switch must preserve the old session');
+                assert.equal(await getStoredLocalVaultHandle(), folders[0].handle);
+                assert.deepEqual(await getSyncedCloudRecord(LOCAL_VAULT_OWNER_SUBJECT, key), ledger);
+                assert.equal((await countCloudOutbox()).total, 1);
+            } else {
+                const other = { ownerSubject: 'cloud:other', accountId: key.accountId, conversationId: 'other', blindRecordId: 'b'.repeat(64), remoteRevision: 1, payloadSha256: 'c'.repeat(64), syncedAt: 1000 };
+                await putSyncedCloudRecord(other);
+                await first.connectLocalFolderVault(folders[1].handle);
+                assert.deepEqual(await getSyncedCloudRecord(other.ownerSubject, { accountId: other.accountId, conversationId: other.conversationId }), other, 'local switch must preserve another owner ledger');
+            }
+        } finally {
+            if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow);
+            else Reflect.deleteProperty(globalThis, 'window');
+            env.restore();
+        }
+    });
+}
 
 test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-rot via SHA-256, and queues cleanly when directory permission reverts to prompt', async () => {
     const env = indexStorage();
