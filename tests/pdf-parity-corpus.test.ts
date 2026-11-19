@@ -3,7 +3,9 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
@@ -41,6 +43,17 @@ test('parity corpus: every fixture is a closed JSON display tree', () => {
 
 test('parity corpus: long-conversation fixture really carries 121 messages', () => {
     assert.equal(loadFixture('long-conversation-121.json').document.messages.length, 121);
+});
+
+test('parity corpus: long-conversation generator reproduces the committed fixture', () => {
+    const output = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-long-'));
+    try {
+        const generated = path.join(output, 'long-conversation-121.json');
+        const result = spawnSync('python3', [path.join(corpusDir, 'generate_long_conversation.py'), '--messages', '121', '--out', generated], { encoding: 'utf8' });
+        assert.equal(result.status, 0, result.stdout + result.stderr);
+        assertDocumentAst(JSON.parse(fs.readFileSync(generated, 'utf8')).document, 'generated long-conversation-121.json');
+        assert.equal(fs.readFileSync(generated, 'utf8'), fs.readFileSync(path.join(corpusDir, 'long-conversation-121.json'), 'utf8'));
+    } finally { fs.rmSync(output, { recursive: true, force: true }); }
 });
 
 // ---------------------------------------------------------------------------
