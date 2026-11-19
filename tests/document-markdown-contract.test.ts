@@ -15,6 +15,17 @@ function domainFixture(blocks: any[], extra: any = {}): DomainConversationWithDe
 }
 const render = (blocks: any[], extra: any = {}) => renderDocumentMarkdown(composeDomainDocument(domainFixture(blocks, extra), fixtureAccountFor(domainFixture(blocks, extra))), extra.resources ?? {});
 
+test('Markdown literal text escapes thematic breaks and setext underlines without changing structural rules', () => {
+    for (const [source, escaped] of [['---', '\\---'], ['***', '\\*\\*\\*'], ['___', '\\_\\_\\_'], ['- - -', '\\- - -'], ['===', '\\==='], ['--', '\\--'], ['  ---  ', '  \\---  ']]) {
+        const b = domainFixture([para(`Text above\n${source}`), { type: 'thematicBreak' }]);
+        b.detail.messages[0].role = 'user';
+        const md = exportDomainMarkdown(b, fixtureAccountFor(b));
+        assert.ok(md.includes(`Text above\n${escaped}`), JSON.stringify(source));
+        assert.ok(md.endsWith('---\n'), 'structural thematic breaks remain Markdown');
+    }
+    assert.ok(render([para(''), para('ordinary a-b = c')]).includes('ordinary a-b = c'));
+});
+
 test('Markdown code serialization preserves existing final newlines without adding a blank line', () => {
     for (const source of ['run()', 'run()\n', 'run()\n\n']) {
         const expected = '```python\n' + source + (source.endsWith('\n') ? '' : '\n') + '```';
