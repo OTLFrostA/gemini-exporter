@@ -105,6 +105,7 @@ function renderer(owner: string): boolean {
     return /^l4\/format\/(?:html|json|markdown|shared|typst)\//.test(owner);
 }
 function forbidden(owner: string, target: string): boolean {
+    if (owner.startsWith('application/')) return /^(runtime\/|migration\/)/.test(target);
     if (owner === 'shared/diagnostics/diagnostic.ts') return target !== 'shared/utils/jsonTypes.ts';
     if (owner.startsWith('shared/')) return !target.startsWith('shared/');
     if (owner.startsWith('l2/')) {
@@ -152,6 +153,44 @@ test('semantic layers own their files and obey dependency direction, including t
     }
     for (const old of ['core/api/parser/', 'core/content/', 'core/export/document/', 'core/engine/takeout/', 'core/engine/template/', 'core/provider/record/']) {
         assert.ok(![...sources.keys()].some(name => name.startsWith(old)), `obsolete directory still owns code: ${old}`);
+    }
+});
+
+function reachable(owner: string, stopAtL1 = false): Set<string> {
+    const seen = new Set<string>();
+    function walk(current: string): void {
+        if (seen.has(current)) return;
+        seen.add(current);
+        // L1's own Runtime edges are owned by the L1 boundary.
+        if (stopAtL1 && current.startsWith('l1/')) return;
+        for (const edge of graph.get(current) ?? []) if (edge.runtime) walk(edge.target);
+    }
+    walk(owner);
+    return seen;
+}
+
+test('Application runtime-edge chains outside L1 cannot reach Runtime or migration', () => {
+    for (const owner of graph.keys()) {
+        if (!owner.startsWith('application/')) continue;
+        for (const target of reachable(owner, true)) {
+            assert.ok(!/^(runtime\/|migration\/)/.test(target), `${owner} reaches ${target}`);
+        }
+    }
+});
+
+test('bundle entries reaching the Application host install the Runtime adapter', () => {
+    const build = readFileSync(resolve(root, 'build.js'), 'utf8');
+    const entries = build.match(/const BUNDLE_ENTRIES = \{([\s\S]*?)\n\};/)?.[1];
+    assert.ok(entries, 'BUNDLE_ENTRIES must be readable');
+    const paths = [...entries.matchAll(/path\.join\(SRC, ([^)]+)\)/g)].map(match =>
+        [...match[1].matchAll(/'([^']+)'/g)].map(part => part[1]).join('/'));
+    assert.ok(paths.length > 0);
+    for (const entry of paths) {
+        if (!reachable(entry).has('application/host.ts')) continue;
+        assert.ok(graph.get(entry)?.some(edge => edge.runtime && edge.target === 'runtime/api/applicationHost.ts'),
+            `${entry} must import the Runtime host installer`);
+        assert.match(readFileSync(sources.get(entry)!, 'utf8'), /\binstallApplicationHost\(\)/,
+            `${entry} must call the Runtime host installer`);
     }
 });
 
