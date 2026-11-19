@@ -128,7 +128,13 @@ class TestChangedPythonRunner(unittest.TestCase):
             destination.parent.mkdir(exist_ok=True)
             shutil.copyfile(Path(BASE_DIR) / name, destination)
         (self.repo / "build.js").write_text("console.log('fixture build');\n")
-        (self.repo / "tests/test_example.py").write_text("print('PYTHON_SUITE_EXECUTED')\n")
+        (self.repo / "tests/__init__.py").touch()
+        (self.repo / "tests/test_example.py").write_text(
+            "import unittest\n"
+            "class ExampleTest(unittest.TestCase):\n"
+            "    def test_example(self):\n"
+            "        print('PYTHON_SUITE_EXECUTED')\n"
+        )
 
     def run_changed(self, orchestrator=False, files=None):
         entry = "scripts/run_changed_tests.py" if orchestrator else "tests/run_tests.py"
@@ -146,9 +152,15 @@ class TestChangedPythonRunner(unittest.TestCase):
                 result = self.run_changed(orchestrator)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertIn("PYTHON_SUITE_EXECUTED", result.stdout)
+                self.assertIn("Ran 1 test", result.stderr)
 
     def test_changed_python_failure_propagates_through_both_entries(self):
-        (self.repo / "tests/test_example.py").write_text("raise RuntimeError('FORCED_PYTHON_FAILURE')\n")
+        (self.repo / "tests/test_example.py").write_text(
+            "import unittest\n"
+            "class ExampleTest(unittest.TestCase):\n"
+            "    def test_example(self):\n"
+            "        self.fail('FORCED_PYTHON_FAILURE')\n"
+        )
         for orchestrator in (False, True):
             with self.subTest(orchestrator=orchestrator):
                 result = self.run_changed(orchestrator)

@@ -673,14 +673,14 @@ def run_all():
                     test_tier2_platforms_suite()
                     test_dag_subgraph_suite()
                     test_tier2_assertions_suite()
-                if any("impact_analyzer" in f for f in affected):
+                if any("impact_analyzer" in f for f in affected) and "tests/test_impact_analyzer.py" not in result.target_unit_tests:
                     test_impact_analyzer_suite()
 
                 import subprocess
                 python_tests = [f for f in result.target_unit_tests if f.endswith(".py")]
                 for test_file in python_tests:
                     print(f"🧪 Python: {test_file}", flush=True)
-                    res = subprocess.run([sys.executable, os.path.join(BASE_DIR, test_file)], cwd=BASE_DIR)
+                    res = subprocess.run([sys.executable, "-m", "unittest", test_file], cwd=BASE_DIR)
                     if res.returncode != 0:
                         sys.exit(res.returncode)
 
