@@ -259,7 +259,8 @@ def test_content_badge_flicker_prevention():
         css = f.read()
     assert "white-space: nowrap" in css, "Badge must not wrap while its count changes"
     assert "min-width:" in css, "Badge keeps a stable minimum width"
-    assert ".syncing .pulse" in css, "Badge retains its visual sync feedback"
+    assert ".syncing .pulse" not in css, "Badge has no syncing state"
+    assert re.search(r'#geminiExportBadge\.live-save-warning\s+\.pulse\s*\{[^}]*animation:\s*geminiExportPulse', css), "Badge retains its warning animation"
     assert re.search(r'#geminiExportBadge\s+\.pulse\s*\{[^}]*background:\s*#06b6d4', css), "Idle pulse must remain visually stable"
     print("  ✓ V2 Badge visual CSS layout invariants verified")
 
