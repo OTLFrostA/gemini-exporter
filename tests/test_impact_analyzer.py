@@ -274,5 +274,77 @@ class TestImpactAnalyzer(unittest.TestCase):
         self.assertNotIn("./type_quux", matches)
 
 
+class TestChangedPythonRunner(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.repo = Path(self.temp.name)
+        for name in ("tests/run_tests.py", "scripts/test_impact_analyzer.py", "scripts/run_changed_tests.py"):
+            destination = self.repo / name
+            destination.parent.mkdir(exist_ok=True)
+            shutil.copyfile(Path(BASE_DIR) / name, destination)
+        (self.repo / "build.js").write_text("console.log('fixture build');\n")
+        (self.repo / "tests/__init__.py").touch()
+        (self.repo / "tests/sibling_helper.py").write_text("MESSAGE = 'PYTHON_SUITE_EXECUTED'\n")
+        (self.repo / "tests/test_example.py").write_text(
+            "import unittest\n"
+            "from sibling_helper import MESSAGE\n"
+            "class ExampleTest(unittest.TestCase):\n"
+            "    def test_example(self):\n"
+            "        print(MESSAGE)\n"
+        )
+
+    def run_changed(self, orchestrator=False, files=None):
+        entry = "scripts/run_changed_tests.py" if orchestrator else "tests/run_tests.py"
+        args = ["--skip-typecheck", "--skip-e2e"] if orchestrator else ["--changed"]
+        env = dict(os.environ, GEMINI_SKIP_REDUNDANT_TSC="1")
+        return subprocess.run(
+            [sys.executable, str(self.repo / entry), *args, "--files",
+             *(files if files is not None else ["tests/test_example.py"])],
+            cwd=self.repo, env=env, capture_output=True, text=True, timeout=30,
+        )
+
+    def test_changed_python_suite_runs_through_both_entries(self):
+        for orchestrator in (False, True):
+            with self.subTest(orchestrator=orchestrator):
+                result = self.run_changed(orchestrator)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("PYTHON_SUITE_EXECUTED", result.stdout)
+                self.assertIn("Ran 1 test", result.stderr)
+
+    def test_changed_python_failure_propagates_through_both_entries(self):
+        (self.repo / "tests/test_example.py").write_text(
+            "import unittest\n"
+            "class ExampleTest(unittest.TestCase):\n"
+            "    def test_example(self):\n"
+            "        self.fail('FORCED_PYTHON_FAILURE')\n"
+        )
+        for orchestrator in (False, True):
+            with self.subTest(orchestrator=orchestrator):
+                result = self.run_changed(orchestrator)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("FORCED_PYTHON_FAILURE", result.stdout + result.stderr)
+
+    def test_nested_python_suite_can_import_siblings(self):
+        nested = self.repo / "tests/nested"
+        nested.mkdir()
+        (nested / "__init__.py").touch()
+        for filename in ("test_example.py", "sibling_helper.py"):
+            shutil.copyfile(self.repo / "tests" / filename, nested / filename)
+        for orchestrator in (False, True):
+            with self.subTest(orchestrator=orchestrator):
+                result = self.run_changed(orchestrator, files=["tests/nested/test_example.py"])
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("PYTHON_SUITE_EXECUTED", result.stdout)
+                self.assertIn("Ran 1 test", result.stderr)
+
+    def test_docs_and_deleted_python_tests_do_not_run(self):
+        for files in (["README.md"], ["tests/test_deleted.py"]):
+            with self.subTest(files=files):
+                result = self.run_changed(files=files)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn("PYTHON_SUITE_EXECUTED", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

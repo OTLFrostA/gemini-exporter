@@ -801,13 +801,26 @@ def run_all():
                     test_tier2_platforms_suite()
                     test_dag_subgraph_suite()
                     test_tier2_assertions_suite()
-                if any("impact_analyzer" in f for f in affected):
+                if any("impact_analyzer" in f for f in affected) and "tests/test_impact_analyzer.py" not in result.target_unit_tests:
                     test_impact_analyzer_suite()
                 if any("provenance" in f for f in affected):
                     test_provenance_cli_suite()
 
+                import subprocess
+                python_tests = [f for f in result.target_unit_tests if f.endswith(".py")]
+                for test_file in python_tests:
+                    print(f"🧪 Python: {test_file}", flush=True)
+                    test_env = os.environ.copy()
+                    test_dir = os.path.dirname(os.path.join(BASE_DIR, test_file))
+                    test_env["PYTHONPATH"] = os.pathsep.join(filter(None, [test_dir, test_env.get("PYTHONPATH")]))
+                    res = subprocess.run([sys.executable, "-m", "unittest", test_file], cwd=BASE_DIR, env=test_env)
+                    if res.returncode != 0:
+                        sys.exit(res.returncode)
+
                 test_javascript_syntax()
-                executed = test_javascript_unit_tests(target_tests=result.target_unit_tests)
+                executed = len(python_tests) + test_javascript_unit_tests(
+                    target_tests=[f for f in result.target_unit_tests if not f.endswith(".py")]
+                )
                 print("=" * 60)
                 print(f"🎉 全部受影响单元测试 ({executed} 个套件) 均顺利通过！")
                 print("=" * 60)
