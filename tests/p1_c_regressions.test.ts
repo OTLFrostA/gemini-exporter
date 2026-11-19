@@ -3,6 +3,7 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { sourceDetail } from './helpers/l1SourceFixture.js';
+import type { TestContext } from 'node:test';
 useIndexStorage();
 export {};
 const test = require('node:test');
@@ -199,7 +200,9 @@ for (const method of ['list', 'detail'] as const) {
                     const guard = new Promise((_, reject) => {
                         watchdog = originalSetTimeout(() => reject(new Error('body read exceeded deadline')), 250);
                     });
-                    await assert.rejects(Promise.race([request, guard]), { name: cancellation === 'deadline' ? 'TimeoutError' : 'AbortError' });
+                    await assert.rejects(Promise.race([request, guard]), {
+                        name: cancellation === 'external' ? 'AbortError' : status === 200 ? 'TimeoutError' : 'OperationError'
+                    });
                     assert.strictEqual(deadline, method === 'list' ? 30000 : 15000);
                 } finally {
                     caller.abort();
@@ -207,6 +210,36 @@ for (const method of ['list', 'detail'] as const) {
                     globalThis.fetch = originalFetch;
                     globalThis.setTimeout = originalSetTimeout;
                 }
+            });
+        }
+    }
+}
+
+for (const method of ['list', 'detail'] as const) {
+    for (const status of [400, 401, 429]) {
+        for (const bodyFailure of ['read error', 'deadline'] as const) {
+            test(`p1c - ${method} HTTP ${status} preserves status after body ${bodyFailure}`, async (t: TestContext) => {
+                const policy = require('../src/l1/client/gemini/api/retryPolicy.js');
+                const handle400 = t.mock.method(policy, 'handleHttp400', async () => ({ shouldRetry: false }));
+                const handle401 = t.mock.method(policy, 'handleHttp401', async () => {});
+                const handle429 = t.mock.method(policy, 'handleHttp429', async () => ({ shouldRetry: false }));
+                const originalSetTimeout = globalThis.setTimeout;
+                t.mock.method(globalThis, 'setTimeout', (callback: () => void, delay?: number, ...args: unknown[]) =>
+                    originalSetTimeout(callback, delay === 15000 || delay === 30000 ? 10 : delay, ...args));
+                t.mock.method(globalThis, 'fetch', async (_input: unknown, init?: RequestInit) => new Response(new ReadableStream({
+                    start(controller) {
+                        if (bodyFailure === 'read error') controller.error(new Error('body failed'));
+                        else init?.signal?.addEventListener('abort', () => controller.error(init.signal?.reason), { once: true });
+                    }
+                }), { status }));
+                const client = new GeminiAPIClient();
+                await assert.rejects(method === 'list' ? client.getConversationList() : client.fetchConversationPage('body_error'),
+                    { name: 'OperationError', code: 'SOURCE_HTTP_ERROR', httpStatus: status });
+                assert.strictEqual(handle400.mock.callCount(), 1);
+                assert.strictEqual(handle400.mock.calls[0].arguments[0].snippet, '');
+                assert.strictEqual(handle401.mock.callCount(), status === 401 ? 1 : 0);
+                assert.strictEqual(handle429.mock.callCount(), 1);
+                assert.strictEqual(handle429.mock.calls[0].arguments[0].resp.status, status);
             });
         }
     }

@@ -93,7 +93,12 @@ const nextReqid = GeminiProtocol.createReqidGenerator();
                 credentials: "include",
                 signal: mergeAbortSignals([signal, controller ? controller.signal : null])
             });
-            const text = await resp.text();
+            let text = '';
+            try {
+                text = await resp.text();
+            } catch (error) {
+                if (resp.ok || signal?.aborted) throw error;
+            }
             return { response: resp, text };
         } catch (error) {
             if (controller?.signal.aborted && !signal?.aborted) throw controller.signal.reason;
