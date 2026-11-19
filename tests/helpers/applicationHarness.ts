@@ -185,7 +185,7 @@ provideApplicationHost({ ...domainChangePort, async getOrCreateAccount() {
     if (id === chatgptAccount.id) return { ...chatgptAccount };
     return { ...account, id };
 } });
-stubModule('../../src/l3a/exportRecordStore.js', {
+stubModule('../../src/l3a/batchStorageService.js', {
     async putExportRecords(entries: ReadonlyArray<{ key: ConversationKey; record: ExportRecord }>) {
         for (const entry of entries) {
             if (state.failRecord === entry.key.conversationId) throw new Error('record failed');

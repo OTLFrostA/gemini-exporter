@@ -6,7 +6,7 @@ import { ConfirmedSourceEmptyError } from '../../l1/client/sourceErrors.js';
 import { readConversation } from '../../l2/readConversation.js';
 import { getSettings } from '../settings/index.js';
 import { getIndex, listIndexes, getExportRecord, listExportRecords, putExportRecord, getDirectoryHandle } from '../../l3a/storageService.js';
-import { putExportRecords } from '../../l3a/exportRecordStore.js';
+import { putExportRecords } from '../../l3a/batchStorageService.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
 import type { DomainConversationIndex } from '../../l2/conversationIndex.js';
 import type { Account } from '../../l2/accountRegistry.js';
