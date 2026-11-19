@@ -674,13 +674,16 @@ class ExportSpecificationAsserter:
                             matched_md = fpath
                             break
 
-            if matched_md:
-                with open(matched_md, "r", encoding="utf-8", errors="ignore") as f:
-                    md_text = f.read()
-                if not self.has_attachment_link(md_text, target_name):
-                    self.log_error(os.path.basename(matched_md), f"会话 Markdown 正文缺少对附件 '{target_name}' 的超链接引用")
-                else:
-                    self.log_pass(os.path.basename(matched_md), f"会话 Markdown 包含对附件 '{target_name}' 的合规超链接引用")
+            if matched_md is None:
+                self.log_error("UploadedFileCheck", f"未找到匹配的会话 Markdown，缺少对附件 '{target_name}' 的超链接引用")
+                continue
+
+            with open(matched_md, "r", encoding="utf-8", errors="ignore") as f:
+                md_text = f.read()
+            if not self.has_attachment_link(md_text, target_name):
+                self.log_error(os.path.basename(matched_md), f"会话 Markdown 正文缺少对附件 '{target_name}' 的超链接引用")
+            else:
+                self.log_pass(os.path.basename(matched_md), f"会话 Markdown 包含对附件 '{target_name}' 的合规超链接引用")
 
 
 if __name__ == "__main__":

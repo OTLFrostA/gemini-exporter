@@ -25,7 +25,7 @@ from scripts.framework.cases.chat import read_initial_export_markdown, read_veri
 from scripts.framework.cases.export import ImagenMultimodalCase
 from scripts.framework.cases.export import (
     LiveSaveNewChatCase, HtmlExportDownloadCase, PdfExportDownloadCase,
-    FastSkipExportedCase, StaleTabImageExportCase, select_format_targets,
+    FastSkipExportedCase, StaleTabImageExportCase, MultimodalSpecCase, select_format_targets,
 )
 from scripts.framework.cases.takeout import validate_takeout_records, TakeoutZipImportCase
 from scripts.framework.cases.workbench import LanguageToggleCase
@@ -211,6 +211,46 @@ class V2MarkdownFormatContracts(unittest.TestCase):
                     checker.assert_multi_turn_uploads('v2.md', content, expected_count=1)
                     checker.assert_ai_generated_images('v2.md', content, min_images=1)
                     self.assertEqual(checker.errors, [])
+
+
+class UploadedAttachmentZipTests(unittest.TestCase):
+    def test_uploaded_file_requires_a_link_when_chat_id_is_not_in_markdown_filename(self):
+        file_name = 'gemini_test_upload.txt'
+        data = b'original uploaded test file'
+        archive_path = f'assets/files/12ab34_{file_name}'
+        turns = [{'prompt': f'Please read {file_name}', 'response': 'File received.', 'has_images': False}]
+
+        for linked in (False, True):
+            with self.subTest(linked=linked), tempfile.TemporaryDirectory() as directory:
+                zip_path = Path(directory) / 'export.zip'
+                ctx = TestContext(output_dir=directory, dataset=[{'turns': EVIDENCE}, {'turns': turns}])
+                ctx.chat_records = [
+                    {'chat_id': CID, 'turn_evidence': EVIDENCE},
+                    {'chat_id': OTHER, 'turn_evidence': turns},
+                ]
+                ctx.shared_data.update(downloaded_zip=str(zip_path), uploaded_test_file={
+                    'file_name': file_name, 'chat_id': OTHER, 'sha256': hashlib.sha256(data).hexdigest(),
+                })
+
+                def markdown(evidence, chat_id):
+                    return document(evidence, chat_id).replace(
+                        '---\nid:', '---\ntitle: "Conversation"\nprovider: "gemini"\ntags: [gemini-export]\nid:', 1)
+
+                upload_md = markdown(turns, OTHER)
+                if linked:
+                    upload_md = upload_md.replace('\n\n## 🤖 Assistant', f'\n\n[Download]({archive_path})\n\n## 🤖 Assistant', 1)
+                with zipfile.ZipFile(zip_path, 'w') as archive:
+                    archive.writestr(f'First_{CID[-6:]}.md', markdown(EVIDENCE, CID))
+                    # The frontmatter identifies the chat even when the filename suffix does not.
+                    archive.writestr('Second_bbbbbb.md', upload_md)
+                    archive.writestr(archive_path, data)
+
+                with patch('scripts.framework.cases.export.DESIGNATED_HISTORICAL_CHATS', []):
+                    ok, message, details = MultimodalSpecCase().execute(ctx)
+                self.assertEqual(ok, linked, message)
+                if not linked:
+                    self.assertIn('超链接引用', message)
+                    self.assertIn(file_name, details['errors'][0])
 
 
 class StaleTabHistoryTests(unittest.TestCase):
