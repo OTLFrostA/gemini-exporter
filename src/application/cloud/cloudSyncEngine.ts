@@ -666,13 +666,12 @@ export function createCloudSyncEngine(deps: {
             if (!initialized) {
                 throw new OperationError('CLOUD_KEY_NOT_INITIALIZED', 'Initialize your Master Key before connecting a Vault folder');
             }
-            inMemoryVaultHandle = handle;
-            await setStoredLocalVaultHandle(handle);
             const existingSession = await getCloudSyncSession();
-            const pulledSeq = existingSession?.backend === 'local-folder'
-                && existingSession.folderName === handle.name
-                ? existingSession.pulledSeq
-                : 0;
+            const previousHandle = inMemoryVaultHandle ?? await getStoredLocalVaultHandle();
+            const sameTarget = existingSession?.backend === 'local-folder'
+                && previousHandle !== null
+                && await handle.isSameEntry(previousHandle);
+            const pulledSeq = sameTarget ? existingSession.pulledSeq : 0;
             const session: CloudSyncSessionState = {
                 id: 'active',
                 backend: 'local-folder',
@@ -684,7 +683,9 @@ export function createCloudSyncEngine(deps: {
                 pulledSeq,
                 enabledSinceAt: existingSession?.enabledSinceAt ?? now(),
             };
-            await putCloudSyncSession(session);
+            await putCloudSyncSession(session, !sameTarget);
+            inMemoryVaultHandle = handle;
+            await setStoredLocalVaultHandle(handle);
             return {
                 session,
                 keyFingerprint: initialized.keyFingerprint,

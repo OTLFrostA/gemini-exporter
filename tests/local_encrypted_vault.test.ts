@@ -66,7 +66,7 @@ function createMemoryDirectoryHandle(name = 'MockEncryptedFolder', initialPerm: 
 
     function makeDir(dirName: string, fileMap: Map<string, Uint8Array<ArrayBuffer>>, dirMap: Map<string, MemoryDirNode>): MemoryDirNode {
         const proto = {
-            isSameEntry: async () => false,
+            isSameEntry: async (other: FileSystemHandle) => Object.is(other, handle),
             queryPermission: async () => permission,
             requestPermission: async () => permission,
             async getFileHandle(fileName: string, options?: FileSystemGetFileOptions) {
@@ -113,6 +113,35 @@ function createMemoryDirectoryHandle(name = 'MockEncryptedFolder', initialPerm: 
         setPermission(next: PermissionState) { permission = next; },
     };
 }
+
+test('vault target switch resync: local-folder', async () => {
+    const env = indexStorage();
+    try {
+        await env.ready;
+        const folders = [createMemoryDirectoryHandle('Vault'), createMemoryDirectoryHandle('Vault')];
+        const engine = createCloudSyncEngine();
+        await createVaultKeySetup(engine.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
+        const connect = (target: number) => engine.connectLocalFolderVault(folders[target].handle);
+        const count = (target: number) => folders[target].subdirs.get('records')?.files.size ?? 0;
+        const account = await getOrCreateAccount('gemini', 'target-switch');
+        await connect(0);
+        await engine.setAutoSyncEnabled(true);
+        await engine.waitForIdle();
+        assert.equal(count(0), 0, 'empty history stays empty');
+        await ingestIndexes(account.id, [{ conversationId: 'existing', fields: { title: 'Existing', titleSource: 'provider', updatedAt: 1000 } }]);
+        assert.equal((await engine.syncNow()).push.uploaded, 1);
+        await connect(0);
+        assert.equal((await engine.syncNow()).push.uploaded, 0, 'same target re-save is unchanged');
+        await connect(1);
+        assert.equal((await engine.syncNow()).push.uploaded, 1, 'existing history must upload to target B');
+        assert.equal(count(1), 1);
+        await connect(0);
+        assert.equal((await engine.syncNow()).push.uploaded, 0, 'returning to A pulls its ledger without re-upload');
+        assert.equal(count(0), 1);
+    } finally {
+        env.restore();
+    }
+});
 
 test('LocalFolderVaultClient enforces GEE1 ciphertext header, detects disk bit-rot via SHA-256, and queues cleanly when directory permission reverts to prompt', async () => {
     const env = indexStorage();

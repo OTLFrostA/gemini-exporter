@@ -239,9 +239,14 @@ export function getCloudSyncSession(): Promise<CloudSyncSessionState | null> {
     });
 }
 
-export function putCloudSyncSession(session: CloudSyncSessionState): Promise<void> {
-    return inCloudStores(['session'], 'readwrite', (tx, done) => {
+export function putCloudSyncSession(session: CloudSyncSessionState, resetSyncState = false): Promise<void> {
+    const stores: CloudStoreName[] = resetSyncState ? ['session', 'syncedRecords', 'outbox'] : ['session'];
+    return inCloudStores(stores, 'readwrite', (tx, done) => {
         tx.objectStore('session').put(session);
+        if (resetSyncState) {
+            tx.objectStore('syncedRecords').clear();
+            tx.objectStore('outbox').clear();
+        }
         done(undefined);
     });
 }
