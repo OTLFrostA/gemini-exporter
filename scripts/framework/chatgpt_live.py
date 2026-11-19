@@ -261,7 +261,10 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
             scenarios = [provider.pop_scenario(min_turns=5), provider.pop_scenario(min_turns=8)]
         if not isinstance(scenarios, list) or len(scenarios) != 2 or len(scenarios[0]['turns']) < 5 or len(scenarios[1]['turns']) < 8:
             raise ValueError('ChatGPT Tier 2 requires two full scenarios of at least 5 and 8 turns')
-        reservation.write_text(json.dumps(scenarios, ensure_ascii=False))
+        if not reservation.exists():
+            pending = reservation.with_suffix('.tmp')
+            pending.write_text(json.dumps(scenarios, ensure_ascii=False))
+            pending.replace(reservation)
         self.report['scenarios'] = scenarios
         self.save_report()
         ids = []
