@@ -68,5 +68,12 @@ export class ConversationViewState {
     keys() {
         return this.indexes.filter(row => this.selected.has(row.key.conversationId)).map(row => ({ ...row.key }));
     }
+    hiddenBySearch(): string[] {
+        const query = this.search.trim().toLowerCase();
+        if (!query) return [];
+        return this.indexes.filter(row => this.selected.has(row.key.conversationId)
+            && !`${row.title ?? ''} ${row.key.conversationId}`.toLowerCase().includes(query))
+            .map(row => row.key.conversationId);
+    }
     selectVisible(): void { this.selected = new Set(this.visible().map(row => row.key.conversationId)); }
 }

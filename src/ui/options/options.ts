@@ -689,6 +689,16 @@ export async function initWorkbench(): Promise<void> {
     control('select', 'chatFilterSelect').addEventListener('change', () => {
         state.filter = control('select', 'chatFilterSelect').value; renderConversations();
     });
+    control('button', 'btnShowHiddenSelection').addEventListener('click', () => {
+        state.search = ''; control('input', 'chatSearchInput').value = '';
+        renderConversations();
+        control('input', 'chatSearchInput').focus();
+    });
+    control('button', 'btnDeselectHidden').addEventListener('click', () => {
+        if (isBusy()) return;
+        for (const id of state.hiddenBySearch()) state.selected.delete(id);
+        renderConversations();
+    });
     control('input', 'btnSelectAll').addEventListener('change', () => {
         if (isBusy() || document.body.dataset.guidedSelection === 'true') return;
         if (control('input', 'btnSelectAll').checked) state.selectVisible();
