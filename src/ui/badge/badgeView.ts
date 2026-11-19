@@ -176,7 +176,6 @@ function ensureBadgeImpl(): HTMLElement | null {
         alive = false; clearFeedback(); stopCountPolling(); stop(); window.removeEventListener('resize', resize);
         window.removeEventListener('gemini:locationchange', route); window.removeEventListener('popstate', route);
         document.removeEventListener('visibilitychange', visibility);
-        badge?.classList.remove('dragging');
         badge?.remove(); badge = null; accountId = null; count = null; extensionContextInvalidated = false; positionChanged = false; dragging = false;
     });
     void refreshSettings().catch(console.warn); route(); return badge;
