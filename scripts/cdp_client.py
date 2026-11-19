@@ -60,14 +60,22 @@ class CDPConnection:
         if b"101 " not in res:
             raise RuntimeError(f"WebSocket 握手失败: {res.decode('utf-8', errors='ignore')}")
 
-    def reconnect(self):
+    @staticmethod
+    def _remaining(deadline):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("CDP call deadline exceeded")
+        return remaining
+
+    def reconnect(self, deadline=None):
         try:
             self.sock.close()
         except Exception:
             pass
         host, port_path = self.ws_url.replace("ws://", "").split(":", 1)
         port, path = port_path.split("/", 1)
-        self.sock = socket.create_connection((host, int(port)), timeout=30)
+        self.sock = socket.create_connection(
+            (host, int(port)), timeout=30 if deadline is None else self._remaining(deadline))
         key = base64.b64encode(os.urandom(16)).decode("ascii")
         req = (
             f"GET /{path} HTTP/1.1\r\n"
@@ -77,12 +85,17 @@ class CDPConnection:
             f"Sec-WebSocket-Key: {key}\r\n"
             f"Sec-WebSocket-Version: 13\r\n\r\n"
         )
+        if deadline is not None:
+            self.sock.settimeout(self._remaining(deadline))
         self.sock.sendall(req.encode("ascii"))
+        if deadline is not None:
+            self.sock.settimeout(self._remaining(deadline))
         res = self.sock.recv(4096)
         if b"101 " not in res:
             raise RuntimeError(f"WebSocket 握手失败: {res.decode('utf-8', errors='ignore')}")
 
     def call(self, method, params=None, timeout=30):
+        deadline = time.monotonic() + timeout
         self.msg_id += 1
         current_id = self.msg_id
         payload = json.dumps({"id": current_id, "method": method, "params": params or {}}).encode("utf-8")
@@ -100,20 +113,20 @@ class CDPConnection:
 
         for attempt in range(2):
             try:
+                self.sock.settimeout(self._remaining(deadline))
                 self.sock.sendall(header + masked_payload)
 
-                start = time.time()
-                while time.time() - start < timeout:
-                    b1, b2 = self._recv_exact(2)
+                while True:
+                    b1, b2 = self._recv_exact(2, deadline)
                     masked = (b2 & 0x80) != 0
                     payload_len = b2 & 0x7F
                     if payload_len == 126:
-                        payload_len = struct.unpack(">H", self._recv_exact(2))[0]
+                        payload_len = struct.unpack(">H", self._recv_exact(2, deadline))[0]
                     elif payload_len == 127:
-                        payload_len = struct.unpack(">Q", self._recv_exact(8))[0]
+                        payload_len = struct.unpack(">Q", self._recv_exact(8, deadline))[0]
 
-                    mask_key = self._recv_exact(4) if masked else b""
-                    raw_data = self._recv_exact(payload_len)
+                    mask_key = self._recv_exact(4, deadline) if masked else b""
+                    raw_data = self._recv_exact(payload_len, deadline)
 
                     if masked:
                         raw_data = bytes([b ^ mask_key[i % 4] for i, b in enumerate(raw_data)])
@@ -124,21 +137,20 @@ class CDPConnection:
                             return data
                     except Exception:
                         continue
-                raise TimeoutError(f"CDP call {method} 超时 ({timeout}s)")
+            except TimeoutError as exc:
+                raise TimeoutError(f"CDP call {method} 超时 ({timeout}s)") from exc
             except (ConnectionError, socket.error):
                 if attempt == 0:
-                    time.sleep(1.0)
-                    try:
-                        self.reconnect()
-                    except Exception:
-                        raise
+                    self.reconnect(deadline)
                 else:
                     raise
 
-    def _recv_exact(self, num_bytes):
+    def _recv_exact(self, num_bytes, deadline=None):
         chunks = []
         received = 0
         while received < num_bytes:
+            if deadline is not None:
+                self.sock.settimeout(self._remaining(deadline))
             chunk = self.sock.recv(num_bytes - received)
             if not chunk:
                 raise ConnectionError("WebSocket 连接意外关闭")

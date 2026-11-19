@@ -537,6 +537,14 @@ def test_visual_sandbox_suite():
     assert res.returncode == 0, f"test_visual_sandbox.py failed: {res.stderr or res.stdout}"
     print("  ✓ Tier 3 Visual Sandbox & Autonomous QA Agent test suite passed")
 
+def test_cdp_client_suite():
+    import subprocess
+    res = subprocess.run([sys.executable, "-m", "unittest", "tests.test_cdp_client"],
+                         cwd=BASE_DIR, capture_output=True, text=True)
+    assert res.returncode == 0, f"CDP client regression checks failed: {res.stderr or res.stdout}"
+    print("  ✓ CDP client deadline regression checks passed")
+
+
 def test_framework_environment_suite():
     import subprocess
     cmd = [sys.executable, os.path.join(BASE_DIR, "tests", "test_framework_environment.py")]
@@ -704,6 +712,7 @@ def run_all():
     test_platform_driver_suite()
     test_pipeline_decoupling_suite()
     test_visual_sandbox_suite()
+    test_cdp_client_suite()
     test_framework_environment_suite()
     test_tier2_platforms_suite()
     test_dag_subgraph_suite()
