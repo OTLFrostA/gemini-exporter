@@ -90,7 +90,7 @@ const pagination = GeminiClientPagination;
                 ]
             ]);
 
-            let resp = await postBatchexecute({
+            const { response: resp, text: txt } = await postBatchexecute({
                 api,
                 rpcids: P.RPCS.LIST,
                 fReq: req,
@@ -101,10 +101,7 @@ const pagination = GeminiClientPagination;
             });
 
             if (!resp.ok) {
-                let snippet = "";
-                try {
-                    snippet = (await resp.text()).slice(0, 320);
-                } catch (e) { console.debug("[GemExporter:geminiClient.ts]", e); }
+                const snippet = txt.slice(0, 320);
 
                 const retry400 = retryPolicy.handleHttp400 ? await retryPolicy.handleHttp400({
                     resp,
@@ -153,7 +150,6 @@ const pagination = GeminiClientPagination;
 
                 throw new OperationError('SOURCE_HTTP_ERROR', `HTTP ${resp.status} :: ${snippet} sidLen:${String(cred.sid ?? '').length} atLen:${cred.at?.length ?? 0} hasBl:${cred.bl ? 'yes' : 'no'}`, resp.status);
             }
-            let txt = await resp.text();
             return parseGeminiResponse(txt).list();
         }
 
@@ -182,7 +178,7 @@ const pagination = GeminiClientPagination;
                 ? JSON.stringify([[[P.RPCS.DETAIL, innerDetail, null, "generic"]]])
                 : JSON.stringify([[[P.RPCS.DETAIL, innerDetail, null, "generic"], [P.RPCS.LIST, innerMeta, null, "generic"]]]);
 
-            let resp = await postBatchexecute({
+            const { response: resp, text } = await postBatchexecute({
                 api,
                 rpcids,
                 fReq,
@@ -193,10 +189,7 @@ const pagination = GeminiClientPagination;
             });
 
             if (!resp.ok) {
-                let snippet = "";
-                try {
-                    snippet = (await resp.text()).slice(0, 320);
-                } catch { /* intentional: best-effort cleanup */ }
+                const snippet = text.slice(0, 320);
 
                 const retry400 = retryPolicy.handleHttp400 ? await retryPolicy.handleHttp400({
                     resp,
@@ -246,7 +239,6 @@ const pagination = GeminiClientPagination;
                 throw new OperationError('SOURCE_HTTP_ERROR', `HTTP ${resp.status} ${resp.statusText} :: ${snippet}`, resp.status);
             }
 
-            let text = await resp.text();
             const response = parseGeminiResponse(text);
             try {
                 const native = response.detail({ providerId: 'gemini', targetConvId: conversationId });
@@ -285,4 +277,3 @@ const pagination = GeminiClientPagination;
     }
 
 export { GeminiAPIClient };
-

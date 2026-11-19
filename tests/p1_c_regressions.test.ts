@@ -3,6 +3,7 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import { sourceDetail } from './helpers/l1SourceFixture.js';
+import type { TestContext } from 'node:test';
 useIndexStorage();
 export {};
 const test = require('node:test');
@@ -145,7 +146,7 @@ test('p1c - postBatchexecute: 有调用方 signal 时内部 timeout 仍生效；
                 rpcids: 'MaZiqc', fReq: '[]', cred: {},
                 timeoutMs: 80, signal: caller.signal
             }),
-            'internal timeout should abort the hanging request even with a caller signal present'
+            { name: 'TimeoutError' }
         );
         assert.ok(Date.now() - t0 < 5000, `timeout fired promptly (took ${Date.now() - t0}ms)`);
 
@@ -158,12 +159,91 @@ test('p1c - postBatchexecute: 有调用方 signal 时内部 timeout 仍生效；
             timeoutMs: 60000, signal: caller2.signal
         });
         setTimeout(() => caller2.abort(), 30);
-        await assert.rejects(p, 'caller abort should propagate to fetch');
+        await assert.rejects(p, { name: 'AbortError' });
         assert.ok(Date.now() - t1 < 5000, `caller abort propagated promptly (took ${Date.now() - t1}ms)`);
     } finally {
         (global as any).fetch = origFetch;
     }
 });
+
+for (const method of ['list', 'detail'] as const) {
+    for (const status of [200, 500]) {
+        for (const cancellation of ['deadline', 'external'] as const) {
+            test(`p1c - ${method} stalled body ${status}: ${cancellation}`, async () => {
+                const originalFetch = globalThis.fetch;
+                const originalSetTimeout = globalThis.setTimeout;
+                const caller = new AbortController();
+                let deadline: number | undefined;
+                let watchdog: ReturnType<typeof setTimeout> | undefined;
+                globalThis.setTimeout = ((callback: () => void, delay?: number, ...args: unknown[]) => {
+                    if (delay === 30000 || delay === 15000) {
+                        deadline = delay;
+                        delay = cancellation === 'deadline' ? 25 : delay;
+                    }
+                    return originalSetTimeout(callback, delay, ...args);
+                }) as typeof setTimeout;
+                globalThis.fetch = async (_url, options) => new Response(new ReadableStream({
+                    start(controller) {
+                        const signal = options?.signal;
+                        assert.ok(signal instanceof AbortSignal);
+                        const abort = () => controller.error(signal?.reason);
+                        if (signal?.aborted) abort();
+                        else signal?.addEventListener('abort', abort, { once: true });
+                    }
+                }), { status });
+                try {
+                    const client = new GeminiAPIClient({ signal: caller.signal });
+                    const request = method === 'list'
+                        ? client.getConversationList()
+                        : client.fetchConversationPage('body_timeout');
+                    if (cancellation === 'external') originalSetTimeout(() => caller.abort(), 10);
+                    const guard = new Promise((_, reject) => {
+                        watchdog = originalSetTimeout(() => reject(new Error('body read exceeded deadline')), 250);
+                    });
+                    await assert.rejects(Promise.race([request, guard]), {
+                        name: cancellation === 'external' ? 'AbortError' : status === 200 ? 'TimeoutError' : 'OperationError'
+                    });
+                    assert.strictEqual(deadline, method === 'list' ? 30000 : 15000);
+                } finally {
+                    caller.abort();
+                    clearTimeout(watchdog);
+                    globalThis.fetch = originalFetch;
+                    globalThis.setTimeout = originalSetTimeout;
+                }
+            });
+        }
+    }
+}
+
+for (const method of ['list', 'detail'] as const) {
+    for (const status of [400, 401, 429]) {
+        for (const bodyFailure of ['read error', 'deadline'] as const) {
+            test(`p1c - ${method} HTTP ${status} preserves status after body ${bodyFailure}`, async (t: TestContext) => {
+                const policy = require('../src/l1/client/gemini/api/retryPolicy.js');
+                const handle400 = t.mock.method(policy, 'handleHttp400', async () => ({ shouldRetry: false }));
+                const handle401 = t.mock.method(policy, 'handleHttp401', async () => {});
+                const handle429 = t.mock.method(policy, 'handleHttp429', async () => ({ shouldRetry: false }));
+                const originalSetTimeout = globalThis.setTimeout;
+                t.mock.method(globalThis, 'setTimeout', (callback: () => void, delay?: number, ...args: unknown[]) =>
+                    originalSetTimeout(callback, delay === 15000 || delay === 30000 ? 10 : delay, ...args));
+                t.mock.method(globalThis, 'fetch', async (_input: unknown, init?: RequestInit) => new Response(new ReadableStream({
+                    start(controller) {
+                        if (bodyFailure === 'read error') controller.error(new Error('body failed'));
+                        else init?.signal?.addEventListener('abort', () => controller.error(init.signal?.reason), { once: true });
+                    }
+                }), { status }));
+                const client = new GeminiAPIClient();
+                await assert.rejects(method === 'list' ? client.getConversationList() : client.fetchConversationPage('body_error'),
+                    { name: 'OperationError', code: 'SOURCE_HTTP_ERROR', httpStatus: status });
+                assert.strictEqual(handle400.mock.callCount(), 1);
+                assert.strictEqual(handle400.mock.calls[0].arguments[0].snippet, '');
+                assert.strictEqual(handle401.mock.callCount(), status === 401 ? 1 : 0);
+                assert.strictEqual(handle429.mock.callCount(), 1);
+                assert.strictEqual(handle429.mock.calls[0].arguments[0].resp.status, status);
+            });
+        }
+    }
+}
 
 // P1-035: getConversationList 15s 超时 + 429 退避快速取消
 
