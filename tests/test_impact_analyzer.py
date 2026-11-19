@@ -144,6 +144,35 @@ class TestImpactAnalyzer(unittest.TestCase):
         self.assertEqual(len(res.target_unit_tests), 0)
         self.assertEqual(len(res.target_e2e_specs), 0)
 
+    def test_fixture_changes_fall_back_to_all_tests(self):
+        for target in (
+            "tests/fixtures/provider/math/gm_md_004_evidence.md",
+            "tests/fixtures/deleted.md",
+            "tests/fixtures/image.png",
+            "tests/fixtures/data.json",
+        ):
+            with self.subTest(target=target):
+                res = analyze_impact({target}, graph=self.graph, base_dir=BASE_DIR)
+                self.assertFalse(res.is_docs_only)
+                self.assertTrue(res.is_all_affected)
+                self.assertIn("tests/gemini_live_parser_regressions.test.ts", res.target_unit_tests)
+                self.assertEqual(res.target_unit_tests, res.all_unit_tests)
+                self.assertEqual(res.target_e2e_specs, res.all_e2e_specs)
+
+    def test_fixture_mixed_with_docs_is_not_docs_only(self):
+        res = analyze_impact(
+            {"README.md", "tests/fixtures/provider/math/gm_md_004_evidence.md"},
+            graph=self.graph, base_dir=BASE_DIR,
+        )
+        self.assertFalse(res.is_docs_only)
+        self.assertIn("tests/gemini_live_parser_regressions.test.ts", res.target_unit_tests)
+
+    def test_no_changes_bypass(self):
+        res = analyze_impact(set(), graph=self.graph, base_dir=BASE_DIR)
+        self.assertTrue(res.is_docs_only)
+        self.assertEqual(res.target_unit_tests, [])
+        self.assertEqual(res.target_e2e_specs, [])
+
     def test_import_pattern_filtering_and_dynamic_imports(self):
         """验证 IMPORT_PATTERN 正确跳过 import type / export type，并正确解析动态 import()"""
         from test_impact_analyzer import IMPORT_PATTERN

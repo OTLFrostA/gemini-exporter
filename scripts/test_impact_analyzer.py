@@ -302,7 +302,8 @@ def analyze_impact(
     if not norm_changed:
         return ImpactAnalysisResult([], set(), False, True, all_unit_tests, all_e2e_specs)
 
-    if any(f in GLOBAL_FILES for f in norm_changed):
+    # Fixture readers use filesystem APIs, not imports, so the graph cannot track them.
+    if any(f in GLOBAL_FILES or f.startswith("tests/fixtures/") for f in norm_changed):
         return ImpactAnalysisResult(list(norm_changed), norm_changed, True, False, all_unit_tests, all_e2e_specs)
 
     if all(STATIC_DOCS_PATTERN.match(f) for f in norm_changed):
