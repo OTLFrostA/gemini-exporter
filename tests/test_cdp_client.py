@@ -25,17 +25,36 @@ def websocket_server(mode):
                     if mode == "reply":
                         payload = json.dumps({"id": 1, "result": {}}).encode()
                         peer.sendall(bytes([0x81, len(payload)]) + payload)
-                    elif mode == "fragment":
+                    elif mode in ("fragment", "recover_fragment"):
                         peer.sendall(b"\x81\x20{")
-                    elif mode == "reconnect":
+                    elif mode in ("reconnect", "recover_handshake"):
                         peer.close()
                         with listener.accept()[0] as replacement:
                             replacement.recv(4096)
+                            if mode == "recover_handshake":
+                                stopped.wait(0.3)
+                                replacement.sendall(b"HTTP/1.1 101 Switching Protocols\r\n\r\n")
+                                recover()
+                                return
                             stopped.wait(0.7)
+                        return
+                    if mode == "recover_fragment":
+                        stopped.wait(0.3)
+                        peer.sendall(b'"id": 1, "result": {}}')
+                        recover()
                         return
                     stopped.wait(0.7)
             except OSError:
                 pass
+
+        def recover():
+            with listener.accept()[0] as peer:
+                peer.recv(4096)
+                peer.sendall(b"HTTP/1.1 101 Switching Protocols\r\n\r\n")
+                peer.recv(4096)
+                payload = json.dumps({"id": 2, "result": {"value": 42}}).encode()
+                peer.sendall(bytes([0x81, len(payload)]) + payload)
+                stopped.wait(0.7)
 
         worker = threading.Thread(target=serve, daemon=True)
         worker.start()
@@ -74,6 +93,19 @@ class TestCDPDeadline(unittest.TestCase):
         with websocket_server("reply") as client:
             self.assertEqual(client.call("Browser.getVersion", timeout=0.2),
                              {"id": 1, "result": {}})
+
+    def assert_recovers(self, mode):
+        with websocket_server(mode) as client:
+            with self.assertRaises(TimeoutError):
+                client.call("Runtime.evaluate", timeout=0.2)
+            self.assertEqual(client.call("Runtime.evaluate", timeout=1),
+                             {"id": 2, "result": {"value": 42}})
+
+    def test_recovers_after_partial_frame_timeout(self):
+        self.assert_recovers("recover_fragment")
+
+    def test_recovers_after_handshake_timeout(self):
+        self.assert_recovers("recover_handshake")
 
 
 if __name__ == "__main__":

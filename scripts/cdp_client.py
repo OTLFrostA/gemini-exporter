@@ -113,6 +113,8 @@ class CDPConnection:
 
         for attempt in range(2):
             try:
+                if attempt:
+                    self.reconnect(deadline)
                 self.sock.settimeout(self._remaining(deadline))
                 self.sock.sendall(header + masked_payload)
 
@@ -138,11 +140,10 @@ class CDPConnection:
                     except Exception:
                         continue
             except TimeoutError as exc:
+                self.close()
                 raise TimeoutError(f"CDP call {method} 超时 ({timeout}s)") from exc
             except (ConnectionError, socket.error):
-                if attempt == 0:
-                    self.reconnect(deadline)
-                else:
+                if attempt:
                     raise
 
     def _recv_exact(self, num_bytes, deadline=None):
