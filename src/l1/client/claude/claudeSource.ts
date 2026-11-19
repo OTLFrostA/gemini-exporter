@@ -2,10 +2,8 @@ import type { OperationErrorCode } from '../../../shared/errors/operationError.j
 import type { SourceExecutionResult } from '../sourceExecution.js';
 import { executeSourceReadInPlatformTabs } from '../tabSourceRunner.js';
 import { hasPlatformAccess } from '../platformAccess.js';
-import { PLATFORM_HOSTS } from '../../../shared/platformHosts.js';
 import { claudeUuid } from '../../sniffer/claude/observation.js';
 
-export const CLAUDE_ORIGIN = PLATFORM_HOSTS.claude.pages[0];
 export function hasClaudeAccess(): Promise<boolean> { return hasPlatformAccess('claude'); }
 const allowedPath = /^\/api\/organizations(?:\/([\da-f-]{36})\/chat_conversations(?:\/([\da-f-]{36}))?(?:\?tree=true&rendering_mode=messages&render_all_tools=true)?)?$/i;
 const paginatedPath = /^\/api\/organizations\/([\da-f-]{36})\/chat_conversations_v2\?limit=100&offset=\d+&consistency=strong$/i;
