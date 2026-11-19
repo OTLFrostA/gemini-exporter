@@ -13,6 +13,8 @@ const accountId = '10000000-0000-4000-8000-000000000001';
 let bundle: string;
 test.beforeAll(async () => {
     const output = await build({ stdin: { resolveDir: path.resolve(__dirname, '../..'), loader: 'ts', contents: `
+        import { installApplicationHost } from './src/runtime/api/applicationHost.ts';
+        installApplicationHost();
         import * as storage from './src/l3a/storageService.ts';
         import * as domain from './src/l2/ingestion.ts';
         import { readConversation } from './src/l2/readConversation.ts';

@@ -56,17 +56,25 @@ export class ConversationViewState {
         } finally { this.activeRefreshes--; }
     }
     visible(): DomainConversationIndex[] {
-        const query = this.search.trim().toLowerCase();
         return this.indexes.filter(row => {
             const record = this.records[row.key.conversationId];
             const matches = this.filter === 'all'
                 || this.filter === 'no_record' && !record
                 || this.filter === 'has_record' && !!record;
-            return matches && (!query || `${row.title ?? ''} ${row.key.conversationId}`.toLowerCase().includes(query));
+            return matches && this.matchesSearch(row);
         }).sort(compareConversationIndexes);
     }
     keys() {
         return this.indexes.filter(row => this.selected.has(row.key.conversationId)).map(row => ({ ...row.key }));
+    }
+    hiddenBySearch(): string[] {
+        return this.indexes.filter(row => this.selected.has(row.key.conversationId)
+            && !this.matchesSearch(row))
+            .map(row => row.key.conversationId);
+    }
+    private matchesSearch(row: DomainConversationIndex): boolean {
+        const query = this.search.trim().toLowerCase();
+        return !query || `${row.title ?? ''} ${row.key.conversationId}`.toLowerCase().includes(query);
     }
     selectVisible(): void { this.selected = new Set(this.visible().map(row => row.key.conversationId)); }
 }

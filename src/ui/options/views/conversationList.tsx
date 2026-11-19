@@ -114,7 +114,7 @@ function ConversationRow({ row, disabled, provider, developerMode, onSelect }: O
             onSelect(id, !selected);
         }}>
         <input type="checkbox" checked={selected} disabled={disabled}
-            aria-label={text('Select conversation', '选择会话')}
+            aria-label={text(`Select ${index.title || id}`, `选择 ${index.title || id}`)}
             onChange={event => onSelect(id, event.currentTarget.checked)} />
         <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>

@@ -8,8 +8,11 @@ import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.
 test('timestamp_honesty - RPC Domain messages omit timestamps when source dates are absent', () => {
     const { conversation } = parseGeminiRpcConversation(geminiDetailGen('G_TIMESTAMP_HONESTY_01'), { account: fixtureAccount('gemini'), providerId: 'gemini' });
     assert.equal(conversation.detail.messages.length, 2);
-    assert.equal(Object.hasOwn(conversation, 'updatedAt'), false, 'unknown updatedAt must be omitted');
-    assert.equal(Object.hasOwn(conversation, 'createdAt'), false, 'unknown createdAt must be omitted');
+    assert.ok(conversation.index, 'conversation index must exist');
+    assert.equal(Object.hasOwn(conversation.index, 'updatedAt'), false, 'unknown updatedAt must be omitted');
+    assert.equal(Object.hasOwn(conversation.index, 'createdAt'), false, 'unknown createdAt must be omitted');
+    assert.equal(Object.hasOwn(conversation.index, 'activityAt'), false, 'unknown activityAt must be omitted');
+    assert.equal(Object.hasOwn(conversation.detail, 'savedAt'), false, 'unknown savedAt must be omitted');
     for (const message of conversation.detail.messages) {
         assert.equal(Object.hasOwn(message, 'timestamp'), false, 'unknown message timestamp must be omitted');
     }
@@ -20,8 +23,11 @@ test('timestamp_honesty - Takeout Domain messages omit dates instead of fabricat
         <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Question<br><p>Answer</p></div></div>`;
     const { conversation } = parseGeminiTakeoutConversation({ htmlText }, { account: fixtureAccount('gemini'), providerId: 'gemini' });
     assert.equal(conversation.detail.messages.length, 2);
-    assert.equal(Object.hasOwn(conversation, 'updatedAt'), false, 'unknown updatedAt must be omitted');
-    assert.equal(Object.hasOwn(conversation, 'createdAt'), false, 'unknown createdAt must be omitted');
+    assert.ok(conversation.index, 'conversation index must exist');
+    assert.equal(Object.hasOwn(conversation.index, 'updatedAt'), false, 'unknown updatedAt must be omitted');
+    assert.equal(Object.hasOwn(conversation.index, 'createdAt'), false, 'unknown createdAt must be omitted');
+    assert.equal(Object.hasOwn(conversation.index, 'activityAt'), false, 'unknown activityAt must be omitted');
+    assert.equal(Object.hasOwn(conversation.detail, 'savedAt'), false, 'unknown savedAt must be omitted');
     for (const message of conversation.detail.messages) {
         assert.equal(Object.hasOwn(message, 'timestamp'), false, 'unknown message timestamp must be omitted');
     }

@@ -69,13 +69,13 @@ class ZipWriter implements IExportWriter {
         // can otherwise split a UTF-16 surrogate pair and corrupt its UTF-8 bytes.
         const bytes = typeof content === 'string' && !opts.base64 ? new TextEncoder().encode(content) : content;
 
-        if (content) {
-            if (typeof content === 'string') {
-                this.totalBytes += content.length * (opts.base64 ? 0.75 : 1);
-            } else if (content instanceof Blob) {
-                this.totalBytes += content.size;
+        if (bytes) {
+            if (typeof bytes === 'string') {
+                this.totalBytes += bytes.length * 0.75;
+            } else if (bytes instanceof Blob) {
+                this.totalBytes += bytes.size;
             } else {
-                this.totalBytes += content.byteLength;
+                this.totalBytes += bytes.byteLength;
             }
         }
         if (this.totalBytes > this.MAX_SAFE_ZIP_BYTES) {

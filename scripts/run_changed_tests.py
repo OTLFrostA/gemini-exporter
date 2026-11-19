@@ -24,7 +24,7 @@ scripts_dir = os.path.join(REPO_DIR, "scripts")
 if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
-from test_impact_analyzer import get_git_changed_files, analyze_impact, DependencyGraph
+from test_impact_analyzer import get_git_changed_files, analyze_impact, DependencyGraph, GitChangeError
 
 
 def main():
@@ -40,7 +40,10 @@ def main():
     print("=" * 70)
 
     # 1. 影响分析
-    changed_files = set(args.files) if args.files is not None else get_git_changed_files(base_ref=args.base, base_dir=REPO_DIR)
+    try:
+        changed_files = set(args.files) if args.files is not None else get_git_changed_files(base_ref=args.base, base_dir=REPO_DIR)
+    except GitChangeError as exc:
+        parser.exit(1, f"Error: {exc}\n")
     graph = DependencyGraph(base_dir=REPO_DIR)
     impact = analyze_impact(changed_files, graph=graph, base_dir=REPO_DIR)
 

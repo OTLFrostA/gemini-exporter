@@ -10,6 +10,8 @@ import { indexStorage } from './helpers/indexStorage.js';
 import { createMockCloudVaultHttp } from './helpers/mockCloudVaultHttp.js';
 import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/cloud/vaultKeySetup.js';
 import { enqueueCloudOutboxKeys, listDueCloudOutbox, putCloudSyncSession } from '../src/l3a/cloudSyncStore.js';
+import { deriveBlindRecordId, deriveVaultKeyring, encodeLengthPrefixedTuple, parseRecoveryKey } from '../src/shared/crypto/index.js';
+import { OperationError } from '../src/shared/errors/operationError.js';
 
 const SERVER_URL = 'https://vault.gemini-exporter.test';
 
@@ -354,6 +356,46 @@ test('an expired session renews with unlock from the installed key without a pla
         await createCloudSyncEngine({ client }).pullChanges();
         assert.deepEqual(authModes, ['create', 'unlock']);
         assert.equal(mock.inspectTenantCount(), 1);
+    } finally {
+        env.restore();
+    }
+});
+
+test('CloudSyncEngine pullChanges rejects authenticated invalid UTF-8 with CLOUD_DECOMPRESSION_LIMIT', async () => {
+    const env = indexStorage();
+    try {
+        await env.ready;
+        const mock = createMockCloudVaultHttp();
+        const client = createCloudVaultClient((url, init) => mock.handler(new Request(url, init)));
+        const engine = createCloudSyncEngine({ client });
+        const recoveryKey = await prepareOneTimeVaultKey();
+        await createVaultKeySetup(engine.activateVaultKeyring)(recoveryKey, 'generated', null);
+        const { session } = await engine.connectCloudVault(SERVER_URL, undefined, 'create');
+        const keyring = await deriveVaultKeyring(await parseRecoveryKey(recoveryKey));
+        const blindRecordId = await deriveBlindRecordId(keyring, 'gemini', 'gaia-invalid-utf8', 'c_invalid_utf8');
+        const stream = new Blob([new Uint8Array([0xff, 0xfe])]).stream().pipeThrough(new CompressionStream('gzip'));
+        const compressed = await new Response(stream).arrayBuffer();
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const additionalData = encodeLengthPrefixedTuple([
+            'GEE1-AAD', session.ownerSubject, blindRecordId, '1',
+        ]);
+        const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv, additionalData, tagLength: 128 },
+            keyring.payloadKey,
+            compressed,
+        ));
+        const envelope = new Uint8Array(4 + iv.byteLength + ciphertext.byteLength);
+        envelope.set(new TextEncoder().encode('GEE1'));
+        envelope.set(iv, 4);
+        envelope.set(ciphertext, 4 + iv.byteLength);
+        await mock.seedRawRecord(session.ownerSubject, blindRecordId, envelope);
+
+        await assert.rejects(
+            createCloudSyncEngine({ client }).pullChanges(),
+            (error: unknown) => error instanceof OperationError
+                && error.code === 'CLOUD_DECOMPRESSION_LIMIT'
+                && error.cause instanceof TypeError,
+        );
     } finally {
         env.restore();
     }

@@ -1,6 +1,21 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { openOptions, seedConversations } from './uiFixture';
 test.beforeEach(async({context,extensionId})=>{void extensionId;await seedRegistryAccounts(context);});
+test('conversation checkboxes are named by their displayed titles in both languages', async ({context, extensionId}) => {
+    const page = await openOptions(context, extensionId);
+    const rows = [{id:'quantum',title:'Quantum computing'}, {id:'architecture',title:'AI 架构与设计模式'}, {id:'untitled'}];
+    await seedConversations(page, rows);
+    for (const language of ['en', 'zh']) {
+        await page.locator('#langToggle').setChecked(language === 'en');
+        const list = page.locator('#list');
+        await expect(list.getByRole('checkbox')).toHaveCount(rows.length);
+        for (const row of rows) {
+            const title = row.title || row.id;
+            await expect(list.locator(`[data-chat-id="${row.id}"] .chat-title`)).toHaveText(title);
+            await expect(list.getByRole('checkbox', {name:`${language === 'en' ? 'Select' : '选择'} ${title}`, exact:true})).toHaveCount(1);
+        }
+    }
+});
 test('workbench list preserves explicit selection across row clicks, search and language changes',async({context,extensionId})=>{
     const page=await openOptions(context,extensionId);
     await seedConversations(page,[{id:'chat_001',title:'量子计算的基本原理'},{id:'chat_002',title:'AI 架构与设计模式'},{id:'chat_003',title:'Python 性能优化指南'}],{chat_001:{exportedAt:200,format:'markdown',status:'ok',chatTime:100}});

@@ -24,6 +24,7 @@ import { TypstSandboxCompiler } from '../src/l4/format/pdf/typst/typstSandboxCom
 import type { IPdfCompiler } from '../src/l4/format/pdf/pdfCompiler.js';
 import { PdfResourceError } from '../src/l4/format/pdf/errors.js';
 import { buildMinimalValidPdf, StubPdfCompiler } from './helpers/stubPdfCompiler.js';
+import { extractPdfText, parseObjects } from './helpers/pdfTextExtract.js';
 import { planExportPaths, buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.js';
 import { startBrowserDownload } from '../src/l4/delivery/index.js';
 import { missingResource } from '../src/shared/resources/resourceResult.js';
@@ -245,6 +246,16 @@ test('the L4 PDF compiler contract emits a structurally valid stub PDF and diagn
     const text = new TextDecoder().decode(result.pdfBytes);
     assert.match(text, /^%PDF-/);
     assert.match(text, /xref[\s\S]*trailer[\s\S]*startxref[\s\S]*%%EOF/);
+    const content = parseObjects(Buffer.from(result.pdfBytes)).get(4);
+    assert.ok(content?.stream);
+    const expectedContent = 'BT /F1 24 Tf 72 720 Td (stub pdf) Tj ET';
+    assert.equal(content.stream.toString('utf8'), expectedContent);
+    const declaredLength = Number(/\/Length\s+(\d+)/.exec(content.dict)?.[1]);
+    assert.equal(declaredLength, new TextEncoder().encode(expectedContent).byteLength);
+    assert.equal(content.stream.byteLength, declaredLength);
+    const streamStart = text.indexOf('stream\n') + 'stream\n'.length;
+    assert.equal(text.slice(streamStart + declaredLength, streamStart + declaredLength + '\nendstream'.length), '\nendstream');
+    assert.equal(extractPdfText(result.pdfBytes).text, 'stub pdf');
     assert.ok(result.diagnostics.some(d => d.code === 'STUB_COMPILER_PLACEHOLDER'));
     const artifacts = buildExportFiles('pdf', input.plan, result.pdfBytes, input.prepared);
     assert.equal(artifacts.length, 1);

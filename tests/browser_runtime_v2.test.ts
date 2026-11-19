@@ -43,6 +43,7 @@ function load(file: string, stubs: Record<string, unknown>) {
                 resetVaultWithCurrentKey: async () => {},
             },
         },
+        'src/runtime/api/applicationHost.js': { installApplicationHost() {} },
         'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]),
         // Runtime unit mocks L2 decoders; real schema/closure validation is covered by L2 and integration suites.
         'src/l2/runtimeValidation.js': { restoreDomainDetail: (value: unknown) => value },
