@@ -8,6 +8,7 @@ Unit tests for scripts/test_impact_analyzer.py (Test Impact Analysis & Dependenc
 import os
 import subprocess
 import sys
+import json
 import tempfile
 import unittest
 import shutil
@@ -28,6 +29,68 @@ from test_impact_analyzer import (
     resolve_import_path,
     GLOBAL_FILES
 )
+
+
+class TestChangedRunner(unittest.TestCase):
+    def setUp(self):
+        self.workspace = tempfile.TemporaryDirectory()
+        self.addCleanup(self.workspace.cleanup)
+        self.root = Path(self.workspace.name)
+        for directory in ("tests", "scripts"):
+            (self.root / directory).mkdir()
+        for relative in ("tests/run_tests.py", "scripts/test_impact_analyzer.py"):
+            shutil.copy(Path(BASE_DIR) / relative, self.root / relative)
+
+    def run_changed(self, *files):
+        return subprocess.run(
+            [sys.executable, str(self.root / "tests/run_tests.py"), "--changed", "--files", *files],
+            cwd=self.root, env={**os.environ, "GEMINI_SKIP_REDUNDANT_TSC": "1"},
+            capture_output=True, text=True, timeout=30,
+        )
+
+    def write_suite(self, relative, body):
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+
+    def test_changed_runs_every_selected_suite(self):
+        files = ("tests/selected.test.cjs", "tests/nested/selected.test.js")
+        for relative in files:
+            self.write_suite(relative, "require('node:test')('selected', () => {});")
+        result = self.run_changed(*files)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for relative in files:
+            self.assertIn(f"Unit test suite passed: {relative}", result.stdout)
+        self.assertIn("Executed 2 unit suites", result.stdout)
+        self.assertIn("(2 个套件)", result.stdout)
+
+    def test_changed_failing_cjs_exits_nonzero(self):
+        self.write_suite("tests/failing.test.cjs", "throw new Error('selected cjs failure');")
+        result = self.run_changed("tests/failing.test.cjs")
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("selected cjs failure", result.stdout + result.stderr)
+        self.assertNotIn("回退执行全量测试套件", result.stdout)
+        self.assertNotIn("均顺利通过", result.stdout)
+
+    def test_changed_docs_runs_no_suites(self):
+        result = self.run_changed("README.md")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("无需执行单元测试套件", result.stdout)
+        self.assertNotIn("Unit test suite passed:", result.stdout)
+
+    def test_changed_with_no_selected_suites(self):
+        result = self.run_changed("src/unreferenced.ts")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("(0 个套件)", result.stdout)
+        self.assertNotIn("Unit test suite passed:", result.stdout)
+
+    def test_undiscovered_selection_exits_nonzero(self):
+        result = subprocess.run(
+            [sys.executable, "-c", "import run_tests; run_tests.test_javascript_unit_tests(['tests/missing.test.cjs'])"],
+            cwd=self.root / "tests", capture_output=True, text=True, timeout=30,
+        )
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("Selected unit suites were not discovered", result.stderr)
 
 
 class TestImpactAnalyzer(unittest.TestCase):
@@ -145,6 +208,22 @@ class TestImpactAnalyzer(unittest.TestCase):
         self.assertTrue(res.is_docs_only)
         self.assertEqual(len(res.target_unit_tests), 0)
         self.assertEqual(len(res.target_e2e_specs), 0)
+
+    def test_playwright_config_cli_triggers_all(self):
+        result = subprocess.run(
+            [sys.executable, os.path.join(scripts_dir, "test_impact_analyzer.py"),
+             "--files", "playwright.config.ts", "--json"],
+            cwd=BASE_DIR, capture_output=True, text=True, check=True,
+        )
+        impact = json.loads(result.stdout)
+        self.assertTrue(impact["is_all_affected"])
+        self.assertFalse(impact["is_docs_only"])
+        self.assertEqual(impact["changed_files"], ["playwright.config.ts"])
+        all_tests = analyze_impact({"package.json"}, graph=self.graph, base_dir=BASE_DIR)
+        self.assertTrue(impact["target_unit_tests"])
+        self.assertTrue(impact["target_e2e_specs"])
+        self.assertEqual(impact["target_unit_tests"], all_tests.target_unit_tests)
+        self.assertEqual(impact["target_e2e_specs"], all_tests.target_e2e_specs)
 
     def test_fixture_changes_fall_back_to_all_tests(self):
         for target in (

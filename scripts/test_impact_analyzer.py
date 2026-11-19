@@ -28,6 +28,7 @@ GLOBAL_FILES = {
     "package.json",
     "package-lock.json",
     "tsconfig.json",
+    "playwright.config.ts",
     "build.js",
     "manifest.json",
     ".github/workflows/test.yml",

@@ -29,6 +29,40 @@ function dependencies(file: string, text = readFileSync(file, 'utf8')): Edge[] {
 }
 const graph = new Map([...sources].map(([name, file]) => [name, dependencies(file)]));
 
+test('L1 cannot add dependencies on Runtime, Application or UI', () => {
+    const existingRuntimeEdges = new Set([
+        'l1/client/gemini/bootstrap.ts → runtime/content/accountContext.ts',
+        'l1/client/gemini/bootstrap.ts → runtime/content/cleanupRegistry.ts',
+        'l1/sniffer/chatgpt/messageBridge.ts → runtime/api/contentDomainIngestion.ts',
+        'l1/sniffer/claude/messageBridge.ts → runtime/api/contentDomainIngestion.ts',
+        'l1/sniffer/gemini/captureReceiver.ts → runtime/api/contentAccountRegistry.ts',
+        'l1/sniffer/gemini/captureReceiver.ts → runtime/api/contentDomainIngestion.ts',
+        'l1/sniffer/gemini/captureReceiver.ts → runtime/content/accountContext.ts',
+        'l1/sniffer/gemini/messageBridge.ts → runtime/content/cleanupRegistry.ts',
+        'l1/sniffer/grok/messageBridge.ts → runtime/api/contentDomainIngestion.ts',
+    ]);
+    const violations = [...graph].flatMap(([owner, edges]) => !owner.startsWith('l1/') ? [] : edges
+        .filter(({ target }) => /^(runtime|application|ui)\//.test(target))
+        .map(({ target }) => `${owner} → ${target}`)
+        .filter(edge => !existingRuntimeEdges.has(edge)));
+    assert.deepEqual(violations, []);
+});
+
+test('Gemini provider has no transitive Runtime, Application or UI dependencies', () => {
+    const seen = new Set<string>();
+    function walk(owner: string, chain: string[]): void {
+        if (seen.has(owner)) return;
+        seen.add(owner);
+        for (const { target } of graph.get(owner) ?? []) {
+            const path = [...chain, target];
+            assert.ok(!/^(runtime|application|ui)\//.test(target), path.join(' → '));
+            walk(target, path);
+        }
+    }
+    const owner = 'l1/client/gemini/geminiProvider.ts';
+    walk(owner, [owner]);
+});
+
 test('the compatibility directory is retired and no production source imports it', () => {
     assert.equal(existsSync(resolve(core, 'core/compatibility')), false);
     for (const file of files(resolve(root, 'src'))) {

@@ -24,6 +24,7 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/l1/client/grok/accountObservation.js': { observeGrokAccount: async () => null },
         'src/l1/client/claude/accountObservation.js': { observeClaudeAccount: async () => null },
         'src/runtime/capabilities/platformInjection.js': { syncAllPlatformContentScripts: async () => [] },
+        'src/runtime/api/providerHost.js': { installProviderHost() {} },
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
         'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
