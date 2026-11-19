@@ -10,6 +10,43 @@ function stripHtmlTags(str: string): string {
     return current;
 }
 
+const HTML_CODE_BLOCK = /<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi;
+const HTML_INLINE_CODE = /<code>([\s\S]*?)<\/code>/gi;
+
+function stashMarkdownCodeSpans(source: string, stash: (code: string) => string): string {
+    if (!source.includes('`')) return source;
+
+    const runs = [...source.matchAll(/`+|\r?\n[ \t]*\r?\n/g)];
+    const nextByLength = new Map<number, number>();
+    const spans = new Map<number, { start: number; end: number }>();
+    for (let i = runs.length - 1; i >= 0; i--) {
+        const { 0: run, index } = runs[i];
+        if (run[0] !== '`') {
+            nextByLength.clear();
+            continue;
+        }
+        let preceding = index;
+        while (source[preceding - 1] === '\\') preceding--;
+        const escaped = (index - preceding) % 2;
+        const length = run.length - escaped;
+        const close = nextByLength.get(length);
+        if (close !== undefined) spans.set(index, { start: index + escaped, end: close + length });
+        nextByLength.set(run.length, index);
+    }
+
+    const tokens = new RegExp(`${HTML_CODE_BLOCK.source}|${HTML_INLINE_CODE.source}|<\\/?[a-z][\\w:-]*(?=[\\s/>])(?:[^'"<>]|"[^"]*"|'[^']*')*>|` + '`+', 'gi');
+    const parts: string[] = [];
+    let start = 0;
+    for (let match = tokens.exec(source); match; match = tokens.exec(source)) {
+        const span = spans.get(match.index);
+        if (!span) continue;
+        parts.push(source.slice(start, span.start), stash(source.slice(span.start, span.end)));
+        start = span.end;
+        tokens.lastIndex = span.end;
+    }
+    return parts.join('') + source.slice(start);
+}
+
 export function convertHtmlToMarkdown(html?: string | null): string {
     if (!html) return '';
     if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i|table|a|img)[\s/>]/i.test(html)) return html;
@@ -26,6 +63,7 @@ export function convertHtmlToMarkdown(html?: string | null): string {
     // Recognize both CommonMark fence styles before interpreting real HTML tags.
     const lines = res.match(/[^\n]*(?:\n|$)/g) ?? [];
     let outside = '';
+    let prose = '';
     let pending = '';
     let opened: { marker: string; length: number } | null = null;
     let inHtmlPre = false;
@@ -43,26 +81,28 @@ export function convertHtmlToMarkdown(html?: string | null): string {
         } else {
             // Backticks inside a real HTML <pre> are content, not Markdown delimiters.
             if (/<pre(?:\s|>)/i.test(content)) inHtmlPre = true;
-            const opening = inHtmlPre ? null : /^ {0,3}(`{3,}|~{3,})[^\r\n]*$/.exec(content);
-            if (opening) {
+            const opening = inHtmlPre ? null : /^ {0,3}(`{3,}|~{3,})([^\r\n]*)$/.exec(content);
+            if (opening && (opening[1][0] === '~' || !opening[2].includes('`'))) {
+                outside += stashMarkdownCodeSpans(prose, __stashCode);
+                prose = '';
                 opened = { marker: opening[1][0], length: opening[1].length };
                 pending = line;
-            } else outside += line;
+            } else prose += line;
             if (/<\/pre\s*>/i.test(content)) inHtmlPre = false;
         }
     }
-    res = outside + (pending ? __stashCode(pending) : '');
+    res = outside + stashMarkdownCodeSpans(prose, __stashCode) + (pending ? __stashCode(pending) : '');
 
     const backticks = (content: string, min: number): string => {
         const longest = (content.match(/`+/g) ?? []).reduce((count, run) => Math.max(count, run.length), 0);
         return '`'.repeat(Math.max(min, longest + 1));
     };
-    res = res.replace(/<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi, (_match: string, lang: string | undefined, code: string) => {
+    res = res.replace(HTML_CODE_BLOCK, (_match: string, lang: string | undefined, code: string) => {
         const cleanCode = unescapeHtml(code).trim();
         const fence = backticks(cleanCode, 3);
         return __stashCode(`\n${fence}${lang || ''}\n${cleanCode}\n${fence}\n`);
     });
-    res = res.replace(/<code>([\s\S]*?)<\/code>/gi, (_match: string, code: string) => {
+    res = res.replace(HTML_INLINE_CODE, (_match: string, code: string) => {
         const content = unescapeHtml(code);
         const fence = backticks(content, 1);
         const pad = /^`|`$|^ .* $/.test(content) ? ' ' : '';

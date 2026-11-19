@@ -43,3 +43,20 @@ test('HTML inline code preserves literal tag text while converting surrounding m
     assert.ok(converted.includes('`<h1>Literal</h1>`'));
     assert.ok(converted.includes('**Actual**'));
 });
+
+test('Markdown code spans preserve HTML while surrounding markup is converted', () => {
+    const inline = '`<strong>literal</strong>`';
+    const multi = '``<code>`literal`\n&amp;</code>``';
+    const html = '<code>`literal` &amp;</code>';
+    assert.equal(
+        convertHtmlToMarkdown(`Use ${inline} and ${multi}; <strong>real</strong> and ${html}.`),
+        `Use ${inline} and ${multi}; **real** and ` + '`` `literal` & ``.',
+    );
+    assert.equal(convertHtmlToMarkdown('```<b>literal</b>``` and <b>real</b>'), '```<b>literal</b>``` and **real**');
+});
+
+test('unmatched and escaped Markdown backticks do not shield surrounding HTML', () => {
+    const source = '\`\`<b>first</b> \\\`<b>second</b> \`\n\n<b>third</b> \`\`';
+    assert.equal(convertHtmlToMarkdown(source), '\`\`**first** \\\`**second** \`\n\n**third** \`\`');
+    assert.equal(convertHtmlToMarkdown('\\``<b>literal</b>` <b>real</b>'), '\\``<b>literal</b>` **real**');
+});

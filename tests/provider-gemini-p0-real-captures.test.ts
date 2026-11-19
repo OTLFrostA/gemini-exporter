@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { detailGen } from './fixtures/providers/geminiDetail.js';
+import { inlineHtmlFallback } from './fixtures/providers/gemini/detail/p0CapturedCases.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { v2ExportHost, exportKey, exportRequest } from './helpers/v2ExportHost.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
@@ -66,6 +67,19 @@ test('P0 real capture [Python Code]: multi-frame batchexecute preserves decorato
     assert.equal(merged.conversation.detail.messages.length, 2);
     assert.match(outputs.markdown, /```python[\s\S]*functools\.wraps[\s\S]*```/);
     assert.ok(outputs.html.includes('functools.wraps'));
+});
+
+test('Gemini RPC Markdown fallback preserves inline HTML examples', () => {
+    const { literal } = inlineHtmlFallback;
+    const parsed = parseGeminiRpcConversation(inlineHtmlFallback.wire(), { account, providerId: 'gemini' });
+    assert.ok(parsed.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'));
+    const assistant = parsed.conversation.detail.messages.find(message => message.role === 'assistant');
+    assert.ok(assistant);
+    const fencedCode = assistant.content.find(block => block.type === 'code');
+    assert.equal(fencedCode?.code, literal + '\n');
+    const paragraph = assistant.content.find(block => block.type === 'paragraph');
+    const inlineCode = paragraph?.children.find(inline => inline.type === 'inlineCode');
+    assert.equal(inlineCode?.code, literal);
 });
 
 test('P0 real capture [User File]: multi-frame batchexecute binds uploaded JSON file asset and hidden file citation without [1] leakage', async t => {
