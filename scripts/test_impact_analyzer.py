@@ -232,7 +232,7 @@ class ImpactAnalysisResult:
         else:
             unit_set = set()
             for f in self.affected_files:
-                if f.startswith("tests/") and (f.endswith(".test.ts") or f.endswith((".test.js", ".test.cjs"))):
+                if f.startswith("tests/") and (f.endswith((".test.ts", ".test.js", ".test.cjs")) or (f.endswith(".py") and f in self.all_unit_tests)):
                     unit_set.add(f)
             for prefix, suites in COMPONENT_UNIT_MAP.items():
                 if any(f.startswith(prefix) for f in self.affected_files):
@@ -284,7 +284,7 @@ def analyze_impact(
             p = normalize_repo_path(os.path.join(root, f), base_dir)
             if p.startswith("tests/e2e/") and p.endswith(".spec.ts"):
                 all_e2e_specs.append(p)
-            elif p.startswith("tests/") and not p.startswith("tests/e2e/") and (p.endswith(".test.ts") or p.endswith((".test.js", ".test.cjs"))):
+            elif p.startswith("tests/") and not p.startswith("tests/e2e/") and (p.endswith((".test.ts", ".test.js", ".test.cjs")) or (f.startswith("test_") and f.endswith(".py"))):
                 all_unit_tests.append(p)
 
     norm_changed = {normalize_repo_path(f, base_dir) for f in changed_files if f}

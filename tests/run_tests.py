@@ -676,8 +676,16 @@ def run_all():
                 if any("impact_analyzer" in f for f in affected):
                     test_impact_analyzer_suite()
 
+                import subprocess
+                python_tests = [f for f in result.target_unit_tests if f.endswith(".py")]
+                for test_file in python_tests:
+                    print(f"🧪 Python: {test_file}", flush=True)
+                    res = subprocess.run([sys.executable, os.path.join(BASE_DIR, test_file)], cwd=BASE_DIR)
+                    if res.returncode != 0:
+                        sys.exit(res.returncode)
+
                 test_javascript_syntax()
-                test_javascript_unit_tests(target_tests=result.target_unit_tests)
+                test_javascript_unit_tests(target_tests=[f for f in result.target_unit_tests if not f.endswith(".py")])
                 print("=" * 60)
                 print(f"🎉 全部受影响单元测试 ({len(result.target_unit_tests)} 个套件) 均顺利通过！")
                 print("=" * 60)

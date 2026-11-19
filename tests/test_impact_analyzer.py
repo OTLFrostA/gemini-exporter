@@ -8,6 +8,10 @@ Unit tests for scripts/test_impact_analyzer.py (Test Impact Analysis & Dependenc
 import os
 import sys
 import unittest
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 scripts_dir = os.path.join(BASE_DIR, "scripts")
@@ -112,6 +116,51 @@ class TestImpactAnalyzer(unittest.TestCase):
         self.assertIn("./cjs_req", matches)
         self.assertNotIn("./type_bar", matches)
         self.assertNotIn("./type_quux", matches)
+
+
+class TestChangedPythonRunner(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.repo = Path(self.temp.name)
+        for name in ("tests/run_tests.py", "scripts/test_impact_analyzer.py", "scripts/run_changed_tests.py"):
+            destination = self.repo / name
+            destination.parent.mkdir(exist_ok=True)
+            shutil.copyfile(Path(BASE_DIR) / name, destination)
+        (self.repo / "build.js").write_text("console.log('fixture build');\n")
+        (self.repo / "tests/test_example.py").write_text("print('PYTHON_SUITE_EXECUTED')\n")
+
+    def run_changed(self, orchestrator=False, files=None):
+        entry = "scripts/run_changed_tests.py" if orchestrator else "tests/run_tests.py"
+        args = ["--skip-typecheck", "--skip-e2e"] if orchestrator else ["--changed"]
+        env = dict(os.environ, GEMINI_SKIP_REDUNDANT_TSC="1")
+        return subprocess.run(
+            [sys.executable, str(self.repo / entry), *args, "--files",
+             *(files if files is not None else ["tests/test_example.py"])],
+            cwd=self.repo, env=env, capture_output=True, text=True, timeout=30,
+        )
+
+    def test_changed_python_suite_runs_through_both_entries(self):
+        for orchestrator in (False, True):
+            with self.subTest(orchestrator=orchestrator):
+                result = self.run_changed(orchestrator)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("PYTHON_SUITE_EXECUTED", result.stdout)
+
+    def test_changed_python_failure_propagates_through_both_entries(self):
+        (self.repo / "tests/test_example.py").write_text("raise RuntimeError('FORCED_PYTHON_FAILURE')\n")
+        for orchestrator in (False, True):
+            with self.subTest(orchestrator=orchestrator):
+                result = self.run_changed(orchestrator)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("FORCED_PYTHON_FAILURE", result.stdout + result.stderr)
+
+    def test_docs_and_deleted_python_tests_do_not_run(self):
+        for files in (["README.md"], ["tests/test_deleted.py"]):
+            with self.subTest(files=files):
+                result = self.run_changed(files=files)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn("PYTHON_SUITE_EXECUTED", result.stdout)
 
 
 if __name__ == "__main__":
