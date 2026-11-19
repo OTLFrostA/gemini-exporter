@@ -297,6 +297,45 @@ test('CloudSyncEngine: a PUT acknowledgment preserves an update queued during up
     }
 });
 
+test('CloudSyncEngine uploads and acknowledges an outbox row written before enqueue identities', async () => {
+    const env = indexStorage();
+    try {
+        await env.ready;
+        const mock = createMockCloudVaultHttp();
+        const client = createCloudVaultClient((url, init) => mock.handler(new Request(url, init)));
+        const engine = createCloudSyncEngine({ client });
+        await createVaultKeySetup(engine.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
+        await engine.connectCloudVault(SERVER_URL, undefined, 'create');
+        const account = await getOrCreateAccount('gemini', 'gaia-outbox-legacy', 'legacy@example.com', 'Legacy Outbox');
+        const conversationId = 'c_outbox_legacy';
+        await ingestIndexes(account.id, [{ conversationId, fields: { title: 'Already queued', titleSource: 'provider' } }]);
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            const request = indexedDB.open('gemini_exporter_cloud_v2');
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const tx = db.transaction('outbox', 'readwrite');
+                tx.oncomplete = () => resolve();
+                tx.onabort = () => reject(tx.error);
+                tx.objectStore('outbox').put({
+                    accountId: account.id, conversationId, queuedAt: 1, attempts: 0, nextRetryAt: 0,
+                });
+            });
+        } finally {
+            db.close();
+        }
+        // Enable flushing without a full history scan, which would re-enqueue the legacy row.
+        await updateSettings({ cloudSyncEnabled: true });
+        assert.equal((await listDueCloudOutbox())[0]?.enqueueId, null);
+        assert.equal((await engine.flushOutbox()).uploaded, 1);
+        assert.deepEqual(await listDueCloudOutbox(), []);
+    } finally {
+        env.restore();
+    }
+});
+
 test('an expired session renews with unlock from the installed key without a plaintext copy', async () => {
     const env = indexStorage();
     try {
