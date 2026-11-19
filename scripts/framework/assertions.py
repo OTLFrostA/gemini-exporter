@@ -10,7 +10,6 @@ import json
 import zipfile
 import time
 import hashlib
-import html
 import unicodedata
 import math
 from scripts.framework.v2_probe import install_probe, snapshot
@@ -28,13 +27,6 @@ except ImportError:
 
 from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
 from scripts.framework.archive_resources import validate_archive_resources, resource_references, find_archive_resource
-
-
-def normalized_text(text: str) -> str:
-    """Compare prose/code across DOM and Markdown without formatting/space noise."""
-    text = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', text)
-    text = re.sub(r'\\([\\`*_{}\[\]()#+.!|>-])', r'\1', text)
-    return ''.join(c for c in unicodedata.normalize('NFKC', html.unescape(text)) if c.isalnum())
 
 
 @lru_cache(maxsize=64)
