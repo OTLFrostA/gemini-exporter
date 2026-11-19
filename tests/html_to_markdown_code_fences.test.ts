@@ -60,3 +60,10 @@ test('unmatched and escaped Markdown backticks do not shield surrounding HTML', 
     assert.equal(convertHtmlToMarkdown(source), '\`\`**first** \\\`**second** \`\n\n**third** \`\`');
     assert.equal(convertHtmlToMarkdown('\\``<b>literal</b>` <b>real</b>'), '\\``<b>literal</b>` **real**');
 });
+
+test('backticks inside HTML attributes and raw HTML code cannot close Markdown code spans', () => {
+    assert.equal(convertHtmlToMarkdown('Unmatched ` then <b title="`">real</b>.'), 'Unmatched ` then **real**.');
+    assert.equal(convertHtmlToMarkdown('Unmatched ` then <code>`raw`</code>.'), 'Unmatched ` then `` `raw` ``.');
+    const span = '`<b title="`">example</b>`';
+    assert.equal(convertHtmlToMarkdown('Use ' + span + ' and <b>real</b>.'), 'Use ' + span + ' and **real**.');
+});

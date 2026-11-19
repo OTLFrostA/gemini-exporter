@@ -13,16 +13,22 @@ function stripHtmlTags(str: string): string {
 const HTML_CODE_BLOCK = /<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi;
 const HTML_INLINE_CODE = /<code>([\s\S]*?)<\/code>/gi;
 
+const HTML_TAG = /<\/?[a-z][\w:-]*(?=[\s/>])(?:[^'"<>]|"[^"]*"|'[^']*')*>/;
+const PROSE_TOKENS = new RegExp([
+    HTML_CODE_BLOCK.source, HTML_INLINE_CODE.source, HTML_TAG.source, /`+|\r?\n[ \t]*\r?\n/.source,
+].join('|'), 'gi');
+
 function stashMarkdownCodeSpans(source: string, stash: (code: string) => string): string {
     if (!source.includes('`')) return source;
 
-    const runs = [...source.matchAll(/`+|\r?\n[ \t]*\r?\n/g)];
+    // Real HTML tokens are opaque to the Markdown delimiter scan.
+    const tokens = [...source.matchAll(PROSE_TOKENS)];
     const nextByLength = new Map<number, number>();
     const spans = new Map<number, { start: number; end: number }>();
-    for (let i = runs.length - 1; i >= 0; i--) {
-        const { 0: run, index } = runs[i];
+    for (let i = tokens.length - 1; i >= 0; i--) {
+        const { 0: run, index } = tokens[i];
         if (run[0] !== '`') {
-            nextByLength.clear();
+            if (/\r?\n[ \t]*\r?\n/.test(run)) nextByLength.clear();
             continue;
         }
         let preceding = index;
@@ -34,15 +40,14 @@ function stashMarkdownCodeSpans(source: string, stash: (code: string) => string)
         nextByLength.set(run.length, index);
     }
 
-    const tokens = new RegExp(`${HTML_CODE_BLOCK.source}|${HTML_INLINE_CODE.source}|<\\/?[a-z][\\w:-]*(?=[\\s/>])(?:[^'"<>]|"[^"]*"|'[^']*')*>|` + '`+', 'gi');
     const parts: string[] = [];
     let start = 0;
-    for (let match = tokens.exec(source); match; match = tokens.exec(source)) {
-        const span = spans.get(match.index);
+    for (const { index } of tokens) {
+        if (index < start) continue;
+        const span = spans.get(index);
         if (!span) continue;
         parts.push(source.slice(start, span.start), stash(source.slice(span.start, span.end)));
         start = span.end;
-        tokens.lastIndex = span.end;
     }
     return parts.join('') + source.slice(start);
 }
