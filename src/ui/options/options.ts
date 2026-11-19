@@ -1,4 +1,5 @@
 import { listIndexes } from '../../application/conversations/catalogQueries.js';
+import { installProviderHost } from '../../runtime/api/providerHost.js';
 import { OperationError } from '../../shared/errors/operationError.js';
 import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { createBackoffNotice } from '../shared/backoffNotice.js';
@@ -38,6 +39,8 @@ import { isAccountId } from '../../l2/accountRegistry.js';
 import type { ForegroundTask, ScanEvidence, TaskFeedback, UiMessage } from './state/foregroundTask.js';
 import { mountTaskPanel } from './views/taskPanelView.js';
 import { mountCloudVaultPanel, type CloudVaultControllerHandle } from './controllers/cloudVaultController.js';
+
+installProviderHost();
 
 type Level = 'info' | 'warn' | 'error';
 type Action = 'export' | 'takeout' | 'cleanup';

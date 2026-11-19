@@ -1,4 +1,5 @@
 import { OperationError } from '../../shared/errors/operationError.js';
+import { installProviderHost } from '../../runtime/api/providerHost.js';
 import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { createBackoffNotice } from '../shared/backoffNotice.js';
 import { elementById as el, requiredElement as control } from '../shared/elements.js';
@@ -19,6 +20,8 @@ import { runExport } from '../../application/export/runExport.js';
 import { EXPORT_FORMATS, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
 import { createOptimisticThemeToggle } from '../shared/themeToggle.js';
 import { readSettings } from '../shared/readSettings.js';
+
+installProviderHost();
 
 /** Only the explicitly opened Popup inspects its active tab; URLs never establish Account identity. */
 export function platformForTabUrl(url: string | undefined): SourcePlatform | null {

@@ -14,6 +14,8 @@ export async function uiProbeBundle() {
         import * as settings from './src/application/settings/index.ts';
         import { readConversation } from './src/l2/readConversation.ts';
         import { runLiveSave } from './src/runtime/background/liveSaveHandler.ts';
+        import { installProviderHost } from './src/runtime/api/providerHost.ts';
+        installProviderHost();
         globalThis.uiFixture = {...storage,...domain,...settings,readConversation,runLiveSave};
     `},bundle:true,write:false,format:'iife',platform:'browser',conditions:['worker','browser'],logLevel:'silent'}).then(x=>x.outputFiles[0].text);
     return bundle;

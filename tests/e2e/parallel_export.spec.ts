@@ -33,6 +33,8 @@ test('Folder: a delayed native close permits later downloads and commits, with o
         import { createSourceResourceContext } from './src/l1/resources/sourceResources.ts';
         import { ingestDetail } from './src/l2/ingestion.ts';
         import { setDirectoryHandle, listExportRecords } from './src/l3a/storageService.ts';
+        import { installProviderHost } from './src/runtime/api/providerHost.ts';
+        installProviderHost();
         globalThis.folderCommitProbe = {runExport,createSourceResourceContext,ingestDetail,setDirectoryHandle,listExportRecords};
     `},bundle:true,write:false,format:'iife',platform:'browser',conditions:['worker','browser'],logLevel:'silent'});
     await page.evaluate(bundle.outputFiles[0].text);
@@ -154,6 +156,8 @@ test(`${delivery}: source preparation stays independent and final documents reso
     const bundle = await build({stdin:{resolveDir:path.resolve(__dirname,'../..'),loader:'ts',contents:`
         import { runExport } from './src/application/export/runExport.ts';
         import { createSourceResourceContext } from './src/l1/resources/sourceResources.ts';
+        import { installProviderHost } from './src/runtime/api/providerHost.ts';
+        installProviderHost();
         globalThis.parallelExportProbe = {runExport,createSourceResourceContext};
     `},bundle:true,write:false,format:'iife',platform:'browser',conditions:['worker','browser'],logLevel:'silent'});
     await page.evaluate(bundle.outputFiles[0].text);
