@@ -165,6 +165,53 @@ test('p1c - postBatchexecute: 有调用方 signal 时内部 timeout 仍生效；
     }
 });
 
+for (const method of ['list', 'detail'] as const) {
+    for (const status of [200, 500]) {
+        for (const cancellation of ['deadline', 'external'] as const) {
+            test(`p1c - ${method} stalled body ${status}: ${cancellation}`, async () => {
+                const originalFetch = globalThis.fetch;
+                const originalSetTimeout = globalThis.setTimeout;
+                const caller = new AbortController();
+                let deadline: number | undefined;
+                let watchdog: ReturnType<typeof setTimeout> | undefined;
+                globalThis.setTimeout = ((callback: () => void, delay?: number, ...args: unknown[]) => {
+                    if (delay === 30000 || delay === 15000) {
+                        deadline = delay;
+                        delay = cancellation === 'deadline' ? 25 : delay;
+                    }
+                    return originalSetTimeout(callback, delay, ...args);
+                }) as typeof setTimeout;
+                globalThis.fetch = async (_url, options) => new Response(new ReadableStream({
+                    start(controller) {
+                        const signal = options?.signal;
+                        assert.ok(signal instanceof AbortSignal);
+                        const abort = () => controller.error(signal?.reason);
+                        if (signal?.aborted) abort();
+                        else signal?.addEventListener('abort', abort, { once: true });
+                    }
+                }), { status });
+                try {
+                    const client = new GeminiAPIClient({ signal: caller.signal });
+                    const request = method === 'list'
+                        ? client.getConversationList()
+                        : client.fetchConversationPage('body_timeout');
+                    if (cancellation === 'external') originalSetTimeout(() => caller.abort(), 10);
+                    const guard = new Promise((_, reject) => {
+                        watchdog = originalSetTimeout(() => reject(new Error('body read exceeded deadline')), 250);
+                    });
+                    await assert.rejects(Promise.race([request, guard]), { name: 'AbortError' });
+                    assert.strictEqual(deadline, method === 'list' ? 30000 : 15000);
+                } finally {
+                    caller.abort();
+                    clearTimeout(watchdog);
+                    globalThis.fetch = originalFetch;
+                    globalThis.setTimeout = originalSetTimeout;
+                }
+            });
+        }
+    }
+}
+
 // P1-035: getConversationList 15s 超时 + 429 退避快速取消
 
 test('p1c - getConversationList: 429 退避期间 abort 直接抛取消，不睡满退避', async () => {

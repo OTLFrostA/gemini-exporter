@@ -19,7 +19,7 @@ interface GeminiClientRpcClientModule {
     getApiUrl: (slot?: string | null) => string;
     nextReqid: () => string;
     generateFallbackSid: () => string;
-    postBatchexecute: (options: RpcRequestOptions) => Promise<Response>;
+    postBatchexecute: (options: RpcRequestOptions) => Promise<{ response: Response; text: string }>;
     mergeAbortSignals: (signals: Array<AbortSignal | null | undefined>) => AbortSignal | undefined;
 }
 
@@ -47,7 +47,7 @@ const nextReqid = GeminiProtocol.createReqidGenerator();
         return AbortSignal.any(active);
     }
 
-    async function postBatchexecute(options: RpcRequestOptions): Promise<Response> {
+    async function postBatchexecute(options: RpcRequestOptions): Promise<{ response: Response; text: string }> {
         const {
             api,
             rpcids,
@@ -93,7 +93,8 @@ const nextReqid = GeminiProtocol.createReqidGenerator();
                 credentials: "include",
                 signal: mergeAbortSignals([signal, controller ? controller.signal : null])
             });
-            return resp;
+            const text = await resp.text();
+            return { response: resp, text };
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
         }
@@ -112,4 +113,3 @@ const GeminiClientRpcClient: GeminiClientRpcClientModule = {
 };
 
 export default GeminiClientRpcClient;
-
