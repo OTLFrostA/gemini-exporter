@@ -35,6 +35,13 @@ class RunTestsFilterTests(unittest.TestCase):
         self.assertIn("Unit test suite passed: tests/upgrade_v1.test.cjs",
                       result.stdout.replace("\\", "/"))
 
+    def test_keeps_sibling_python_imports_available_in_a_mixed_filter(self):
+        result = self.run_filter("platform")
+        self.assert_passed(result)
+        output = result.stdout.replace("\\", "/")
+        self.assertIn("Unit test suite passed: tests/test_tier2_platforms.py", output)
+        self.assertIn("Unit test suite passed: tests/platform_permissions.test.ts", output)
+
     def test_runs_matching_languages_without_running_the_migration_twice(self):
         result = self.run_filter("upgrade")
         self.assert_passed(result)

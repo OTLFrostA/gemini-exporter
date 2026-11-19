@@ -604,7 +604,11 @@ def run_python_unit_tests(test_files):
 
     for test_file in test_files:
         rel = os.path.relpath(test_file, BASE_DIR)
-        result = subprocess.run([sys.executable, "-m", "unittest", rel], cwd=BASE_DIR)
+        result = subprocess.run(
+            [sys.executable, "-m", "unittest", "discover",
+             "-s", os.path.dirname(rel), "-p", os.path.basename(rel)],
+            cwd=BASE_DIR,
+        )
         if result.returncode:
             sys.exit(result.returncode)
         print(f"  ✓ Unit test suite passed: {rel}")
