@@ -233,6 +233,21 @@ test('Tier 2 Takeout probe reads source-bound archive bytes and actual UI-import
 });
 
 
+test('Options Takeout ZIP import persists decoded text from a real Takeout prompt', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const page = await openOptions(context, extensionId);
+    await page.locator('#btnMoreActions').click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.locator('#btnImportTakeout').click();
+    await (await chooser).setFiles(resolve(root, 'tests/fixtures/gemini_takeout_clean.zip'));
+    await expect(page.locator('#status')).toContainText('Read 6 conversation records, added 6');
+    const prompts = await page.evaluate(async ({ accountId, conversationId }) => {
+        const detail = await Reflect.get(globalThis, 'uiFixture').getDetail({ accountId, conversationId });
+        return JSON.stringify(detail?.messages.filter((message: { role: string }) => message.role === 'user') ?? []);
+    }, { accountId, conversationId: '7b29852ecae8344a' });
+    expect(prompts).toContain("Bell's inequality");
+});
+
 test('Tier 2 individual selection updates controlled rows and export eligibility', async ({ context, extensionId }) => {
     const page = await workbench(context, extensionId);
     await page.evaluate(async accountId => {
