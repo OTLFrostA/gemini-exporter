@@ -302,8 +302,8 @@ export function createCloudSyncEngine(deps: {
         let currentSource: PortableConversationSource = initialSource;
         for (let conflictAttempt = 0; conflictAttempt < 3; conflictAttempt++) {
             signal?.throwIfAborted();
-            const portableJson = encodePortableCloudConversation(account, currentSource);
-            const payloadSha256 = await sha256Utf8Hex(portableJson);
+            let portableJson = encodePortableCloudConversation(account, currentSource);
+            let payloadSha256 = await sha256Utf8Hex(portableJson);
             const synced = await getSyncedCloudRecord(session.ownerSubject, key);
             if (synced && synced.payloadSha256 === payloadSha256 && synced.oversizedBytes === undefined) {
                 await removeCloudOutboxKey(key);
@@ -312,13 +312,36 @@ export function createCloudSyncEngine(deps: {
 
             const expectedRevision = synced?.remoteRevision ?? 0;
             const nextRevision = expectedRevision + 1;
+            const activeClient = clientForSession(session);
             let sealed: { blindRecordId: string; envelope: Uint8Array<ArrayBuffer> };
             try {
+                let sourceForWrite = currentSource;
+                // Index-only updates may keep Detail already in this vault, but never add this browser's local Detail.
+                if (session.backend === 'local-folder' && synced && expectedRevision > 0 && !currentSource.detail) {
+                    const backedUp = await activeClient.getEncryptedRecord({
+                        serverUrl: session.serverUrl,
+                        sessionToken: session.sessionToken,
+                        blindRecordId: synced.blindRecordId,
+                        signal,
+                    });
+                    if (backedUp) {
+                        const { detail } = await openCloudConversation({ keyring, blindRecordId: synced.blindRecordId, ...backedUp });
+                        if (detail) {
+                            sourceForWrite = { ...currentSource, detail: { ...detail, key } };
+                            portableJson = encodePortableCloudConversation(account, sourceForWrite);
+                            payloadSha256 = await sha256Utf8Hex(portableJson);
+                            if (synced.payloadSha256 === payloadSha256 && synced.oversizedBytes === undefined) {
+                                await removeCloudOutboxKey(key);
+                                return 'skipped';
+                            }
+                        }
+                    }
+                }
                 sealed = await sealCloudConversation({
                     keyring,
                     revision: nextRevision,
                     account,
-                    conversation: currentSource,
+                    conversation: sourceForWrite,
                 });
             } catch (error) {
                 if (error instanceof OperationError && error.code === 'CLOUD_RECORD_TOO_LARGE') {
@@ -344,7 +367,6 @@ export function createCloudSyncEngine(deps: {
             }
 
             const envelopeSha256 = await sha256BytesHex(sealed.envelope);
-            const activeClient = clientForSession(session);
             try {
                 const putOutcome = await activeClient.putEncryptedRecord({
                     serverUrl: session.serverUrl,

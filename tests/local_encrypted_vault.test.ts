@@ -271,8 +271,14 @@ test('switching to a different same-named vault restores and saves against the n
         await createVaultKeySetup(writer.activateVaultKeyring)(recoveryKey, 'imported', null);
         await writer.connectLocalFolderVault(newFolder.handle);
         const account = await getOrCreateAccount('gemini', 'gaia-vault-switch');
-        await addIndex(account.id, 'shared', 'Newer title', 20_000);
+        await ingestDetail(account.id, 'shared', {
+            savedAt: 20_000,
+            quality: { status: 'complete' },
+            assets: [],
+            messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Backed-up body' }] }] }],
+        }, { title: 'Newer title', titleSource: 'provider', updatedAt: 20_000 });
         await addIndex(account.id, 'new-folder-only', 'Restore from new folder', 20_000);
+        await writer.setIncludeDetail(true);
         await writer.setAutoSyncEnabled(true);
         await writer.waitForIdle();
         assert.equal(newFolder.subdirs.get('records')?.files.size, 2);
@@ -303,6 +309,26 @@ test('switching to a different same-named vault restores and saves against the n
         assert.equal(result.push.uploaded, 1, 'the old folder acknowledgement must not suppress saving to the new folder');
         assert.equal(newFolder.subdirs.get('records')?.files.size, 3);
         assert.equal(oldFolder.subdirs.get('records')?.files.size, 2);
+
+        await ingestDetail(account.id, 'shared', {
+            savedAt: 30_000,
+            quality: { status: 'complete' },
+            assets: [],
+            messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Private local body' }] }] }],
+        }, { title: 'Renamed on index-only browser', titleSource: 'provider', updatedAt: 30_000 });
+        assert.equal((await syncer.syncNow()).push.uploaded, 1);
+        const keyring = await deriveVaultKeyring(await parseRecoveryKey(recoveryKey));
+        const localClient = createLocalFolderVaultClient(async () => newFolder.handle);
+        const recordArgs = { serverUrl: '', sessionToken: '' };
+        const feed = await localClient.listChanges({ ...recordArgs, sinceSeq: 0, limit: 50 });
+        const latest = feed.items.find(item => item.revision === 2);
+        assert.ok(latest, 'the title change reaches the destination vault');
+        const backup = await localClient.getEncryptedRecord({ ...recordArgs, blindRecordId: latest.blindRecordId });
+        assert.ok(backup);
+        const opened = await openCloudConversation({ keyring, blindRecordId: latest.blindRecordId, ...backup });
+        assert.equal(opened.index.title, 'Renamed on index-only browser');
+        assert.match(JSON.stringify(opened.detail), /Backed-up body/);
+        assert.doesNotMatch(JSON.stringify(opened.detail), /Private local body/);
     } finally {
         target.restore();
     }
