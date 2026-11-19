@@ -74,7 +74,4 @@ class TestGenerateScenarioChats(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] == '--mock-cli':
-        run_cli(sys.argv[2], [(False, 'mock turn failed')] * 5)
-    else:
-        unittest.main()
+    unittest.main()
