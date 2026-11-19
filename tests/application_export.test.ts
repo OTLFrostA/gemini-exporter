@@ -240,6 +240,26 @@ test('missing Detail fails only that target and preserves old record', async () 
     assert.deepEqual(result.failed, [key()]); assert.equal(result.exported, 1);
     assert.equal(records.get(address(key())), previous);
 });
+test('a stalled Gemini detail deadline fails its item without cancelling the export batch', async t => {
+    seed('second');
+    const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js') as typeof import('../src/l1/client/gemini/geminiClient.js');
+    const originalSetTimeout = globalThis.setTimeout;
+    t.mock.method(globalThis, 'setTimeout', (callback: () => void, delay?: number, ...args: unknown[]) =>
+        originalSetTimeout(callback, delay === 15000 ? 10 : delay, ...args));
+    t.mock.method(globalThis, 'fetch', async (_input: unknown, init?: RequestInit) => new Response(new ReadableStream({
+        start(controller) {
+            const signal = init?.signal;
+            assert.ok(signal);
+            signal.addEventListener('abort', () => controller.error(signal.reason), { once: true });
+        },
+    })));
+    provider.fetchConversationDetail = async () => { await new GeminiAPIClient().fetchConversationPage('first'); };
+    const result = await runExport(request({ keys: [key(), key('second')], delivery: 'folderWriter' }));
+    assert.deepEqual(result.failed, [key()]);
+    assert.equal(result.aborted, false);
+    assert.equal(result.exported, 1);
+    assert.equal(records.get(address(key('second')))?.status, 'ok');
+});
 test('failed attachments preserve delivered links and produce an explicit report', async () => {
     seed('first', { assets: true });
     provider.acquireResource = async () => { throw new Error('unavailable'); };

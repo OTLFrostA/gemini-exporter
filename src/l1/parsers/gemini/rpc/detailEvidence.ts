@@ -16,6 +16,7 @@ export interface GeminiAttachmentEvidence {
     name?: string;
     title?: string;
     url?: string;
+    candidates?: string[];
     contentMarkdown?: string;
     alt?: string;
     isBlob?: boolean;

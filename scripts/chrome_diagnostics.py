@@ -51,7 +51,9 @@ class BrowserDiagnostics:
                                       str(Path.home() / '.gemini-exporter-test-profile')))
         try:
             metadata = json.loads((profile / 'chrome-launch.json').read_text(encoding='utf-8'))
-            if metadata.get('browser', {}).get('webSocketDebuggerUrl') == self.version['webSocketDebuggerUrl']:
+            if not isinstance(metadata, dict) or not isinstance(metadata.get('browser'), dict):
+                raise ValueError('Launcher browser metadata is unavailable')
+            if metadata['browser'].get('webSocketDebuggerUrl') == self.version['webSocketDebuggerUrl']:
                 self.launch_metadata = metadata
         except (OSError, ValueError, KeyError) as error:
             self.event('launcher_evidence_unavailable', error=str(error))

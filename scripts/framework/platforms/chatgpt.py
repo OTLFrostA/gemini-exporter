@@ -92,4 +92,14 @@ class ChatGPTPlugin:
     @staticmethod
     def session(runtime, target_features=None, domain=None):
         from .browser import browser_session
-        return browser_session(runtime, 'chatgpt', build_dag, target_features, domain)
+        session = browser_session(runtime, 'chatgpt', build_dag, target_features, domain)
+        finalize = session.finalize
+
+        def finalize_and_release():
+            finalize()
+            # Later stages reuse the generated conversations, so only a passing
+            # run frees the output directory for fresh scenarios.
+            if runtime.report['passed']:
+                runtime.release_scenarios()
+        session.finalize = finalize_and_release
+        return session

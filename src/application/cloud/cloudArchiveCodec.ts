@@ -1,3 +1,4 @@
+import { applicationHost } from '../host.js';
 import { OperationError, operationError } from '../../shared/errors/operationError.js';
 import {
     deriveBlindRecordId,
@@ -15,8 +16,6 @@ import {
     type PortableConversationSource,
 } from '../../l2/cloudPayload.js';
 import { ingestDetail, ingestDetailsBatch, ingestIndexes } from '../../l2/ingestion.js';
-import { getOrCreateAccount } from '../../runtime/api/accountRegistry.js';
-import { notifyDomainChanged } from '../../runtime/api/domainChanges.js';
 
 export interface SealedCloudConversation {
     readonly blindRecordId: string;
@@ -133,7 +132,7 @@ export async function restoreCloudConversationsToLocal(
     const batchSize = Math.max(1, Math.trunc(sliceSize));
 
     for (const { accountParams, entries } of groups.values()) {
-        const localAccount = await getOrCreateAccount(
+        const localAccount = await applicationHost().getOrCreateAccount(
             accountParams.providerId,
             accountParams.providerAccountId,
             accountParams.email,
@@ -189,7 +188,7 @@ export async function restoreCloudConversationsToLocal(
                 if (outcome.changed) changed++;
             }
         }
-        notifyDomainChanged(localAccount.id);
+        applicationHost().notifyDomainChanged(localAccount.id);
     }
 
     return { accepted, changed, rejected, touchedAccountIds };

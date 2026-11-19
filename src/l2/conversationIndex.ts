@@ -18,7 +18,7 @@ const keys = new Set(['key', 'title', 'titleSource', 'createdAt', 'updatedAt', '
 /** Index persistence/IPC ingress: validate unknown timestamps before constructing typed facts. */
 function readOptionalIndexTime(value: unknown): number | undefined {
     if (value === undefined) return undefined;
-    if (typeof value !== 'number' || !Number.isSafeInteger(value)) throw new TypeError('Invalid conversation index schema');
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || Math.abs(value) > 8.64e15) throw new TypeError('Invalid conversation index schema');
     return value;
 }
 export function restoreConversationIndex(value: unknown): DomainConversationIndex {

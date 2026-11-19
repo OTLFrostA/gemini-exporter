@@ -10,7 +10,6 @@ import json
 import zipfile
 import time
 import hashlib
-import html
 import unicodedata
 import math
 from scripts.framework.v2_probe import install_probe, snapshot
@@ -21,20 +20,15 @@ from typing import Tuple, Optional, Dict, Any, List
 
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+_export_spec_import_error = None
 try:
     from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
-except ImportError:
+except ImportError as exc:
     ExportSpecificationAsserter = None
+    _export_spec_import_error = str(exc)
 
 from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
 from scripts.framework.archive_resources import validate_archive_resources, resource_references, find_archive_resource
-
-
-def normalized_text(text: str) -> str:
-    """Compare prose/code across DOM and Markdown without formatting/space noise."""
-    text = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', text)
-    text = re.sub(r'\\([\\`*_{}\[\]()#+.!|>-])', r'\1', text)
-    return ''.join(c for c in unicodedata.normalize('NFKC', html.unescape(text)) if c.isalnum())
 
 
 @lru_cache(maxsize=64)
@@ -640,6 +634,9 @@ class CDPAssertions:
         uploaded_files: Optional[List[Dict[str, Any]]] = None
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """解压 ZIP 归档包，核实 100% 对话轮次物理落盘，严禁 0 字节附件，并运行 ExportSpecificationAsserter 规范断言"""
+        if ExportSpecificationAsserter is None:
+            return False, f"ExportSpecificationAsserter 导入失败 (ImportError): {_export_spec_import_error}", {}
+
         if not os.path.isfile(zip_path):
             return False, f"ZIP 文件不存在: {zip_path}", {}
 

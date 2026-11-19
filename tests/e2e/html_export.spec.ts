@@ -1,6 +1,6 @@
 // Full browser v2 UI -> Application -> Composer -> HTML -> physical download.
 import { test, expect, seedRegistryAccounts } from './fixtures';
-import { openOptions, seedConversations, accountId } from './uiFixture';
+import { openOptions, seedConversations, accountId, exposeUIStorage } from './uiFixture';
 import { readFile } from 'node:fs/promises';
 
 test.beforeEach(async ({ context }) => { await seedRegistryAccounts(context); });
@@ -43,3 +43,38 @@ test('v2 HTML file retains long prompts, collapsible content and print-safe styl
     await rendered.close();
     await page.close();
 });
+
+for (const { language, copy, copied } of [
+    { language: 'en', copy: 'Copy', copied: 'Copied ✓' },
+    { language: 'zh', copy: '复制', copied: '已复制 ✓' },
+] as const) {
+    test(`v2 HTML code copy button confirms in the export language (${language})`, async ({ context, extensionId }) => {
+        const page = await openOptions(context, extensionId);
+        await page.evaluate(async ({ id, language }) => {
+            const api = Reflect.get(globalThis, 'uiFixture');
+            await api.updateSettings({ language });
+            await api.ingestDetail(id, 'html_copy_001', { savedAt: 100, quality: { status: 'complete' }, assets: [], messages: [
+                { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Print hello' }] }] },
+                { role: 'assistant', content: [{ type: 'code', language: 'python', code: 'print("hello")' }] },
+            ] }, { title: 'Code copy', titleSource: 'provider', updatedAt: 100 });
+        }, { id: accountId, language });
+        await page.reload();
+        await exposeUIStorage(page);
+        await expect(page.locator('#list .item')).toHaveCount(1);
+        await page.locator('#format').selectOption('html');
+        await page.locator('#btnSelectAll').click();
+        const downloadPromise = page.waitForEvent('download');
+        await page.locator('#btnExport').click();
+        const html = await readFile((await (await downloadPromise).path())!, 'utf8');
+
+        const rendered = await context.newPage();
+        await rendered.setContent(html);
+        const label = rendered.locator('.gem-copy-btn .copy-text');
+        await expect(label).toHaveText(copy);
+        await rendered.locator('.gem-copy-btn').click();
+        await expect(label).toHaveText(copied);
+        await expect(label).toHaveText(copy, { timeout: 5000 });
+        await rendered.close();
+        await page.close();
+    });
+}

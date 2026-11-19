@@ -3,6 +3,55 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { accountId, openOptions, seedConversations, storedSettings } from './uiFixture';
 test.beforeEach(async({context,extensionId})=>{void extensionId;await seedRegistryAccounts(context);});
+for (const language of ['en', 'zh'] as const) test(`single-conversation export progress uses correct ${language} counters`, async ({context,extensionId}, testInfo) => {
+    const page = await openOptions(context, extensionId);
+    await page.setViewportSize({width:1440,height:1100});
+    await seedConversations(page, [{id:'one'}]);
+    await page.locator('#devToggle').check();
+    await page.locator('#includeAssets').check();
+    await page.evaluate(async ({accountId,language}) => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        await api.ingestDetail(accountId, 'one', {
+            savedAt:100, quality:{status:'complete'},
+            assets:[{id:'file',kind:'file',name:'report.md',document:{contentMarkdown:'Report one'}}],
+            messages:[{role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Question one'}]}]},
+                {role:'assistant',content:[{type:'file',assetId:'file'}]}],
+        }, {title:'one',titleSource:'provider',updatedAt:100});
+        await api.updateSettings({language});
+    }, {accountId,language});
+    await page.reload();
+    // Keep the real record transaction open so the delivered progress remains observable.
+    await page.evaluate(() => {
+        Reflect.set(window, 'releaseExportRecord', false);
+        const transaction = IDBDatabase.prototype.transaction;
+        IDBDatabase.prototype.transaction = function(...args) {
+            const tx: IDBTransaction = Reflect.apply(transaction, this, args);
+            if (args[1] === 'readwrite' && tx.objectStoreNames.contains('exportRecords')) {
+                const keepAlive = () => {
+                    if (!Reflect.get(window, 'releaseExportRecord'))
+                        tx.objectStore('exportRecords').get('progress-test').onsuccess = keepAlive;
+                };
+                keepAlive();
+            }
+            return tx;
+        };
+    });
+    await page.locator('#btnSelectAll').click();
+    const download = page.waitForEvent('download');
+    await page.locator('#btnExport').click();
+    await download;
+    try {
+        await expect(page.locator('#progText')).toContainText(language === 'en' ? 'delivered 1' : '已交付正文 1');
+        await page.waitForTimeout(250);
+        await page.screenshot({path:testInfo.outputPath('progress.png'),fullPage:true});
+        await expect(page.locator('#progText')).toHaveText(language === 'en'
+            ? 'Prepared 1 conversation · delivered 1 document · downloaded 1 attachment'
+            : '已准备 1 条会话 · 已交付正文 1 条 · 已下载 1 个附件');
+    } finally {
+        await page.evaluate(() => Reflect.set(window, 'releaseExportRecord', true));
+    }
+    await expect(page.locator('body')).toHaveAttribute('data-busy','false');
+});
 test('batch export delivers both physical bodies and refreshes recent ExportRecords',async({context,extensionId})=>{
     const page=await openOptions(context,extensionId);await seedConversations(page,[{id:'one'},{id:'two'}]);await page.locator('#btnSelectAll').click();
     const pending=page.waitForEvent('download');await page.locator('#btnExport').click();const file=await pending;expect(file.suggestedFilename()).toMatch(/\.zip$/);
@@ -98,10 +147,14 @@ test('export progress keeps one cumulative three-counter message through source 
     const messages: string[] = await page.evaluate(() => Reflect.get(window, 'exportProgressMessages'));
     expect(messages.length).toBeGreaterThan(2);
     const counts = messages.map(message => {
-        const match = /^Prepared (\d+) conversations · delivered (\d+) documents · downloaded (\d+) attachments$/.exec(message);
+        const match = /^Prepared (\d+) conversations? · delivered (\d+) documents? · downloaded (\d+) attachments?$/.exec(message);
         if (!match) throw new Error(`Unexpected export progress: ${message}`);
-        return match.slice(1).map(Number);
+        const values = match.slice(1).map(Number);
+        const [prepared, delivered, downloaded] = values;
+        expect(message).toBe(`Prepared ${prepared} conversation${prepared === 1 ? '' : 's'} · delivered ${delivered} document${delivered === 1 ? '' : 's'} · downloaded ${downloaded} attachment${downloaded === 1 ? '' : 's'}`);
+        return values;
     });
+    expect(counts).toContainEqual([0,0,0]);
     for (let i=1;i<counts.length;i++) for (let metric=0;metric<3;metric++)
         expect(counts[i][metric]).toBeGreaterThanOrEqual(counts[i-1][metric]);
     expect(counts.at(-1)).toEqual([2,2,2]);
