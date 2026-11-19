@@ -67,6 +67,20 @@ test('authentic cleaned Takeout fixture has six keyless conversations and retain
     const cat = parsed.find(p => p.conversationId === '1bd028d5c5b0c0e2'); assert.ok(cat);
     assert.equal('account' in cat, false); assert.equal('key' in cat.conversation.detail, false);
     assert.ok(cat.diagnostics.some(d => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));
+    const bell = parsed.find(p => p.conversationId === '7b29852ecae8344a');
+    const prompts = bell?.conversation.detail.messages.filter(message => message.role === 'user');
+    assert.match(JSON.stringify(prompts ?? []), /Bell's inequality/);
+});
+test('Takeout ZIP decodes prompt entities once after stripping HTML tags', async () => {
+    const JSZip = require('../lib/jszip.min.js');
+    const zip = new JSZip();
+    zip.file('Takeout/Gemini/MyActivity.html', activityHtml().replace('Prompted Question',
+        'Prompted <b>A</b>&nbsp;&amp; B &lt; C; literal &amp;lt; &amp;nbsp; &lt;b&gt;; &#x1F642; &#39; &quot; &apos;'));
+    const bytes = await zip.generateAsync({ type: 'uint8array' });
+    const [parsed] = await parseGeminiTakeoutZipArchive(bytes, { providerId: 'gemini', readArchive: raw => JSZip.loadAsync(raw) });
+    assert.deepEqual(parsed.conversation.detail.messages.find(message => message.role === 'user')?.content, [{
+        type: 'paragraph', children: [{ type: 'text', text: `A & B < C; literal &lt; &nbsp; <b>; 🙂 ' " '` }],
+    }]);
 });
 test('Takeout account UUID binds ingestion; independent imports never mix accounts', async () => {
     await importTakeout(takeoutArchive(activityHtml('<p>One</p>', 'first_chat_123')), ACCOUNT_UUID);
