@@ -329,6 +329,22 @@ test('switching to a different same-named vault restores and saves against the n
         assert.equal(opened.index.title, 'Renamed on index-only browser');
         assert.match(JSON.stringify(opened.detail), /Backed-up body/);
         assert.doesNotMatch(JSON.stringify(opened.detail), /Private local body/);
+
+        const records = newFolder.subdirs.get('records')?.files;
+        assert.ok(records);
+        const fileName = `${latest.blindRecordId}.gee1`;
+        const corrupted = new Uint8Array(backup.envelope);
+        corrupted[corrupted.length - 1] ^= 0xff;
+        records.set(fileName, corrupted);
+
+        assert.equal(await syncer.enqueueAllExistingHistory(), 0, 'unchanged Index-only sync does not queue the full backup');
+        assert.equal((await syncer.syncNow()).push.retriedLater, 0, 'no-op sync does not reopen acknowledged ciphertext');
+        await addIndex(account.id, 'shared', 'Another rename', 40_000);
+        await addIndex(account.id, 'healthy-record', 'Independent backup', 40_000);
+        const withCorruptRecord = await syncer.syncNow();
+        assert.equal(withCorruptRecord.push.retriedLater, 1, 'an unreadable backup is retried instead of overwritten');
+        assert.equal(withCorruptRecord.push.uploaded, 1, 'an unreadable backup does not block the rest of the queue');
+        assert.equal(records.get(fileName), corrupted);
     } finally {
         target.restore();
     }
