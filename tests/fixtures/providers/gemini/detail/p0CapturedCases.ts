@@ -1,4 +1,3 @@
-import assert from 'node:assert/strict';
 import corpusJson from '../captured/p0_golden_rpc_corpus.json';
 import { captured, describeFixtures } from '../../provenance.js';
 
@@ -32,7 +31,7 @@ export const inlineHtmlFallback = {
     wire(): string {
         const frames = p0CapturedCases.G_P0_CAPTURED_PYTHON_CODE_01().split('\n');
         const detailFrame = frames.findIndex(line => line.startsWith('[["wrb.fr","hNvQHb",'));
-        assert.ok(detailFrame > 0);
+        if (detailFrame < 1) throw new Error('Missing length-prefixed detail frame in the Python code capture');
         const rows = JSON.parse(frames[detailFrame]);
         const detail = JSON.parse(rows[0][2]);
         const model = detail[0][0][3];
