@@ -140,7 +140,7 @@ class SafeInteractionGateway:
             return True
         except Exception as e:
             try:
-                cdp.eval(f"window.location.href = '{url}'")
+                cdp.eval(f"window.location.href = {json.dumps(url)}")
                 self.record_audit("NAVIGATE_FALLBACK", url, "SUCCESS", time.time() - t0)
                 return True
             except Exception as e2:

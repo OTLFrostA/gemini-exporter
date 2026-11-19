@@ -83,9 +83,14 @@ class TestSafeInteractionGatewaySuite(unittest.TestCase):
     def test_safe_navigate_uses_logged_fallback_after_cdp_navigation_error(self):
         mock_cdp = MagicMock()
         mock_cdp.call.side_effect = RuntimeError("Page.navigate failed")
-        self.assertTrue(self.gateway.safe_navigate(mock_cdp, "https://gemini.google.com/app"))
+        url = r'''https://gemini.google.com/app/notes?title="O'Brien\draft"'''
+        self.assertTrue(self.gateway.safe_navigate(mock_cdp, url))
+        mock_cdp.call.assert_called_once_with("Page.navigate", {"url": url})
         self.assertEqual(mock_cdp.eval.call_count, 1)
-        self.assertIn("window.location.href", mock_cdp.eval.call_args.args[0])
+        expression = mock_cdp.eval.call_args.args[0]
+        prefix = "window.location.href = "
+        self.assertTrue(expression.startswith(prefix))
+        self.assertEqual(json.loads(expression[len(prefix):]), url)
         self.assertEqual(self.gateway.audit_log[-1]["action"], "NAVIGATE_FALLBACK")
         self.assertEqual(self.gateway.audit_log[-1]["status"], "SUCCESS")
 
@@ -96,6 +101,7 @@ class TestSafeInteractionGatewaySuite(unittest.TestCase):
             self.gateway.safe_navigate(mock_cdp, "https://unauthorized-domain.com")
 
         mock_cdp.call.assert_not_called()
+        mock_cdp.eval.assert_not_called()
         summary = self.gateway.get_summary()
         self.assertEqual(summary["total"], 1)
         self.assertEqual(summary["blocked"], 1)
