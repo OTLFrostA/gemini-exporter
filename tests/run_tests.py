@@ -571,6 +571,10 @@ def test_dag_subgraph_suite():
 
 def test_tier2_assertions_suite():
     import subprocess
+    res = subprocess.run([sys.executable, "-m", "unittest", "tests.test_l3_tier2_contracts"],
+                         cwd=BASE_DIR, capture_output=True, text=True)
+    assert res.returncode == 0, f"L3 export contract regressions failed: {res.stderr or res.stdout}"
+    print("  ✓ Tier 2 L3a and L3b export contracts passed")
     res = subprocess.run([sys.executable, os.path.join(BASE_DIR, "tests", "test_integrity_model.py")], capture_output=True, text=True)
     assert res.returncode == 0, f"Frozen evidence validation failed: {res.stderr or res.stdout}"
     res = subprocess.run([sys.executable, os.path.join(BASE_DIR, "tests", "test_tier2_assertions.py")], capture_output=True, text=True)

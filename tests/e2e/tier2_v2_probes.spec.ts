@@ -2,6 +2,7 @@ import { parseGeminiRequest } from '../../src/l1/parsers/gemini/rpc/request.js';
 import { geminiListPages, GEMINI_LIST_CAPTURE } from '../fixtures/providers/geminiListCapture.js';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { execFileSync } from 'node:child_process';
+import { stat } from 'node:fs/promises';
 import { buildSync } from 'esbuild';
 import { resolve } from 'node:path';
 import { readGeminiAuditInput, auditGeminiEvidence } from '../helpers/geminiDualParse';
@@ -167,6 +168,18 @@ test('Tier 2 raw fetch probe captures the actual export RPC without consuming it
     const [stored] = await page.evaluate(() => Reflect.get(globalThis,'__tier2V2').conversations(['0000000000000001']));
     expect(stored.ok).toBe(true);
     expect(stored.domain.detail.messages).toHaveLength(GEMINI_DETAIL_CAPTURE.messages);
+
+    const ids = [GEMINI_DETAIL_CAPTURE.conversationId];
+    const evidence = await page.evaluate(ids => Reflect.get(globalThis, '__tier2V2').l3Contracts(ids), ids);
+    const { size } = await stat(await downloaded.path());
+    expect(size).toBeGreaterThan(0);
+    console.log(`Options Markdown download: ${size} bytes; Chromium IndexedDB: ${evidence.layout.name} v${evidence.layout.version}`);
+    execFileSync('python3', ['-c', `
+import json
+import sys
+from scripts.framework.l3_contracts import assert_l3_contracts
+assert_l3_contracts(json.load(sys.stdin), json.loads(sys.argv[1]))
+`, JSON.stringify(ids)], { cwd: root, input: JSON.stringify(evidence) });
 });
 
 test('Tier 2 Scan observer preserves provider and local page limit reasons and rejects changed accounts', async ({ context }) => {

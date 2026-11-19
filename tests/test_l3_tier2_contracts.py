@@ -48,7 +48,7 @@ const env=indexStorage();
         def doc(e):
             return row(e)['document']
         mutations = [
-            lambda e: e['layout'].update(version=2),
+            lambda e: e['layout'].update(version=e['layout']['version'] + 1),
             lambda e: e['layout']['stores'].append({'name': 'resourceBytes'}),
             lambda e: store(e).update(keyPath='providerAccountId'),
             lambda e: store(e)['indexes'][0].update(unique=False),
@@ -65,10 +65,12 @@ const env=indexStorage();
         ]
         for mutation in mutations:
             with self.subTest(mutation=mutation):
+                assert_l3_contracts(self.evidence, ['same'])
                 evidence = copy.deepcopy(self.evidence)
                 mutation(evidence)
                 with self.assertRaises((AssertionError, KeyError)):
                     assert_l3_contracts(evidence, ['same'])
+        assert_l3_contracts(self.evidence, ['same'])
         with self.assertRaises(AssertionError):
             assert_l3_contracts(self.evidence, ['missing'])
 
