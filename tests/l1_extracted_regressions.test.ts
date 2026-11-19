@@ -249,9 +249,7 @@ test('hookCredentials - unrelated fetch and XHR traffic does not rescan account 
     xhr.open('POST', 'https://gemini.google.com/batchexecute?at=token&f.sid=xhr-sid');
     xhr.send();
     assert.ok(scans > afterFetch);
-    const credentials = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
-    assert.deepEqual(credentials.map(p => p.msg.payload.sid), ['fetch-sid', 'xhr-sid']);
-    assert.ok(credentials.every(p => p.msg.payload.accountObservation.providerAccountId === '10000000001'));
+    assert.ok(posted.every(p => p.msg.type !== 'GEMINI_CREDENTIALS'));
 });
 
 test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL payloads', async () => {
@@ -297,7 +295,7 @@ test('hookCredentials - arbitrary Request-like objects are not treated as browse
     await win.fetch('https://gemini.google.com/u/0/batchexecute?at=dummy_at&f.sid=dummy_sid', { method: 'POST', body: geminiListRequestGen('G_HOOK_MALFORMED_LIST_REQUEST_01') });
     await new Promise(r => setTimeout(r, 50));
     assert.ok(posted.length > 0);
-    assert.ok(posted.some(p => p.msg.type === 'GEMINI_CREDENTIALS'));
+    assert.ok(posted.some(p => p.msg.type === 'GEMINI_NETWORK_BATCHEXECUTE'));
 });
 
 test('hookCredentials - real Request inputs preserve list cursor context', async () => {

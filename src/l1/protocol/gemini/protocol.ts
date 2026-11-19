@@ -27,7 +27,6 @@ export interface ProtocolLimits {
 }
 
 export const CrossWorldEvents = {
-    CREDENTIALS: 'GEMINI_CREDENTIALS',
     ACCOUNT_OBSERVED: 'GEMINI_ACCOUNT_OBSERVED',
     ACCOUNT_REQUESTED: 'GEMINI_ACCOUNT_REQUESTED',
     CONVERSATION_DELETED: 'GEMINI_CONVERSATION_DELETED',
@@ -164,4 +163,3 @@ export const GeminiProtocol: GeminiProtocolModule = {
 };
 
 export default GeminiProtocol;
-

@@ -3,7 +3,7 @@ import { readAccountParameters } from '../../../l2/accountRegistry.js';
 
 export type GeminiStoredCredential = Partial<GeminiCredentialsPayload> & { accountId?: string; email?: string; name?: string };
 
-/** Storage and MAIN messages are separate untrusted inputs, sharing one credential schema. */
+/** Decode credential fields from storage or the private runtime message. */
 export function parseGeminiCredential(raw: unknown): GeminiStoredCredential {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
     const result: GeminiStoredCredential = {};

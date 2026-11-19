@@ -29,9 +29,11 @@ const v2 = (page: import('@playwright/test').Page) => page.evaluate(async id => 
 test('diagnostic download includes the failed scan page and its native error envelope', async ({ context, extensionId }) => {
     await sourcePage(context);
     const responseText = geminiListGen('G_E2E_INCREMENTAL_ERROR_LIST_01');
-    await context.route('**/batchexecute*', route => route.fulfill({
-        contentType: 'application/json', body: responseText,
-    }));
+    let scanSid: string | null = null;
+    await context.route('**/batchexecute*', route => {
+        scanSid = new URL(route.request().url()).searchParams.get('f.sid');
+        return route.fulfill({ contentType: 'application/json', body: responseText });
+    });
     const options = await openOptions(context, extensionId);
     await options.click('#btnSyncAll');
     await expect(options.locator('#scanStatus')).toHaveText('Read 0 conversation records, added 0, total 0. Scan failed: invalid Gemini response');
@@ -51,6 +53,11 @@ test('diagnostic download includes the failed scan page and its native error env
             failure: 'invalid_response', details: { topParsed: responseText },
         } } });
     expect((await v2(options)).coverage?.range ?? null).toBeNull();
+    expect(scanSid).toBeTruthy();
+    expect(await options.evaluate(async sid => {
+        const { gemini_credentials_map } = await chrome.storage.session.get('gemini_credentials_map');
+        return !!sid && Object.hasOwn(gemini_credentials_map ?? {}, sid);
+    }, scanSid)).toBe(false);
 });
 
 test('trusted provider-limit window is persisted by L2/L3a and reused for v2 early stop without losing existing facts', async ({ context, extensionId }) => {

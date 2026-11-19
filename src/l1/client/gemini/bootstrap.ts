@@ -7,10 +7,12 @@ import {
     markCredSessionAccessFailed as sharedMarkFailed,
     withCredMapLock,
 } from './api/credStorage.js';
-import { resolveCurrentAccount, matchesCurrentAccount } from '../../../runtime/content/accountContext.js';
+import { resolveCurrentAccount } from '../../../runtime/content/accountContext.js';
+import { GEMINI_RPC_CREDENTIALS } from '../../../runtime/api/geminiRpcCredentials.js';
 import { readAccountParameters } from '../../../l2/accountRegistry.js';
 import { registerCleanup } from '../../../runtime/content/cleanupRegistry.js';
 import { getErrorMessage } from '../../../shared/utils/errorText.js';
+import { isOwnRpcRequest } from './api/rpcClient.js';
 
 export function getCredStorage(): chrome.storage.StorageArea | null {
     return sharedGetCredStorage();
@@ -36,14 +38,14 @@ function updateContextCreds(creds: BootstrapCredential): void {
     window.__gemExporterContentContext?.setCredentials(creds);
 }
 
-export function extractAtFromPage(): string {
+export function extractAtFromPage(useCached = true): string {
     if (!Proto) return '';
     try {
         try {
-            if (window.__gemExporterExtractedAt && window.__gemExporterExtractedAt.length > 15) {
+            if (useCached && window.__gemExporterExtractedAt && window.__gemExporterExtractedAt.length > 15) {
                 return window.__gemExporterExtractedAt;
             }
-            if (window.__geminiAt && window.__geminiAt.length > 15) {
+            if (useCached && window.__geminiAt && window.__geminiAt.length > 15) {
                 return window.__geminiAt;
             }
         } catch (e) {
@@ -251,9 +253,47 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
     return null;
 }
 
-/** One shared credential-map queue protects bootstrap hooks, messages and API writers. */
+/** One shared credential-map queue protects bootstrap, RPC updates and API writers. */
 export function ensureCreds(): Promise<BootstrapCredential | null> {
     return withCredMapLock(ensureCredsOnce);
+}
+
+function receiveRpcCredentials(message: unknown, sender: chrome.runtime.MessageSender): void {
+    if (sender.id !== chrome.runtime.id || sender.tab || !message || typeof message !== 'object'
+        || !('action' in message) || message.action !== GEMINI_RPC_CREDENTIALS || !('payload' in message)) return;
+    const pageSlot = detectSlotFromUrl();
+    void withCredMapLock(async () => {
+        try {
+            const p = parseGeminiCredential(message.payload);
+            const { sid } = p;
+            if (!sid || isOwnRpcRequest('requestId' in message ? message.requestId : undefined, sid)) return;
+            const slot = !p.accountSlot || p.accountSlot === 'default' ? pageSlot : p.accountSlot;
+            const map = await loadCredentialsMap();
+            const stored = map.get(sid);
+            const old = stored && sameBootstrapSlot(stored.accountSlot, slot) ? stored : undefined;
+            const account = slot === pageSlot ? await resolveCurrentAccount(undefined, slot) : null;
+            const samePageSlot = slot === detectSlotFromUrl();
+            const pageAt = samePageSlot ? extractAtFromPage(false) : '';
+            // Delivery is document-scoped, but the active account can change within
+            // that document. Bind fresh network credentials only if the token agrees.
+            const at = p.at || old?.at || pageAt;
+            const sameToken = at === old?.at;
+            const credential: BootstrapCredential = {
+                ...(sameToken ? old : undefined),
+                at,
+                sid,
+                accountSlot: slot,
+                accountId: at && at === pageAt && account ? account.accountId : sameToken ? old?.accountId : undefined,
+                lastUsed: Date.now(),
+                bl: p.bl || old?.bl || (samePageSlot ? extractBlFromPage() : '') || Proto.BL_FALLBACK,
+            };
+            map.set(sid, credential);
+            await saveCredentials(map, { at, sid });
+            if (samePageSlot && (!pageAt || at === pageAt)) updateContextCreds(credential);
+        } catch (error) {
+            if (!getErrorMessage(error).includes('Extension context invalidated')) console.warn('RPC credential update failed');
+        }
+    });
 }
 
 export function initBootstrap(): void {
@@ -267,10 +307,9 @@ export function initBootstrap(): void {
     window.addEventListener('load', refresh, { once: true });
     registerCleanup(() => { document.removeEventListener('DOMContentLoaded', refresh); window.removeEventListener('load', refresh); });
 
-    // Listen to GEMINI_CREDENTIALS from the MAIN-world hook. NOTE (threat model):
-    // same-window page scripts can forge this message indistinguishably
-    // (event.source === window is true for them too), so treat the payload as
-    // untrusted: an empty `at` must never clobber the stored credential.
+    chrome.runtime.onMessage?.addListener(receiveRpcCredentials);
+    registerCleanup(() => chrome.runtime.onMessage?.removeListener(receiveRpcCredentials));
+
     const receive = (e: MessageEvent<unknown>) => {
         if (e.source !== window) return;
         if (typeof location !== 'undefined' && e.origin !== location.origin) return;
@@ -287,50 +326,6 @@ export function initBootstrap(): void {
                 void resolveCurrentAccount(observation, payload.slot).catch(error => console.warn('[Gemini Exporter] Account discovery failed', getErrorMessage(error)));
             } catch (error) { if (isDev()) console.debug('[Gemini Exporter] Invalid account observation', error); }
             return;
-        }
-        if (data && data.type === (CrossWorldEvents?.CREDENTIALS || 'GEMINI_CREDENTIALS')) {
-            if (!isExtAlive()) return;
-            // Queued behind any in-flight ensureCreds so concurrent load→save
-            // cycles cannot overwrite each other's map entries.
-            void withCredMapLock(async () => {
-                try {
-                    const p = parseGeminiCredential('payload' in data ? data.payload : undefined);
-                    const slot = p.accountSlot === 'default' ? 'u0' : p.accountSlot || detectSlotFromUrl(p.url || location.href) || 'u0';
-                    // Queued credentials can belong to the previous Gaia even
-                    // when slot/email stayed the same. Refresh before binding.
-                    const currentAccount = await resolveCurrentAccount(undefined, slot);
-                    const account = p.accountObservation && matchesCurrentAccount(p.accountObservation) ? currentAccount : null;
-                    const profile = account && p.accountObservation ? {
-                        email: p.accountObservation.email, name: p.accountObservation.displayName,
-                        gaiaId: p.accountObservation.providerAccountId,
-                    } : undefined;
-                    const sid = p.sid || '';
-                    if (!sid) return;
-                    const map = await loadCredentialsMap();
-                    const old = map.get(sid) ?? {};
-                    const credential: BootstrapCredential = {
-                        at: p.at || old.at || extractAtFromPage() || '',
-                        sid,
-                        accountSlot: slot || old.accountSlot || 'u0',
-                        accountId: account?.accountId,
-                        email: profile?.email || old.email,
-                        name: profile?.name || old.name,
-                        lastUsed: Date.now(),
-                        bl: p.bl || old.bl || extractBlFromPage() || (Proto ? Proto.BL_FALLBACK : '')
-                    };
-                    map.set(sid, credential);
-                    await saveCredentials(map, {
-                        at: credential.at,
-                        sid
-                    });
-                    updateContextCreds(credential);
-                    if (isDev()) {
-                        console.log('[Gemini Exporter] stored creds from MAIN hook', sid.slice(0, 8), slot, 'at len', (credential.at || '').length);
-                    }
-                } catch (err: unknown) {
-                    if (!getErrorMessage(err).includes('Extension context invalidated')) console.warn('creds store fail', err);
-                }
-            });
         }
     };
     window.addEventListener('message', receive);

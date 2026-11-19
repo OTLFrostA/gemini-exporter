@@ -18,7 +18,11 @@ function makeContext() {
         setTimeout, clearTimeout, queueMicrotask,
         URL,
         chrome: {
-            runtime: { id: 'test-extension', sendMessage: async (message: any) => message.action === 'ensureV2Ready' ? {ok:true} : ({ok:true,value:{id:'10000000-0000-4000-8000-000000000003',providerId:message.providerId,providerAccountId:message.providerAccountId}}) },
+            runtime: {
+                id: 'test-extension',
+                sendMessage: async (message: any) => message.action === 'ensureV2Ready' ? {ok:true} : ({ok:true,value:{id:'10000000-0000-4000-8000-000000000003',providerId:message.providerId,providerAccountId:message.providerAccountId}}),
+                onMessage: { addListener: (receive: Function) => { ctx.receiveRuntime = receive; }, removeListener: () => {} },
+            },
             storage: {
                 local: {
                     get: async (keys: any) => {
@@ -240,11 +244,7 @@ test('bootstrap stores a new special-key SID as an own entry and ignores inherit
     ctx.TestBootstrap.initBootstrap();
     await new Promise(resolve => setImmediate(resolve));
     for (const sid of ['__proto__', 'constructor']) {
-        ctx.__testSid = sid;
-        vm.runInContext(`
-            for (const listener of [...accountListeners]) listener({source: window, origin: location.origin,
-                data: {type: 'GEMINI_CREDENTIALS', payload: {sid: __testSid, at: 'fresh', accountSlot: 'u0'}}});
-        `, ctx);
+        ctx.receiveRuntime({ action: 'geminiRpcCredentials', payload: { sid, at: 'fresh', accountSlot: 'u0' } }, { id: 'test-extension' });
         await new Promise(resolve => setImmediate(resolve));
         const stored = ctx.__sessionData.gemini_credentials_map;
         assert.ok(Object.hasOwn(stored, sid), 'new SID must survive object serialization');
@@ -254,7 +254,7 @@ test('bootstrap stores a new special-key SID as an own entry and ignores inherit
     }
 });
 
-test('bootstrap retains stored at token on empty postMessage updates and never logs raw token secrets in dev mode', async () => {
+test('bootstrap retains stored at token on empty runtime updates and never logs raw tokens in dev mode', async () => {
     const logged: string[] = [];
     const ctx = makeContext();
     ctx.__gemExporterDevMode = true;
@@ -269,24 +269,12 @@ test('bootstrap retains stored at token on empty postMessage updates and never l
     ctx.TestBootstrap.initBootstrap();
     await new Promise(resolve => setImmediate(resolve));
 
-    vm.runInContext(`
-        for (const listener of [...accountListeners]) listener({
-            source: window,
-            origin: location.origin,
-            data: { type: 'GEMINI_CREDENTIALS', payload: { sid: 'sid_keep', at: 'PERSISTED_AT_TOKEN_999', bl: 'bl_1', accountSlot: 'u0' } },
-        });
-    `, ctx);
+    ctx.receiveRuntime({ action: 'geminiRpcCredentials', payload: { sid: 'sid_keep', at: 'PERSISTED_AT_TOKEN_999', bl: 'bl_1', accountSlot: 'u0' } }, { id: 'test-extension' });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(ctx.__sessionData.gemini_credentials_map.sid_keep.at, 'PERSISTED_AT_TOKEN_999');
 
     // Subsequent message with empty `at` must not overwrite the previously stored `at`
-    vm.runInContext(`
-        for (const listener of [...accountListeners]) listener({
-            source: window,
-            origin: location.origin,
-            data: { type: 'GEMINI_CREDENTIALS', payload: { sid: 'sid_keep', at: '', bl: 'bl_2', accountSlot: 'u0' } },
-        });
-    `, ctx);
+    ctx.receiveRuntime({ action: 'geminiRpcCredentials', payload: { sid: 'sid_keep', at: '', bl: 'bl_2', accountSlot: 'u0' } }, { id: 'test-extension' });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(ctx.__sessionData.gemini_credentials_map.sid_keep.at, 'PERSISTED_AT_TOKEN_999');
     assert.equal(ctx.__sessionData.gemini_credentials_map.sid_keep.bl, 'bl_2');

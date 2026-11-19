@@ -19,8 +19,10 @@ export function batchexecuteHandler(context: GeminiCaptureContext): GeminiRespon
                 && requestAccountObservation.providerAccountId !== 'default') {
                 const id = parseConfirmedGeminiDeletion(request, text);
                 if (id) {
+                    const rpc = new URLSearchParams(body).get('f.req');
                     const payload: GeminiConversationDeletedPayload = {
-                        id, slot, requestAccountObservation, url, requestBody: body, responseText: text,
+                        id, slot, requestAccountObservation, url,
+                        requestBody: new URLSearchParams({ 'f.req': rpc ?? '' }).toString(), responseText: text,
                     };
                     window.postMessage({ type: CrossWorldEvents.CONVERSATION_DELETED, payload }, location.origin);
                 }

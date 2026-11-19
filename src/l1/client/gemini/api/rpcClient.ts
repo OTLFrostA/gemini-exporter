@@ -31,6 +31,11 @@ function getProtocol(): GeminiProtocolModule {
 }
 
 const nextReqid = GeminiProtocol.createReqidGenerator();
+const recentRpcRequests = new Map<string, string>();
+
+export function isOwnRpcRequest(requestId: unknown, sid: string): boolean {
+    return typeof requestId === 'string' && recentRpcRequests.get(requestId) === sid;
+}
 
     function getApiUrl(slot?: string | null): string {
         if (slot && slot !== "default") {
@@ -59,12 +64,14 @@ const nextReqid = GeminiProtocol.createReqidGenerator();
         } = options;
 
         const P = getProtocol();
+        const sid = String(cred?.sid || generateFallbackSid());
+        const requestId = nextReqid();
         const params = new URLSearchParams({
             rpcids,
             "source-path": sourcePath,
             bl: cred?.bl || P.BL_FALLBACK,
-            "f.sid": String(cred?.sid || generateFallbackSid()),
-            _reqid: nextReqid(),
+            "f.sid": sid,
+            _reqid: requestId,
             rt: "c"
         });
 
@@ -83,6 +90,13 @@ const nextReqid = GeminiProtocol.createReqidGenerator();
         }
 
         try {
+            // Chromium attributes isolated-world fetches to the tab's origin too.
+            // Do not re-capture our own requests (which may use a fallback sid).
+            recentRpcRequests.set(requestId, sid);
+            if (recentRpcRequests.size > 128) {
+                const oldest = recentRpcRequests.keys().next();
+                if (!oldest.done) recentRpcRequests.delete(oldest.value);
+            }
             const resp = await fetch(`${api}?${params}`, {
                 method: "POST",
                 headers: {
@@ -112,4 +126,3 @@ const GeminiClientRpcClient: GeminiClientRpcClientModule = {
 };
 
 export default GeminiClientRpcClient;
-
