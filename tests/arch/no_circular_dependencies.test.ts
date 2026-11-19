@@ -35,6 +35,18 @@ function getTsFiles(dir: string): string[] {
     return files;
 }
 
+test('import scanner preserves imports after comment markers inside literals', () => {
+    assert.deepStrictEqual(importSpecifiers(`const url = "https://example.test"; import './same_line';
+        const block = '/* not a comment */'; import './after_block';
+        import { value } from
+            './multiline';
+        // import './ignored';
+        /* import './also_ignored'; */
+    `), ['./same_line', './after_block', './multiline']);
+    assert.deepStrictEqual(importSpecifiers(''), []);
+    assert.deepStrictEqual(importSpecifiers(`const text = "import './fake'";`), []);
+});
+
 test('arch: zero circular dependencies across all modules in src/', () => {
     const files = getTsFiles(SRC_ROOT);
     const graph = new Map<string, string[]>();
@@ -118,4 +130,3 @@ test('arch: import parser correctly extracts multiline imports, exports and dyna
         './dynamic_lazy'
     ]);
 });
-

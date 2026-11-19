@@ -104,6 +104,13 @@ test('v1 migration stays isolated to worker readiness and remains covered by the
 function renderer(owner: string): boolean {
     return /^l4\/format\/(?:html|json|markdown|shared|typst)\//.test(owner);
 }
+test('renderer coverage includes DOCX and PDF dependency violations', () => {
+    for (const owner of ['l4/format/docx/renderDocx.ts', 'l4/format/pdf/compileDocumentPdf.ts']) {
+        assert.ok(sources.has(owner), `${owner} is scanned`);
+        assert.ok(renderer(owner), `${owner} is a renderer`);
+        assert.ok(forbidden(owner, 'l2/ingestion.ts'), `${owner} cannot ingest Domain data`);
+    }
+});
 function forbidden(owner: string, target: string): boolean {
     if (owner === 'shared/diagnostics/diagnostic.ts') return target !== 'shared/utils/jsonTypes.ts';
     if (owner.startsWith('shared/')) return !target.startsWith('shared/');
