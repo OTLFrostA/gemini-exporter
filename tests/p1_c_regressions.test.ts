@@ -145,7 +145,7 @@ test('p1c - postBatchexecute: 有调用方 signal 时内部 timeout 仍生效；
                 rpcids: 'MaZiqc', fReq: '[]', cred: {},
                 timeoutMs: 80, signal: caller.signal
             }),
-            'internal timeout should abort the hanging request even with a caller signal present'
+            { name: 'TimeoutError' }
         );
         assert.ok(Date.now() - t0 < 5000, `timeout fired promptly (took ${Date.now() - t0}ms)`);
 
@@ -158,7 +158,7 @@ test('p1c - postBatchexecute: 有调用方 signal 时内部 timeout 仍生效；
             timeoutMs: 60000, signal: caller2.signal
         });
         setTimeout(() => caller2.abort(), 30);
-        await assert.rejects(p, 'caller abort should propagate to fetch');
+        await assert.rejects(p, { name: 'AbortError' });
         assert.ok(Date.now() - t1 < 5000, `caller abort propagated promptly (took ${Date.now() - t1}ms)`);
     } finally {
         (global as any).fetch = origFetch;
@@ -199,7 +199,7 @@ for (const method of ['list', 'detail'] as const) {
                     const guard = new Promise((_, reject) => {
                         watchdog = originalSetTimeout(() => reject(new Error('body read exceeded deadline')), 250);
                     });
-                    await assert.rejects(Promise.race([request, guard]), { name: 'AbortError' });
+                    await assert.rejects(Promise.race([request, guard]), { name: cancellation === 'deadline' ? 'TimeoutError' : 'AbortError' });
                     assert.strictEqual(deadline, method === 'list' ? 30000 : 15000);
                 } finally {
                     caller.abort();

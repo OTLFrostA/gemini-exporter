@@ -78,7 +78,7 @@ const nextReqid = GeminiProtocol.createReqidGenerator();
         if (timeoutMs > 0 && typeof AbortController !== "undefined") {
             controller = new AbortController();
             timeoutId = setTimeout(() => {
-                try { controller?.abort(); } catch (_) {}
+                try { controller?.abort(new DOMException('Gemini RPC request timed out', 'TimeoutError')); } catch (_) {}
             }, timeoutMs);
         }
 
@@ -95,6 +95,9 @@ const nextReqid = GeminiProtocol.createReqidGenerator();
             });
             const text = await resp.text();
             return { response: resp, text };
+        } catch (error) {
+            if (controller?.signal.aborted && !signal?.aborted) throw controller.signal.reason;
+            throw error;
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
         }
