@@ -129,11 +129,13 @@ class TestChangedPythonRunner(unittest.TestCase):
             shutil.copyfile(Path(BASE_DIR) / name, destination)
         (self.repo / "build.js").write_text("console.log('fixture build');\n")
         (self.repo / "tests/__init__.py").touch()
+        (self.repo / "tests/sibling_helper.py").write_text("MESSAGE = 'PYTHON_SUITE_EXECUTED'\n")
         (self.repo / "tests/test_example.py").write_text(
             "import unittest\n"
+            "from sibling_helper import MESSAGE\n"
             "class ExampleTest(unittest.TestCase):\n"
             "    def test_example(self):\n"
-            "        print('PYTHON_SUITE_EXECUTED')\n"
+            "        print(MESSAGE)\n"
         )
 
     def run_changed(self, orchestrator=False, files=None):
@@ -166,6 +168,19 @@ class TestChangedPythonRunner(unittest.TestCase):
                 result = self.run_changed(orchestrator)
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertIn("FORCED_PYTHON_FAILURE", result.stdout + result.stderr)
+
+    def test_nested_python_suite_can_import_siblings(self):
+        nested = self.repo / "tests/nested"
+        nested.mkdir()
+        (nested / "__init__.py").touch()
+        for filename in ("test_example.py", "sibling_helper.py"):
+            shutil.copyfile(self.repo / "tests" / filename, nested / filename)
+        for orchestrator in (False, True):
+            with self.subTest(orchestrator=orchestrator):
+                result = self.run_changed(orchestrator, files=["tests/nested/test_example.py"])
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("PYTHON_SUITE_EXECUTED", result.stdout)
+                self.assertIn("Ran 1 test", result.stderr)
 
     def test_docs_and_deleted_python_tests_do_not_run(self):
         for files in (["README.md"], ["tests/test_deleted.py"]):

@@ -680,7 +680,10 @@ def run_all():
                 python_tests = [f for f in result.target_unit_tests if f.endswith(".py")]
                 for test_file in python_tests:
                     print(f"🧪 Python: {test_file}", flush=True)
-                    res = subprocess.run([sys.executable, "-m", "unittest", test_file], cwd=BASE_DIR)
+                    test_env = os.environ.copy()
+                    test_dir = os.path.dirname(os.path.join(BASE_DIR, test_file))
+                    test_env["PYTHONPATH"] = os.pathsep.join(filter(None, [test_dir, test_env.get("PYTHONPATH")]))
+                    res = subprocess.run([sys.executable, "-m", "unittest", test_file], cwd=BASE_DIR, env=test_env)
                     if res.returncode != 0:
                         sys.exit(res.returncode)
 
