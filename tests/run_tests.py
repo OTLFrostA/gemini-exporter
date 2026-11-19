@@ -604,7 +604,7 @@ def run_python_unit_tests(test_files):
 
     # Use qualified test module names while keeping sibling imports available.
     env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join(filter(None, (TESTS_DIR, env.get("PYTHONPATH"))))
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, (BASE_DIR, TESTS_DIR, env.get("PYTHONPATH"))))
     for test_file in test_files:
         rel = os.path.relpath(test_file, BASE_DIR)
         result = subprocess.run(

@@ -1,4 +1,5 @@
 """Exercise the documented unit-test filter through its CLI."""
+import os
 import shutil
 import subprocess
 import sys
@@ -11,10 +12,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class RunTestsFilterTests(unittest.TestCase):
-    def run_filter(self, keyword, root=ROOT):
+    def run_filter(self, keyword, root=ROOT, env=None):
         return subprocess.run(
             [sys.executable, "tests/run_tests.py", "--filter", keyword],
             cwd=root,
+            env=env,
             capture_output=True,
             encoding="utf-8",
             timeout=60,
@@ -49,6 +51,17 @@ class RunTestsFilterTests(unittest.TestCase):
                       result.stdout.replace("\\", "/"))
         self.assertRegex(result.stderr, r"Ran [1-9]\d* tests?")
 
+    def test_prefers_the_checkout_over_another_tests_package(self):
+        with tempfile.TemporaryDirectory() as directory:
+            foreign_tests = Path(directory, "tests")
+            foreign_tests.mkdir()
+            (foreign_tests / "__init__.py").touch()
+            env = {**os.environ, "PYTHONPATH": directory}
+            result = self.run_filter("test_integrity_model", env=env)
+
+        self.assert_passed(result)
+        self.assertRegex(result.stderr, r"Ran [1-9]\d* tests?")
+
     def test_runs_matching_languages_without_running_the_migration_twice(self):
         result = self.run_filter("upgrade")
         self.assert_passed(result)
@@ -67,6 +80,7 @@ class RunTestsFilterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             tests_dir = Path(directory, "tests")
             tests_dir.mkdir()
+            (tests_dir / "__init__.py").touch()
             shutil.copyfile(ROOT / "tests/run_tests.py", tests_dir / "run_tests.py")
             (tests_dir / "test_deliberate_failure.py").write_text(
                 "import unittest\n"
