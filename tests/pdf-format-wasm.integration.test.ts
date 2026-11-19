@@ -1,7 +1,8 @@
 /** Real WASM end-to-end compilation: deliberately NOT in the isolated L4 unit gate. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { PDFDocument, PDFName, PDFString } from 'pdf-lib';
 import { probePdfLayout } from './helpers/pdfPageProbe.js';
 import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
 import { v2Document } from './helpers/l4V2Fixtures.js';
@@ -17,6 +18,22 @@ const document = v2Document([
     { type: 'paragraph', children: [{ type: 'text', text: '◌̧ ◌̈' }] },
 ]);
 const context = () => ({ signal: new AbortController().signal, reportProgress() {} });
+
+for (const locale of ['en', 'zh', undefined] as const) {
+    test(`real PDF catalog language follows export locale ${locale ?? 'default'}`, async () => {
+        const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
+        try {
+            const result = await compileDocumentPdf(v2Document([
+                { type: 'paragraph', children: [{ type: 'text', text: 'Hello, world.' }] },
+            ]), {}, new Map(), compiler, context(), { locale });
+            if (process.env.PDF_LANGUAGE_OUTPUT_DIR) {
+                writeFileSync(`${process.env.PDF_LANGUAGE_OUTPUT_DIR}/${locale ?? 'default'}.pdf`, result.pdfBytes);
+            }
+            const pdf = await PDFDocument.load(result.pdfBytes);
+            assert.equal(pdf.catalog.lookup(PDFName.of('Lang'), PDFString).decodeText(), locale ?? 'en');
+        } finally { compiler.dispose(); }
+    });
+}
 
 test('real WASM compiles an image at the supplied Packaging path and releases its sandbox', async () => {
     const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });

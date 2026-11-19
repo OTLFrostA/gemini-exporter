@@ -44,7 +44,7 @@ test('PDF backend derives policies and metadata from immutable JSON display data
 test('real PDF compiler honors its internal layout payload without changing the public renderer', async () => {
     const input = fixture(); input.detail.messages = [{ id: 'a', role: 'assistant', content: Array.from({ length: 25 }, (_, index) => ({ type: 'paragraph', children: [{ type: 'text', text: `Passage ${index}. ` + 'Page layout remains an engine responsibility. '.repeat(8) }] })) }];
     const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))); const originalJson = JSON.stringify(document);
-    const layout = defaultPdfLayout(); layout.page.heightMm = 150;
+    const layout = defaultPdfLayout('en'); layout.page.heightMm = 150;
     const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
     const context = { assets: { resolve: async () => null }, signal: new AbortController().signal, reportProgress: () => undefined };
     try {
