@@ -480,7 +480,7 @@ test('known behavior: an ID-only candidate becomes model content through the sin
 });
 
 test('known behavior: a malformed image tuple is eligible for generic user-file fallback', () => {
-    const raw = [['https://lh3.googleusercontent.com/example', 'wrong-width', 200]];
+    const raw = [['', ['https://lh3.googleusercontent.com/example', 'wrong-width', 200]]];
     assert.deepEqual(extractImages(raw), []);
     assert.deepEqual(extractUserFiles(raw), [{
         sourceUrl: 'https://lh3.googleusercontent.com/example', fileName: 'attachment',

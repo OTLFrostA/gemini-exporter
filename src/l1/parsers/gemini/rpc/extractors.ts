@@ -370,12 +370,14 @@ export function extractCandidateText(cand: unknown): string {
     return '';
 }
 
+export function userTextContainer(userPayload: unknown[]): unknown[] {
+    return isWireArray(userPayload[0]) ? userPayload[0] : userPayload;
+}
+
 function extractUserText(userPayload: unknown): string {
-    if (!isWireArray(userPayload) || userPayload.length === 0) return '';
-    const first = userPayload[0];
-    if (typeof first === 'string') return first;
-    if (isWireArray(first) && typeof first[0] === 'string') return first[0];
-    return '';
+    if (!isWireArray(userPayload)) return '';
+    const text = userTextContainer(userPayload)[0];
+    return typeof text === 'string' ? text : '';
 }
 
 /** Resolve legacy nested text chunks strictly inside the candidate's BODY slot;

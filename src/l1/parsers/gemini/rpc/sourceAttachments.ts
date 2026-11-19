@@ -4,7 +4,7 @@ import { isJsonValue, type JsonValue } from '../../../../shared/utils/jsonTypes.
 import { payloadToMs } from './payload.js';
 import { decodeDocumentLinks } from './cardNodes.js';
 import { GEMINI_NODE_TYPES, isWireArray, isWireRecord } from './jspbSchema.js';
-import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from './extractors.js';
+import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA, userTextContainer } from './extractors.js';
 
 export interface ImageAttachment {
     /** JSON-serialized matched wire tuple; never an unvalidated runtime value. */
@@ -459,6 +459,7 @@ export function extractUserFiles(turnUserArr: unknown): UserFileAttachment[] {
     if (!isWireArray(turnUserArr)) return files;
     const warnedHosts = new Set<string>();
     const seenUrls = new Set<string>();
+    const prompt = userTextContainer(turnUserArr);
 
     deepWalk(turnUserArr, node => {
         if (!isWireArray(node)) return;
@@ -472,7 +473,8 @@ export function extractUserFiles(turnUserArr: unknown): UserFileAttachment[] {
         const googleUrls: string[] = [];
         const filenames: string[] = [];
 
-        for (let i = 0; i < node.length; i++) {
+        // A URL in the prompt text slot is not upload evidence.
+        for (let i = node === prompt ? 1 : 0; i < node.length; i++) {
             const item = node[i];
             if (typeof item !== 'string') continue;
             const trimmed = item.trim();
