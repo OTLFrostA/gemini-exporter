@@ -15,7 +15,7 @@ async function ingest(parameters: IngestionRequest): Promise<unknown> {
 }
 
 /** Content-world Domain ingestion IPC client. Carries type-only contracts; never bundles L2/L3a implementations. */
-export const ingestContentIndexes: typeof domain.ingestIndexes = async (accountId, items, page) => {
+export const ingestContentIndexes = async (...[accountId, items, page]: Parameters<typeof domain.ingestIndexes>): Promise<domain.IndexIngestResult> => {
     const result = await ingest({ operation: 'indexes', accountId, items, ...(page === undefined ? {} : { page }) });
     if (!result || typeof result !== 'object' || !('added' in result) || !('updated' in result)
         || typeof result.added !== 'number' || !Number.isSafeInteger(result.added) || result.added < 0

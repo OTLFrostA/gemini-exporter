@@ -21,6 +21,7 @@ async function readExistingAccount(accountId: Account['id']): Promise<Account | 
 }
 
 export interface IndexIngestResult { added: number; updated: number }
+export interface IndexAdmissionResult extends IndexIngestResult { accepted: number; rejected: number }
 
 type CommittedKeysListener = (keys: readonly ConversationKey[]) => void;
 const committedKeysListeners = new Set<CommittedKeysListener>();
@@ -42,7 +43,7 @@ function emitCommittedKeys(keys: readonly ConversationKey[]): void {
 }
 
 /** Duplicate source rows merge in input order; Storage reads their current values under one transaction. */
-async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promise<IndexIngestResult> {
+async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promise<IndexAdmissionResult> {
     const groups = new Map<string, DomainConversationIndex[]>();
     for (const index of indexes) {
         const key = JSON.stringify([index.key.accountId, index.key.conversationId]);
@@ -51,13 +52,17 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
         else groups.set(key, [index]);
     }
     const entries = [...groups.values()];
-    const changes: IndexIngestResult = { added: 0, updated: 0 };
+    const changes: IndexAdmissionResult = { added: 0, updated: 0, accepted: 0, rejected: 0 };
     let committedKeys: ConversationKey[] = [];
     await updateIndexesAtomically(entries.map(group => group[0].key), previous => {
         const changed: DomainConversationIndex[] = [];
         entries.forEach((group, i) => {
             let merged = previous[i] ? restoreConversationIndex(previous[i]) : undefined;
             for (const incoming of group) merged = mergeConversationIndex(merged, incoming);
+            for (const incoming of group) {
+                if (sameStoredFacts.index(merged, incoming)) changes.accepted++;
+                else changes.rejected++;
+            }
             if (merged && !sameStoredFacts.index(merged, previous[i])) {
                 changed.push(merged);
                 if (previous[i]) changes.updated++;
@@ -73,7 +78,7 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
 
 export async function ingestIndexes(accountId: Account['id'],
     items: ReadonlyArray<{ conversationId: ConversationKey['conversationId']; fields: Omit<ConversationIndex, 'key'> }>,
-    page?: PageObservationHead): Promise<IndexIngestResult> {
+    page?: PageObservationHead): Promise<IndexAdmissionResult> {
     const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Index account does not exist');
     const indexes = items.map(item => restoreConversationIndex({ ...item.fields, key: { accountId, conversationId: item.conversationId } }));
