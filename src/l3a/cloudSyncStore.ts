@@ -39,6 +39,7 @@ export interface CloudSyncedRecordState {
     readonly blindRecordId: string;
     readonly remoteRevision: number;
     readonly payloadSha256: string;
+    readonly indexPayloadSha256?: string;
     readonly syncedAt: number;
     readonly oversizedBytes?: number;
 }
@@ -227,6 +228,7 @@ function parseSyncedRecordState(raw: unknown): CloudSyncedRecordState | null {
         blindRecordId: raw.blindRecordId,
         remoteRevision: raw.remoteRevision,
         payloadSha256: raw.payloadSha256,
+        ...(typeof raw.indexPayloadSha256 === 'string' ? { indexPayloadSha256: raw.indexPayloadSha256 } : {}),
         syncedAt: raw.syncedAt,
         ...(typeof raw.oversizedBytes === 'number' && Number.isSafeInteger(raw.oversizedBytes)
             ? { oversizedBytes: raw.oversizedBytes }
@@ -490,6 +492,22 @@ export function getStoredLocalVaultHandle(): Promise<DirectoryHandle | null> {
             const raw: unknown = req.result;
             done(isFileSystemDirLike(raw) && isDirectoryHandle(raw) ? raw : null);
         };
+    });
+}
+
+export function putLocalVaultConnection(
+    session: CloudSyncSessionState,
+    handle: DirectoryHandle,
+    resetSyncedRecords: boolean,
+): Promise<void> {
+    return inCloudStores(['session', 'vaultHandles', 'syncedRecords'], 'readwrite', (tx, done) => {
+        tx.objectStore('session').put(session);
+        tx.objectStore('vaultHandles').put(handle, 'local-vault');
+        if (resetSyncedRecords) {
+            const range = IDBKeyRange.bound([session.ownerSubject], [session.ownerSubject, []]);
+            tx.objectStore('syncedRecords').delete(range);
+        }
+        done(undefined);
     });
 }
 
