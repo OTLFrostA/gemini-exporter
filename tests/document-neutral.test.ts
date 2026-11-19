@@ -49,7 +49,11 @@ test('Locale changes renderer chrome; HTML and PDF keep fixed internal presentat
     assert.ok(en.includes('prefers-color-scheme: light'), 'theme follows system CSS instead of public settings');
     assert.ok(zh.includes('Thinking Process') && zh.includes('复制'));
     const pdf = renderDocumentTypst(document, resources, { locale: 'zh' });
-    assert.deepEqual(pdf.layout, defaultPdfLayout(), 'public Renderer cannot change PDF layout');
+    assert.deepEqual(pdf.layout, defaultPdfLayout('zh'), 'PDF layout uses the export locale');
+    const englishPdf = renderDocumentTypst(document, resources, { locale: 'en' });
+    assert.deepEqual(englishPdf.layout, defaultPdfLayout('en'));
+    assert.deepEqual({ ...englishPdf.layout, textLanguage: 'zh' }, pdf.layout,
+        'locale changes only the PDF text language, not physical layout');
     const table = pdf.messages[0].blocks.find(b => b.type === 'table');
     assert.ok(table && table.type === 'table' && table.repeatHeader === true);
     assert.ok(renderDocumentMarkdown(document, resources, { locale: 'zh' }).includes('**来源:**'));
