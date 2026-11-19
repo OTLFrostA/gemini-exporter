@@ -24,9 +24,7 @@ export interface SealedCloudConversation {
 }
 
 /**
- * Backend-agnostic cryptographic AAD subject derived purely from the Master Key's HKDF fingerprint.
- * Ensures `.gee1` ciphertext files written to a local folder can be copied directly to any Cloud Vault
- * server (and vice versa) with zero re-encryption while preserving strict cross-vault isolation.
+ * Bind the envelope to the key fingerprint rather than a backend's session identity.
  */
 export function portableVaultSubject(keyring: VaultKeyring): string {
     return `vault:${keyring.keyFingerprint}`;

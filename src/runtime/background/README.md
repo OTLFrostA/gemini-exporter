@@ -14,12 +14,12 @@ the Registry. A matching preference wins; otherwise exactly one unique online
 account is required. Duplicate tabs are deduplicated. Default/unknown/ambiguous
 accounts fail explicitly. Scan never opens or refreshes a tab as a side effect.
 
-Passive Detail admission triggers Live Save only when L2 reports changed=true.
-Content sends a ConversationKey; Background verifies the sender, Settings and
-folder permission, then runs Application Markdown Folder export with Skip disabled.
-No body, bytes or directory handle is serialized through Chrome JSON IPC.
-Existing conservative completion observations remain covered by Runtime tests;
-Live Save uses the committed Detail change, not an alternate completion writer.
+Changed passive Detail and verified reply completion can both request Live Save.
+Content sends a ConversationKey and can request a source refresh for reply
+completion. Background verifies the sender, checks Settings and folder permission,
+and runs Application Markdown folder export with Skip disabled. When Live Save
+is ineffective, a reply-completion request still refreshes the conversation
+without writing files. No body, bytes or directory handle crosses Chrome JSON IPC.
 
 MAIN fetch/XHR capture resolves relative URLs before passing source facts to the
 isolated world. Runtime observes SPA URL changes without triggering Scan; Badge owns its own visible-state Index count polling, independently of L1 Index commits.
