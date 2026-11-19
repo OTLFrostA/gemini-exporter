@@ -418,6 +418,41 @@ class ChatGPTRequestBudgetTests(unittest.TestCase):
             self.assertEqual(runner.source.call_count, 3)  # Resume validation plus final reads after new turns.
             self.assertNotIn('one 0', [call.args[0] for call in runner.send.call_args_list])
 
+    def test_pool_retry_resumes_reserved_scenarios_without_consuming_new_ones(self):
+        from scripts.framework.scenario_provider import OnlineScenarioProvider
+        with tempfile.TemporaryDirectory() as folder, tempfile.TemporaryDirectory() as pool_folder:
+            pool_path = Path(pool_folder)/'pool.json'
+            pool = [{'id': name, 'turns': [f'{name} {i}' for i in range(count)]}
+                    for name, count in [('A', 5), ('B', 8), ('C', 5), ('D', 8)]]
+            pool_path.write_text(json.dumps(pool))
+            OnlineScenarioProvider.reset()
+            self.addCleanup(OnlineScenarioProvider.reset)
+            provider = OnlineScenarioProvider(str(pool_path), str(Path(pool_folder)/'archive.json'))
+            posted, interrupt = {}, ['A 2']
+            def send(prompt):
+                if prompt in interrupt:
+                    interrupt.remove(prompt)
+                    raise ValueError('interrupted')
+                cid = prompt.split()[0]
+                posted.setdefault(cid, []).append(prompt)
+                (Path(folder)/f'{cid}.progress.json').write_text(json.dumps({'prompts': posted[cid]}))
+                return cid
+            with patch('scripts.framework.chatgpt_live.OnlineScenarioProvider', return_value=provider), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                first = self.runner(folder)
+                first.send = Mock(side_effect=send)
+                with self.assertRaisesRegex(ValueError, 'interrupted'):
+                    first.generate()
+                retry = self.runner(folder)
+                retry.send = Mock(side_effect=send)
+                retry.source = Mock(side_effect=lambda cid: self.raw(cid, posted[cid]))
+                result = retry.generate()
+            self.assertEqual(result['conversationIds'], ['A', 'B'])
+            self.assertEqual([s['id'] for s in json.loads(pool_path.read_text())], ['C', 'D'])
+            self.assertEqual([call.args[0] for call in retry.send.call_args_list],
+                             [f'A {i}' for i in range(2, 5)] + [f'B {i}' for i in range(8)])
+            self.assertEqual([call.args[0] for call in retry.source.call_args_list], ['A', 'A', 'B'])
+
     def test_429_stops_after_one_request_without_sleep_or_retry(self):
         with tempfile.TemporaryDirectory() as folder:
             runner = self.runner(folder)
