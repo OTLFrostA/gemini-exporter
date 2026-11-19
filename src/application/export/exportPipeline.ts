@@ -69,6 +69,7 @@ const comparable = (value: number | undefined): value is number => value !== und
 
 export function shouldSkipExport(record: ExportRecord | null, updatedAt: number | undefined, request: ExportRequest): boolean {
     if (!request.skipUnchanged || !record || record.format !== request.format) return false;
+    if (request.includeAssets && record.includeAssets !== true) return false;
     if (record.sourceTurn && record.sourceTurn !== 'finished' && record.sourceTurn !== 'interrupted') return false;
     const issues = record.attachmentIssues;
     const expiredOnly = record.status === 'partial' && record.otherContentMissing !== true
@@ -240,7 +241,7 @@ export async function executeExportWithSession(
         failures: Readonly<Record<string, ResourceFailure>>, otherContentMissing: boolean): Omit<ExportRecord, 'exportedAt'> => {
         const { conversation } = item;
         const partial = otherContentMissing || Object.keys(failures).length > 0;
-        return { format: request.format, status: partial ? 'partial' : 'ok',
+        return { format: request.format, includeAssets: request.includeAssets, status: partial ? 'partial' : 'ok',
             ...(request.delivery === 'folderWriter'
                 ? { folderBaseName: plan.fileName.replace(/\.[^.]+$/, '') }
                 : item.folderBaseName ? { folderBaseName: item.folderBaseName } : {}),

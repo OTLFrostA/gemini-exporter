@@ -20,8 +20,8 @@ test('folder basename survives title updates and intervening browser exports wit
     assert.equal(state.builtFiles.at(-2)?.plan.fileName, 'First folder name.markdown');
     assert.equal(state.builtFiles.at(-1)?.plan.fileName, 'mock-second.markdown');
 });
-const previous: ExportRecord = { format: 'markdown', exportedAt: 999, chatTime: 100, status: 'ok' };
-test('Skip requires same format, ok record and comparable source versions; delivery options do not matter', () => {
+const previous: ExportRecord = { format: 'markdown', includeAssets: true, exportedAt: 999, chatTime: 100, status: 'ok' };
+test('Skip requires same format, ok record and comparable source versions; delivery mode does not matter', () => {
     assert.equal(shouldSkipExport(previous, 100, request({ skipUnchanged: true })), true);
     for (const record of [{ ...previous, format: 'pdf' as const }, { ...previous, status: 'partial' as const }, { ...previous, chatTime: undefined }, { ...previous, chatTime: 99 }]) {
         assert.equal(shouldSkipExport(record, 100, request({ skipUnchanged: true })), false);
@@ -46,7 +46,7 @@ for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
         assert.equal(result.exported, 1); assert.equal(result.partial, 0);
         assert.deepEqual(events, ['delivery', 'record:first']);
         const record = records.get(address(key()))!;
-        assert.deepEqual(Object.keys(record).sort(), ['chatTime', 'exportedAt', 'format', 'status']);
+        assert.deepEqual(Object.keys(record).sort(), ['chatTime', 'exportedAt', 'format', 'includeAssets', 'status']);
         assert.equal(record.chatTime, 100); assert.equal(record.format, format);
         assert.ok(record.exportedAt >= startedAt && record.exportedAt <= Date.now(), 'delivery record uses real epoch-ms');
         assert.equal(deliveries[0].length, 1);

@@ -9,7 +9,7 @@ import { clearLocalExportRecords } from '../src/application/localCleanup.js';
 import { shouldSkipExport } from '../src/application/export/runExport.js';
 import type { ExportRecord, ExportRequest } from '../src/application/export/types.js';
 
-const record: ExportRecord = { exportedAt: 300, chatTime: 100, format: 'markdown', status: 'ok' };
+const record: ExportRecord = { exportedAt: 300, chatTime: 100, format: 'markdown', includeAssets: true, status: 'ok' };
 const request = (key: ReturnType<typeof fixtureKey>): ExportRequest => ({
     keys: [key], format: 'markdown', delivery: 'browserDownload',
     includeAssets: true, skipUnchanged: true,

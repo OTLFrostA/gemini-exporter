@@ -68,7 +68,7 @@ test('subsequent delivery replaces the latest record without persistent queue me
     const record = await getExportRecord(exportKey('replace'));
     assert.equal(record?.format, 'json');
     assert.equal(record?.chatTime, 200);
-    assert.deepEqual(Object.keys(record!).sort(), ['chatTime', 'exportedAt', 'format', 'status']);
+    assert.deepEqual(Object.keys(record!).sort(), ['chatTime', 'exportedAt', 'format', 'includeAssets', 'status']);
     assert.equal(host.clicks(), 2);
     await assertNoSession();
 });
