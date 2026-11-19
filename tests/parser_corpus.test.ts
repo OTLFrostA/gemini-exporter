@@ -13,6 +13,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const os = require('node:os');
 const path = require('path');
 
 const { runCorpus } = require('../scripts/parser_migration/run_corpus.ts');
@@ -108,4 +109,32 @@ test('Parser Migration Corpus: Injectable runner executes with real Typst compil
     assert.strictEqual(diffReport.math.candidate.compileFailures, 0, 'Candidate compiled expressions in WASM');
     assert.strictEqual(diffReport.math.candidate.converted, diffReport.math.expressions);
     assert.ok(diffReport.math.diffCount > 0, 'Intentionally different math converter must trigger a differential result');
+});
+
+test('Parser Migration Corpus: same LaTeX in inline and display mode compiles each conversion', async (t: import('node:test').TestContext) => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'parser-corpus-'));
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+    const corpusPath = path.join(directory, 'corpus.json');
+    fs.writeFileSync(corpusPath, JSON.stringify({
+        corpusSets: {
+            synthetic_fixtures: {
+                mathExpressions: [
+                    { id: 'inline-x', latex: 'x', display: false },
+                    { id: 'display-x', latex: 'x', display: true },
+                ],
+            },
+        },
+    }));
+    const convert = (latex: string, display: boolean) => ({ typst: display ? latex : 'geeUnknownMathSymbol()' });
+    const { math } = await runCorpus({
+        corpusPath,
+        outputPath: path.join(directory, 'report.json'),
+        baselineConverter: convert,
+        candidateConverter: convert,
+        compileTypst: true,
+    });
+
+    const expected = { converted: 2, conversionFailures: 0, compileFailures: 1 };
+    assert.deepStrictEqual({ baseline: math.baseline, candidate: math.candidate }, { baseline: expected, candidate: expected });
+    assert.strictEqual(math.compileFailures, 1);
 });
