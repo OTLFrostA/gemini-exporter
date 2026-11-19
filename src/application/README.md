@@ -3,13 +3,13 @@
 Implements the frozen [Application design](https://app.notion.com/p/3fb5d4d759e181169ed3dfed880a093a).
 
 - `scanAll`: Recent scan, one startup Coverage snapshot, committed-page counters
-  from L1 and trusted boundary decisions from L2. Each committed page publishes a Runtime
-  invalidation without waiting for UI observers. No persistent scan session.
+  from L1 and trusted boundary decisions from L2. Each committed page publishes an
+  invalidation through the host port without waiting for UI observers. No persistent scan session.
 - `runExport`: bounded source/resource pipeline with ordered format/deliver/record processing
   shared by Popup, Options and Background Live Save. Task Provider construction
   belongs to L1. Local reads are validated by L2 before composition.
 - `importTakeout`, `importOpenAI`: offline archive import workflows orchestrating L1 archive
-  decoding, L2 Detail admission, lazy task-resource retention and Runtime invalidation.
+  decoding, L2 Detail admission, lazy task-resource retention and invalidation through the host port.
 - `cloud/`: optional encrypted vault sync. The engine orchestrates L1 vault transport,
   L3a keyring and outbox storage, and L2 admission of restored records. This workflow
   is independent of file export and Live Save.

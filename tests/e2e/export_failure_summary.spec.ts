@@ -1,9 +1,29 @@
 import { test, expect } from '@playwright/test';
+import { test as extensionTest, seedRegistryAccounts } from './fixtures';
+import { accountId, openOptions } from './uiFixture';
 import { A, mount, read } from '../helpers/uiPortHarness';
 import { parseGeminiRpcConversation } from '../../src/l1/parsers/gemini/rpc/parseConversation';
 import { detailGen } from '../fixtures/providers/geminiDetail';
 import { sourceReplayFixture } from '../fixtures/providers/gemini/detail/content';
 import { fixtureAccount } from '../helpers/domainFixture';
+
+extensionTest('one failed Workbench export uses singular labels in its diagnostic card', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const page = await openOptions(context, extensionId);
+    await page.evaluate(async accountId => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        await api.putIndexes([{ key: { accountId, conversationId: 'index-only' },
+            title: 'Index without body', titleSource: 'provider', updatedAt: 100 }]);
+    }, accountId);
+    await page.reload();
+    await expect(page.locator('#list .item')).toHaveCount(1);
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+    const card = page.locator('#exportFailureCard');
+    await expect(card).toBeVisible();
+    await expect.soft(card.locator('#exportFailureTitle')).toHaveText('1 conversation failed · Issue groups: 1');
+    await expect(card.locator('#exportFailureList summary')).toHaveText(/ · 1 conversation · 1 occurrence$/);
+});
 
 test('attachment diagnostics stay recorded but are visible only in developer mode', async ({ page }) => {
     await mount(page, 'options', { holdExport: true });
@@ -34,7 +54,7 @@ test('attachment diagnostics stay recorded but are visible only in developer mod
         h.finishExport();
     });
     await expect(page.locator('#exportFailureCard')).toBeVisible();
-    await expect(page.locator('#exportFailureTitle')).toContainText('1 conversations failed');
+    await expect(page.locator('#exportFailureTitle')).toContainText('1 conversation failed');
 });
 
 test('100 failed conversations collapse into one group, copy the reason once, and retry only failures', async ({ page }) => {
@@ -97,7 +117,7 @@ test('partial exports aggregate warnings, preserve all counts beyond log limits,
         h.finishExport();
     });
     await expect(page.locator('#exportFailureTitle')).toHaveText('Export warnings · Issue groups: 1');
-    await expect(page.locator('#exportFailureList summary')).toHaveText('Attachment could not be processed · 1 conversations · 10001 occurrences');
+    await expect(page.locator('#exportFailureList summary')).toHaveText('Attachment could not be processed · 1 conversation · 10001 occurrences');
     await expect(page.locator('#btnRetryFailed')).toBeHidden();
     const downloaded = page.waitForEvent('download');
     await page.locator('#btnExportDiag').focus();
@@ -148,7 +168,7 @@ for (const theme of ['light', 'dark'] as const) {
             h.finishExport();
         });
         await expect(card).toHaveAttribute('data-severity', 'error');
-        await expect(title).toHaveText('1 conversations failed · Issue groups: 2');
+        await expect(title).toHaveText('1 conversation failed · Issue groups: 2');
         await expect(title).toHaveCSS('color', theme === 'light' ? 'rgb(180, 35, 54)' : 'rgb(224, 139, 148)');
         await expect(page.locator('#btnRetryFailed')).toBeVisible();
         await expect(page.locator('#exportFailureList details[data-severity="warning"]')).toHaveCount(1);

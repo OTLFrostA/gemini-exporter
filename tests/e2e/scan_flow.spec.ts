@@ -7,6 +7,44 @@ test.beforeEach(async ({context, extensionId}) => {
     await seedRegistryAccounts(context);
 });
 
+for (const status of [200, 500]) {
+  test(`built Gemini scan bounds a stalled HTTP ${status} response body`, async ({ context, extensionId }) => {
+    const source = await context.newPage();
+    await source.route('https://gemini.google.com/**', route => route.fulfill({
+      contentType: 'text/html',
+      body: '<script>window.WIZ_global_data={qDCSke:"10000000001",SNlM0e:"test",cfb2h:"test"}</script>',
+    }));
+    await source.goto('https://gemini.google.com/app');
+    const options = await openOptions(context, extensionId);
+    await options.evaluate(status => {
+      const originalFetch = globalThis.fetch;
+      const originalSetTimeout = globalThis.setTimeout;
+      globalThis.setTimeout = ((callback: TimerHandler, delay?: number, ...args: unknown[]) =>
+        originalSetTimeout(callback, delay === 30000 ? 25 : delay, ...args)) as typeof setTimeout;
+      Reflect.set(globalThis, 'rpcBodyAborted', false);
+      globalThis.fetch = async (input, init) => {
+        if (!String(input).includes('/batchexecute')) return originalFetch(input, init);
+        return new Response(new ReadableStream({
+          start(controller) {
+            const signal = init?.signal;
+            if (!signal) throw new Error('RPC request has no abort signal');
+            const abort = () => {
+              Reflect.set(globalThis, 'rpcBodyAborted', true);
+              controller.error(signal.reason);
+            };
+            if (signal.aborted) abort();
+            else signal.addEventListener('abort', abort, { once: true });
+          },
+        }), { status });
+      };
+    }, status);
+    await options.click('#btnSyncAll');
+    await expect.poll(() => options.evaluate(() => Reflect.get(globalThis, 'rpcBodyAborted'))).toBe(true);
+    await expect(options.locator('body')).toHaveAttribute('data-scanning', 'false');
+    await expect(options.locator('#list .item')).toHaveCount(0);
+  });
+}
+
 test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
   test('should execute full GeminiClient scan, parse batchexecute list RPC, update progress, and populate workbench', async ({ context, extensionId }) => {
     const geminiPage = await context.newPage();
@@ -93,4 +131,3 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     expect(requestedKinds).toEqual(['recent', 'recent']);
   });
 });
-

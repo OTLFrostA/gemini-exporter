@@ -5,6 +5,7 @@
  * Types are checked against the frozen v2 public entrypoints. Mock decisions are
  * scripted by tests; this deliberately does NOT reproduce L2 selection/Coverage.
  */
+import { provideProviderHost } from '../../src/l1/client/providerHost.js';
 import type { Account } from '../../src/l2/accountRegistry.js';
 import type { ConversationKey } from '../../src/l2/conversationKey.js';
 import type { DetailIngestResult } from '../../src/l2/ingestion.js';
@@ -252,7 +253,6 @@ export function installL1V2Mocks(): void {
                 ingestContentDeletedConversation: ingestion.ingestDeletedConversation,
             };
             if (request.endsWith('/runtime/api/domainChanges.js')) return { notifyDomainChanged: (id: string) => { ports.notifications.push(id); } };
-            if (request.endsWith('/runtime/api/accountRegistry.js')) return accountRegistry;
             if (request.endsWith('/runtime/api/contentAccountRegistry.js')) return {
                 getContentAccount: accountRegistry.getAccount,
                 getOrCreateContentAccount: accountRegistry.getOrCreateAccount,
@@ -277,4 +277,11 @@ export function installL1V2Mocks(): void {
         }
         return Reflect.apply(originalLoad, loader, [request, parent, isMain]);
     };
+    provideProviderHost({
+        getAccount: accountRegistry.getAccount,
+        async resolveGeminiRoute(accountId) {
+            if (ports.current?.accountId !== accountId) throw new Error('No mocked Gemini account route');
+            return ports.current.slot;
+        },
+    });
 }

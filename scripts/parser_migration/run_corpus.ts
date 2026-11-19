@@ -26,6 +26,48 @@ interface CorpusRunnerOptions {
     compileTypst?: boolean;
 }
 
+interface ConvertedMathSample {
+    latex: string;
+    display: boolean;
+    typst: string;
+}
+
+function renderMathCompileDocument(mode: 'baseline' | 'candidate', samples: ConvertedMathSample[]) {
+    const key = fixtureKey(`corpus-math-${mode}-compile-gate`);
+    const sampleKey = (source: string, display: boolean) => JSON.stringify([source, display]);
+    const outputs = new Map<string, string[]>();
+    for (const sample of samples) {
+        const id = sampleKey(sample.latex, sample.display);
+        const previous = outputs.get(id);
+        if (previous) previous.push(sample.typst);
+        else outputs.set(id, [sample.typst]);
+    }
+
+    const domain: DomainConversationWithDetail = {
+        index: {
+            key,
+            titleSource: 'derived',
+            title: `Corpus Math ${mode === 'baseline' ? 'Baseline' : 'Candidate'} Compile Gate`,
+            createdAt: Date.parse('2026-09-28T00:00:00Z'),
+        },
+        detail: {
+            key,
+            quality: { status: 'unknown' },
+            assets: [],
+            messages: [{
+                id: 'm1',
+                role: 'assistant',
+                content: samples.map(({ latex, display }) => display
+                    ? { type: 'math', source: latex }
+                    : { type: 'paragraph', children: [{ type: 'inlineMath', source: latex }] }),
+            }],
+        },
+    };
+    return renderDocumentTypstCore(composeDomainDocument(domain, fixtureAccount()), {}, {}, {
+        convertMath: (source, display) => outputs.get(sampleKey(source, display))?.shift(),
+    });
+}
+
 interface CorpusReport {
     timestamp: string;
     corpusSet: string;
@@ -317,8 +359,8 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
     report.markdown.blockDistribution = report.markdown.baseline.blockDistribution;
 
     const mathStart = Date.now();
-    const baselineSuccessful: Array<{ id: string; latex: string; display: boolean; typst: string }> = [];
-    const candidateSuccessful: Array<{ id: string; latex: string; display: boolean; typst: string }> = [];
+    const baselineSuccessful: ConvertedMathSample[] = [];
+    const candidateSuccessful: ConvertedMathSample[] = [];
 
     for (const expr of mathExpressions) {
         let baseRes: any = null;
@@ -331,7 +373,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
             if (baseRes?.typst) {
                 report.math.baseline.converted += 1;
                 baselineSuccessful.push({
-                    id: expr.id,
                     latex: expr.latex,
                     display: !!expr.display,
                     typst: baseRes.typst,
@@ -364,7 +405,6 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 if (candRes?.typst) {
                     report.math.candidate!.converted += 1;
                     candidateSuccessful.push({
-                        id: expr.id,
                         latex: expr.latex,
                         display: !!expr.display,
                         typst: candRes.typst,
@@ -452,18 +492,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 const host = new RealWasmSandboxHost(repoRoot());
                 const compiler = new TypstSandboxCompiler({ host });
                 try {
-                    const domain: DomainConversationWithDetail = { index: { titleSource: 'derived', key: fixtureKey('corpus-math-baseline-compile-gate'),
-                        title: 'Corpus Math Baseline Compile Gate', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { key: fixtureKey('corpus-math-baseline-compile-gate'), quality: { status: 'unknown' },
-                        assets: [], messages: [{ id: 'm1', role: 'assistant',
-                            content: baselineSuccessful.map(e => ({ type: 'math', source: e.latex })),
-                        }],
-                    } };
-                    const baseTypstMap = new Map<string, string>();
-                    for (const e of baselineSuccessful) {
-                        baseTypstMap.set(e.latex, e.typst);
-                    }
-                    const convertMathFn = (s: string) => baseTypstMap.get(s);
-                    const document = renderDocumentTypstCore(composeDomainDocument(domain, fixtureAccount()), {}, {}, { convertMath: convertMathFn });
+                    const document = renderMathCompileDocument('baseline', baselineSuccessful);
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
                         document,
@@ -495,18 +524,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 const host = new RealWasmSandboxHost(repoRoot());
                 const compiler = new TypstSandboxCompiler({ host });
                 try {
-                    const domain: DomainConversationWithDetail = { index: { titleSource: 'derived', key: fixtureKey('corpus-math-candidate-compile-gate'),
-                        title: 'Corpus Math Candidate Compile Gate', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { key: fixtureKey('corpus-math-candidate-compile-gate'), quality: { status: 'unknown' },
-                        assets: [], messages: [{ id: 'm1', role: 'assistant',
-                            content: candidateSuccessful.map(e => ({ type: 'math', source: e.latex })),
-                        }],
-                    } };
-                    const candTypstMap = new Map<string, string>();
-                    for (const e of candidateSuccessful) {
-                        candTypstMap.set(e.latex, e.typst);
-                    }
-                    const convertMathFn = (s: string) => candTypstMap.get(s);
-                    const document = renderDocumentTypstCore(composeDomainDocument(domain, fixtureAccount()), {}, {}, { convertMath: convertMathFn });
+                    const document = renderMathCompileDocument('candidate', candidateSuccessful);
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
                         document,

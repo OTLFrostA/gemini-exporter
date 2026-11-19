@@ -89,7 +89,7 @@ export function renderDocumentTypstCore(
     };
     return {
         schemaVersion: 1, profile: { id: 'pdf', version: 1 }, title: document.title, metadata: headerMetadata(document, locale, true) + (!document.messages.length ? ` · ${strings.emptyConversation}` : ''),
-        layout: structuredClone(defaultPdfLayout()),
+        layout: structuredClone(defaultPdfLayout(locale)),
         messages: document.messages.map((message, index) => {
             const blocks = message.blocks.map(block);
             const prefix = message.role === 'system' ? strings.systemMessage : message.role === 'developer' ? strings.developerMessage : message.role === 'unknown' ? strings.unknownRole : undefined;

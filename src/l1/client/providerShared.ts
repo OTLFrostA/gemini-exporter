@@ -7,7 +7,7 @@ import { ingestDetail } from '../../l2/ingestion.js';
 import type { ProviderConversationItem } from '../parsers/contracts.js';
 import type { SourceConversationParseResult } from '../parsers/parsingResult.js';
 import type { SourceResourceContext } from '../resources/sourceResources.js';
-import { getAccount } from '../../runtime/api/accountRegistry.js';
+import { providerHost } from './providerHost.js';
 import { platformDisplayName, type SourcePlatform } from '../../shared/platformHosts.js';
 
 /** Verify a local Account exists and belongs to the expected platform (with optional subject predicate). */
@@ -16,7 +16,7 @@ export async function requireProviderAccount(
     accountId: string,
     validSubject: (providerAccountId: string) => boolean = () => true,
 ): Promise<Account> {
-    const account = await getAccount(accountId);
+    const account = await providerHost().getAccount(accountId);
     if (!account || account.providerId !== providerId || !validSubject(account.providerAccountId)) {
         throw new OperationError('ACCOUNT_UNAVAILABLE', `Provider account mismatch: ${platformDisplayName(providerId)} account mismatch`);
     }

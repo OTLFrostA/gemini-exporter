@@ -7,7 +7,7 @@ import CoverageAdmission from './coverageAdmission.js';
 import type { PageObservationHead } from './pageObservation.js';
 import { restoreConversationIndex, type DomainConversationIndex, type ConversationIndex, mergeConversationIndex } from './conversationIndex.js';
 import { getAccount, updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from '../l3a/storageService.js';
-import { updateConversationsAtomically } from '../l3a/conversationStore.js';
+import { updateConversationsAtomically } from '../l3a/batchStorageService.js';
 import { conversationKey } from './conversationKey.js';
 import * as sameStoredFacts from './domainEquality.js';
 

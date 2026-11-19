@@ -453,6 +453,45 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
         expect(diskInspection.rawLatin1).not.toContain(sensitive);
     }
 
+    // Fault only the manifest commit in both extension execution contexts.
+    const injectManifestFailure = () => {
+        Reflect.set(globalThis, 'failVaultManifestClose', true);
+        const original = FileSystemFileHandle.prototype.createWritable;
+        FileSystemFileHandle.prototype.createWritable = async function (...args) {
+            const stream = await original.apply(this, args);
+            if (this.name === 'vault-manifest.json') {
+                const close = stream.close.bind(stream);
+                stream.close = async () => {
+                    if (Reflect.get(globalThis, 'failVaultManifestClose')) {
+                        Reflect.set(globalThis, 'vaultManifestCloseFailed', true);
+                        await stream.abort();
+                        throw new Error('Injected manifest close failure');
+                    }
+                    await close();
+                };
+            }
+            return stream;
+        };
+    };
+    const worker = context.serviceWorkers()[0]!;
+    await page.evaluate(injectManifestFailure);
+    await worker.evaluate(injectManifestFailure);
+    await page.evaluate(async ({ accountId, postTime }) => {
+        await Reflect.get(globalThis, 'uiFixture').ingestIndexes(accountId, [{
+            conversationId: 'c_local_vault_01',
+            fields: { title: 'Uncommitted replacement', titleSource: 'provider', updatedAt: postTime + 1 },
+        }]);
+    }, { accountId, postTime });
+    await page.locator('#btnCloudVaultSetup').click();
+    await page.locator('#btnCloudSyncNow').click();
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Sync complete');
+    const failedInPage = await page.evaluate(() => Reflect.get(globalThis, 'vaultManifestCloseFailed') === true);
+    const failedInWorker = await worker.evaluate(() => Reflect.get(globalThis, 'vaultManifestCloseFailed') === true);
+    expect(failedInPage || failedInWorker).toBe(true);
+    await page.evaluate(() => Reflect.set(globalThis, 'failVaultManifestClose', false));
+    await worker.evaluate(() => Reflect.set(globalThis, 'failVaultManifestClose', false));
+    await page.locator('#btnCloudModalClose').click();
+
     // 4. Wipe extension's local conversation list, then restore catalog!
     await page.locator('#btnMoreActions').click();
     await page.locator('#btnClearScan').click();

@@ -1,10 +1,18 @@
 # Storage v2
 
-`storageService.ts` exports the frozen passive persistence API from the
-[Storage design](https://app.notion.com/p/3fb5d4d759e1816dbc65c1cd23854e00).
+Consumers outside L3a use only these three public entrypoints:
+
+- `storageService.ts`: the frozen 26-function passive persistence API from the
+  [Storage design](https://app.notion.com/p/3fb5d4d759e1816dbc65c1cd23854e00).
+- `batchStorageService.ts`: atomic multi-item snapshot/batch persistence for L2
+  admission/reads and Application export finalization.
+- `vaultStorageService.ts`: passive session, outbox, receipt, keyring and folder
+  handle persistence for the separate vault IndexedDB.
+
+Concrete store modules are internal implementations, not consumer entrypoints.
 
 The conversation IndexedDB (`gemini_exporter_v2`, version 2) holds six stores and only the
-unique `accounts.providerIdentity` index. The public surface has 23 functions,
+unique `accounts.providerIdentity` index. The frozen public surface has 26 functions,
 including the narrowly scoped atomic Account admission port for L2. Clearing scan
 records atomically deletes Index, Detail, Coverage and ExportRecord for the selected account.
 Export-history cleanup deletes only ExportRecords; both actions retain Account
