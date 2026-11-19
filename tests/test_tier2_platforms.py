@@ -452,6 +452,14 @@ class ChatGPTRequestBudgetTests(unittest.TestCase):
             self.assertEqual([call.args[0] for call in retry.send.call_args_list],
                              [f'A {i}' for i in range(2, 5)] + [f'B {i}' for i in range(8)])
             self.assertEqual([call.args[0] for call in retry.source.call_args_list], ['A', 'A', 'B'])
+            with patch('scripts.framework.chatgpt_live.OnlineScenarioProvider', return_value=provider), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                fresh = self.runner(folder)
+                fresh.send = Mock(side_effect=send)
+                fresh.source = Mock(side_effect=lambda cid: self.raw(cid, posted[cid]))
+                self.assertEqual(fresh.generate()['conversationIds'], ['C', 'D'])
+            self.assertEqual(fresh.send.call_count, 13)
+            self.assertEqual(json.loads(pool_path.read_text()), [])
 
     def test_429_stops_after_one_request_without_sleep_or_retry(self):
         with tempfile.TemporaryDirectory() as folder:

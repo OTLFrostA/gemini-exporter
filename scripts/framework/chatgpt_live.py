@@ -308,6 +308,8 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
             if posted:
                 self.freeze_source(cid, expected_prompts=prompts)
             ids.append(cid)
+        # Generation is complete: the next run must post fresh scenarios.
+        reservation.unlink()
         self.chat_ids = ids
         return {'conversationIds': ids, 'rounds': [len(s['turns']) for s in scenarios]}
 
