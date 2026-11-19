@@ -452,6 +452,7 @@ class ChatGPTRequestBudgetTests(unittest.TestCase):
             self.assertEqual([call.args[0] for call in retry.send.call_args_list],
                              [f'A {i}' for i in range(2, 5)] + [f'B {i}' for i in range(8)])
             self.assertEqual([call.args[0] for call in retry.source.call_args_list], ['A', 'A', 'B'])
+            retry.release_scenarios()
             with patch('scripts.framework.chatgpt_live.OnlineScenarioProvider', return_value=provider), \
                     contextlib.redirect_stdout(io.StringIO()):
                 fresh = self.runner(folder)
@@ -459,6 +460,75 @@ class ChatGPTRequestBudgetTests(unittest.TestCase):
                 fresh.source = Mock(side_effect=lambda cid: self.raw(cid, posted[cid]))
                 self.assertEqual(fresh.generate()['conversationIds'], ['C', 'D'])
             self.assertEqual(fresh.send.call_count, 13)
+            self.assertEqual(json.loads(pool_path.read_text()), [])
+
+    def run_platform(self, runtime, golden_error=None):
+        """Run the real ChatGPT DAG and lifecycle with browser stages stubbed."""
+        from scripts.framework.cases import workbench
+        from scripts.framework.platforms.chatgpt import ChatGPTPlugin
+        from scripts.framework.platforms.core import run_session
+        runtime.options, runtime.browser, runtime.fresh_options = Mock(), Mock(), Mock()
+        runtime.prepare = Mock(side_effect=lambda: setattr(runtime, 'ext_id', 'test'))
+        runtime.capture_golden = Mock(side_effect=golden_error, return_value={})
+
+        def sync():
+            runtime.report['scan'] = [{'id': 'A', 'title': 'A 0'}]
+
+        def evidence(*keys):
+            return lambda: runtime.report['gates'].update({key: {'status': 'passed'} for key in keys})
+        runtime.sync = sync
+        runtime.lifecycle = evidence('live_disk_save', 'passive_promotion', 'export_record_advancement')
+        runtime.golden_exports = evidence('image_pixels', 'questionnaires')
+        for name in ('page_badge', 'passive_sidebar', 'account_boundary', 'initial_export', 'confirmed_deletion',
+                     'exports', 'popup_export', 'fast_skip', 'stale_tab_images', 'cleanup_records',
+                     'uninstall_lifecycle'):
+            setattr(runtime, name, Mock(return_value={}))
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch('scripts.framework.tab_cleanup.TestTabScope'))
+            stack.enter_context(patch('scripts.chrome_diagnostics.BrowserDiagnostics')).return_value.failure = None
+            stack.enter_context(patch('scripts.framework.chatgpt_evidence.assert_full_exports', return_value={}))
+            for name in ('SearchKeywordCase', 'SearchIdCase', 'SearchClearCase', 'SelectionControlsCase',
+                         'LanguageToggleCase'):
+                stack.enter_context(patch.object(getattr(workbench, name), 'execute',
+                                                 return_value=(True, 'evidence', {})))
+            return run_session(ChatGPTPlugin.session(runtime), {})
+
+    def test_retry_after_later_stage_failure_reuses_generated_conversations(self):
+        from scripts.framework.scenario_provider import OnlineScenarioProvider
+        with tempfile.TemporaryDirectory() as folder, tempfile.TemporaryDirectory() as pool_folder:
+            pool_path = Path(pool_folder)/'pool.json'
+            pool_path.write_text(json.dumps([{'id': name, 'turns': [f'{name} {i}' for i in range(count)]}
+                                             for name, count in [('A', 5), ('B', 8), ('C', 5), ('D', 8)]]))
+            OnlineScenarioProvider.reset()
+            self.addCleanup(OnlineScenarioProvider.reset)
+            provider = OnlineScenarioProvider(str(pool_path), str(Path(pool_folder)/'archive.json'))
+            posted = {}
+
+            def send(prompt):
+                cid = prompt.split()[0]
+                posted.setdefault(cid, []).append(prompt)
+                (Path(folder)/f'{cid}.progress.json').write_text(json.dumps({'prompts': posted[cid]}))
+                return cid
+
+            def runner():
+                runtime = self.runner(folder)
+                runtime.send = Mock(side_effect=send)
+                runtime.source = Mock(side_effect=lambda cid: self.raw(cid, posted[cid]))
+                runtime.freeze_source = Mock()
+                return runtime
+
+            with patch('scripts.framework.chatgpt_live.OnlineScenarioProvider', return_value=provider), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                first = runner()
+                self.assertFalse(self.run_platform(first, golden_error=ValueError('golden capture failed')))
+                self.assertEqual(first.report['gates']['independent_golden_capture']['status'], 'fail')
+                retry = runner()
+                self.assertTrue(self.run_platform(retry))
+                self.assertEqual((retry.chat_ids, retry.send.call_count), (['A', 'B'], 0))
+                fresh = runner()
+                fresh.generate()
+            self.assertEqual((first.chat_ids, first.send.call_count), (['A', 'B'], 13))
+            self.assertEqual((fresh.chat_ids, fresh.send.call_count), (['C', 'D'], 13))
             self.assertEqual(json.loads(pool_path.read_text()), [])
 
     def test_429_stops_after_one_request_without_sleep_or_retry(self):

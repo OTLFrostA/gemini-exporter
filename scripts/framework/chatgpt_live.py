@@ -311,10 +311,11 @@ class ChatGPTLiveRunner(ChatGPTAcceptance):
             if posted:
                 self.freeze_source(cid, expected_prompts=prompts)
             ids.append(cid)
-        # Generation is complete: the next run must post fresh scenarios.
-        reservation.unlink()
         self.chat_ids = ids
         return {'conversationIds': ids, 'rounds': [len(s['turns']) for s in scenarios]}
+
+    def release_scenarios(self):
+        (self.output/'scenarios.json').unlink(missing_ok=True)
 
     def sync(self):
         from scripts.framework.assertions import assert_full_scan_coverage
