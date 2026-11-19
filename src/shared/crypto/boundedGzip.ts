@@ -69,12 +69,12 @@ export async function decompressUtf8GzipBounded(
             }
             chunks.push(value);
         }
+        const merged = concatChunks(chunks, totalBytes);
+        return new TextDecoder('utf-8', { fatal: true }).decode(merged);
     } catch (error) {
         if (error instanceof OperationError) throw error;
         throw new OperationError('CLOUD_DECOMPRESSION_LIMIT', 'Corrupted Gzip payload inside envelope', undefined, { cause: error });
     } finally {
         reader.releaseLock();
     }
-    const merged = concatChunks(chunks, totalBytes);
-    return new TextDecoder('utf-8', { fatal: true }).decode(merged);
 }

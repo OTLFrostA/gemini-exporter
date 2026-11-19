@@ -2,7 +2,7 @@ import { visual } from '../shared/visualContract.js';
 import type { PdfLayoutPolicy, TypstBlockNode } from './transport.js';
 
 /** Physical defaults belong to this backend; options may override them without recomposition. */
-export function defaultPdfLayout(documentLanguage = 'zh'): PdfLayoutPolicy {
+export function defaultPdfLayout(documentLanguage: 'en' | 'zh'): PdfLayoutPolicy {
     return {
         page: { widthMm: 210, heightMm: 297, topMm: 18.5, bottomMm: 18, sideMm: 22, contentWidthMm: 166, proseWidthMm: 166 * visual.content.proseWidth / visual.content.maxWidth },
         bubble: { maxWidthRatio: 0.85, compactHeightPt: 120, minInnerWidthPt: 28, paddingXPt: 12.5, paddingYPt: 8.4 },

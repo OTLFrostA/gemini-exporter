@@ -2,8 +2,8 @@
  * The corpus lives in tests/fixtures/visual-corpus/ (12 JSON fixtures). Each
  * fixture carries a neutral Document AST, base64 binaries, and an `expect` block.
  * This test compiles every fixture with the REAL vendored Typst WASM
- * (TypstSandboxCompiler + RealWasmSandboxHost, no mocks) and runs
- * programmatic checks instead of pixel diffs:
+ * with the production bundled fonts (TypstSandboxCompiler +
+ * RealWasmSandboxHost) and runs programmatic checks instead of pixel diffs:
  *   - page count >= expect.minPages (catches broken pagination)
  *   - key phrases present, exactlyOnce phrases appear exactly once
  *     (catches duplicated / dropped content)
@@ -31,11 +31,7 @@ const { TypstSandboxCompiler } = require('../src/l4/format/pdf/typst/typstSandbo
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { assertDocumentAsts } = require('./helpers/assertDocumentAst.js');
 const { convertMathForTest: convertMath } = require('./helpers/mathConversion.js');
-const {
-    RealWasmSandboxHost,
-    repoRoot,
-    resolveLocalCjkFont,
-} = require('./helpers/realWasmSandbox.js');
+const { RealWasmSandboxHost } = require('./helpers/realWasmSandbox.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 const {
     probePdfLayout,
@@ -296,21 +292,10 @@ function writeReviewReport(dir: string, results: FixtureResult[]): void {
 }
 
 test('visual corpus: real Typst WASM compile + programmatic checks (all 12)', async (t: any) => {
-    const cjkFont = resolveLocalCjkFont();
-    if (!cjkFont) {
-        t.skip(
-            'no locally installed CJK font on this machine; production serves CJK via the Local Font Access API (user device fonts), which has no Tier-1 equivalent here (same rationale as D8-3)',
-        );
-        return;
-    }
     const entries = loadCorpus();
     assert.strictEqual(entries.length, 12);
 
-    const host = new RealWasmSandboxHost(repoRoot());
-    const compiler = new TypstSandboxCompiler({
-        host,
-        fontPaths: ['src/l4/format/pdf/sandbox/fonts/NewCMMath-Regular.otf', cjkFont],
-    });
+    const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost() });
     const reviewDir = process.env.PDF_VISUAL_REVIEW_DIR;
     const results: FixtureResult[] = [];
     try {

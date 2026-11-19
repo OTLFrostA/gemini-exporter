@@ -1,15 +1,15 @@
 import { normalizeTexBracketsInProse, transformMarkdownOutsideCode } from '../shared/markdown/texBrackets.js';
 
-const URL_CITATION = /[\uE200][\uE000-\uF8FF]*url[\uE000-\uF8FF]*([^\uE000-\uF8FF]*?)[\uE000-\uF8FF]*([^\uE000-\uF8FF]*?)[\uE201]/g;
-const CITE_MARKER = /[\uE200][\uE000-\uF8FF]*cite(?:[\uE000-\uF8FF]*turn[0-9a-z]*)+[\uE000-\uF8FF]*/g;
-const PUA_STRAY = /[\uE000-\uF8FF]+/g;
+const URL_CITATION = /[\uE200][\uE200-\uE202]*url[\uE200-\uE202]*([^\uE200-\uE202]*?)[\uE200-\uE202]*([^\uE200-\uE202]*?)[\uE201]/g;
+const CITE_MARKER = /[\uE200][\uE200-\uE202]*cite(?:[\uE200-\uE202]*turn[0-9a-z]*)+[\uE200-\uE202]*/g;
+const CITATION_DELIMITERS = /[\uE200-\uE202]+/g;
 const BR_TAG = /<br\s*\/?>/gi;
 
 function stripCitationsOutsideCode(text: string): string {
     return text
         .replace(URL_CITATION, (_m: string, title: string, url: string) => `[${title.trim()}](${url.trim()})`)
         .replace(CITE_MARKER, '')
-        .replace(PUA_STRAY, '');
+        .replace(CITATION_DELIMITERS, '');
 }
 
 /** Normalize one ChatGPT message body for the shared Markdown parser. */

@@ -193,6 +193,8 @@ def consume_scenarios(pool_path=DEFAULT_POOL_PATH, count=2, archive_path=DEFAULT
     temp/scenario_pool/（git-ignored）；archive_path 参数此时被忽略，归档走运行时归档。
     显式路径（如测试临时文件）：传统语义——直接从该文件扣减并写入指定 archive 文件。
     """
+    if count <= 0:
+        raise ValueError("count must be a positive integer")
     pool = get_effective_pool(pool_path)
     if len(pool) < count:
         raise ValueError(f"场景池数量不足！当前仅剩 {len(pool)} 个，请求消费 {count} 个。请先运行 manage_scenario_pool.py topup 进行补充！")
@@ -277,6 +279,13 @@ def print_status(pool_path=DEFAULT_POOL_PATH):
     print("=" * 60)
 
 
+def positive_int(value):
+    count = int(value)
+    if count <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return count
+
+
 def main():
     parser = argparse.ArgumentParser(description="Gemini Exporter 测试场景池管理器")
     subparsers = parser.add_subparsers(dest="command", help="子命令")
@@ -287,7 +296,7 @@ def main():
     val_p.add_argument("--allow-below-target", action="store_true", help="允许水位低于 20 (仅校验数据格式完整性)")
 
     con_p = subparsers.add_parser("consume", help="消费测试场景并自动归档")
-    con_p.add_argument("--count", type=int, default=2, help="消费场景数量 (默认 2)")
+    con_p.add_argument("--count", type=positive_int, default=2, help="消费场景数量 (默认 2)")
     con_p.add_argument("--dry-run", action="store_true", help="演练模式，不落盘修改")
 
     top_p = subparsers.add_parser("topup", help="从 JSON 文件补齐新场景")

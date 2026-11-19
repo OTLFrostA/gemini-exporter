@@ -24,6 +24,12 @@ class CircuitBreakerError(SecurityViolationError):
     pass
 
 
+def _cdp_result(response: Dict[str, Any]) -> Dict[str, Any]:
+    if "error" in response:
+        raise RuntimeError(response["error"]["message"])
+    return response["result"]
+
+
 class SafeInteractionGateway:
     """
     中央安全网关：所有对 AI 聊天平台的敏感操作（导航、发帖、删除、模型切换）统一受此网关监管与审计。
@@ -135,12 +141,20 @@ class SafeInteractionGateway:
         self.enforce_cooldown("NAVIGATE", custom_cooldown=0.3)
 
         try:
-            cdp.call("Page.navigate", {"url": url})
+            result = _cdp_result(cdp.call("Page.navigate", {"url": url}))
+            if "errorText" in result:
+                raise RuntimeError(result["errorText"])
             self.record_audit("NAVIGATE", url, "SUCCESS", time.time() - t0)
             return True
         except Exception as e:
             try:
-                cdp.eval(f"window.location.href = {json.dumps(url)}")
+                result = _cdp_result(cdp.call("Runtime.evaluate", {
+                    "expression": f"window.location.href = {json.dumps(url)}",
+                    "returnByValue": True,
+                }))
+                if "exceptionDetails" in result:
+                    details = result["exceptionDetails"]
+                    raise RuntimeError(details.get("exception", {}).get("description") or details["text"])
                 self.record_audit("NAVIGATE_FALLBACK", url, "SUCCESS", time.time() - t0)
                 return True
             except Exception as e2:
