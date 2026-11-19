@@ -1,6 +1,6 @@
 import type { ExportResult, ExportAttachmentIssue } from '../../application/export/types.js';
 import { resourceFailureText, resourceIssueKind, type ResourceFailure } from '../../shared/resources/resourceResult.js';
-import { text, isDeveloperMode } from './settings.js';
+import { englishCount, text, isDeveloperMode } from './settings.js';
 
 export function attachmentFailure(issue: ExportAttachmentIssue): ResourceFailure {
     return { ok: false, reason: '', ...issue };
@@ -12,10 +12,13 @@ export function exportSummary(result: ExportResult, developerMode = isDeveloperM
     const issues = developerMode ? result.attachmentIssues ?? [] : [];
     const count = (kind: ReturnType<typeof resourceIssueKind>) => issues.filter(issue => resourceIssueKind(attachmentFailure(issue)) === kind).length;
     const expired = count('expired'), unavailable = count('unavailable'), restricted = count('restricted'), download = count('download'), processing = count('processing'), unknown = count('unknown');
+    const expiredConversations = result.expiredConversations ?? 0;
     const summary = [text(`Successfully downloaded: ${result.exported}`, `成功下载 ${result.exported} 条会话`),
-        ...(expired ? [text(`${result.expiredConversations ?? 0} conversations contain unavailable source attachments (${expired} attachments)`, `${result.expiredConversations ?? 0} 条含无法获取的来源附件（${expired} 个附件）`)] : []),
-        ...(unavailable ? [text(`Download location unavailable: ${unavailable} attachments`, `缺少下载地址 ${unavailable} 个附件`)] : []),
-        ...(restricted ? [text(`Access restricted: ${restricted} attachments`, `访问受限 ${restricted} 个附件`)] : []),
+        ...(expired ? [text(
+            `${englishCount(expiredConversations, 'conversation')} ${expiredConversations === 1 ? 'contains' : 'contain'} unavailable source attachments (${englishCount(expired, 'attachment')})`,
+            `${expiredConversations} 条含无法获取的来源附件（${expired} 个附件）`)] : []),
+        ...(unavailable ? [text(`Download location unavailable: ${englishCount(unavailable, 'attachment')}`, `缺少下载地址 ${unavailable} 个附件`)] : []),
+        ...(restricted ? [text(`Access restricted: ${englishCount(restricted, 'attachment')}`, `访问受限 ${restricted} 个附件`)] : []),
         ...(download ? [text(`Attachment download failed: ${download}; retry later`, `附件下载失败 ${download} 个，可重试`)] : []),
         ...(processing ? [text(`Attachment processing failed: ${processing}`, `附件处理失败 ${processing} 个`)] : []),
         ...(unknown ? [text(`Attachment failures with unknown cause: ${unknown}`, `原因未知的附件失败 ${unknown} 个`)] : []),
