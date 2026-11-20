@@ -78,6 +78,7 @@ test('Cloud Vault displays the key once, pairs isolated profiles manually, and s
         serverAccessCode: SERVER_INVITE_CODE,
     });
     const serverHandler = serverStore.handler;
+    let serveStaleRevision = false;
 
     const authRequests: { mode?: string; rawKeyInRequest: boolean }[] = [];
     const routeVault = (browser: BrowserContext) => browser.route(`${VAULT_ORIGIN}/**`, async route => {
@@ -93,7 +94,12 @@ test('Cloud Vault displays the key once, pairs isolated profiles manually, and s
             const body = JSON.parse(contents) as { mode?: string };
             authRequests.push({ mode: body.mode, rawKeyInRequest: /GEK1-[A-Z0-9]{5}/i.test(contents) });
         }
-        const webRes = await serverHandler(webReq);
+        let webRes = await serverHandler(webReq);
+        if (serveStaleRevision && req.method() === 'GET' && new URL(req.url()).pathname === '/v2/vault/changes') {
+            const feed = await webRes.json();
+            for (const item of feed.items) item.revision++;
+            webRes = Response.json(feed, { headers: webRes.headers });
+        }
         const resBuffer = Buffer.from(await webRes.arrayBuffer());
         const headersObj: Record<string, string> = {};
         webRes.headers.forEach((v, k) => { headersObj[k] = v; });
@@ -226,7 +232,12 @@ test('Cloud Vault displays the key once, pairs isolated profiles manually, and s
         await expect(other.locator('#cloudImportKeyInput')).toHaveValue('');
         await expect(other.locator('#cloudRecoveryKeyDisplay')).toHaveValue('');
         await expect(other.locator('#btnCloudCreateRemoteVault')).toBeHidden();
+        serveStaleRevision = true;
         await other.locator('#btnCloudConnect').click();
+        await expect(other.locator('#cloudModalFeedback')).toContainText('Could not reach the Cloud Vault server');
+        await expect(other.locator('#list .item')).toHaveCount(0);
+        serveStaleRevision = false;
+        await other.locator('#btnCloudSyncNow').click();
         await expect(other.locator('#cloudModalFeedback')).toContainText('Restored 1');
         await other.locator('#btnCloudModalClose').click();
 

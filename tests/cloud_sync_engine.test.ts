@@ -9,7 +9,8 @@ import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import { createMockCloudVaultHttp } from './helpers/mockCloudVaultHttp.js';
 import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/cloud/vaultKeySetup.js';
-import { enqueueCloudOutboxKeys, listDueCloudOutbox, putCloudSyncSession } from '../src/l3a/cloudSyncStore.js';
+import { enqueueCloudOutboxKeys, listDueCloudOutbox, putCloudSyncSession, getCloudSyncSession, getSyncedCloudRecord, putSyncedCloudRecord } from '../src/l3a/cloudSyncStore.js';
+import { deleteStoredConversation, getIndex } from '../src/l3a/storageService.js';
 import { deriveBlindRecordId, deriveVaultKeyring, encodeLengthPrefixedTuple, parseRecoveryKey } from '../src/shared/crypto/index.js';
 import { OperationError } from '../src/shared/errors/operationError.js';
 
@@ -400,6 +401,73 @@ test('CloudSyncEngine pullChanges rejects authenticated invalid UTF-8 with CLOUD
         env.restore();
     }
 });
+
+for (const scenario of ['feed floor', 'persisted floor', 'missing record', 'regressing cursor', 'fractional cursor', 'empty invalid cursor', 'newer revision', 'conflict floor']) {
+    test(`CloudSyncEngine revision safety: ${scenario}`, async () => {
+        const env = indexStorage();
+        try {
+            await env.ready;
+            const mock = createMockCloudVaultHttp();
+            const client = createCloudVaultClient((url, init) => mock.handler(new Request(url, init)));
+            const engine = createCloudSyncEngine({ client });
+            await createVaultKeySetup(engine.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
+            const { session } = await engine.connectCloudVault(SERVER_URL, undefined, 'create');
+            const account = await getOrCreateAccount('gemini', 'gaia-revision-safety');
+            const key = { accountId: account.id, conversationId: 'c_revision_safety' };
+            await ingestIndexes(account.id, [{ conversationId: key.conversationId, fields: { title: 'Original', titleSource: 'provider' } }]);
+            await updateSettings({ cloudSyncEnabled: true });
+            await enqueueCloudOutboxKeys([key]);
+            assert.equal((await engine.flushOutbox()).uploaded, 1);
+            if (scenario === 'newer revision') {
+                await ingestIndexes(account.id, [{ conversationId: key.conversationId, fields: { title: 'Newer', titleSource: 'provider', updatedAt: Date.now() + 1000 } }]);
+                await enqueueCloudOutboxKeys([key]);
+                assert.equal((await engine.flushOutbox()).uploaded, 1);
+            }
+            const original = await getSyncedCloudRecord(session.ownerSubject, key);
+            assert.ok(original);
+            const floor = scenario === 'persisted floor' || scenario === 'conflict floor' ? 3 : 1;
+            await putSyncedCloudRecord({ ...original, remoteRevision: floor });
+            await putCloudSyncSession({ ...session, pulledSeq: 7 });
+            const guarded = createCloudSyncEngine({ client: {
+                ...client,
+                async listChanges(args) {
+                    const feed = await client.listChanges({ ...args, sinceSeq: 0 });
+                    return {
+                        ...feed,
+                        items: scenario === 'empty invalid cursor' ? [] : feed.items.map(meta => ({ ...meta, revision: scenario === 'feed floor' ? 2 : 1 })),
+                        nextSince: scenario === 'regressing cursor' ? 6 : scenario.includes('cursor') ? 1.5 : 8,
+                    };
+                },
+                async getEncryptedRecord(args) {
+                    return scenario === 'missing record' ? null : client.getEncryptedRecord(args);
+                },
+                async putEncryptedRecord() { return { status: 'conflict' as const, currentRevision: floor }; },
+            } });
+            if (scenario === 'conflict floor') {
+                await ingestIndexes(account.id, [{ conversationId: key.conversationId, fields: { title: 'Local update', titleSource: 'provider', updatedAt: Date.now() + 1000 } }]);
+                await enqueueCloudOutboxKeys([key]);
+                assert.equal((await guarded.flushOutbox()).retriedLater, 1);
+                assert.equal((await getSyncedCloudRecord(session.ownerSubject, key))?.remoteRevision, floor);
+                assert.equal((await getIndex(key))?.title, 'Local update');
+            } else {
+                await deleteStoredConversation(key);
+                if (scenario === 'regressing cursor') {
+                    await ingestIndexes(account.id, [{ conversationId: 'c_anchor', fields: { title: 'Keep local cursor', titleSource: 'provider' } }]);
+                }
+                if (scenario === 'newer revision') {
+                    assert.equal((await guarded.pullChanges()).accepted, 1);
+                    assert.equal((await getSyncedCloudRecord(session.ownerSubject, key))?.remoteRevision, 2);
+                    assert.equal((await getCloudSyncSession())?.pulledSeq, 8);
+                } else {
+                    await assert.rejects(guarded.pullChanges(), { code: 'CLOUD_SERVER_ERROR' });
+                    assert.equal(await getIndex(key), null);
+                    assert.deepEqual(await getSyncedCloudRecord(session.ownerSubject, key), { ...original, remoteRevision: floor });
+                    assert.equal((await getCloudSyncSession())?.pulledSeq, 7);
+                }
+            }
+        } finally { env.restore(); }
+    });
+}
 
 test('transport blocks canonical key text before fetch and surfaces the server retry deadline', async () => {
     let requests = 0;
