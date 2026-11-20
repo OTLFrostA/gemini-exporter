@@ -37,9 +37,6 @@ export const CrossWorldEvents = {
     LIVE_SAVE_TRIGGER: 'GEMINI_LIVE_SAVE_TRIGGER'
 } as const;
 
-const EVENTS = CrossWorldEvents;
-type CrossWorldEventType = typeof CrossWorldEvents[keyof typeof CrossWorldEvents];
-
 export type DetailErrorCategory =
     | 'confirmed_deleted'
     | 'rate_limited'
@@ -164,4 +161,3 @@ export const GeminiProtocol: GeminiProtocolModule = {
 };
 
 export default GeminiProtocol;
-
