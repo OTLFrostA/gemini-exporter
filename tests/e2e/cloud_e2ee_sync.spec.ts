@@ -31,8 +31,11 @@ test('Vault Options status does not load stored CryptoKey handles', async ({ con
     await seedRegistryAccounts(context);
     const setupPage = await openOptions(context, extensionId);
     await setupPage.locator('#btnCloudVaultSetup').click();
-    await generateAndLockKey(setupPage);
-    const fingerprintLabel = await setupPage.locator('#vaultKeyFingerprintLabel').textContent();
+    await setupPage.locator('#btnGenerateOneTimeKey').click();
+    await setupPage.locator('#btnConfirmOneTimeKey').click();
+    const label = setupPage.locator('#vaultKeyFingerprintLabel');
+    await expect(label).toContainText(/#[0-9a-f]{8}/);
+    const fingerprintLabel = await label.innerText();
     await setupPage.close();
 
     await context.addInitScript(() => {
@@ -48,7 +51,7 @@ test('Vault Options status does not load stored CryptoKey handles', async ({ con
     const page = await openOptions(context, extensionId);
     await page.locator('#btnCloudVaultSetup').click();
     await expect(page.locator('#vaultKeyLockedRow')).toBeVisible();
-    await expect(page.locator('#vaultKeyFingerprintLabel')).toHaveText(fingerprintLabel!);
+    await expect(page.locator('#vaultKeyFingerprintLabel')).toHaveText(fingerprintLabel);
     expect(await page.evaluate(() => Reflect.get(window, 'vaultKeyringReads'))).toBe(0);
 });
 
