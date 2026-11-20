@@ -16,7 +16,7 @@ interface DecodedGeminiListRow {
 }
 
 /** Source-layout validity and official ordering evidence, independent of request/account context. */
-export interface GeminiListPageEvidence {
+interface GeminiListPageEvidence {
     valid: boolean;
     ordered: boolean;
     keys: { id: string; time: number }[];

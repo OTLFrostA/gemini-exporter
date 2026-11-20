@@ -155,7 +155,7 @@ function uniqueMonotonicAnchors(anchorSigs: readonly string[], mdSigs: readonly 
     return earliest;
 }
 
-export interface PartialStructuredRecoveryResult {
+interface PartialStructuredRecoveryResult {
     readonly blocks: BlockNode[];
     readonly sourceRangesRecovered: number;
     readonly sourceFailures: GeminiSourceFailure[];
