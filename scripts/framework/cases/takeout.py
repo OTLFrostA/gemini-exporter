@@ -1,6 +1,5 @@
 # scripts/framework/cases/takeout.py
 import os
-import time
 import json
 import re
 import zipfile
