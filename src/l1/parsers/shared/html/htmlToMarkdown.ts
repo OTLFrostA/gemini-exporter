@@ -14,15 +14,11 @@ const HTML_CODE_BLOCK = /<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["
 const HTML_INLINE_CODE = /<code>([\s\S]*?)<\/code>(?=(`|\uFFFDCODE\d+\uFFFD)?)/gi;
 
 const HTML_MARKUP = /<!--(?:(?!<!--)[\s\S])*?-->|<\/?[a-z][\w:-]*(?=[\s/>])(?:[^'"<>]|"[^"]*"|'[^']*')*>/;
-const HTML_INLINE_CODE_BODY = /(?:(?!<\/?code>)[\s\S])*/;
-// Leave separate Markdown examples of opening and closing tags visible to the span scanner.
-const HTML_INLINE_CODE_TOKEN = new RegExp(
-    '<code>(?![ \t]*`+\\s' + HTML_INLINE_CODE_BODY.source + '`</code>`)' + HTML_INLINE_CODE_BODY.source + '</code>',
-);
+const HTML_INLINE_CODE_TOKEN = /<code>(?:(?!<\/?code>)[\s\S])*<\/code>/gi;
 const MARKDOWN_RUN = /`+|\r?\n[ \t]*\r?\n/;
-const DELIMITER_TOKENS = new RegExp([
-    HTML_CODE_BLOCK.source, HTML_INLINE_CODE_TOKEN.source, HTML_MARKUP.source, MARKDOWN_RUN.source,
-].join('|'), 'gi');
+const SPAN_TOKENS = new RegExp([HTML_CODE_BLOCK.source, HTML_MARKUP.source, MARKDOWN_RUN.source].join('|'), 'gi');
+const PROSE_TOKENS = new RegExp([HTML_INLINE_CODE_TOKEN.source, SPAN_TOKENS.source].join('|'), 'gi');
+type CodeSpan = { start: number; end: number };
 
 function escapedBacktick(source: string, index: number): number {
     let preceding = index;
@@ -30,10 +26,8 @@ function escapedBacktick(source: string, index: number): number {
     return (index - preceding) % 2;
 }
 
-function stashMarkdownCodeSpans(source: string, stash: (code: string) => string): string {
-    if (!source.includes('`')) return source;
-
-    const tokens = [...source.matchAll(DELIMITER_TOKENS)];
+function markdownCodeSpans(source: string, tokenPattern: RegExp): CodeSpan[] {
+    const tokens = [...source.matchAll(tokenPattern)];
     const tableStarts: number[] = [];
     const tableBoundaries = new Map<number, 'open' | 'close'>();
     for (const { 0: token, index } of tokens) {
@@ -79,16 +73,52 @@ function stashMarkdownCodeSpans(source: string, stash: (code: string) => string)
         scope.nextByLength.set(run.length, { index, paragraph });
     }
 
-    const parts: string[] = [];
-    let start = 0;
+    const selected: CodeSpan[] = [];
+    let cursor = 0;
     for (const { index } of tokens) {
-        if (index < start) continue;
+        if (index < cursor) continue;
         const span = spans.get(index);
         if (!span) continue;
-        parts.push(source.slice(start, span.start), stash(source.slice(span.start, span.end)));
-        start = span.end;
+        selected.push(span);
+        cursor = span.end;
     }
-    return parts.join('') + source.slice(start);
+    return selected;
+}
+
+function stashSpans(source: string, spans: readonly CodeSpan[], stash: (code: string) => string): string {
+    const parts: string[] = [];
+    let cursor = 0;
+    for (const { start, end } of spans) {
+        parts.push(source.slice(cursor, start), stash(source.slice(start, end)));
+        cursor = end;
+    }
+    return parts.join('') + source.slice(cursor);
+}
+
+function stashMarkdownCodeSpans(source: string, stash: (code: string) => string): string {
+    if (!source.includes('`')) return source;
+    const codeElements = [...source.matchAll(HTML_INLINE_CODE_TOKEN)];
+    if (codeElements.length) {
+        // An apparent HTML element can span two distinct Markdown examples.
+        // Check the ordinary code delimiters before treating real HTML code as opaque.
+        const spans = markdownCodeSpans(source, SPAN_TOKENS);
+        const spansByTag = new Map<number, CodeSpan>();
+        for (const span of spans) {
+            for (const tag of source.slice(span.start, span.end).matchAll(/<\/?code>/gi)) {
+                spansByTag.set(span.start + tag.index, span);
+            }
+        }
+        const examples = new Set<CodeSpan>();
+        for (const { 0: element, index } of codeElements) {
+            const opening = spansByTag.get(index);
+            const closing = spansByTag.get(index + element.length - '</code>'.length);
+            if (!opening || !closing || opening === closing) continue;
+            examples.add(opening);
+            examples.add(closing);
+        }
+        source = stashSpans(source, spans.filter(span => examples.has(span)), stash);
+    }
+    return stashSpans(source, markdownCodeSpans(source, PROSE_TOKENS), stash);
 }
 
 export function convertHtmlToMarkdown(html?: string | null): string {

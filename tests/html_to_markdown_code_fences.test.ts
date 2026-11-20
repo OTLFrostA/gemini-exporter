@@ -93,6 +93,20 @@ test('partial HTML examples preserve literal tags without shielding intervening 
     );
 });
 
+test('formatted HTML between separate partial code tags is converted', () => {
+    for (const [opening, closing] of [
+        ['`<code>example`', '`</code>`'],
+        ['``<code>example with a ` backtick``', '``end </code> suffix``'],
+    ]) {
+        const input = `Use ${opening} and <b>real</b> and ${closing}.`;
+        const expected = `Use ${opening} and **real** and ${closing}.`;
+        assert.equal(convertHtmlToMarkdown(input), expected);
+        assert.equal(convertHtmlToMarkdown(`<p>${input}</p>`).trim(), expected);
+        assert.ok(convertHtmlToMarkdown(`<table><tr><td>${input}</td><td>Other</td></tr></table>`)
+            .includes(`| ${expected} | Other |`));
+    }
+});
+
 test('adjacent HTML and Markdown code preserve both code spans without leaking placeholders', () => {
     assert.equal(
         convertHtmlToMarkdown('<code>` raw `</code>`md`'),
