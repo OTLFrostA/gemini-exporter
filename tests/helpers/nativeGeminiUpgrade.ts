@@ -144,7 +144,7 @@ export async function runNativeUpgrade(mode: 'large' | 'abort'): Promise<NativeU
         result.upgradeMs = performance.now() - upgrading;
         const db = await openStorageDB();
         try {
-            if (db.version !== 2) throw new Error('Upgrade did not commit schema version');
+            if (db.version !== 3) throw new Error('Upgrade did not commit schema version');
             result.verified = await verify(db, true);
         } finally { db.close(); }
     } finally {

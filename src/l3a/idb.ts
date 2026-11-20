@@ -6,7 +6,7 @@ import type { DetailIngestResult } from '../l2/ingestion.js';
 import type { ExportRecord } from '../l2/exportRecord.js';
 
 const DATABASE_NAME = 'gemini_exporter_v2';
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 
 interface CoverageRow { accountId: string; streamId: string; value: StreamCoverage }
 interface ExportRow { accountId: string; conversationId: string; value: ExportRecord }
@@ -54,11 +54,11 @@ type StoreQueryResult = void | boolean | string | Account | Account[] | DomainCo
 /** Before v2, Gemini pagination could certify a lossy structured fallback as complete.
  * Withdraw unverified Detail completeness so later refreshes can admit repaired snapshots,
  * while preserving all body bytes, source versions and existing ExportRecords untouched. */
-function revokeUnverifiedGeminiCompleteness(tx: TypedIDBTransaction): void {
+function revokeUnverifiedGeminiCompleteness(tx: TypedIDBTransaction, done: () => void): void {
     const accounts = tx.objectStore('accounts').openCursor();
     accounts.onsuccess = () => {
         const account = accounts.result;
-        if (!account) return;
+        if (!account) { done(); return; }
         if (account.value.providerId !== 'gemini') { account.continue(); return; }
         const range = IDBKeyRange.bound([account.value.id], [account.value.id, []]);
         const bodies = tx.objectStore('details').openCursor(range);
@@ -71,6 +71,50 @@ function revokeUnverifiedGeminiCompleteness(tx: TypedIDBTransaction): void {
                     .onsuccess = () => cursor.continue();
             } else cursor.continue();
         };
+    };
+}
+
+/** Discard only optional timestamp values that the former safe-integer validator admitted. */
+function normalizeLegacySourceTimes(tx: TypedIDBTransaction): void {
+    const legacy = (value: number | undefined): boolean =>
+        value !== undefined && Number.isSafeInteger(value) && Math.abs(value) > 8.64e15;
+
+    const indexTimes = ['createdAt', 'updatedAt', 'activityAt'] satisfies (keyof DomainConversationIndex)[];
+    const indexes = tx.objectStore('indexes').openCursor();
+    indexes.onsuccess = () => {
+        const cursor = indexes.result;
+        if (!cursor) return;
+        const index = cursor.value;
+        let changed = false;
+        for (const field of indexTimes) {
+            if (!legacy(index[field])) continue;
+            delete index[field];
+            changed = true;
+        }
+        if (changed) cursor.update(index).onsuccess = () => cursor.continue();
+        else cursor.continue();
+    };
+
+    const bodies = tx.objectStore('details').openCursor();
+    bodies.onsuccess = () => {
+        const cursor = bodies.result;
+        if (!cursor) return;
+        const detail = cursor.value;
+        let changed = legacy(detail.savedAt);
+        if (changed) delete detail.savedAt;
+        for (const message of detail.messages) {
+            if (!legacy(message.timestamp)) continue;
+            delete message.timestamp;
+            changed = true;
+        }
+        for (const asset of detail.assets) {
+            if (!asset.generation || !legacy(asset.generation.time)) continue;
+            delete asset.generation.time;
+            if (Object.values(asset.generation).every(value => value === undefined)) delete asset.generation;
+            changed = true;
+        }
+        if (changed) cursor.update(detail).onsuccess = () => cursor.continue();
+        else cursor.continue();
     };
 }
 
@@ -89,7 +133,10 @@ function openDatabaseOnFactory(factory: IDBFactory, onEvict?: () => void): Promi
         request.onupgradeneeded = event => {
             const db = request.result;
             if (event.oldVersion !== 0) {
-                if (request.transaction) revokeUnverifiedGeminiCompleteness(request.transaction);
+                const tx = request.transaction;
+                if (tx && event.oldVersion === 1) {
+                    revokeUnverifiedGeminiCompleteness(tx, () => normalizeLegacySourceTimes(tx));
+                } else if (tx) normalizeLegacySourceTimes(tx);
                 return;
             }
             db.createObjectStore('accounts', { keyPath: 'id' })

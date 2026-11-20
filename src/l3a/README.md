@@ -11,7 +11,7 @@ Consumers outside L3a use only these three public entrypoints:
 
 Concrete store modules are internal implementations, not consumer entrypoints.
 
-The conversation IndexedDB (`gemini_exporter_v2`, version 2) holds six stores and only the
+The conversation IndexedDB (`gemini_exporter_v2`, version 3) holds six stores and only the
 unique `accounts.providerIdentity` index. The frozen public surface has 26 functions,
 including the narrowly scoped atomic Account admission port for L2. Clearing scan
 records atomically deletes Index, Detail, Coverage and ExportRecord for the selected account.
@@ -31,6 +31,9 @@ processes one account and one Detail cursor at a time, waiting for each update
 before continuing, and never loads an account's bodies with `getAll()`. An aborted
 upgrade rolls back all writes and evicts the failed pooled connection so the next
 storage read can retry.
+
+The v2-to-v3 upgrade removes historical source timestamps outside the JavaScript Date
+range while retaining valid metadata, bodies and export receipts.
 
 L2 owns identity, Index merging, Detail selection and Coverage admission.
 Application owns defaults, Skip, export records and user record cleanup. Runtime
