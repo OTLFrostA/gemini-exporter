@@ -447,7 +447,6 @@ def test_online_scenario_provider_and_lifecycle_tracker():
     from framework.lifecycle_tracker import SessionLifecycleTracker
 
     # 1. Test OnlineScenarioProvider
-    OnlineScenarioProvider.reset()
     mock_pool = [
         {"id": "sc_img", "title": "Imagen Test", "features": ["imagen", "creative"], "turns": ["draw a cat", "draw a dog"]},
         {"id": "sc_code", "title": "Code Test", "features": ["code", "python"], "turns": ["write fibonacci", "optimize it"]},
@@ -494,7 +493,6 @@ def test_online_scenario_provider_and_lifecycle_tracker():
         except RuntimeError as e:
             assert "场景池已枯竭" in str(e)
     finally:
-        OnlineScenarioProvider.reset()
         for p in [p_path, a_path]:
             if os.path.isfile(p):
                 os.remove(p)
