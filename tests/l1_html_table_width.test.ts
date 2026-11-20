@@ -57,3 +57,15 @@ test('HTML table cells escape pipes in stashed Markdown code spans', () => {
         '| `a\\|b` | right |',
     ]);
 });
+
+test('Markdown backticks in distinct HTML table cells do not pair', () => {
+    const rows = tableLines('<table><tr><th>`left</th><th>right`</th></tr>'
+        + '<tr><td>`first</td><td>second`</td></tr></table>');
+    assert.deepEqual(rows, [
+        '| `left | right` |',
+        '| --- | --- |',
+        '| `first | second` |',
+    ]);
+    const example = '`<table><tr><td>literal</td></tr></table>`';
+    assert.equal(convertHtmlToMarkdown('Use ' + example + ' with <b>HTML</b>.'), 'Use ' + example + ' with **HTML**.');
+});

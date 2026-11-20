@@ -23,21 +23,31 @@ function stashMarkdownCodeSpans(source: string, stash: (code: string) => string)
 
     // Real HTML tokens are opaque to the Markdown delimiter scan.
     const tokens = [...source.matchAll(PROSE_TOKENS)];
-    const nextByLength = new Map<number, number>();
+    const scopes: Array<{ tag: string; nextByLength: Map<number, { index: number; paragraph: number }> }> = [
+        { tag: '', nextByLength: new Map() },
+    ];
+    let paragraph = 0;
     const spans = new Map<number, { start: number; end: number }>();
     for (let i = tokens.length - 1; i >= 0; i--) {
         const { 0: run, index } = tokens[i];
+        const scope = scopes[scopes.length - 1];
         if (run[0] !== '`') {
-            if (/\r?\n[ \t]*\r?\n/.test(run)) nextByLength.clear();
+            if (/\r?\n[ \t]*\r?\n/.test(run)) paragraph++;
+            const cellTag = /^<(\/?)(td|th)(?=[\s/>])/i.exec(run);
+            if (cellTag) {
+                const tag = cellTag[2].toLowerCase();
+                if (cellTag[1]) scopes.push({ tag, nextByLength: new Map() });
+                else if (scope.tag === tag) scopes.pop();
+            }
             continue;
         }
         let preceding = index;
         while (source[preceding - 1] === '\\') preceding--;
         const escaped = (index - preceding) % 2;
         const length = run.length - escaped;
-        const close = nextByLength.get(length);
-        if (close !== undefined) spans.set(index, { start: index + escaped, end: close + length });
-        nextByLength.set(run.length, index);
+        const close = scope.nextByLength.get(length);
+        if (close?.paragraph === paragraph) spans.set(index, { start: index + escaped, end: close.index + length });
+        scope.nextByLength.set(run.length, { index, paragraph });
     }
 
     const parts: string[] = [];
