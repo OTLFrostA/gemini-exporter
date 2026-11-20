@@ -112,6 +112,7 @@ function setup(t: { after: (fn: () => void) => void }, overrides: {
             initLifecycleListeners: () => effects.push('initLifecycle'),
             initUninstallUrl: () => effects.push('initUninstall'),
         },
+        'src/migration/legacyVaultKeys.js': { initLegacyVaultKeyCleanup: () => effects.push('initLegacyVaultKeyCleanup') },
         'src/runtime/background/tabAction.js': { initTabActionListeners: () => effects.push('initTabAction') },
         'src/runtime/background/readiness.js': { ensureV2Ready: overrides.ready || (async () => {}) },
         'src/runtime/background/contentSender.js': security,
@@ -127,7 +128,7 @@ function setup(t: { after: (fn: () => void) => void }, overrides: {
     };
     load('src/runtime/background/background.ts', handlers);
     assert.equal(listeners.length, 1);
-    assert.deepEqual(effects.slice(0, 4), ['initAccess', 'initLifecycle', 'initUninstall', 'initTabAction']);
+    assert.deepEqual(effects.slice(0, 5), ['initAccess', 'initLifecycle', 'initLegacyVaultKeyCleanup', 'initUninstall', 'initTabAction']);
     t.after(() => {
         if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
         else Reflect.deleteProperty(globalThis, 'chrome');
@@ -222,7 +223,7 @@ test('Explicit user navigation never starts Sync/Export or reloads unrelated pag
     assert.deepEqual((await dispatch({ action: 'openGeminiPage' })).result, { ok: true, tabId: 80 });
     assert.match((await dispatch({ action: 'reloadGeminiTab', tabId: 7 })).result.error, /Not a Gemini Tab/);
     assert.deepEqual((await dispatch({ action: 'reloadGeminiTab', tabId: 80 })).result, { ok: true });
-    assert.deepEqual(effects.slice(4), ['handoff:none', 'openOptions', 'openGemini', 'reload:80']);
+    assert.deepEqual(effects.slice(5), ['handoff:none', 'openOptions', 'openGemini', 'reload:80']);
 });
 
 test('Options navigation hands off only a verified current source account', async t => {

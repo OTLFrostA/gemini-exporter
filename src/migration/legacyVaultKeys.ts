@@ -26,9 +26,7 @@ async function clearLegacyMirror(): Promise<void> {
 }
 
 export function initLegacyVaultKeyCleanup(): void {
-    if (typeof indexedDB !== 'undefined') {
-        void clearLegacyMirror().catch(() => console.warn('[Vault] Could not clear the legacy IndexedDB key mirror'));
-    }
+    void clearLegacyMirror().catch(() => console.warn('[Vault] Could not clear the legacy IndexedDB key mirror'));
     const sync = chrome.storage?.sync;
     if (typeof sync?.getKeys !== 'function') return; // Never fall back to reading values.
     const purgeSync = async () => {

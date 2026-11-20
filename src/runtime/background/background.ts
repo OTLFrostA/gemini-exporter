@@ -6,6 +6,7 @@ import { handleDomainIngestionMessage } from './domainStorageHandler.js';
 import { handleAccountRegistryMessage } from './accountRegistryHandler.js';
 import { initCloudSyncBackground, handleCloudSyncMessage } from './cloudSyncHandler.js';
 import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
+import { initLegacyVaultKeyCleanup } from '../../migration/legacyVaultKeys.js';
 import { initTabActionListeners } from './tabAction.js';
 import { ensureV2Ready } from './readiness.js';
 import { assertContentSender, assertExtensionSender, object, requireCurrentContentAccount } from './contentSender.js';
@@ -14,7 +15,6 @@ import { isAccountId } from '../../l2/accountRegistry.js';
 import { readConversationKey } from '../../l2/conversationKey.js';
 import { runLiveSave } from './liveSaveHandler.js';
 import { updateSettings } from '../../application/settings/index.js';
-import { initLegacyVaultKeyCleanup } from '../../migration/legacyVaultKeys.js';
 
 installApplicationHost();
 installProviderHost();

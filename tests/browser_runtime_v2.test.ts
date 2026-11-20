@@ -529,6 +529,7 @@ test('Background count, Badge position and Live Save follow their public IPC con
     let badgeWrites = 0;
     global.chrome = { ...chromeBase(), runtime: { id: 'ext', onMessage: { addListener: (fn: Function) => { listener = fn; } } } } as any;
     load('src/runtime/background/background.ts', {
+        'src/migration/legacyVaultKeys.js': { initLegacyVaultKeyCleanup() {} },
         'src/runtime/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
         'src/runtime/background/accountRegistryHandler.js': { handleAccountRegistryMessage: () => false },
         'src/runtime/background/lifecycle.js': { initSessionAccessLevel: () => {}, initLifecycleListeners: () => {}, initUninstallUrl: () => {} },
@@ -716,6 +717,7 @@ test('both active Background ports reject a different current Account before Exp
     global.chrome = { ...chromeBase(), runtime: { id: 'ext', onMessage: { addListener: (fn: Function) => { listener = fn; } } } } as any;
     global.chrome.tabs.sendMessage = ((_id: unknown, _message: unknown, _options: unknown, callback: Function) => callback({ ok: true, accountContext: { accountId: 'other', providerId: 'gemini' } })) as any;
     load('src/runtime/background/background.ts', {
+        'src/migration/legacyVaultKeys.js': { initLegacyVaultKeyCleanup() {} },
         'src/runtime/background/domainStorageHandler.js': { handleDomainIngestionMessage: () => false },
         'src/runtime/background/accountRegistryHandler.js': { handleAccountRegistryMessage: () => false },
         'src/runtime/background/lifecycle.js': { initSessionAccessLevel: () => {}, initLifecycleListeners: () => {}, initUninstallUrl: () => {} },
