@@ -72,7 +72,8 @@ function openCloudDBOnFactory(factory: IDBFactory, onEvict?: () => void): Promis
             ? indexedDB.open(CLOUD_DB_NAME, CLOUD_DB_VERSION)
             : factory.open(CLOUD_DB_NAME, CLOUD_DB_VERSION);
         request.onupgradeneeded = () => {
-            const db = request.result;
+            const { result: db, transaction } = request;
+            if (!transaction) throw new Error('Missing Vault database upgrade transaction');
             if (!db.objectStoreNames.contains('session')) {
                 db.createObjectStore('session', { keyPath: 'id' });
             }
@@ -86,7 +87,7 @@ function openCloudDBOnFactory(factory: IDBFactory, onEvict?: () => void): Promis
                 synced.createIndex('byOwnerBlindId', ['ownerSubject', 'blindRecordId'], { unique: true });
             }
             const localKeys = db.objectStoreNames.contains('localKeys')
-                ? request.transaction!.objectStore('localKeys')
+                ? transaction.objectStore('localKeys')
                 : db.createObjectStore('localKeys', { keyPath: 'ownerSubject' });
             if (!localKeys.indexNames.contains(KEYRING_METADATA_INDEX)) {
                 localKeys.createIndex(KEYRING_METADATA_INDEX, ['ownerSubject', 'keyFingerprint', 'origin']);
