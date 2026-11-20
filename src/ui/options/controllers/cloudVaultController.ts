@@ -351,14 +351,17 @@ export function mountCloudVaultPanel(callbacks: {
                 ));
             return;
         }
-        const synced = await runSyncAndNotify();
+        const { cloudBackup } = res;
+        if (cloudBackup?.restoredChanges) await callbacks.onRestored();
         if (res.resolution === 'rekeyed') {
+            const saved = cloudBackup?.saved ?? (await runSyncAndNotify()).saved;
             setModalFeedback(text(
-                `Rotated to new Master Key (#${res.keyFingerprint.slice(0, 8)}) · Saved ${synced.saved} conversations`,
-                `已轮换启用新主密钥（#${res.keyFingerprint.slice(0, 8)}）并重新加密同步 ${synced.saved} 条会话`,
+                `Rotated to new Master Key (#${res.keyFingerprint.slice(0, 8)}) · Saved ${saved} conversations`,
+                `已轮换启用新主密钥（#${res.keyFingerprint.slice(0, 8)}）并重新加密同步 ${saved} 条会话`,
             ));
             return;
         }
+        const synced = await runSyncAndNotify();
         setModalFeedback(text(
             `Master Key verified · Restored ${synced.restored}, Saved ${synced.saved}`,
             `主密钥已验证解锁并完成同步（恢复 ${synced.restored} 条，保存 ${synced.saved} 条）`,

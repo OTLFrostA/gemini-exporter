@@ -458,6 +458,7 @@ export function activateStoredKeyring(
     entry: StoredNonExtractableKeyring,
     session?: CloudSyncSessionState,
     previousOwnerSubject?: string,
+    verifiedBackup?: readonly CloudSyncedRecordState[],
 ): Promise<void> {
     const safeEntry = parseStoredKeyring(entry);
     if (!safeEntry) {
@@ -473,7 +474,11 @@ export function activateStoredKeyring(
         if (session) {
             tx.objectStore('session').put(session);
             tx.objectStore('syncedRecords').delete(IDBKeyRange.bound([session.ownerSubject], [session.ownerSubject, []]));
-            tx.objectStore('outbox').clear();
+            if (verifiedBackup) {
+                for (const record of verifiedBackup) tx.objectStore('syncedRecords').put(record);
+            } else {
+                tx.objectStore('outbox').clear();
+            }
         }
         done(undefined);
     });
