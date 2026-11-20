@@ -160,7 +160,8 @@ export async function restoreCloudConversationsToLocal(
                         fields: entry.index,
                     })),
                 );
-                accepted += slice.length;
+                accepted += indexResult.accepted;
+                rejected += indexResult.rejected;
                 changed += indexResult.added + indexResult.updated;
             }
         }
