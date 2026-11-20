@@ -47,3 +47,25 @@ test('LPC-03: ordinary table and pipe escaping remain unchanged', () => {
         '| left \\| right | two<br>lines |',
     ]);
 });
+
+test('HTML table cells escape pipes in stashed Markdown code spans', () => {
+    const rows = tableLines('<table><tr><td>`a|b`</td><td>`<b>a|b</b>`</td></tr>'
+        + '<tr><td>`a\\|b`</td><td>right</td></tr></table>');
+    assert.deepEqual(rows, [
+        '| `a\\|b` | `<b>a\\|b</b>` |',
+        '| --- | --- |',
+        '| `a\\|b` | right |',
+    ]);
+});
+
+test('Markdown backticks in distinct HTML table cells do not pair', () => {
+    const rows = tableLines('<table><tr><th>`left</th><th>right`</th></tr>'
+        + '<tr><td>`first</td><td>second`</td></tr></table>');
+    assert.deepEqual(rows, [
+        '| `left | right` |',
+        '| --- | --- |',
+        '| `first | second` |',
+    ]);
+    const example = '`<table><tr><td>literal</td></tr></table>`';
+    assert.equal(convertHtmlToMarkdown('Use ' + example + ' with <b>HTML</b>.'), 'Use ' + example + ' with **HTML**.');
+});
