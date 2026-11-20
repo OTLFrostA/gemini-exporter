@@ -62,6 +62,8 @@ test('Live Save rejects malformed IPC results before returning them or notifying
             { ...host.result, failed: [{ ...host.key, accountId: 'foreign' }] },
             { ...host.result, failed: [{ ...host.key, conversationId: ' padded ' }] },
             { ...host.result, expiredConversations: null }, { ...host.result, otherPartial: -1 },
+            ...[null, '1700000000000', false, 0, -1, 1.5, NaN, Infinity, -Infinity, Number.MAX_SAFE_INTEGER + 1]
+                .map(rateLimitedUntil => ({ ...host.result, rateLimitedUntil })),
             { ...host.result, attachmentIssues: {} }, { ...host.result, attachmentIssues: [null] },
             ...[{ resourceId: 1, name: 'file', code: 'FAILED' },
                 { resourceId: 'r', name: 'file', code: 1 },
@@ -79,11 +81,18 @@ test('Live Save rejects malformed IPC results before returning them or notifying
 
 test('Live Save decodes complete failure and attachment details without changing their values', async t => {
     const host = await liveCoordinatorHost(t);
-    const result = { ...host.result, failed: [host.key], partial: 1, expiredConversations: 1, otherPartial: 0,
+    const result = { ...host.result, failed: [host.key], partial: 1, expiredConversations: 1, otherPartial: 0, rateLimitedUntil: 1700000000000,
         attachmentIssues: [{ resourceId: 'r', name: 'file', code: 'RESOURCE_SOURCE_EXPIRED',
             sourceUrl: 'https://example.test/file', httpStatus: 404 }] };
     host.reply(async () => ({ ok: true, result }));
     assert.deepEqual(await executeLiveSave(host.key), result);
     assert.deepEqual(host.feedback, [result]);
     assert.deepEqual(host.errors, []);
+});
+
+test('Live Save omits an undefined optional cooldown timestamp', async t => {
+    const host = await liveCoordinatorHost(t);
+    host.reply(async () => ({ ok: true, result: { ...host.result, rateLimitedUntil: undefined } }));
+    assert.deepEqual(await executeLiveSave(host.key), host.result);
+    assert.deepEqual(host.feedback, [host.result]);
 });
