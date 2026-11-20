@@ -75,6 +75,13 @@ test('backticks inside real HTML code cannot close an unmatched prose delimiter'
         'Use `<code>` then `` `real` <b> `` and `</code>`.');
 });
 
+test('literal HTML comment openers in code do not consume following prose', () => {
+    assert.equal(
+        convertHtmlToMarkdown('Type `<!--` and keep this text. <!-- hidden --> <b>real</b>.'),
+        'Type `<!--` and keep this text.  **real**.',
+    );
+});
+
 test('literal closing cell tags are preserved in Markdown code outside HTML tables', () => {
     const example = 'Close cells with `</td>` or `</th>` here.';
     assert.equal(convertHtmlToMarkdown(example + ' <b>Real</b>'), example + ' **Real**');

@@ -13,7 +13,7 @@ function stripHtmlTags(str: string): string {
 const HTML_CODE_BLOCK = /<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi;
 const HTML_INLINE_CODE = /<code>([\s\S]*?)<\/code>/gi;
 
-const HTML_MARKUP = /<!--[\s\S]*?-->|<\/?[a-z][\w:-]*(?=[\s/>])(?:[^'"<>]|"[^"]*"|'[^']*')*>/;
+const HTML_MARKUP = /<!--(?:(?!<!--)[\s\S])*?-->|<\/?[a-z][\w:-]*(?=[\s/>])(?:[^'"<>]|"[^"]*"|'[^']*')*>/;
 const MARKDOWN_RUN = /`+|\r?\n[ \t]*\r?\n/;
 const DELIMITER_TOKENS = new RegExp([
     HTML_CODE_BLOCK.source, HTML_INLINE_CODE.source, HTML_MARKUP.source, MARKDOWN_RUN.source,
