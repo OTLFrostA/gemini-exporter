@@ -11,6 +11,7 @@ import { isRecord } from '../../shared/utils/typeGuards.js';
 export type CloudFetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
 const OUTBOUND_MASTER_KEY_LEAK_RE = /GEK1-[0-9A-Z]{5}/i;
+const MAX_CHANGES_RESPONSE_BYTES = 64 * 1024;
 
 /** Catch accidental use of canonical recovery-key text in the vault transport. */
 export function assertZeroOutboundKeyLeak(url: string, init?: RequestInit): void {
@@ -55,9 +56,41 @@ function parseRetryAfterTimestamp(header: string | null): number | undefined {
     return undefined;
 }
 
-async function readErrorDetails(response: Response): Promise<{ code?: string; message: string; currentRevision?: number }> {
+async function readChangesJson(response: Response): Promise<unknown> {
+    if (Number(response.headers.get('Content-Length')) > MAX_CHANGES_RESPONSE_BYTES) {
+        await response.body?.cancel().catch(() => {});
+        throw new OperationError('CLOUD_SERVER_ERROR', 'Cloud Vault changes response is too large');
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let bytesRead = 0;
+    let text = '';
+    if (reader) {
+        try {
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                bytesRead += value.byteLength;
+                if (bytesRead > MAX_CHANGES_RESPONSE_BYTES) {
+                    await reader.cancel().catch(() => {});
+                    throw new OperationError('CLOUD_SERVER_ERROR', 'Cloud Vault changes response is too large');
+                }
+                text += decoder.decode(value, { stream: true });
+            }
+        } finally {
+            reader.releaseLock();
+        }
+    }
+    return JSON.parse(text + decoder.decode());
+}
+
+async function readErrorDetails(
+    response: Response,
+    readJson: (response: Response) => Promise<unknown> = response => response.json(),
+): Promise<{ code?: string; message: string; currentRevision?: number }> {
     try {
-        const json: unknown = await response.json();
+        const json = await readJson(response);
         if (isRecord(json) && isRecord(json.error)) {
             const code = typeof json.error.code === 'string' ? json.error.code : undefined;
             const message = typeof json.error.message === 'string' && json.error.message
@@ -70,7 +103,7 @@ async function readErrorDetails(response: Response): Promise<{ code?: string; me
             return { code, message, currentRevision };
         }
     } catch {
-        // Ignore non-JSON error body
+        // Fall back to the HTTP status if the error body cannot be read as JSON.
     }
     return { message: `Cloud Vault HTTP ${response.status}` };
 }
@@ -298,9 +331,9 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
                 signal: input.signal,
             });
             if (!res.ok) {
-                throwMappedHttpError(res.status, await readErrorDetails(res), res.headers.get('Retry-After'));
+                throwMappedHttpError(res.status, await readErrorDetails(res, readChangesJson), res.headers.get('Retry-After'));
             }
-            const raw: unknown = await res.json();
+            const raw = await readChangesJson(res);
             if (!isRecord(raw)
                 || !Array.isArray(raw.items)
                 || typeof raw.nextSince !== 'number'
