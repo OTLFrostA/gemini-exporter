@@ -36,7 +36,7 @@ async function activeVaultOwner(page: Page): Promise<string> {
     }));
 }
 
-for (const scenario of ['write failure', 'corrupt read-back', 'verified backup'] as const) {
+for (const scenario of ['write failure', 'corrupt read-back', 'verified backup', 'local deletion'] as const) {
     test(`Cloud Vault rotation: ${scenario}`, async ({ context, extensionId }) => {
         const server = createMockCloudVaultHttp();
         await seedRegistryAccounts(context);
@@ -88,6 +88,18 @@ for (const scenario of ['write failure', 'corrupt read-back', 'verified backup']
         }, { id: accountId, title });
         await page.locator('#btnCloudSyncNow').click();
         await expect.poll(() => server.inspectRawBlobs().size).toBe(2);
+        if (scenario === 'local deletion') {
+            await expect(page.locator('#btnCloudSyncNow')).toBeEnabled();
+            await page.locator('#btnCloudSyncNow').click();
+            await expect(page.locator('#btnCloudSyncNow')).toBeEnabled();
+            await page.evaluate(async id => {
+                await Reflect.get(globalThis, 'uiFixture').ingestDeletedConversation(id, 'rotation-audit-1');
+            }, accountId);
+            await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+            await expect(page.locator('#list')).not.toContainText(`${title} 1`);
+            await expect(page.locator('#list')).toContainText(`${title} 2`);
+            expect(server.inspectRawBlobs().size).toBe(2);
+        }
         oldOwner = await activeVaultOwner(page);
 
         rotating = true;
@@ -96,18 +108,22 @@ for (const scenario of ['write failure', 'corrupt read-back', 'verified backup']
         await expect.poll(() => oldStillActiveAtWrites.length).toBeGreaterThan(0);
         await expect(page.locator('#btnCloudSyncNow')).toBeEnabled();
         const feedback = page.locator('#cloudModalFeedback');
-        expect.soft(oldStillActiveAtWrites).toEqual([true, true]);
-        expect.soft(oldStillActiveAtReads).toEqual(scenario === 'write failure' ? [] : scenario === 'corrupt read-back' ? [true] : [true, true]);
-        expect.soft(uploaded).toBe(scenario === 'write failure' ? 1 : 2);
-        expect.soft(await activeVaultOwner(page) === oldOwner).toBe(scenario !== 'verified backup');
-        if (scenario !== 'verified backup') {
+        const expectedSaved = scenario === 'local deletion' ? 1 : 2;
+        const expectedReads = scenario === 'write failure' ? 0 : scenario === 'corrupt read-back' ? 1 : expectedSaved;
+        const failed = scenario === 'write failure' || scenario === 'corrupt read-back';
+        expect.soft(oldStillActiveAtWrites).toEqual(Array(expectedSaved).fill(true));
+        expect.soft(oldStillActiveAtReads).toEqual(Array(expectedReads).fill(true));
+        expect.soft(uploaded).toBe(scenario === 'write failure' ? 1 : expectedSaved);
+        expect.soft(await activeVaultOwner(page) === oldOwner).toBe(failed);
+        if (failed) {
             await expect(feedback).toHaveAttribute('data-error', 'true');
             await expect(feedback).not.toContainText('Rotated to new Master Key');
             return;
         }
 
         await expect(feedback).toContainText('Rotated to new Master Key');
-        await expect(feedback).toContainText('Saved 2');
+        await expect(feedback).toContainText(`Saved ${expectedSaved}`);
+        if (scenario === 'local deletion') await expect(page.locator('#list')).not.toContainText(`${title} 1`);
         const peer = await launchExtensionContext();
         try {
             await routeVault(peer);
@@ -119,8 +135,12 @@ for (const scenario of ['write failure', 'corrupt read-back', 'verified backup']
             await restored.locator('#btnCloudImportKey').click();
             await restored.locator('#cloudServerUrlInput').fill(origin);
             await restored.locator('#btnCloudConnect').click();
-            await expect(restored.locator('#list')).toContainText(`${title} 1`);
             await expect(restored.locator('#list')).toContainText(`${title} 2`);
+            if (scenario === 'local deletion') {
+                await expect(restored.locator('#list')).not.toContainText(`${title} 1`);
+            } else {
+                await expect(restored.locator('#list')).toContainText(`${title} 1`);
+            }
         } finally {
             await peer.close();
         }

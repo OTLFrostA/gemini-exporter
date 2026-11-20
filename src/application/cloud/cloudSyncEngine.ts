@@ -541,6 +541,7 @@ export function createCloudSyncEngine(deps: {
                 let downloaded = 0;
                 let accepted = 0;
                 let changed = 0;
+                let seenRecords = 0;
                 let hasAnyLocalConversation = false;
                 for (const acc of await listAccounts()) {
                     if (acc.providerAccountId === DEFAULT_ACCOUNT_KEY) continue;
@@ -565,9 +566,12 @@ export function createCloudSyncEngine(deps: {
                         throw unverifiedBackup();
                     }
                     if (feed.items.length === 0) break;
+                    seenRecords += feed.items.length;
 
                     const toDownload = [];
                     for (const meta of feed.items) {
+                        // Count old entries for completeness without undoing local deletions.
+                        if (forRotation && hasAnyLocalConversation && meta.changeSeq <= session.pulledSeq) continue;
                         const existing = forRotation ? null : await getSyncedCloudRecordByBlindId(session.ownerSubject, meta.blindRecordId);
                         if (existing && existing.remoteRevision >= meta.revision) {
                             const localIndex = await getIndex({
@@ -659,7 +663,7 @@ export function createCloudSyncEngine(deps: {
                     if (!feed.hasMore) break;
                 }
 
-                if (forRotation && downloaded !== checkedVault.recordCount) throw unverifiedBackup();
+                if (forRotation && seenRecords !== checkedVault.recordCount) throw unverifiedBackup();
                 return { downloaded, accepted, changed, pulledSeq: cursor };
             } finally {
                 activePull = null;
