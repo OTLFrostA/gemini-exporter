@@ -751,10 +751,7 @@ export function createCloudSyncEngine(deps: {
                 ...(trimmedCode ? { accessCode: trimmedCode } : {}),
             };
             await putCloudSyncSession(session);
-            await updateSettings({
-                cloudSyncServerUrl: normalizedUrl,
-                ...(trimmedCode !== undefined ? { cloudSyncAccessCode: trimmedCode } : {}),
-            });
+            await updateSettings({ cloudSyncServerUrl: normalizedUrl });
             return {
                 session,
                 keyFingerprint: initialized.keyFingerprint,

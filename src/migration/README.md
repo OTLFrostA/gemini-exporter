@@ -10,6 +10,8 @@ Background runs migration before business access, with listeners registered
 synchronously. Runtime then fills missing feature baselines from previousVersion
 or currentVersion, preserving existing values. Tour is installation URL intent;
 neither Tour flags nor the retired ZIP preference are migrated into v2 Settings.
+Every startup also erases a `cloudSyncAccessCode` that earlier builds copied into
+Settings; it writes only when that field is present.
 
 `node -r ./tests/ts_register.js --test tests/upgrade_v1.test.cjs` runs deterministic
 fake-indexeddb migration regressions. Runtime tests exercise readiness and lifecycle
