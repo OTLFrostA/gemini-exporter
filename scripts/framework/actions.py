@@ -767,12 +767,9 @@ class CDPActions(ExtensionActions):
         # 0. 确保侧边栏处于展开状态 (若处于折叠状态则主动点击展开按钮)
         cdp_gemini.eval(f"""
         (() => {{
+            if (document.querySelector('{GeminiSelectors.EXPANDED_SIDEBAR}')) return;
             const openBtn = document.querySelector('{GeminiSelectors.OPEN_SIDEBAR_BTN}');
-            if (openBtn) {{
-                openBtn.click();
-                return true;
-            }}
-            return false;
+            openBtn?.click();
         }})()
         """)
         time.sleep(0.6)
