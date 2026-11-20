@@ -456,3 +456,10 @@ class TestEnvironment:
                 cdp.close()
             except Exception:
                 pass
+        if self.browser_cdp is not None:
+            try:
+                self.browser_cdp.close()
+            except Exception:
+                pass
+            finally:
+                self.browser_cdp = None
