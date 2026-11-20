@@ -174,7 +174,7 @@ export async function ingestDetailsBatch(
     const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Detail account does not exist');
     if (entries.length === 0) return [];
-    const committedKeys: ConversationKey[] = [];
+    const committedKeys = new Map<ConversationKey['conversationId'], ConversationKey>();
     const prepared = entries.map(entry => {
         const key = { accountId, conversationId: entry.conversationId };
         const baseDecision = buildConversationDecision(key, entry.detail, entry.indexFields);
@@ -182,13 +182,13 @@ export async function ingestDetailsBatch(
             key,
             decide: (oldIndex: DomainConversationIndex | null, oldDetail: DomainConversationDetail | null) => {
                 const decided = baseDecision(oldIndex, oldDetail);
-                if (decided.index || decided.detail) committedKeys.push(key);
+                if (decided.index || decided.detail) committedKeys.set(key.conversationId, key);
                 return decided;
             },
         };
     });
     const outcomes = await updateConversationsAtomically(prepared);
-    emitCommittedKeys(committedKeys);
+    emitCommittedKeys([...committedKeys.values()]);
     return outcomes;
 }
 
