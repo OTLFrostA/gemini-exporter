@@ -1,7 +1,6 @@
 import type { OperationIssue } from '../../shared/errors/operationError.js';
 import type { DiagnosticSeverity } from '../../shared/diagnostics/diagnostic.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
-export type { ExportFormat, ExportDelivery } from '../../shared/types/export.js';
 import type { ExportFormat, ExportDelivery } from '../../shared/types/export.js';
 export type { ExportAttachmentIssue, ExportRecord } from '../../l2/exportRecord.js';
 import type { ExportAttachmentIssue, ExportRecord } from '../../l2/exportRecord.js';
