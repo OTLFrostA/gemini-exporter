@@ -7,7 +7,7 @@ function readCount(value: unknown): number {
     return value;
 }
 function readTimestamp(value: unknown): number {
-    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) throw new TypeError('Invalid Live Save timestamp');
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw new TypeError('Invalid Live Save timestamp');
     return value;
 }
 function readAttachmentIssue(value: unknown): ExportAttachmentIssue {
