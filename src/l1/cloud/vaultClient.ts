@@ -1,10 +1,11 @@
 import { OperationError } from '../../shared/errors/operationError.js';
-import type {
-    CloudAuthKeyMode,
-    CloudAuthSessionResponse,
-    CloudChangesResponse,
-    CloudRecordMeta,
-    CloudVaultStatusResponse,
+import {
+    CLOUD_MAX_RECORD_BYTES,
+    type CloudAuthKeyMode,
+    type CloudAuthSessionResponse,
+    type CloudChangesResponse,
+    type CloudRecordMeta,
+    type CloudVaultStatusResponse,
 } from '../../shared/types/cloudSync.js';
 import { isRecord } from '../../shared/utils/typeGuards.js';
 
@@ -73,6 +74,42 @@ async function readErrorDetails(response: Response): Promise<{ code?: string; me
         // Ignore non-JSON error body
     }
     return { message: `Cloud Vault HTTP ${response.status}` };
+}
+
+async function readRecordBody(response: Response): Promise<Uint8Array<ArrayBuffer>> {
+    const tooLarge = () => new OperationError(
+        'CLOUD_RECORD_TOO_LARGE',
+        `Encrypted record download exceeds ${CLOUD_MAX_RECORD_BYTES} byte limit`,
+    );
+    if (Number(response.headers.get('Content-Length')) > CLOUD_MAX_RECORD_BYTES) {
+        await response.body?.cancel().catch(() => {});
+        throw tooLarge();
+    }
+    const reader = response.body?.getReader();
+    if (!reader) return new Uint8Array(0);
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    try {
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            totalBytes += value.byteLength;
+            if (totalBytes > CLOUD_MAX_RECORD_BYTES) {
+                await reader.cancel().catch(() => {});
+                throw tooLarge();
+            }
+            chunks.push(value);
+        }
+    } finally {
+        reader.releaseLock();
+    }
+    const bytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+    }
+    return bytes;
 }
 
 function throwMappedHttpError(
@@ -286,7 +323,7 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
             if (!Number.isSafeInteger(revision) || revision < 1 || !Number.isSafeInteger(changeSeq)) {
                 throw new OperationError('CLOUD_SERVER_ERROR', 'Missing or invalid X-Record-Revision header on download');
             }
-            const envelope = new Uint8Array(await res.arrayBuffer());
+            const envelope = await readRecordBody(res);
             return { revision, changeSeq, sha256: shaHeader, envelope };
         },
 
