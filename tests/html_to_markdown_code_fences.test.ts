@@ -139,6 +139,14 @@ test('mixed HTML and Markdown never expose internal code placeholders', () => {
     }
 });
 
+test('source text shaped like a code placeholder is retained verbatim', () => {
+    const literal = '\uFFFDCODE7\uFFFD \uFFFDCODE0:0\uFFFD';
+    assert.equal(
+        convertHtmlToMarkdown(`${literal} then \`${literal}\` and <b>real</b>.`),
+        `${literal} then \`${literal}\` and **real**.`,
+    );
+});
+
 test('literal closing cell tags are preserved in Markdown code outside HTML tables', () => {
     const example = 'Close cells with `</td>` or `</th>` here.';
     assert.equal(convertHtmlToMarkdown(example + ' <b>Real</b>'), example + ' **Real**');

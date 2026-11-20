@@ -11,7 +11,7 @@ function stripHtmlTags(str: string): string {
 }
 
 const HTML_CODE_BLOCK = /<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi;
-const HTML_INLINE_CODE = /<code>([\s\S]*?)<\/code>(?=(`|\uFFFDCODE\d+\uFFFD)?)/gi;
+const HTML_INLINE_CODE = /<code>([\s\S]*?)<\/code>/gi;
 
 const HTML_MARKUP = /<!--(?:(?!<!--)[\s\S])*?-->|<\/?[a-z][\w:-]*(?=[\s/>])(?:[^'"<>]|"[^"]*"|'[^']*')*>/;
 const HTML_INLINE_CODE_TOKEN = /<code>(?:(?!<\/?code>)[\s\S])*<\/code>/gi;
@@ -131,12 +131,19 @@ export function convertHtmlToMarkdown(html?: string | null): string {
     if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i|table|a|img)[\s/>]/i.test(html)) return html;
 
     let res = html;
+    const markerIds = new Set([...html.matchAll(/\uFFFDCODE(\d+):/g)].map(match => match[1]));
+    let markerId = 0;
+    while (markerIds.has(String(markerId))) markerId++;
+    const marker = `\uFFFDCODE${markerId}:`;
+    const placeholderSource = String.raw`${marker}(\d+)\uFFFD`;
+    const placeholder = new RegExp(placeholderSource, 'g');
+    const inlineCode = new RegExp(HTML_INLINE_CODE.source + '(?=(`|' + placeholderSource + ')?)', 'gi');
     const __codeSpans: string[] = [];
     const __restoreCode = (str: string, transform = (code: string) => code): string =>
-        str.replace(/\uFFFDCODE(\d+)\uFFFD/g, (_m: string, i: string) => transform(__codeSpans[Number(i)]));
+        str.replace(placeholder, (_match: string, i: string) => transform(__codeSpans[Number(i)]));
     const __stashCode = (code: string): string => {
         __codeSpans.push(__restoreCode(code));
-        return `\uFFFDCODE${__codeSpans.length - 1}\uFFFD`;
+        return `${marker}${__codeSpans.length - 1}\uFFFD`;
     };
     // Existing fenced Markdown is authored code, even when it contains HTML-like tags.
     // Recognize both CommonMark fence styles before interpreting real HTML tags.
@@ -181,7 +188,7 @@ export function convertHtmlToMarkdown(html?: string | null): string {
         const fence = backticks(cleanCode, 3);
         return __stashCode(`\n${fence}${lang || ''}\n${cleanCode}\n${fence}\n`);
     });
-    res = res.replace(HTML_INLINE_CODE, (_match: string, code: string, next: string | undefined) => {
+    res = res.replace(inlineCode, (_match: string, code: string, next: string | undefined) => {
         const content = unescapeHtml(__restoreCode(code));
         const fence = backticks(content, 1);
         const pad = /^`|`$|^ .* $/.test(content) ? ' ' : '';
