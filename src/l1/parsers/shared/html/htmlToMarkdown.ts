@@ -13,16 +13,16 @@ function stripHtmlTags(str: string): string {
 const HTML_CODE_BLOCK = /<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi;
 const HTML_INLINE_CODE = /<code>([\s\S]*?)<\/code>/gi;
 
-const HTML_TAG = /<\/?[a-z][\w:-]*(?=[\s/>])(?:[^'"<>]|"[^"]*"|'[^']*')*>/;
-const PROSE_TOKENS = new RegExp([
-    HTML_CODE_BLOCK.source, HTML_INLINE_CODE.source, HTML_TAG.source, /`+|\r?\n[ \t]*\r?\n/.source,
-].join('|'), 'gi');
+const HTML_MARKUP = /<!--[\s\S]*?-->|<\/?[a-z][\w:-]*(?=[\s/>])(?:[^'"<>]|"[^"]*"|'[^']*')*>/;
+const MARKDOWN_RUN = /`+|\r?\n[ \t]*\r?\n/;
+const DELIMITER_TOKENS = new RegExp([HTML_CODE_BLOCK.source, HTML_MARKUP.source, MARKDOWN_RUN.source].join('|'), 'gi');
 
 function stashMarkdownCodeSpans(source: string, stash: (code: string) => string): string {
     if (!source.includes('`')) return source;
 
-    // Real HTML tokens are opaque to the Markdown delimiter scan.
-    const tokens = [...source.matchAll(PROSE_TOKENS)];
+    // Delimiters in attributes and comments are opaque. Do not let a possible
+    // inline HTML code tag consume the closing delimiter of an earlier Markdown span.
+    const tokens = [...source.matchAll(DELIMITER_TOKENS)];
     const tableStarts: number[] = [];
     const tableBoundaries = new Map<number, 'open' | 'close'>();
     for (const { 0: token, index } of tokens) {
@@ -70,14 +70,17 @@ function stashMarkdownCodeSpans(source: string, stash: (code: string) => string)
         scope.nextByLength.set(run.length, { index, paragraph });
     }
 
+    const openers = new RegExp([
+        HTML_CODE_BLOCK.source, HTML_INLINE_CODE.source, HTML_MARKUP.source, MARKDOWN_RUN.source,
+    ].join('|'), 'gi');
     const parts: string[] = [];
     let start = 0;
-    for (const { index } of tokens) {
-        if (index < start) continue;
-        const span = spans.get(index);
+    for (let token = openers.exec(source); token; token = openers.exec(source)) {
+        const span = spans.get(token.index);
         if (!span) continue;
         parts.push(source.slice(start, span.start), stash(source.slice(span.start, span.end)));
         start = span.end;
+        openers.lastIndex = span.end;
     }
     return parts.join('') + source.slice(start);
 }
