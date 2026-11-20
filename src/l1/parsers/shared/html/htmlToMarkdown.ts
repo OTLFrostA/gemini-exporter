@@ -62,8 +62,8 @@ export function convertHtmlToMarkdown(html?: string | null): string {
         __codeSpans.push(code);
         return `\uFFFDCODE${__codeSpans.length - 1}\uFFFD`;
     };
-    const __restoreCode = (str: string): string =>
-        str.replace(/\uFFFDCODE(\d+)\uFFFD/g, (_m: string, i: string) => __codeSpans[Number(i)]);
+    const __restoreCode = (str: string, transform = (code: string) => code): string =>
+        str.replace(/\uFFFDCODE(\d+)\uFFFD/g, (_m: string, i: string) => transform(__codeSpans[Number(i)]));
     // Existing fenced Markdown is authored code, even when it contains HTML-like tags.
     // Recognize both CommonMark fence styles before interpreting real HTML tags.
     const lines = res.match(/[^\n]*(?:\n|$)/g) ?? [];
@@ -157,6 +157,9 @@ export function convertHtmlToMarkdown(html?: string | null): string {
                 value = stripHtmlTags(value);
                 value = unescapeHtml(value).replace(/\r?\n/g, ' ').trim();
                 value = value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+                value = __restoreCode(value, code => __stashCode(
+                    code.replace(/(\\*)\|/g, (pipe: string, slashes: string) => slashes.length % 2 ? pipe : '\\' + pipe),
+                ));
                 cells.push({ value, colSpan: span(match[1], 'colspan'), rowSpan: span(match[1], 'rowspan') });
             }
             if (cells.length) parsedRows.push(cells);
