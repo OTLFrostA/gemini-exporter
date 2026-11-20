@@ -9,7 +9,7 @@ import time
 from typing import List, Optional, Any
 from dataclasses import dataclass
 
-from .stages import PipelineStage, PipelineConcurrencyViolationError, CircuitBreakerError
+from .stages import PipelineStage, PipelineConcurrencyViolationError
 from .actions import AtomicAction, ActionResult
 
 

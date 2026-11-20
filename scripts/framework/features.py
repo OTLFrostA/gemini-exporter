@@ -4,7 +4,6 @@ Declarative Feature Registry and Test Status Matrix.
 Defines all testable capabilities of Gemini Exporter across 5 core lifecycle domains.
 """
 
-import time
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any

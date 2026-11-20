@@ -5,12 +5,10 @@ Encapsulates real web interactions (typing, clicking, waiting for streams, searc
 """
 
 import os
-import re
 import time
 import json
 import zipfile
 import base64
-import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, List
@@ -22,14 +20,7 @@ try:
 except ImportError:
     from cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
 
-from scripts.framework.pipeline import (
-    SerialActionExecutor,
-    AssertIdleAction,
-    StagePromptAction,
-    SingleClickSendAction,
-    AwaitStreamSettledAction,
-    HumanCooldownAction
-)
+from scripts.framework.pipeline import SerialActionExecutor
 from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
 from scripts.framework.gateway import get_gateway
 from scripts.framework.v2_probe import install_probe, snapshot

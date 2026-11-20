@@ -28,7 +28,7 @@ except ImportError as exc:
     _export_spec_import_error = str(exc)
 
 from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
-from scripts.framework.archive_resources import validate_archive_resources, resource_references, find_archive_resource
+from scripts.framework.archive_resources import validate_archive_resources
 
 
 @lru_cache(maxsize=64)
