@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { openStorageDB, readOne } from '../src/l3a/idb.js';
-import { ingestDetail } from '../src/l2/ingestion.js';
-import { getDetail, getExportRecord } from '../src/l3a/storageService.js';
+import { readConversation } from '../src/l2/readConversation.js';
+import { ingestDetail, ingestIndexes } from '../src/l2/ingestion.js';
+import { getDetail, getExportRecord, getIndex } from '../src/l3a/storageService.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
 import { detailGen } from './fixtures/providers/geminiDetail.js';
@@ -22,9 +23,9 @@ const record = { format: 'markdown', status: 'ok', exportedAt: 123, chatTime: 17
     folderBaseName: 'Keep my filename' } as const;
 
 // Historical schema is intentional: opening production Storage must upgrade it.
-async function seedPreviousDatabase(count = 1): Promise<void> {
+async function seedPreviousDatabase(count = 1, version = 1, outOfRange = false): Promise<void> {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open('gemini_exporter_v2', 1);
+        const request = indexedDB.open('gemini_exporter_v2', version);
         request.onupgradeneeded = () => {
             const db = request.result;
             db.createObjectStore('accounts', { keyPath: 'id' }).createIndex('providerIdentity', ['providerId', 'providerAccountId'], { unique: true });
@@ -47,7 +48,19 @@ async function seedPreviousDatabase(count = 1): Promise<void> {
                     const detail = body(owner.id);
                     detail.key.conversationId = conversationId;
                     if (count > 1) detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'text', text: 'Historical body. '.repeat(1024) }] }];
-                    tx.objectStore('indexes').put({ key: detail.key, updatedAt: 1700000000000 });
+                    const invalid = 8_640_000_000_000_001;
+                    if (outOfRange && owner.id === account.id) {
+                        detail.savedAt = -invalid;
+                        detail.messages[0].timestamp = invalid;
+                        detail.assets = [
+                            { id: 'only-time', kind: 'image', generation: { time: -invalid } },
+                            { id: 'with-prompt', kind: 'image', generation: { time: invalid, prompt: 'Retained' } },
+                            { id: 'valid', kind: 'image', generation: { time: 0 } },
+                        ];
+                        detail.messages[0].attachmentIds = detail.assets.map(asset => asset.id);
+                    }
+                    tx.objectStore('indexes').put({ key: detail.key, updatedAt: 1700000000000,
+                        ...(outOfRange && owner.id === account.id ? { createdAt: invalid, activityAt: -invalid } : {}) });
                     tx.objectStore('details').put(detail);
                     tx.objectStore('exportRecords').put({ accountId: owner.id, conversationId, value: record });
                 }
@@ -135,3 +148,25 @@ test('aborted upgrade rolls back all changes and can be retried without losing h
         assert.ok((await getDetail(key))?.messages.length);
     } finally { IDBCursorWithValue.prototype.update = update; env.restore(); }
 });
+
+for (const version of [1, 2]) {
+    test(`schema v${version} read repairs legacy timestamps without discarding conversation facts`, async () => {
+        const env = indexStorage({}, { seedAccounts: false });
+        try {
+            await seedPreviousDatabase(1, version, true);
+            const restored = await readConversation(key);
+            assert.ok(restored);
+            assert.deepEqual(restored.index, { key, updatedAt: 1700000000000 });
+            assert.equal(restored.detail.quality.status, version === 1 ? 'unknown' : 'complete');
+            assert.equal(restored.detail.savedAt, undefined);
+            assert.deepEqual(restored.detail.messages[0], {
+                ...body().messages[0], attachmentIds: ['only-time', 'with-prompt', 'valid'],
+            });
+            assert.deepEqual(restored.detail.assets.map(asset => asset.generation), [undefined, { prompt: 'Retained' }, { time: 0 }]);
+            assert.deepEqual(await getExportRecord(key), record);
+            assert.deepEqual(await getDetail({ ...key, accountId: otherAccount.id }), body(otherAccount.id));
+            await ingestIndexes(key.accountId, [{ conversationId: key.conversationId, fields: { createdAt: 1699999999000 } }]);
+            assert.equal((await getIndex(key))?.createdAt, 1699999999000);
+        } finally { env.restore(); }
+    });
+}

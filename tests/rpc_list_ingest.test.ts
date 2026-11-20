@@ -53,9 +53,9 @@ test('duplicate and unchanged Index admissions use the atomic merge without reti
     const env=indexStorage();
     try {
         assert.deepEqual(await ingestIndexes(ACCOUNT_UUID,[...items(),...items()]),
-            {added:GEMINI_LIST_CAPTURE.firstPageRows,updated:0});
+            {added:GEMINI_LIST_CAPTURE.firstPageRows,updated:0,accepted:GEMINI_LIST_CAPTURE.firstPageRows*2,rejected:0});
         const writes=env.writes();
-        assert.deepEqual(await ingestIndexes(ACCOUNT_UUID,items()),{added:0,updated:0});
+        assert.deepEqual(await ingestIndexes(ACCOUNT_UUID,items()),{added:0,updated:0,accepted:GEMINI_LIST_CAPTURE.firstPageRows,rejected:0});
         assert.equal(env.writes(),writes);assert.equal((await listIndexes(ACCOUNT_UUID)).length,GEMINI_LIST_CAPTURE.firstPageRows);
     } finally {env.restore();}
 });

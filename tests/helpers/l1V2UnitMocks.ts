@@ -69,7 +69,7 @@ const ingestion: Pick<Ingest, 'ingestIndexes' | 'ingestDetail' | 'ingestDeletedC
         await ports.beforeIndexCommit?.();
         if (ports.indexError) throw ports.indexError;
         ports.indexes.push({ accountId, items, page });
-        return { added: items.length, updated: 0 };
+        return { added: items.length, updated: 0, accepted: items.length, rejected: 0 };
     },
     async ingestDetail(accountId, conversationId, detail, indexFields) {
         await ports.beforeDetailCommit?.();

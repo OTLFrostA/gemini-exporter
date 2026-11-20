@@ -6,18 +6,45 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+import { parse } from '@babel/parser';
+import { isStringLiteral, traverseFast } from '@babel/types';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SRC_ROOT = path.join(REPO_ROOT, 'src');
 
 /** Use the same import scan for the repository graph and the scanner regression. */
-function importSpecifiers(content: string): string[] {
-    const clean = content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-    const pattern = /(?:(?:import|export)\s+(?!type\s)(?:(?!from\b)[\s\S])+?\s+from\s+['"]([^'"]+)['"]|import\s+['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\))/g;
-    const found: string[] = [];
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(clean)) !== null) found.push(match[1] || match[2] || match[3]);
-    return found;
+function importSpecifiers(content: string, file = 'probe.ts'): string[] {
+    const imports: string[] = [];
+    const ast = parse(content, {
+        sourceType: 'unambiguous',
+        plugins: file.endsWith('.tsx') ? ['typescript', 'jsx'] : ['typescript'],
+        createImportExpressions: true,
+    });
+    traverseFast(ast, node => {
+        switch (node.type) {
+            case 'ImportDeclaration':
+                if (node.importKind !== 'type'
+                    && (!node.specifiers.length || node.specifiers.some(specifier =>
+                        specifier.type !== 'ImportSpecifier' || specifier.importKind !== 'type'))) imports.push(node.source.value);
+                break;
+            case 'ExportNamedDeclaration':
+                if (node.source && node.exportKind !== 'type'
+                    && (!node.specifiers.length || node.specifiers.some(specifier =>
+                        specifier.type !== 'ExportSpecifier' || specifier.exportKind !== 'type'))) imports.push(node.source.value);
+                break;
+            case 'ExportAllDeclaration':
+                if (node.exportKind !== 'type') imports.push(node.source.value);
+                break;
+            case 'ImportExpression':
+                if (isStringLiteral(node.source)) imports.push(node.source.value);
+                break;
+            case 'CallExpression':
+                if (node.callee.type === 'Identifier' && node.callee.name === 'require'
+                    && isStringLiteral(node.arguments[0])) imports.push(node.arguments[0].value);
+                break;
+        }
+    });
+    return imports;
 }
 
 
@@ -35,6 +62,20 @@ function getTsFiles(dir: string): string[] {
     return files;
 }
 
+test('import scanner preserves imports after comment markers inside literals', () => {
+    assert.deepStrictEqual(importSpecifiers(`const url = "https://example.test"; import './same_line';
+        const block = '/* not a comment */'; import './after_block';
+        const template = \`https://example.test/* literal */\`; import './after_template';
+        const interpolated = \`https://\${host}/path//suffix\`; import './after_interpolation';
+        import { value } from
+            './multiline';
+        // import './ignored';
+        /* import './also_ignored'; */
+    `), ['./same_line', './after_block', './after_template', './after_interpolation', './multiline']);
+    assert.deepStrictEqual(importSpecifiers(''), []);
+    assert.deepStrictEqual(importSpecifiers(`const text = "import './fake'";`), []);
+});
+
 test('arch: zero circular dependencies across all modules in src/', () => {
     const files = getTsFiles(SRC_ROOT);
     const graph = new Map<string, string[]>();
@@ -42,7 +83,7 @@ test('arch: zero circular dependencies across all modules in src/', () => {
     for (const file of files) {
         const content = fs.readFileSync(file, 'utf8');
         const imports: string[] = [];
-        for (const spec of importSpecifiers(content)) {
+        for (const spec of importSpecifiers(content, file)) {
             if (!spec.startsWith('.')) continue;
             let resolved = path.resolve(path.dirname(file), spec);
             if (resolved.endsWith('.js')) resolved = resolved.slice(0, -3) + '.ts';
@@ -119,3 +160,14 @@ test('arch: import parser correctly extracts multiline imports, exports and dyna
     ]);
 });
 
+test('arch: source dependencies survive unreachable branches without including type imports', () => {
+    const source = [
+        "if (false) import('./dead');",
+        "false && require('./short');",
+        "const label = `value ${false && import('./interpolated')}`;",
+        "type Example = import('./type-query').Example;",
+        "import { type Only } from './inline-type';",
+        "export { type Only } from './re-exported-type';",
+    ].join('\n');
+    assert.deepStrictEqual(importSpecifiers(source), ['./dead', './short', './interpolated']);
+});

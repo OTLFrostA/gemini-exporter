@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { build } from 'esbuild';
 import type { BrowserContext, Page } from '@playwright/test';
 import { test, expect, launchExtensionContext, seedRegistryAccounts } from './fixtures';
 import { accountId, openOptions } from './uiFixture';
@@ -25,6 +26,49 @@ async function notifyOptionsOfCommit(context: BrowserContext, extensionId: strin
         await sender.evaluate(id => chrome.runtime.sendMessage({ action: 'domainChanged', accountId: id }).catch(() => {}), accountId);
     } finally { await sender.close(); }
 }
+
+test('Local vault reports Restored 0 when an older index-only record loses to local facts', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const page = await openOptions(context, extensionId);
+    await page.locator('#btnCloudVaultSetup').click();
+    const recoveryKey = await generateAndLockKey(page);
+    const seed = await build({
+        stdin: { resolveDir: process.cwd(), loader: 'ts', contents: `
+            import { deriveVaultKeyring, parseRecoveryKey } from './src/shared/crypto/index.ts';
+            import { sealCloudConversation } from './src/application/cloud/cloudArchiveCodec.ts';
+            import { createLocalFolderVaultClient } from './src/l1/cloud/localFolderVaultClient.ts';
+            import { getAccount } from './src/l3a/storageService.ts';
+            globalThis.seedStaleVault = async (accountId, recoveryKey) => {
+                const proto = FileSystemDirectoryHandle.prototype;
+                proto.queryPermission = async () => 'granted';
+                proto.requestPermission = async () => 'granted';
+                const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('StaleIndexVault', { create: true });
+                Object.defineProperty(window, 'showDirectoryPicker', { configurable: true, value: async () => root });
+                const account = await getAccount(accountId);
+                const keyring = await deriveVaultKeyring(await parseRecoveryKey(recoveryKey));
+                const sealed = await sealCloudConversation({ keyring, revision: 1, account,
+                    conversation: { index: { key: { accountId, conversationId: 'stale-index' }, title: 'Retained local conversation', titleSource: 'provider', updatedAt: 100 } } });
+                const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', sealed.envelope));
+                const sha256 = Array.from(digest, x => x.toString(16).padStart(2, '0')).join('');
+                await createLocalFolderVaultClient(async () => root).putEncryptedRecord({ serverUrl: '', sessionToken: '',
+                    blindRecordId: sealed.blindRecordId, expectedRevision: 0, envelope: sealed.envelope, sha256, keyFingerprint: keyring.keyFingerprint });
+            };
+        ` }, bundle: true, write: false, format: 'iife', platform: 'browser',
+    });
+    await page.evaluate(seed.outputFiles[0].text);
+    await page.evaluate(async ({ accountId, recoveryKey }) => {
+        await Reflect.get(globalThis, 'seedStaleVault')(accountId, recoveryKey);
+        await Reflect.get(globalThis, 'uiFixture').ingestIndexes(accountId, [{ conversationId: 'stale-index',
+            fields: { title: 'Retained local conversation', titleSource: 'provider', updatedAt: 200 } }]);
+    }, { accountId, recoveryKey });
+    await page.locator('#btnLocalVaultPick').click();
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Restored');
+    if (process.env.CLOUD_RESTORE_SCREENSHOT) {
+        await page.screenshot({ path: process.env.CLOUD_RESTORE_SCREENSHOT, fullPage: true });
+    }
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Restored 0');
+    expect(await page.evaluate(async id => (await Reflect.get(globalThis, 'uiFixture').getIndex({ accountId: id, conversationId: 'stale-index' })).updatedAt, accountId)).toBe(200);
+});
 
 test('Cloud Vault displays the key once, pairs isolated profiles manually, and syncs encrypted changes both ways', async ({ context, extensionId }) => {
     await seedRegistryAccounts(context);
