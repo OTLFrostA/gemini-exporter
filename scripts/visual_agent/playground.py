@@ -28,18 +28,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from scripts.cdp_client import (
     CDPConnection,
     get_tabs,
-    get_extension_id,
-    ensure_extension_loaded,
-    get_browser_ws_url,
     is_gemini_url,
     CDP_DEFAULT_PORT
 )
 from scripts.framework.pipeline.actions import (
     AwaitStreamSettledAction,
     AssertIdleAction,
-    StreamSettledConfig
 )
-from scripts.framework.selectors import WorkbenchSelectors
 from scripts.framework.gateway import get_gateway
 
 
