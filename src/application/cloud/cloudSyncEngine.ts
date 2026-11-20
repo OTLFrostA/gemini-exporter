@@ -193,7 +193,6 @@ export function createCloudSyncEngine(deps: {
             const pending: Promise<unknown>[] = [...backgroundTasks];
             if (activeFlush) pending.push(activeFlush.catch(() => {}));
             if (activePull) pending.push(activePull.catch(() => {}));
-            if (pending.length === 0) break;
             await Promise.allSettled(pending);
         }
     };
