@@ -23,9 +23,22 @@ function stashMarkdownCodeSpans(source: string, stash: (code: string) => string)
 
     // Real HTML tokens are opaque to the Markdown delimiter scan.
     const tokens = [...source.matchAll(PROSE_TOKENS)];
+    const tableStarts: number[] = [];
+    const tableBoundaries = new Map<number, 'open' | 'close'>();
+    for (const { 0: token, index } of tokens) {
+        if (/^<table(?=[\s>])/i.test(token)) tableStarts.push(index);
+        else if (/^<\/table\s*>$/i.test(token)) {
+            const start = tableStarts.pop();
+            if (start !== undefined) {
+                tableBoundaries.set(start, 'open');
+                tableBoundaries.set(index, 'close');
+            }
+        }
+    }
     const scopes: Array<{ tag: string; nextByLength: Map<number, { index: number; paragraph: number }> }> = [
         { tag: '', nextByLength: new Map() },
     ];
+    const outerScopeLengths: number[] = [];
     let paragraph = 0;
     const spans = new Map<number, { start: number; end: number }>();
     for (let i = tokens.length - 1; i >= 0; i--) {
@@ -33,7 +46,14 @@ function stashMarkdownCodeSpans(source: string, stash: (code: string) => string)
         const scope = scopes[scopes.length - 1];
         if (run[0] !== '`') {
             if (/\r?\n[ \t]*\r?\n/.test(run)) paragraph++;
-            const cellTag = /^<(\/?)(td|th)(?=[\s/>])/i.exec(run);
+            const table = tableBoundaries.get(index);
+            if (table === 'close') {
+                outerScopeLengths.push(scopes.length);
+                scopes.push({ tag: '', nextByLength: new Map() });
+            } else if (table === 'open') {
+                scopes.length = outerScopeLengths.pop() ?? 1;
+            }
+            const cellTag = outerScopeLengths.length ? /^<(\/?)(td|th)(?=[\s/>])/i.exec(run) : null;
             if (cellTag) {
                 const tag = cellTag[2].toLowerCase();
                 if (cellTag[1]) scopes.push({ tag, nextByLength: new Map() });

@@ -67,3 +67,13 @@ test('backticks inside HTML attributes and raw HTML code cannot close Markdown c
     const span = '`<b title="`">example</b>`';
     assert.equal(convertHtmlToMarkdown('Use ' + span + ' and <b>real</b>.'), 'Use ' + span + ' and **real**.');
 });
+
+test('literal closing cell tags are preserved in Markdown code outside HTML tables', () => {
+    const example = 'Close cells with `</td>` or `</th>` here.';
+    assert.equal(convertHtmlToMarkdown(example + ' <b>Real</b>'), example + ' **Real**');
+    const table = '<table><tr><td>left</td><td>right</td></tr></table>';
+    assert.equal(convertHtmlToMarkdown(example + table + example),
+        example + '\n\n| left | right |\n| --- | --- |\n\n' + example);
+    assert.equal(convertHtmlToMarkdown(example + ' Use `</table>` for tables. <b>Real</b>'),
+        example + ' Use `</table>` for tables. **Real**');
+});
