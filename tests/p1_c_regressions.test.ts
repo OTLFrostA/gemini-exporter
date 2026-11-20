@@ -1,4 +1,3 @@
-import { bindTabAccounts } from './helpers/tabAccounts.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
@@ -15,7 +14,6 @@ const assert = require('node:assert');
 const { handleHttp429, interruptibleSleep, parseRetryAfterMs } = require('../src/l1/client/gemini/api/retryPolicy.js');
 const rpcClientMod = require('../src/l1/client/gemini/api/rpcClient.js');
 const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js');
-const paginationMod = require('../src/l1/client/gemini/api/pagination.js');
 // tabService.ts 以 `module.exports = TabService` 结尾覆盖了 esbuild 的具名导出，
 // ts_register 的 CJS 转译下 `import { TabService }` 会拿到 undefined（生产 bundle
 // 走 ESM 静态链接不受影响）。测试内给 require 缓存打补丁，仅用于测试。

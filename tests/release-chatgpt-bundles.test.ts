@@ -1,4 +1,4 @@
-import { PLATFORM_HOSTS, platformOrigins, SOURCE_PLATFORMS, type SourcePlatform } from '../src/shared/platformHosts.js';
+import { platformOrigins, SOURCE_PLATFORMS } from '../src/shared/platformHosts.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

@@ -10,8 +10,6 @@ useIndexStorage();
 import test from 'node:test';
 import assert from 'node:assert';
 
-import { ProviderRegistryClass } from '../src/l1/client/providerRegistry.js';
-import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
 import * as TabService from '../src/runtime/capabilities/tabService.js';
 
 test('TabService - getAITab and sendToAITab integration', async () => {

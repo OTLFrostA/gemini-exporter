@@ -27,7 +27,6 @@ import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
 import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 import { requestGen as geminiDetailRequestGen } from './fixtures/providers/geminiDetailRequest.js';
-import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 

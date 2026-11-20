@@ -25,9 +25,7 @@ function load(file: string, stubs: Record<string, unknown>) {
     } finally { Module._load = original; }
 }
 const chromeBase = () => ({ runtime: { id: 'ext' }, tabs: { sendMessage: (_id: unknown, _message: unknown, _options: unknown, callback: Function) => callback({ ok: true, accountContext: { accountId: uuid, providerId: 'gemini' } }) } });
-const ready = { ensureV2Ready: async () => {} };
 const storage = { getAccount: async () => account };
-const security = () => load('src/runtime/background/contentSender.ts', { 'src/l3a/storageService.js': storage });
 async function invoke(handler: Function, message: unknown, origin: unknown = sender) {
     let count = 0;
     let finish: (value: any) => void = () => {};

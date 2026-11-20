@@ -18,7 +18,6 @@ import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.
 import { deleteGen as geminiDeleteGen } from './fixtures/providers/geminiDelete.js';
 import { isRealTitle } from '../src/l1/parsers/gemini/rpc/extractors.js';
 
-const SRC = path.join(__dirname, '..', 'src');
 const paragraph = (text: string): BlockNode[] => [{ type: 'paragraph', children: [{ type: 'text', text }] }];
 
 // --- From content-input-boundary.test.ts (L1 source content adapter & markdown boundary) ---

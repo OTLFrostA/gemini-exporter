@@ -80,7 +80,6 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
     });
 
     // A. __gemExporterExtractAt wins over everything
-    const origExtractAt = (globalThis as Record<string, unknown>).__gemExporterExtractAt;
     try {
         (globalThis as Record<string, unknown>).__gemExporterExtractAt = () => 'at_from_extract_fn';
         assert.strictEqual(credManager.getAtFromPage(), 'at_from_extract_fn', '__gemExporterExtractAt should be highest priority');
@@ -89,8 +88,6 @@ test('2. AT extraction precedence: __gemExporterExtractAt -> cache -> _WIZ_globa
     }
 
     // B. _WIZ_global_data wins over WIZ_global_data and scripts
-    const origWiz = (globalThis as Record<string, unknown>)._WIZ_global_data;
-    const origWiz2 = (globalThis as Record<string, unknown>).WIZ_global_data;
     try {
         (globalThis as Record<string, unknown>)._WIZ_global_data = { [P.TOKENS.AT]: 'at_wiz_1' };
         (globalThis as Record<string, unknown>).WIZ_global_data = { [P.TOKENS.AT]: 'at_wiz_2' };

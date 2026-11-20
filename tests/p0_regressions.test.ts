@@ -8,18 +8,12 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
 
 const StorageService = require('../src/l3a/storageService.js');
 import { composeFixture } from './helpers/documentFixture.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import type { ConsoleMessage } from '@playwright/test';
-
-function readSrc(rel: string): string {
-    return fs.readFileSync(path.join(__dirname, rel), 'utf8');
-}
 
 // 2026-09-15 勘误：原报告称保存链一次失败后永久中毒，实际推演 + 本测试证实
 // `.catch(reject)` 让链条每次调用后自愈。本用例保留为通过性回归测试，

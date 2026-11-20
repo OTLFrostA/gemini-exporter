@@ -148,7 +148,7 @@ function setup(t: { after: (fn: () => void) => void }, overrides: {
 }
 
 test('Background does not register a second v1 Batch/Abort/Scan execution path', t => {
-    const { dispatch, listeners } = setup(t);
+    const { listeners } = setup(t);
     for (const action of ['fetchChat', 'fetchBatch', 'cancelExport', 'abortSync', 'scanProgress', 'liveSaveViaHandle', 'domainStorage', 'unknown']) {
         let replies = 0;
         assert.equal(listeners[0]({ action }, sender, () => { replies++; }), false);
