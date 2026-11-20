@@ -16,14 +16,10 @@ import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const path = require('path');
-const { execSync } = require('node:child_process');
 
 const { renderDocumentHtml } = require('../src/l4/format/html/renderHtml.js');
 const { composeDomainDocument } = require('../src/l3b/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 // ---------------------------------------------------------------- builders
 

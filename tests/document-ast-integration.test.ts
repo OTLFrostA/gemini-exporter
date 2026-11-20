@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/l2/runtimeValidation.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
