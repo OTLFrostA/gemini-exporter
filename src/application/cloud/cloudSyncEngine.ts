@@ -408,9 +408,6 @@ export function createCloudSyncEngine(deps: {
                 if (!remote) {
                     throw new OperationError('CLOUD_SERVER_ERROR', 'Conflicting remote record disappeared during reconciliation');
                 }
-                if (remote.revision < expectedRevision) {
-                    throw new OperationError('CLOUD_SERVER_ERROR', 'Conflicting remote record revision regressed');
-                }
                 const remotePortable = await openCloudConversation({
                     keyring, blindRecordId: sealed.blindRecordId, revision: remote.revision, envelope: remote.envelope,
                 });
@@ -558,7 +555,7 @@ export function createCloudSyncEngine(deps: {
                             });
                             if (localIndex) continue;
                         }
-                        toDownload.push({ ...meta, revisionFloor: Math.max(meta.revision, existing?.remoteRevision ?? 0) });
+                        toDownload.push(meta);
                     }
 
                     const openedBatch = await mapWithConcurrency(toDownload, 4, async (meta): Promise<{
@@ -576,7 +573,7 @@ export function createCloudSyncEngine(deps: {
                         if (!blob) {
                             throw new OperationError('CLOUD_SERVER_ERROR', 'Listed remote record disappeared during download');
                         }
-                        if (blob.revision < meta.revisionFloor) {
+                        if (blob.revision < meta.revision) {
                             throw new OperationError('CLOUD_SERVER_ERROR', 'Downloaded remote record revision regressed');
                         }
                         const portable = await openCloudConversation({
