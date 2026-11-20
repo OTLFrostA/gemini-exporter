@@ -19,7 +19,6 @@ Gemini Exporter — 动态 20 题多模态测试场景池管理器。
 import sys
 import os
 import json
-import time
 import argparse
 from datetime import datetime
 

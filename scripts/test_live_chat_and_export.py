@@ -10,7 +10,6 @@ scripts/test_live_chat_and_export.py
 import sys
 import os
 import json
-import time
 import argparse
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))

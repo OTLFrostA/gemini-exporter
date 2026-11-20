@@ -52,7 +52,6 @@ class TestContext:
             repo_path=self.worktree_root
         )
 
-        self._dataset_arg = dataset
         self.scenarios = []
         if isinstance(dataset, dict) and "scenarios" in dataset:
             self.scenarios = dataset["scenarios"]

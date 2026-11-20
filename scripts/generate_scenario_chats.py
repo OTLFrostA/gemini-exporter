@@ -23,9 +23,6 @@ import sys
 import os
 import json
 import time
-import socket
-import base64
-import struct
 import argparse
 import urllib.request
 import urllib.error
@@ -58,22 +55,6 @@ def get_gemini_tab(port=CDP_DEFAULT_PORT):
     with urllib.request.urlopen(req, timeout=5) as response:
         return json.loads(response.read().decode("utf-8"))
 
-
-
-def wait_for_ready(cdp, max_wait=30):
-    from scripts.framework.actions import CDPActions
-    return CDPActions.wait_for_gemini_ready(cdp, max_wait=max_wait)
-
-
-def send_turn(cdp, prompt_text, max_wait=180):
-    from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
-    driver = GeminiPlatformDriver(cdp)
-    return driver.execute_turn_pipeline(prompt_text, max_wait=max_wait)
-
-
-def get_current_chat_id(cdp):
-    from scripts.framework.actions import CDPActions
-    return CDPActions.get_current_chat_id(cdp)
 
 
 def run_scenarios(dataset_path, port=CDP_DEFAULT_PORT, delay=2, only_id=None):
