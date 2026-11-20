@@ -20,6 +20,14 @@ async function generateAndConfirm(page: Page): Promise<string> {
     return key;
 }
 
+async function connectWithKey(page: Page, key: string): Promise<void> {
+    await openCloud(page);
+    await page.locator('#cloudImportKeyInput').fill(key);
+    await page.locator('#btnCloudImportKey').click();
+    await page.locator('#cloudServerUrlInput').fill(origin);
+    await page.locator('#btnCloudConnect').click();
+}
+
 async function activeVaultOwner(page: Page): Promise<string> {
     return page.evaluate(() => new Promise<string>((resolve, reject) => {
         const open = indexedDB.open('gemini_exporter_cloud_v2');
@@ -36,7 +44,7 @@ async function activeVaultOwner(page: Page): Promise<string> {
     }));
 }
 
-for (const scenario of ['write failure', 'corrupt read-back', 'verified backup', 'local deletion'] as const) {
+for (const scenario of ['write failure', 'corrupt read-back', 'verified backup', 'local deletion', 'paired upload'] as const) {
     test(`Cloud Vault rotation: ${scenario}`, async ({ context, extensionId }) => {
         const server = createMockCloudVaultHttp();
         await seedRegistryAccounts(context);
@@ -44,6 +52,7 @@ for (const scenario of ['write failure', 'corrupt read-back', 'verified backup',
         let oldOwner = '';
         let rotating = false;
         let uploaded = 0;
+        let uploadFromPeer: (() => Promise<void>) | undefined;
         const oldStillActiveAtWrites: boolean[] = [];
         const oldStillActiveAtReads: boolean[] = [];
         const candidatePaths = new Set<string>();
@@ -54,6 +63,7 @@ for (const scenario of ['write failure', 'corrupt read-back', 'verified backup',
             const isCandidateRead = rotating && browser === context && req.method() === 'GET' && candidatePaths.has(pathname);
             if (isCandidateWrite) {
                 oldStillActiveAtWrites.push(await activeVaultOwner(page) === oldOwner);
+                if (uploaded === 0) await uploadFromPeer?.();
                 if (scenario === 'write failure' && uploaded === 1) {
                     await route.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"Write unavailable"}' });
                     return;
@@ -76,7 +86,7 @@ for (const scenario of ['write failure', 'corrupt read-back', 'verified backup',
         });
         await routeVault(context);
         await openCloud(page);
-        await generateAndConfirm(page);
+        const oldKey = await generateAndConfirm(page);
         await page.locator('#cloudServerUrlInput').fill(origin);
         await page.locator('#btnCloudConnect').click();
         await expect(page.locator('#cloudSyncToggle')).toBeChecked();
@@ -101,6 +111,40 @@ for (const scenario of ['write failure', 'corrupt read-back', 'verified backup',
             expect(server.inspectRawBlobs().size).toBe(2);
         }
         oldOwner = await activeVaultOwner(page);
+
+        if (scenario === 'paired upload') {
+            const peer = await launchExtensionContext();
+            try {
+                await routeVault(peer);
+                await seedRegistryAccounts(peer);
+                const paired = await openOptions(peer, extensionId);
+                await connectWithKey(paired, oldKey);
+                await expect(paired.locator('#list')).toContainText(`${title} 1`);
+                uploadFromPeer = async () => {
+                    await paired.evaluate(async id => {
+                        await Reflect.get(globalThis, 'uiFixture').ingestIndexes(id, [{
+                            conversationId: 'rotation-audit-3',
+                            fields: { title: 'Uploaded by paired browser', titleSource: 'provider', updatedAt: Date.now() + 5000 },
+                        }]);
+                    }, accountId);
+                    await paired.locator('#btnCloudSyncNow').click();
+                    await expect.poll(() => server.inspectRawBlobs().size).toBe(3);
+                };
+                rotating = true;
+                await page.locator('#btnToggleRekey').click();
+                await generateAndConfirm(page);
+                await expect.poll(() => oldStillActiveAtReads.length).toBe(2);
+                await expect(page.locator('#btnCloudSyncNow')).toBeEnabled();
+                expect.soft(await activeVaultOwner(page)).toBe(oldOwner);
+                await expect(page.locator('#cloudModalFeedback')).toHaveAttribute('data-error', 'true');
+                rotating = false;
+                await page.locator('#btnCloudSyncNow').click();
+                await expect(page.locator('#list')).toContainText('Uploaded by paired browser');
+            } finally {
+                await peer.close();
+            }
+            return;
+        }
 
         rotating = true;
         await page.locator('#btnToggleRekey').click();
@@ -130,11 +174,7 @@ for (const scenario of ['write failure', 'corrupt read-back', 'verified backup',
             await seedRegistryAccounts(peer);
             const restored = await openOptions(peer, extensionId);
             await expect(restored.locator('#list .item')).toHaveCount(0);
-            await openCloud(restored);
-            await restored.locator('#cloudImportKeyInput').fill(newKey);
-            await restored.locator('#btnCloudImportKey').click();
-            await restored.locator('#cloudServerUrlInput').fill(origin);
-            await restored.locator('#btnCloudConnect').click();
+            await connectWithKey(restored, newKey);
             await expect(restored.locator('#list')).toContainText(`${title} 2`);
             if (scenario === 'local deletion') {
                 await expect(restored.locator('#list')).not.toContainText(`${title} 1`);

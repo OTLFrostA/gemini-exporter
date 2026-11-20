@@ -6,7 +6,7 @@ import {
     toOwnedBytes,
     type VaultKeyring,
 } from '../../shared/crypto/index.js';
-import type { CloudAuthKeyMode } from '../../shared/types/cloudSync.js';
+import type { CloudAuthKeyMode, CloudVaultStatusResponse } from '../../shared/types/cloudSync.js';
 import { calculateBackoff } from '../../shared/utils/retryUtils.js';
 import { mapWithConcurrency } from '../../shared/utils/concurrency.js';
 import { DEFAULT_ACCOUNT_KEY } from '../../l2/accountRegistry.js';
@@ -279,7 +279,7 @@ export function createCloudSyncEngine(deps: {
         session: CloudSyncSessionState,
         keyring: VaultKeyring,
         signal?: AbortSignal,
-    ): Promise<{ session: CloudSyncSessionState; recordCount: number }> => {
+    ): Promise<{ session: CloudSyncSessionState; status: CloudVaultStatusResponse }> => {
         const activeClient = clientForSession(session);
         const status = await activeClient.getVaultStatus(session.serverUrl, session.sessionToken, signal);
         if ((session.backend === 'cloud-server' || status.recordCount > 0) && status.keyFingerprint !== keyring.keyFingerprint) {
@@ -289,7 +289,7 @@ export function createCloudSyncEngine(deps: {
                 'This vault is encrypted with a different Master Key. Import the original Recovery Key to unlock it.',
             );
         }
-        return { session: await markSessionKeyMismatch(session, false), recordCount: status.recordCount };
+        return { session: await markSessionKeyMismatch(session, false), status };
     };
 
     const readLocalSyncSource = async (
@@ -529,15 +529,17 @@ export function createCloudSyncEngine(deps: {
         return activeFlush;
     };
 
-    const pullChanges = (signal?: AbortSignal, forRotation = false): Promise<CloudPullResult> => {
+    const pullChanges = (
+        signal?: AbortSignal,
+        rotationSource?: { session: CloudSyncSessionState; status: CloudVaultStatusResponse; keyring: VaultKeyring },
+    ): Promise<CloudPullResult> => {
         if (activePull) return activePull;
         activePull = (async (): Promise<CloudPullResult> => {
             try {
-                let session = await (forRotation ? rotationRequest(requireActiveSession) : requireActiveSession());
-                const keyring = await resolveKeyring(session);
-                const request = forRotation ? rotationRequest : <T>(run: () => Promise<T>) => run();
-                const checkedVault = await request(() => verifyVaultKeyCompatibility(session, keyring, signal));
-                session = checkedVault.session;
+                let session = rotationSource?.session ?? await requireActiveSession();
+                const keyring = rotationSource?.keyring ?? await resolveKeyring(session);
+                const request = rotationSource ? rotationRequest : <T>(run: () => Promise<T>) => run();
+                if (!rotationSource) session = (await verifyVaultKeyCompatibility(session, keyring, signal)).session;
                 let downloaded = 0;
                 let accepted = 0;
                 let changed = 0;
@@ -550,10 +552,10 @@ export function createCloudSyncEngine(deps: {
                         break;
                     }
                 }
-                let cursor = !forRotation && hasAnyLocalConversation ? session.pulledSeq : 0;
+                let cursor = !rotationSource && hasAnyLocalConversation ? session.pulledSeq : 0;
 
                 const activeClient = clientForSession(session);
-                for (let page = 0; forRotation || page < 200; page++) {
+                for (let page = 0; rotationSource || page < 200; page++) {
                     signal?.throwIfAborted();
                     const feed = await request(() => activeClient.listChanges({
                         serverUrl: session.serverUrl,
@@ -562,7 +564,8 @@ export function createCloudSyncEngine(deps: {
                         limit: 50,
                         signal,
                     }));
-                    if (forRotation && feed.hasMore && (feed.items.length === 0 || feed.nextSince <= cursor)) {
+                    if (rotationSource && (feed.headSeq !== rotationSource.status.headSeq
+                        || (feed.hasMore && (feed.items.length === 0 || feed.nextSince <= cursor)))) {
                         throw unverifiedBackup();
                     }
                     if (feed.items.length === 0) break;
@@ -571,8 +574,8 @@ export function createCloudSyncEngine(deps: {
                     const toDownload = [];
                     for (const meta of feed.items) {
                         // Count old entries for completeness without undoing local deletions.
-                        if (forRotation && hasAnyLocalConversation && meta.changeSeq <= session.pulledSeq) continue;
-                        const existing = forRotation ? null : await getSyncedCloudRecordByBlindId(session.ownerSubject, meta.blindRecordId);
+                        if (rotationSource && hasAnyLocalConversation && meta.changeSeq <= session.pulledSeq) continue;
+                        const existing = rotationSource ? null : await getSyncedCloudRecordByBlindId(session.ownerSubject, meta.blindRecordId);
                         if (existing && existing.remoteRevision >= meta.revision) {
                             const localIndex = await getIndex({
                                 accountId: existing.accountId,
@@ -595,7 +598,7 @@ export function createCloudSyncEngine(deps: {
                             blindRecordId: meta.blindRecordId,
                             signal,
                         }));
-                        if (forRotation && (!blob || blob.revision < meta.revision)) throw unverifiedBackup();
+                        if (rotationSource && (!blob || blob.revision !== meta.revision)) throw unverifiedBackup();
                         if (!blob) return null;
                         const portable = await openCloudConversation({
                             keyring, blindRecordId: meta.blindRecordId, revision: blob.revision, envelope: blob.envelope,
@@ -656,14 +659,14 @@ export function createCloudSyncEngine(deps: {
                     }
 
                     cursor = feed.nextSince;
-                    if (!forRotation) {
+                    if (!rotationSource) {
                         session = { ...session, pulledSeq: cursor };
                         await putCloudSyncSession(session);
                     }
                     if (!feed.hasMore) break;
                 }
 
-                if (forRotation && seenRecords !== checkedVault.recordCount) throw unverifiedBackup();
+                if (rotationSource && seenRecords !== rotationSource.status.recordCount) throw unverifiedBackup();
                 return { downloaded, accepted, changed, pulledSeq: cursor };
             } finally {
                 activePull = null;
@@ -965,13 +968,20 @@ export function createCloudSyncEngine(deps: {
                     if (!settings.cloudSyncEnabled) {
                         throw new OperationError('CLOUD_ROTATION_SYNC_DISABLED', 'Enable Cloud Vault sync before rotating the Master Key');
                     }
-                    const previous = await pullChanges(undefined, true);
+                    const oldSession = await rotationRequest(requireActiveSession);
+                    const oldKeyring = await resolveKeyring(oldSession);
+                    const source = await rotationRequest(() => verifyVaultKeyCompatibility(oldSession, oldKeyring));
+                    const previous = await pullChanges(undefined, { ...source, keyring: oldKeyring });
                     const auth = await rotationRequest(() => authenticateVaultKey(
                         session.serverUrl, candidateKeyring, 'create', session.accessCode,
                     ));
                     if (auth.ownerSubject === session.ownerSubject) throw unverifiedBackup();
                     const nextSession = { ...cleanSession, ...auth, pulledSeq: 0 };
                     const verified = await stageCloudBackup(nextSession, candidateKeyring, settings.cloudSyncIncludeDetail === true);
+                    const activeSession = await rotationRequest(requireActiveSession);
+                    const latest = await rotationRequest(() => remoteClient.getVaultStatus(activeSession.serverUrl, activeSession.sessionToken));
+                    if (latest.headSeq !== source.status.headSeq || latest.recordCount !== source.status.recordCount
+                        || latest.keyFingerprint !== source.status.keyFingerprint) throw unverifiedBackup();
                     await activateVaultKeyring(candidateKeyring, 'imported', nextSession, session.ownerSubject, verified);
                     return {
                         keyFingerprint, resolution: 'rekeyed',
