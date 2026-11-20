@@ -116,16 +116,6 @@ const fixtureMap = {
     ], { offset: 0, limit: 20, total: 1 }),
 };
 
-/** The native /backend-api/conversations JSON payload, including malformed test values. */
-interface ChatGPTConversationsResponse {
-    items?: unknown;
-    total?: unknown;
-    offset?: unknown;
-    limit?: unknown;
-    cursor?: unknown;
-    has_missing_conversations?: unknown;
-}
-
 export function listGen<K extends keyof typeof fixtureMap>(key: K): ReturnType<(typeof fixtureMap)[K]> {
     return fixtureMap[key]() as ReturnType<(typeof fixtureMap)[K]>;
 }
