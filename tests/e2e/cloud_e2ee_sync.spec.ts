@@ -27,6 +27,31 @@ async function notifyOptionsOfCommit(context: BrowserContext, extensionId: strin
     } finally { await sender.close(); }
 }
 
+test('Vault Options status does not load stored CryptoKey handles', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const setupPage = await openOptions(context, extensionId);
+    await setupPage.locator('#btnCloudVaultSetup').click();
+    await generateAndLockKey(setupPage);
+    const fingerprintLabel = await setupPage.locator('#vaultKeyFingerprintLabel').textContent();
+    await setupPage.close();
+
+    await context.addInitScript(() => {
+        if (location.protocol !== 'chrome-extension:') return;
+        const get = IDBObjectStore.prototype.get;
+        let keyringReads = 0;
+        IDBObjectStore.prototype.get = function (query) {
+            if (this.name === 'localKeys') keyringReads++;
+            return get.call(this, query);
+        };
+        Object.defineProperty(window, 'vaultKeyringReads', { get: () => keyringReads });
+    });
+    const page = await openOptions(context, extensionId);
+    await page.locator('#btnCloudVaultSetup').click();
+    await expect(page.locator('#vaultKeyLockedRow')).toBeVisible();
+    await expect(page.locator('#vaultKeyFingerprintLabel')).toHaveText(fingerprintLabel!);
+    expect(await page.evaluate(() => Reflect.get(window, 'vaultKeyringReads'))).toBe(0);
+});
+
 test('Local vault reports Restored 0 when an older index-only record loses to local facts', async ({ context, extensionId }) => {
     await seedRegistryAccounts(context);
     const page = await openOptions(context, extensionId);

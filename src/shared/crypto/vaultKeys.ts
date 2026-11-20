@@ -101,7 +101,7 @@ export async function deriveVaultKeyring(masterKeyBytes: Uint8Array): Promise<Va
 /**
  * The proof is a replayable credential, independent of the encryption and blind-index keys.
  */
-export async function deriveServerAuthToken(keyring: VaultKeyring): Promise<string> {
+export async function deriveServerAuthToken(keyring: Pick<VaultKeyring, 'keyFingerprint' | 'authKey'>): Promise<string> {
     const proof = encodeLengthPrefixedTuple(['ge-server-auth-proof-v2', keyring.keyFingerprint]);
     return bytesToHex(new Uint8Array(await crypto.subtle.sign('HMAC', keyring.authKey, proof)));
 }

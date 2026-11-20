@@ -21,4 +21,9 @@ export {
     type CloudSyncedRecordState,
     type CloudVaultBackendType,
 } from './cloudSyncStore.js';
-export { activateVaultKeyring, getInitializedVaultKeyring, type VaultKeyProvisionOrigin } from './cloudKeyringStore.js';
+export {
+    activateVaultKeyring,
+    getInitializedVaultKeyMetadata,
+    getInitializedVaultKeyring,
+    type VaultKeyProvisionOrigin,
+} from './cloudKeyringStore.js';
