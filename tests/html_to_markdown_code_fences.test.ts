@@ -82,6 +82,17 @@ test('literal HTML comment openers in code do not consume following prose', () =
     );
 });
 
+test('partial HTML examples preserve literal tags without shielding intervening markup', () => {
+    assert.equal(
+        convertHtmlToMarkdown('Use `use <code>` then <code>x</code> and `</code>`.'),
+        'Use `use <code>` then `x` and `</code>`.',
+    );
+    assert.equal(
+        convertHtmlToMarkdown('Use `use <code>` then <b>real</b> and `</code>`.'),
+        'Use `use <code>` then **real** and `</code>`.',
+    );
+});
+
 test('literal closing cell tags are preserved in Markdown code outside HTML tables', () => {
     const example = 'Close cells with `</td>` or `</th>` here.';
     assert.equal(convertHtmlToMarkdown(example + ' <b>Real</b>'), example + ' **Real**');
