@@ -109,10 +109,15 @@ function stashMarkdownCodeSpans(source: string, stash: (code: string) => string)
             }
         }
         const examples = new Set<CodeSpan>();
-        for (const { 0: element, index } of codeElements) {
+        for (const [i, { 0: element, index }] of codeElements.entries()) {
             const opening = spansByTag.get(index);
             const closing = spansByTag.get(index + element.length - '</code>'.length);
             if (!opening || !closing || opening === closing) continue;
+            // A split example cannot borrow delimiters from neighboring HTML code.
+            const preceding = codeElements[i - 1];
+            const following = codeElements[i + 1];
+            if (preceding && opening.start < preceding.index + preceding[0].length) continue;
+            if (following && closing.end > following.index) continue;
             examples.add(opening);
             examples.add(closing);
         }

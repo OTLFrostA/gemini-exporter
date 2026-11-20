@@ -107,6 +107,15 @@ test('formatted HTML between separate partial code tags is converted', () => {
     }
 });
 
+test('backticks in separate HTML code elements cannot form a Markdown span across the elements', () => {
+    const source = '<code>left`</code> <b>one</b> <code>`middle`</code> <b>two</b> <code>`right</code>';
+    assert.equal(convertHtmlToMarkdown(source), '`` left` `` **one** `` `middle` `` **two** `` `right ``');
+    assert.equal(
+        convertHtmlToMarkdown('Unmatched ` then <code>`first`</code> <b>and</b> <code>`second</code>'),
+        'Unmatched ` then `` `first` `` **and** `` `second ``',
+    );
+});
+
 test('adjacent HTML and Markdown code preserve both code spans without leaking placeholders', () => {
     assert.equal(
         convertHtmlToMarkdown('<code>` raw `</code>`md`'),
