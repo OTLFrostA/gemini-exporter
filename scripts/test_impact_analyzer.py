@@ -76,7 +76,7 @@ for _prefix in ("src/l4/format/pdf/sandbox/", "src/runtime/capabilities/dirHandl
     COMPONENT_UNIT_MAP[_prefix] = COMPONENT_UNIT_MAP["src/ui"]
 _CORE_PREFIXES = ("src/l1/", "src/l2/", "src/l3a/", "src/l3b/", "src/l4/",
                   "src/application/", "src/migration/", "src/shared/", "src/runtime/api/",
-                  "src/runtime/ipc/", "src/runtime/diagnostics/", "src/runtime/devMode.ts",
+                  "src/runtime/ipc/", "src/runtime/diagnostics/",
                   "src/runtime/environment.ts", "src/runtime/capabilities/directoryHandle.ts",
                   "src/runtime/capabilities/tabService.ts")
 
