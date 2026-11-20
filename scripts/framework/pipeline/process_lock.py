@@ -36,7 +36,12 @@ class ProcessLock:
             return
 
         try:
-            self.fd = os.open(self.lock_file_path, os.O_CREAT | os.O_RDWR, 0o644)
+            try:
+                self.fd = os.open(self.lock_file_path, os.O_CREAT | os.O_RDWR, 0o644)
+            except PermissionError:
+                if os.name == "nt":
+                    raise
+                self.fd = os.open(self.lock_file_path, os.O_RDONLY)
         except Exception as e:
             raise ProcessLockError(f"无法打开或创建进程锁文件 '{self.lock_file_path}': {e}")
 

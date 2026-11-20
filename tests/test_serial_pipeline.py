@@ -105,6 +105,30 @@ class TestSerialPipeline(unittest.TestCase):
                         successor.kill()
                         successor.communicate()
 
+    @unittest.skipIf(os.name == "nt" or getattr(os, "geteuid", lambda: 0)() == 0,
+                     "Requires POSIX permissions and a non-root user")
+    def test_process_lock_read_only_file_acquisition_and_conflict(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lock_path = os.path.join(directory, "runner.lock")
+            with ProcessLock(lock_path):
+                pass
+            os.chmod(lock_path, 0o444)
+            lock1, lock2 = ProcessLock(lock_path), ProcessLock(lock_path)
+            try:
+                lock1.acquire()
+                self.assertTrue(lock1._acquired)
+                with self.assertRaises(ProcessLockError) as conflict:
+                    lock2.acquire()
+                self.assertIn("冲突进程信息", str(conflict.exception))
+                self.assertIsNone(lock2.fd)
+                lock1.release()
+                self.assertIsNone(lock1.fd)
+                lock2.acquire()
+                self.assertTrue(lock2._acquired)
+            finally:
+                lock2.release()
+                lock1.release()
+
     def test_process_lock_acquisition_and_conflict(self):
         with tempfile.TemporaryDirectory() as directory:
             lock_path = os.path.join(directory, "runner.lock")
