@@ -1,5 +1,4 @@
 """Full live acceptance operations supplementing ChatGPT source/export evidence."""
-import hashlib
 import json
 import os
 import shutil
@@ -107,7 +106,6 @@ class ChatGPTAcceptance(BrowserAcceptance):
             raise ValueError('All-skipped export still downloaded data')
         if any(self.stored(cid)['exportRecord'] != before[cid] for cid in eligible):
             raise ValueError('All-skipped export changed export records')
-        from scripts.framework.chatgpt_live import current_branch
         self.chat.call('Page.navigate', {'url': 'https://chatgpt.com/'})
         from scripts.framework.scenario_provider import OnlineScenarioProvider
         prompt = OnlineScenarioProvider().pop_ephemeral_query()

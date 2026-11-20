@@ -3,7 +3,6 @@
 Platform-specific browser operations and evidence collection. Scheduling,
 dependencies and lifecycle are owned by the platform-neutral Tier 2 framework.
 """
-import base64
 import json
 import re
 import subprocess

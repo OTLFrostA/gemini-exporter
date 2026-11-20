@@ -30,7 +30,6 @@ from scripts.framework.cases.export import (
 )
 from scripts.framework.cases.takeout import validate_takeout_records, TakeoutZipImportCase
 from scripts.framework.cases.workbench import LanguageToggleCase
-from scripts.framework.cases.sync import wait_for_prior_scan
 from scripts.framework.driver.platform_driver import TurnResult
 from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
 from scripts.framework.features import FeatureDomain, FeatureRegistry, TestStatus
