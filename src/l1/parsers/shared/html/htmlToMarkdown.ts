@@ -15,14 +15,37 @@ const HTML_INLINE_CODE = /<code>([\s\S]*?)<\/code>/gi;
 
 const HTML_MARKUP = /<!--[\s\S]*?-->|<\/?[a-z][\w:-]*(?=[\s/>])(?:[^'"<>]|"[^"]*"|'[^']*')*>/;
 const MARKDOWN_RUN = /`+|\r?\n[ \t]*\r?\n/;
-const DELIMITER_TOKENS = new RegExp([HTML_CODE_BLOCK.source, HTML_MARKUP.source, MARKDOWN_RUN.source].join('|'), 'gi');
+const DELIMITER_TOKENS = new RegExp([
+    HTML_CODE_BLOCK.source, HTML_INLINE_CODE.source, HTML_MARKUP.source, MARKDOWN_RUN.source,
+].join('|'), 'gi');
+
+function escapedBacktick(source: string, index: number): number {
+    let preceding = index;
+    while (source[preceding - 1] === '\\') preceding--;
+    return (index - preceding) % 2;
+}
+
+function scanDelimiterTokens(source: string): RegExpExecArray[] {
+    const matcher = new RegExp(DELIMITER_TOKENS);
+    const tokens: RegExpExecArray[] = [];
+    for (let token = matcher.exec(source); token; token = matcher.exec(source)) {
+        const opener = tokens[tokens.length - 1];
+        const openingTag = /^<code>[ \t]*(`+)/i.exec(token[0]);
+        if (openingTag && opener?.[0][0] === '`'
+            && opener[0].length - escapedBacktick(source, opener.index) === openingTag[1].length
+            && /^[ \t]*$/.test(source.slice(opener.index + opener[0].length, token.index))) {
+            token[0] = token[0].slice(0, '<code>'.length);
+            matcher.lastIndex = token.index + token[0].length;
+        }
+        tokens.push(token);
+    }
+    return tokens;
+}
 
 function stashMarkdownCodeSpans(source: string, stash: (code: string) => string): string {
     if (!source.includes('`')) return source;
 
-    // Delimiters in attributes and comments are opaque. Do not let a possible
-    // inline HTML code tag consume the closing delimiter of an earlier Markdown span.
-    const tokens = [...source.matchAll(DELIMITER_TOKENS)];
+    const tokens = scanDelimiterTokens(source);
     const tableStarts: number[] = [];
     const tableBoundaries = new Map<number, 'open' | 'close'>();
     for (const { 0: token, index } of tokens) {
@@ -61,18 +84,14 @@ function stashMarkdownCodeSpans(source: string, stash: (code: string) => string)
             }
             continue;
         }
-        let preceding = index;
-        while (source[preceding - 1] === '\\') preceding--;
-        const escaped = (index - preceding) % 2;
+        const escaped = escapedBacktick(source, index);
         const length = run.length - escaped;
         const close = scope.nextByLength.get(length);
         if (close?.paragraph === paragraph) spans.set(index, { start: index + escaped, end: close.index + length });
         scope.nextByLength.set(run.length, { index, paragraph });
     }
 
-    const openers = new RegExp([
-        HTML_CODE_BLOCK.source, HTML_INLINE_CODE.source, HTML_MARKUP.source, MARKDOWN_RUN.source,
-    ].join('|'), 'gi');
+    const openers = new RegExp(DELIMITER_TOKENS);
     const parts: string[] = [];
     let start = 0;
     for (let token = openers.exec(source); token; token = openers.exec(source)) {

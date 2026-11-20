@@ -69,6 +69,12 @@ test('backticks inside HTML attributes or comments cannot close Markdown code sp
     assert.equal(convertHtmlToMarkdown('Use ' + span + ' and <b>real</b>.'), 'Use ' + span + ' and **real**.');
 });
 
+test('backticks inside real HTML code cannot close an unmatched prose delimiter', () => {
+    assert.equal(convertHtmlToMarkdown('Unmatched ` then <code>`raw` &lt;b&gt;</code>.'), 'Unmatched ` then `` `raw` <b> ``.');
+    assert.equal(convertHtmlToMarkdown('Use `<code>` then <code>`real` &lt;b&gt;</code> and `</code>`.'),
+        'Use `<code>` then `` `real` <b> `` and `</code>`.');
+});
+
 test('literal closing cell tags are preserved in Markdown code outside HTML tables', () => {
     const example = 'Close cells with `</td>` or `</th>` here.';
     assert.equal(convertHtmlToMarkdown(example + ' <b>Real</b>'), example + ' **Real**');
