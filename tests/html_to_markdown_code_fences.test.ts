@@ -93,6 +93,13 @@ test('partial HTML examples preserve literal tags without shielding intervening 
     );
 });
 
+test('adjacent HTML and Markdown code preserve both code spans without leaking placeholders', () => {
+    assert.equal(
+        convertHtmlToMarkdown('<code>` raw `</code>`md`'),
+        '`` ` raw ` `` `md`',
+    );
+});
+
 test('literal closing cell tags are preserved in Markdown code outside HTML tables', () => {
     const example = 'Close cells with `</td>` or `</th>` here.';
     assert.equal(convertHtmlToMarkdown(example + ' <b>Real</b>'), example + ' **Real**');

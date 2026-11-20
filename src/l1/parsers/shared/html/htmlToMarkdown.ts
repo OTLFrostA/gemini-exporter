@@ -11,7 +11,7 @@ function stripHtmlTags(str: string): string {
 }
 
 const HTML_CODE_BLOCK = /<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi;
-const HTML_INLINE_CODE = /<code>([\s\S]*?)<\/code>/gi;
+const HTML_INLINE_CODE = /<code>([\s\S]*?)<\/code>(?=(`|\uFFFDCODE\d+\uFFFD)?)/gi;
 
 const HTML_MARKUP = /<!--(?:(?!<!--)[\s\S])*?-->|<\/?[a-z][\w:-]*(?=[\s/>])(?:[^'"<>]|"[^"]*"|'[^']*')*>/;
 const HTML_INLINE_CODE_BODY = /(?:(?!<\/?code>)[\s\S])*/;
@@ -142,15 +142,16 @@ export function convertHtmlToMarkdown(html?: string | null): string {
         return '`'.repeat(Math.max(min, longest + 1));
     };
     res = res.replace(HTML_CODE_BLOCK, (_match: string, lang: string | undefined, code: string) => {
-        const cleanCode = unescapeHtml(code).trim();
+        const cleanCode = unescapeHtml(__restoreCode(code)).trim();
         const fence = backticks(cleanCode, 3);
         return __stashCode(`\n${fence}${lang || ''}\n${cleanCode}\n${fence}\n`);
     });
-    res = res.replace(HTML_INLINE_CODE, (_match: string, code: string) => {
-        const content = unescapeHtml(code);
+    res = res.replace(HTML_INLINE_CODE, (_match: string, code: string, next: string | undefined) => {
+        const content = unescapeHtml(__restoreCode(code));
         const fence = backticks(content, 1);
         const pad = /^`|`$|^ .* $/.test(content) ? ' ' : '';
-        return __stashCode(`${fence}${pad}${content}${pad}${fence}`);
+        const separator = next && __restoreCode(next).startsWith('`') ? ' ' : '';
+        return __stashCode(`${fence}${pad}${content}${pad}${fence}`) + separator;
     });
     res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m: string, lvl: string, txt: string) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
     res = res.replace(/<(strong|b)(?=[\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
