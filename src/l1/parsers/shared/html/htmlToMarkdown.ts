@@ -127,12 +127,12 @@ export function convertHtmlToMarkdown(html?: string | null): string {
 
     let res = html;
     const __codeSpans: string[] = [];
-    const __stashCode = (code: string): string => {
-        __codeSpans.push(code);
-        return `\uFFFDCODE${__codeSpans.length - 1}\uFFFD`;
-    };
     const __restoreCode = (str: string, transform = (code: string) => code): string =>
         str.replace(/\uFFFDCODE(\d+)\uFFFD/g, (_m: string, i: string) => transform(__codeSpans[Number(i)]));
+    const __stashCode = (code: string): string => {
+        __codeSpans.push(__restoreCode(code));
+        return `\uFFFDCODE${__codeSpans.length - 1}\uFFFD`;
+    };
     // Existing fenced Markdown is authored code, even when it contains HTML-like tags.
     // Recognize both CommonMark fence styles before interpreting real HTML tags.
     const lines = res.match(/[^\n]*(?:\n|$)/g) ?? [];

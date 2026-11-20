@@ -114,6 +114,22 @@ test('adjacent HTML and Markdown code preserve both code spans without leaking p
     );
 });
 
+test('mixed HTML and Markdown never expose internal code placeholders', () => {
+    const nested = '`<code>` ``<code>`` <b>real</b> ``</code>`` `</code>`';
+    const inputs = [
+        nested,
+        '``<code>`` `<code>` <b>real</b> `</code>` ``</code>``',
+        '`<code>` ``<code data-demo>`` <em>real</em> ``</code>`` `</code>`',
+        '<code>` raw `</code>`md`',
+        '<pre><code>`&lt;code&gt;`</code></pre>',
+    ];
+    for (const input of inputs) {
+        for (const source of [input, `<p>${input}</p>`, `<table><tr><td>${input}</td></tr></table>`]) {
+            assert.doesNotMatch(convertHtmlToMarkdown(source), /[\uE000\uFFFD]CODE\d+[\uE000\uFFFD]/, source);
+        }
+    }
+});
+
 test('literal closing cell tags are preserved in Markdown code outside HTML tables', () => {
     const example = 'Close cells with `</td>` or `</th>` here.';
     assert.equal(convertHtmlToMarkdown(example + ' <b>Real</b>'), example + ' **Real**');
