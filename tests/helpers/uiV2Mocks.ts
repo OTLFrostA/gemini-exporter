@@ -135,7 +135,6 @@ export function installUiV2Mocks(): void {
         commitOneTimeVaultKey: () => unconfigured('Application.vaultKeySetup.commitOneTimeVaultKey'),
     });
     stub('../../src/runtime/capabilities/vaultFolderAuth.js', {
-        inspectVaultDirectoryStatus: async () => ({ state: 'missing' as const }),
         pickVaultDirectoryHandle: () => unconfigured('Runtime.pickVaultDirectoryHandle'),
         reauthorizeVaultDirectoryHandle: () => unconfigured('Runtime.reauthorizeVaultDirectoryHandle'),
     });
