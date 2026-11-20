@@ -13,7 +13,7 @@ export type CloudFetchFn = (input: string, init?: RequestInit) => Promise<Respon
 const OUTBOUND_MASTER_KEY_LEAK_RE = /GEK1-[0-9A-Z]{5}/i;
 
 /** Catch accidental use of canonical recovery-key text in the vault transport. */
-export function assertZeroOutboundKeyLeak(url: string, init?: RequestInit): void {
+function assertZeroOutboundKeyLeak(url: string, init?: RequestInit): void {
     if (OUTBOUND_MASTER_KEY_LEAK_RE.test(url)) {
         throw new OperationError('CLOUD_ENVELOPE_INVALID', 'Outbound security circuit breaker blocked Master Key in URL');
     }

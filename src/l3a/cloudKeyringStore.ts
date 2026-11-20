@@ -7,7 +7,7 @@ import {
     type VaultKeyProvisionOrigin,
 } from './cloudSyncStore.js';
 
-export type { StoredNonExtractableKeyring, VaultKeyProvisionOrigin } from './cloudSyncStore.js';
+export type { VaultKeyProvisionOrigin } from './cloudSyncStore.js';
 
 const PRIMARY_KEYRING_SLOT = 'primary:vault';
 

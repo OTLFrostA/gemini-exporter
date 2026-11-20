@@ -77,7 +77,6 @@ async function sha256BytesHex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
 }
 
 export type { CloudVaultBackendType } from '../../shared/types/cloudSync.js';
-export type { VaultKeyProvisionOrigin } from '../../l3a/vaultStorageService.js';
 
 export interface CloudSyncStatusSnapshot {
     readonly enabled: boolean;
@@ -98,14 +97,14 @@ export interface CloudSyncStatusSnapshot {
     readonly hasRecoveryKey: boolean;
 }
 
-export interface CloudFlushResult {
+interface CloudFlushResult {
     readonly uploaded: number;
     readonly skippedUnchanged: number;
     readonly oversizedSkipped: number;
     readonly retriedLater: number;
 }
 
-export interface CloudPullResult {
+interface CloudPullResult {
     readonly downloaded: number;
     readonly accepted: number;
     readonly changed: number;

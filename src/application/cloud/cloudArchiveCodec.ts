@@ -17,7 +17,7 @@ import {
 } from '../../l2/cloudPayload.js';
 import { ingestDetail, ingestDetailsBatch, ingestIndexes } from '../../l2/ingestion.js';
 
-export interface SealedCloudConversation {
+interface SealedCloudConversation {
     readonly blindRecordId: string;
     readonly envelope: Uint8Array<ArrayBuffer>;
 }
@@ -99,7 +99,7 @@ export async function openCloudConversation(options: {
     return portable;
 }
 
-export interface CloudRestoreSummary {
+interface CloudRestoreSummary {
     readonly accepted: number;
     readonly changed: number;
     readonly rejected: number;
