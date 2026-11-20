@@ -1,6 +1,6 @@
 import type { PageObservation, PageObservationEvidence } from './pageObservation.js';
 export interface CoverageKey { id: string; time: number }
-export interface CoverageRange { head: CoverageKey; tail: CoverageKey }
+interface CoverageRange { head: CoverageKey; tail: CoverageKey }
 export interface StreamCoverage { range: CoverageRange | null }
 export const emptyStream = (): StreamCoverage => ({ range: null });
 const overlaps = (a: CoverageRange, b: CoverageRange) => a.tail.time <= b.head.time && b.tail.time <= a.head.time;
