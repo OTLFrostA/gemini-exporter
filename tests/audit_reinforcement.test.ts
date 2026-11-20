@@ -1,5 +1,3 @@
-import { listFixture } from './helpers/listFixture.js';
-import { indexFixture } from './helpers/indexFixture.js';
 export {};
 
 /**

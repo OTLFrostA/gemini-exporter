@@ -1,4 +1,4 @@
-import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as storage from '../src/l3a/storageService.js';
-import { indexStorage, useIndexStorage } from './helpers/indexStorage.js';
+import { indexStorage } from './helpers/indexStorage.js';
 import { fixtureKey } from './helpers/domainFixture.js';
 
 function readiness(): typeof import('../src/runtime/background/readiness.js') {

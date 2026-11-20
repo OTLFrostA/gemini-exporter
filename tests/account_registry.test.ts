@@ -1,4 +1,3 @@
-import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readAccount, readAccountParameters, readAccountRegistry, findAccount } from '../src/l2/accountRegistry.js';
