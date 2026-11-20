@@ -4,7 +4,7 @@ import { validateZipEntries, validateZipFile } from '../../parsers/shared/archiv
 
 export type RawZipSource = Blob | Uint8Array | ArrayBuffer;
 
-export async function loadGlobalJsZip(bytes: RawZipSource): Promise<unknown> {
+async function loadGlobalJsZip(bytes: RawZipSource): Promise<unknown> {
     const loader: unknown = Reflect.get(globalThis, 'JSZip');
     if ((!isRecord(loader) && typeof loader !== 'function') || !('loadAsync' in loader) || typeof loader.loadAsync !== 'function') {
         throw new OperationError('ARCHIVE_READER_UNAVAILABLE', 'ZIP reader unavailable; cannot parse the archive.');
