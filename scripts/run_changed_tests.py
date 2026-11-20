@@ -17,7 +17,6 @@ import os
 import sys
 import argparse
 import subprocess
-from typing import List
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 scripts_dir = os.path.join(REPO_DIR, "scripts")
