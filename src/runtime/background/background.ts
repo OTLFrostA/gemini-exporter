@@ -14,12 +14,14 @@ import { isAccountId } from '../../l2/accountRegistry.js';
 import { readConversationKey } from '../../l2/conversationKey.js';
 import { runLiveSave } from './liveSaveHandler.js';
 import { updateSettings } from '../../application/settings/index.js';
+import { initLegacyVaultKeyCleanup } from '../../migration/legacyVaultKeys.js';
 
 installApplicationHost();
 installProviderHost();
 
 initSessionAccessLevel();
 initLifecycleListeners();
+initLegacyVaultKeyCleanup();
 initUninstallUrl();
 initTabActionListeners();
 initCloudSyncBackground();
