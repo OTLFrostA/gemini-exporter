@@ -5,7 +5,7 @@ import { readCappedStreamText } from '../shared/streamAndBridge.js';
 const HOOK_FLAG = '__gemExporterGrokHookInstalled';
 
 /** Only completed native reads trigger acquisition. Request identity is checked at both ends. */
-export function installGrokHook(): void {
+function installGrokHook(): void {
     if (Reflect.get(window, HOOK_FLAG) === true) return;
     Reflect.set(window, HOOK_FLAG, true);
     const nativeFetch = window.fetch.bind(window);

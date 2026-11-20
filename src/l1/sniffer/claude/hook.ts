@@ -4,7 +4,7 @@ import { readCappedStreamLines } from '../shared/streamAndBridge.js';
 const HOOK_FLAG = '__gemExporterClaudeHookInstalled';
 
 /** Observe the site's own requests. Never issue identity/source polling requests. */
-export function installClaudeHook(): void {
+function installClaudeHook(): void {
     if (Reflect.get(window, HOOK_FLAG) === true) return;
     Reflect.set(window, HOOK_FLAG, true);
     const nativeFetch = window.fetch.bind(window);

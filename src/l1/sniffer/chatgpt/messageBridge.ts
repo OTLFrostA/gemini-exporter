@@ -8,7 +8,7 @@ import { decodeChatGPTDetail } from '../../parsers/chatgpt/decodeDetail.js';
 import { ingestContentIndexes, ingestContentDetail, ingestContentDeletedConversation } from '../../../runtime/api/contentDomainIngestion.js';
 import { registerSerializedWindowBridge } from '../shared/streamAndBridge.js';
 
-export interface ChatGPTMessageBridgeCallbacks {
+interface ChatGPTMessageBridgeCallbacks {
     isActive: () => boolean;
     currentAccount: () => Promise<(Account & { id: string }) | null>;
     onSaveRequested: (key: ConversationKey, refreshDetail: boolean) => Promise<unknown>;

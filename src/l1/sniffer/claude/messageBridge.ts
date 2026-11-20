@@ -7,7 +7,7 @@ import { parseClaudeList } from '../../parsers/claude/parseList.js';
 import { ingestContentIndexes, ingestContentDetail, ingestContentDeletedConversation } from '../../../runtime/api/contentDomainIngestion.js';
 import { registerSerializedWindowBridge } from '../shared/streamAndBridge.js';
 
-export interface ClaudeMessageBridgeCallbacks {
+interface ClaudeMessageBridgeCallbacks {
     isActive: () => boolean;
     currentAccount: () => Promise<(Account & { id: string }) | null>;
     onNativeDetailAccepted: (conversationId: string) => void;
