@@ -92,18 +92,22 @@ class ProcessLock:
             f"   锁定文件: {self.lock_file_path}\n"
             f"   冲突进程信息: [{existing_info}]\n"
             f"   为了绝对确信不发生多进程并发请求导致账号封禁，当前启动已被主动终止！\n"
-            f"   若确认前序进程已死，请手动清理锁文件后再试: rm -f {self.lock_file_path}"
+            f"   请等待前序进程退出后再试；进程退出会自动释放锁，无需删除锁文件。"
         )
         raise ProcessLockError(err_msg)
 
     def release(self):
-        """Releases the lock and removes the lock file."""
+        """Clears lock info and releases the lock, preserving its shared inode."""
         if not self._acquired:
             return
 
         self._acquired = False
         try:
             if self.fd is not None:
+                try:
+                    os.ftruncate(self.fd, 0)
+                except Exception:
+                    pass
                 if os.name == "nt":
                     import msvcrt
                     try:
@@ -119,12 +123,6 @@ class ProcessLock:
                         pass
                 os.close(self.fd)
                 self.fd = None
-        except Exception:
-            pass
-
-        try:
-            if os.path.exists(self.lock_file_path):
-                os.remove(self.lock_file_path)
         except Exception:
             pass
 
