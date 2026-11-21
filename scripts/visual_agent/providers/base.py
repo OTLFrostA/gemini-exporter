@@ -6,7 +6,7 @@ Base interface for Vision Providers in Tier 3 Pure Visual Agent Testing.
 from enum import Enum
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any
 
 
 class VisualActionType(Enum):
