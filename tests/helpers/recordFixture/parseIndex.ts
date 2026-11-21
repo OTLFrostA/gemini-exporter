@@ -2,10 +2,9 @@ import type { Account } from '../../../src/l2/accountRegistry.js';
 import { semanticTitleSource, parseIndexMetadata } from '../../../src/l1/parsers/shared/parseIndexMetadata.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../../../src/l2/conversationIndex.js';
 import { normalizeTimestamp } from '../../../src/l1/parsers/shared/time.js';
-import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../../src/shared/utils/titleText.js';
-import { isTitleSource, resolveTitle, type TitleCandidate } from '../../../src/l2/titleAuthority.js';
+import { cleanTitle, isBrandPlaceholderTitle } from '../../../src/shared/utils/titleText.js';
+import { resolveTitle, type TitleCandidate } from '../../../src/l2/titleAuthority.js';
 import { normId } from '../../../src/shared/utils/pathUtils.js';
-import { isReservedRoute } from '../../../src/l1/protocol/gemini/url.js';
 
 function object(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid index source record');
