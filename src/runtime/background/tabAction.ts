@@ -1,24 +1,22 @@
+import { platformForPageUrl } from '../../shared/platformHosts.js';
+
 const ACTION_COLOR_ICONS: Record<number, string> = {
-    16: 'icons/icon16.png',
-    48: 'icons/icon48.png',
-    128: 'icons/icon128.png'
+    16: '/icons/icon16.png',
+    48: '/icons/icon48.png',
+    128: '/icons/icon128.png'
 };
 
 const ACTION_GRAY_ICONS: Record<number, string> = {
-    16: 'icons/icon16_gray.png',
-    48: 'icons/icon48_gray.png',
-    128: 'icons/icon128_gray.png'
+    16: '/icons/icon16_gray.png',
+    48: '/icons/icon48_gray.png',
+    128: '/icons/icon128_gray.png'
 };
-
-import { matchesPlatformPageUrl } from '../../shared/platformHosts.js';
-
-const isGeminiTabUrl = (url?: string | null) => matchesPlatformPageUrl('gemini', url);
 
 function updateTabActionState(tabId?: number | null, url?: string | null): void {
     if (typeof chrome === 'undefined' || !chrome.action || tabId == null) return;
-    const isGemini = isGeminiTabUrl(url);
-    const icons = isGemini ? ACTION_COLOR_ICONS : ACTION_GRAY_ICONS;
-    const title = isGemini ? 'Gemini Exporter (Active)' : 'Gemini Exporter (未激活 - 当前非 Gemini 页面)';
+    const isSupported = platformForPageUrl(url) !== null;
+    const icons = isSupported ? ACTION_COLOR_ICONS : ACTION_GRAY_ICONS;
+    const title = isSupported ? 'Gemini Exporter (Active)' : 'Gemini Exporter (未激活 - 当前非支持的平台页面)';
     try {
         chrome.action.setIcon({ tabId, path: icons }).catch(() => {});
         chrome.action.setTitle({ tabId, title }).catch(() => {});
