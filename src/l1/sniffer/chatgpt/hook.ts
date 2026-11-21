@@ -6,7 +6,7 @@ const HOOK_FLAG = '__gemExporterChatGPTHookInstalled';
 const IDENTITY_TIMEOUT_MS = 10_000;
 
 /** MAIN-world acquisition only. Tokens never cross the world/message boundary. */
-export function installChatGPTHook(): void {
+function installChatGPTHook(): void {
     if (Reflect.get(window, HOOK_FLAG) === true) return;
     Reflect.set(window, HOOK_FLAG, true);
     const original = window.fetch;

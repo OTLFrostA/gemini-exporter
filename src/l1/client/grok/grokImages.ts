@@ -2,7 +2,7 @@ import { queryAuthorizedPlatformTabIds } from '../tabSourceRunner.js';
 import { grokUuid } from '../../parsers/grok/source.js';
 
 /** Trusted shape assembled by our isolated-world DOM collector. */
-export interface GrokCapturedImage {
+interface GrokCapturedImage {
     responseId: string;
     original_src: string;
     format: string;

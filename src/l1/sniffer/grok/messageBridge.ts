@@ -6,7 +6,7 @@ import { parseGrokList } from '../../parsers/grok/parseList.js';
 import { ingestContentIndexes, ingestContentDeletedConversation } from '../../../runtime/api/contentDomainIngestion.js';
 import { registerSerializedWindowBridge } from '../shared/streamAndBridge.js';
 
-export interface GrokMessageBridgeCallbacks {
+interface GrokMessageBridgeCallbacks {
     isActive: () => boolean;
     currentAccount: () => Promise<(Account & { id: string }) | null>;
     currentConversationId: () => string | null;
