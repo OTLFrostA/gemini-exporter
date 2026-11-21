@@ -19,7 +19,7 @@ export type TypstInlineNode =
     | { type: 'image'; asset: string; alt?: string }
     | { type: 'inlineMath'; latex: string; typst?: string };
 
-export type TypstListItem = { blocks: TypstBlockNode[] };
+type TypstListItem = { blocks: TypstBlockNode[] };
 
 export type TypstTableCell = {
     children: TypstInlineNode[];

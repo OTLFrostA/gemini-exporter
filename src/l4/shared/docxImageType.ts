@@ -1,6 +1,6 @@
 /** Header facts shared by DOCX rendering and companion-file planning.
  * Unreadable dimensions keep the original image as a companion file. */
-export interface DocxImageInfo {
+interface DocxImageInfo {
     type: 'png' | 'jpg' | 'gif';
     width: number;
     height: number;
