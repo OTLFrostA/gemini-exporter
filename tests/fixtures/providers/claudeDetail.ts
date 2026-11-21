@@ -289,6 +289,36 @@ const fixtureMap = {
         uuid: '22222222-2222-4222-8222-222222222222',
         name: 'Claude archive companion',
     }),
+    'CL_PARITY_QUESTIONNAIRE_01': () => ({
+        ...detail([
+            message(root, null, 'human', 'Help'),
+            {
+                ...message(leaf, root, 'assistant', ''),
+                content: [
+                    {
+                        type: 'tool_use',
+                        id: 'question',
+                        name: 'AskUserQuestion',
+                        input: {
+                            questions: [
+                                {
+                                    header: 'Work',
+                                    question: 'Which role?',
+                                    multiSelect: false,
+                                    options: [
+                                        { label: 'Engineer', description: 'Build software' },
+                                        { label: 'Researcher', description: 'Study systems' },
+                                    ],
+                                },
+                            ],
+                        },
+                    },
+                ],
+            },
+        ]),
+        uuid: '22222222-2222-4222-8222-222222222222',
+        name: 'Claude Questionnaire',
+    }),
 };
 
 export function detailGen(key: keyof typeof fixtureMap) {
