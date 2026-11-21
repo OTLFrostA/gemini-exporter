@@ -980,9 +980,6 @@ export function createCloudSyncEngine(deps: {
             if (session.backend === 'cloud-server') {
                 if (origin === 'generated') {
                     const settings = await getSettings();
-                    if (!settings.cloudSyncEnabled) {
-                        throw new OperationError('CLOUD_ROTATION_SYNC_DISABLED', 'Enable Cloud Vault sync before rotating the Master Key');
-                    }
                     const oldSession = await rotationRequest(requireActiveSession);
                     const oldKeyring = await resolveKeyring(oldSession);
                     const source = await rotationRequest(() => verifyVaultKeyCompatibility(oldSession, oldKeyring));

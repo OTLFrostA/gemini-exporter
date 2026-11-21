@@ -151,10 +151,6 @@ const OPERATION_ERROR_MESSAGES: Readonly<Partial<Record<OperationErrorCode, read
         'Could not verify the backup. Your current Master Key was not changed.',
         '无法验证备份，当前主密钥未更改。',
     ],
-    CLOUD_ROTATION_SYNC_DISABLED: [
-        'Enable Cloud Vault sync before rotating the Master Key.',
-        '请先启用云端保险箱同步，再轮换主密钥。',
-    ],
 };
 export function errorText(error: unknown): string {
     if (error instanceof DOMException && error.name === 'AbortError')
