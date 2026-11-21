@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { streamGen as geminiStreamGen } from './fixtures/providers/geminiStream.js';
+import { geminiListPage } from './fixtures/providers/geminiListCapture.js';
 
 test('MAIN hook reinjection returns before wrapping fetch or adding timers/listeners', () => {
     const vm = require('node:vm');
@@ -230,20 +231,20 @@ for (const transport of ['fetch', 'xhr']) test(`${transport}: identical stream f
     assert.equal(harness.messages.filter(message => message.type === 'GEMINI_NETWORK_BATCHEXECUTE').length, 0);
 });
 
-test('Fetch: normalized URL is reused for routing, account ownership and credentials', async () => {
-    const harness = hookHarness(async () => new Response(geminiStreamGen('G_STREAM_EMPTY_HTTP_01')));
+test('Fetch: normalized URL routes the original slot but publishes only origin and path', async () => {
+    const harness = hookHarness(async () => new Response(geminiListPage().responseBody));
     const url = new URL('https://gemini.google.com/u/1/_/BardChatUi/data/batchexecute?f.sid=session&at=token');
     let conversions = 0;
     url.toString = () => { conversions++; return url.href; };
     await harness.win.fetch(url);
     await settleHook();
-    const credentials = harness.messages.filter(message => message.type === 'GEMINI_CREDENTIALS');
-    assert.equal(credentials.length, 1);
-    assert.equal(credentials[0].payload.accountSlot, 'u1');
+    const relay = harness.messages.find(message => message.type === 'GEMINI_NETWORK_BATCHEXECUTE');
+    assert.equal(relay.payload.slot, 'u1');
+    assert.equal(relay.payload.url, 'https://gemini.google.com/u/1/_/BardChatUi/data/batchexecute');
     assert.equal(conversions, 1);
 });
 
-test('XHR: credential ownership uses the URL snapshot captured at open', () => {
+test('XHR: response routing uses the URL snapshot captured at open', () => {
     const harness = hookHarness(async () => new Response(geminiStreamGen('G_STREAM_EMPTY_HTTP_01')));
     const xhr = new harness.Xhr();
     const url = new URL('https://gemini.google.com/u/1/_/BardChatUi/data/batchexecute?f.sid=session&at=token');
@@ -251,10 +252,11 @@ test('XHR: credential ownership uses the URL snapshot captured at open', () => {
     url.pathname = url.pathname.replace('/u/1/', '/u/2/');
     url.searchParams.set('at', 'later-token');
     xhr.send();
-    const credentials = harness.messages.filter(message => message.type === 'GEMINI_CREDENTIALS');
-    assert.equal(credentials.length, 1);
-    assert.equal(credentials[0].payload.accountSlot, 'u1');
-    assert.equal(credentials[0].payload.at, 'token');
+    xhr.responseText = geminiListPage().responseBody;
+    xhr.emit('load');
+    const relay = harness.messages.find(message => message.type === 'GEMINI_NETWORK_BATCHEXECUTE');
+    assert.equal(relay.payload.slot, 'u1');
+    assert.equal(relay.payload.url, 'https://gemini.google.com/u/1/_/BardChatUi/data/batchexecute');
 });
 
 test('Account requests: only same-window, same-origin messages with bounded string ids are answered', () => {

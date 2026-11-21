@@ -37,6 +37,7 @@ The Extension requests minimal permissions strictly necessary to perform its adv
 | **`storage` / `unlimitedStorage`** | Saves user preferences, local conversation and export records, and optional vault state on your device. |
 | **`activeTab`** | Lets the popup identify the current conversation when you open the extension. |
 | **`scripting`** | Registers and activates source scripts only for platforms with granted site access. |
+| **`webRequest`** | Reads RPC credentials from authorized Gemini tabs for local conversation acquisition without exposing them in page messages. Does not modify requests or grant site access. |
 | **Gemini optional sites (`gemini.google.com`, `*.googleusercontent.com`, `*.usercontent.google.com`, `drive.google.com`, `lh3.google.com`, `*.gstatic.com`)** | Requested together when Gemini is selected for authorization to read conversations and download their attachments. |
 | **ChatGPT optional sites (`chatgpt.com`, `chat.openai.com`, `images.openai.com`)** | Requested together when ChatGPT is selected for authorization to identify the signed-in user/workspace and read conversations and images. |
 | **Grok optional sites (`grok.com`, `assets.grok.com`)** | Requested together when Grok is selected for authorization to read conversations and download attachments. |
@@ -113,6 +114,7 @@ Gemini、ChatGPT、Claude、Grok 的网站访问权限均为可选项，按平�
 - **`storage` / `unlimitedStorage`**：在您的设备上保存用户偏好、会话和导出记录，以及可选的保险箱状态。
 - **`activeTab`**：打开扩展弹窗时，用于识别当前标签页中的对话。
 - **`scripting`**：仅为已授权平台注册、激活来源脚本。
+- **`webRequest`**：从已授权的 Gemini 标签页读取 RPC 凭据，以便在本机获取会话，无需通过页面消息公开凭据。此权限不会修改请求或授予网站访问权。
 - **Gemini 可选网站权限**：`gemini.google.com`、`*.googleusercontent.com`、`*.usercontent.google.com`、`drive.google.com`、`lh3.google.com`、`*.gstatic.com`，勾选 Gemini 并授权时一组申请，用于读取会话和附件。
 - **ChatGPT 可选网站权限**：`chatgpt.com`、`chat.openai.com`、`images.openai.com`，勾选 ChatGPT 并授权时一组申请，用于确认用户/工作区并读取会话和图片。
 - **Grok 可选网站权限**：`grok.com`、`assets.grok.com`，勾选 Grok 并授权时一组申请，用于读取会话和可获取的附件。

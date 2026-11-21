@@ -27,6 +27,7 @@ The release `manifest.json` declares these required browser permissions:
 | **`storage`** | Stores user configuration settings (selected export format, toggle states) and local conversation records and export history to enable fast incremental sync across sessions without re-querying all conversations. |
 | **`scripting`** | Registers and activates source scripts for platforms whose optional site access has been granted. |
 | **`activeTab`** | Lets the explicitly opened popup inspect the current tab to identify the conversation to export. |
+| **`webRequest`** | Reads Gemini RPC credentials for authorized Gemini tabs inside the extension, so the extension does not broadcast credentials to page scripts. Does not modify requests or grant site access. |
 | **`unlimitedStorage`** | Required to persist conversation lists and metadata indexes for power users who have hundreds or thousands of Gemini conversations in their local browser sandbox. |
 
 ---

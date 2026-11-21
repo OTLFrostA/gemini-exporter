@@ -1,8 +1,7 @@
 import type { Account } from '../../../l2/accountRegistry.js';
 import { sniffUserProfileFromDom } from '../../parsers/gemini/dom/accountSniffer.js';
 import { geminiAccountObservation } from '../../client/gemini/accountObservation.js';
-import { CrossWorldEvents } from '../../protocol/gemini/protocol.js';
-import type { GeminiCredentialsPayload } from '../../protocol/gemini/events.js';
+import { CrossWorldEvents, parseRpcRequestId } from '../../protocol/gemini/protocol.js';
 import { createGeminiResponseRouter } from './responses/router.js';
 
 declare global {
@@ -27,14 +26,14 @@ declare global {
     // MAIN-world discovery can read Wiz globals; the isolated content script cannot.
     // Discovery is independent of whether Gemini has sent a credential-bearing RPC.
     let publishedAccount: string | undefined;
-    const publishAccount = (requestId?: string) => {
+    const publishAccount = (requestId?: string, rpcRequestId?: string) => {
         const observation = geminiAccountObservation(sniffUserProfileFromDom());
         const slot = getSlotFromUrl(location.href);
         const signature = JSON.stringify([slot, observation]);
-        if (requestId === undefined && signature === publishedAccount) return;
+        if (!requestId && !rpcRequestId && signature === publishedAccount) return;
         if (requestId === undefined) publishedAccount = signature;
         window.postMessage({ type: Events.ACCOUNT_OBSERVED,
-            payload: { observation, slot, ...(requestId ? { requestId } : {}) } }, location.origin);
+            payload: { observation, slot, ...(requestId ? { requestId } : {}), ...(rpcRequestId ? { rpcRequestId } : {}) } }, location.origin);
     };
     publishAccount();
     document.addEventListener('DOMContentLoaded', () => publishAccount(), { once: true });
@@ -69,34 +68,9 @@ declare global {
         try { return new URL(raw, location.href).href; } catch { return raw; }
     }
 
-    function captureFromUrl(u: string, body: string): void {
-        try {
-            if (!u.includes('batchexecute')) return;
-            publishAccount();
-            const rawAt = /[?&]at=(?<token>[^&]+)/.exec(u)?.groups?.token;
-            const at = rawAt ? decodeURIComponent(rawAt) : new URLSearchParams(body).get('at') ?? '';
-            const sidMatch = u.match(/[?&]f\.sid=([^&]+)/) || u.match(/f\.sid=([^&]+)/);
-            const blMatch = u.match(/[?&]bl=([^&]+)/);
-            if (at || sidMatch) {
-                const slot = getSlotFromUrl(u);
-                const payload: GeminiCredentialsPayload = {
-                    at,
-                    sid: sidMatch ? decodeURIComponent(sidMatch[1]) : '',
-                    bl: blMatch ? decodeURIComponent(blMatch[1]) : '',
-                    accountSlot: slot,
-                    accountObservation: slot === getSlotFromUrl(location.href) ? geminiAccountObservation(sniffUserProfileFromDom()) ?? undefined : undefined,
-                    lastUsed: Date.now(),
-                    url: location.href
-                };
-                // broadcast, not a private channel; targetOrigin is locked to page origin.
-                window.postMessage({
-                    type: Events.CREDENTIALS,
-                    payload
-                }, location.origin);
-            }
-        } catch (e) {
-            if (isDev()) console.debug('[GemExporter:hook]', e);
-        }
+    function publicRpcUrl(url: string): string {
+        const { origin, pathname } = new URL(url);
+        return origin + pathname;
     }
 
     function getSlotFromUrl(url: string): string {
@@ -108,6 +82,12 @@ declare global {
             if (m2 && m2[1]) slot = 'u' + m2[1];
         }
         return slot;
+    }
+
+    function publishRpcAccount(url: string): void {
+        const rpcId = getSlotFromUrl(url) === getSlotFromUrl(location.href)
+            ? parseRpcRequestId(new URL(url).searchParams.get('_reqid')) : undefined;
+        publishAccount(undefined, rpcId);
     }
 
     // Capture request ownership without decoding endpoint response semantics.
@@ -166,7 +146,8 @@ declare global {
         const requestedAt = Date.now();
         const url = toUrlString(input);
         const endpoint = routeResponse(url);
-        const handler = endpoint?.({ url, slot: getSlotFromUrl(url), pagePath: location.pathname,
+        const publicUrl = endpoint ? publicRpcUrl(url) : '';
+        const handler = endpoint?.({ url: publicUrl, slot: getSlotFromUrl(url), pagePath: location.pathname,
             requestedAt, requestAccountObservation: captureRequestAccount(url) });
         const request = input instanceof Request ? input : undefined;
         const body = (init && init.body) || request?.body;
@@ -178,7 +159,7 @@ declare global {
         }
 
         try {
-            captureFromUrl(url, requestBody);
+            if (publicUrl.endsWith('/batchexecute')) publishRpcAccount(url);
             handler?.start(requestBody);
         } catch (e) {
             if (isDev()) console.debug('[GemExporter:hook]', e);
@@ -229,10 +210,11 @@ declare global {
             const body = args[0];
             const requestedAt = Date.now();
             const endpoint = routeResponse(sourceUrl);
-            const handler = endpoint?.({ url: sourceUrl, slot: getSlotFromUrl(sourceUrl), pagePath: location.pathname,
+            const publicUrl = endpoint ? publicRpcUrl(sourceUrl) : '';
+            const handler = endpoint?.({ url: publicUrl, slot: getSlotFromUrl(sourceUrl), pagePath: location.pathname,
                 requestedAt, requestAccountObservation: captureRequestAccount(sourceUrl) });
             const requestBody = typeof body === 'string' ? body : body instanceof URLSearchParams ? body.toString() : '';
-            captureFromUrl(sourceUrl, requestBody);
+            if (publicUrl.endsWith('/batchexecute')) publishRpcAccount(sourceUrl);
             if (handler) {
                 handler.start(requestBody);
                 let ended = false;

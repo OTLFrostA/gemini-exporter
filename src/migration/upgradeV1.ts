@@ -9,7 +9,6 @@ import type { GlobalSettings } from '../l2/settings.js';
 import { putAccount, putIndexes, putExportRecord, patchStoredSettings, setDirectoryHandle } from '../l3a/storageService.js';
 
 const INITIALIZED = 'gemini_exporter_v2_initialized';
-const SETTINGS = 'gemini_exporter_v2_settings';
 const DOMAIN_DB = 'gemini_exporter_domain';
 const HANDLE_DB = 'gemini_exporter_idb';
 const preferenceKeys = ['gemini_export_format', 'gemini_dev_mode',
@@ -96,14 +95,6 @@ async function upgrade(): Promise<void> {
         && (object(raw.gemini_account_slots) || Array.isArray(raw.gemini_conversations))) {
         await upgradeReleasedV17(raw);
     }
-    await dropStoredVaultAccessCode();
-}
-
-/** Earlier builds copied the Vault access code into content-readable Settings; the vault session keeps its own copy. */
-async function dropStoredVaultAccessCode(): Promise<void> {
-    const raw = await chrome.storage.local.get<Record<string, unknown>>(SETTINGS);
-    const stored = raw[SETTINGS];
-    if (object(stored) && Object.hasOwn(stored, 'cloudSyncAccessCode')) await patchStoredSettings({});
 }
 
 async function upgradeUuidSchema(): Promise<void> {

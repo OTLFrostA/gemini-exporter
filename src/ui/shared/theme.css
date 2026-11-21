@@ -99,6 +99,13 @@
   border-color: #9ed5c2;
   background: #e0f8ed;
 }
+:root[data-theme="light"] #list .status-updated,
+:root[data-theme="light"] #list .status-unavailable {
+  color: #a16207;
+  border-color: #ecd29b;
+  background: #fff6e0;
+}
+:root[data-theme="light"] #list .status-failed,
 :root[data-theme="light"] #list .status-partial {
   color: #b42336;
   border-color: #e7b0b8;

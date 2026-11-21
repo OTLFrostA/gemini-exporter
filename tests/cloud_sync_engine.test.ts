@@ -37,30 +37,23 @@ test('vaultClient rejects insecure non-loopback HTTP URLs and normalizes HTTPS o
     assert.equal(normalizeCloudServerUrl('http://localhost:8787/api/'), 'http://localhost:8787/api');
 });
 
-test('CloudSyncEngine upgrades existing key metadata without requiring recovery key re-entry', async () => {
+test('CloudSyncEngine reads current key metadata and stores the access code only in the Vault session', async () => {
     const env = indexStorage();
     try {
         await env.ready;
-        const legacyKeyring = await deriveVaultKeyring(new Uint8Array(32).fill(42));
-        await new Promise<void>((resolve, reject) => {
-            const request = indexedDB.open('gemini_exporter_cloud_v2', 1);
-            request.onupgradeneeded = () => {
-                request.result.createObjectStore('localKeys', { keyPath: 'ownerSubject' }).put({
-                    ownerSubject: 'primary:vault', origin: 'generated', ...legacyKeyring,
-                });
-            };
-            request.onsuccess = () => { request.result.close(); resolve(); };
-            request.onerror = () => reject(request.error);
-        });
-        const backend = createMockCloudVaultHttp();
+        const accessCode = 'test-vault-access-code';
+        const backend = createMockCloudVaultHttp({ serverAccessCode: accessCode });
         const engine = createCloudSyncEngine({ client: createCloudVaultClient(
             (url, init) => backend.handler(new Request(url, init)),
         ) });
+        const installed = await createVaultKeySetup(engine.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
         const before = await engine.getStatusSnapshot();
         assert.equal(before.hasRecoveryKey, true);
-        assert.equal(before.keyFingerprint, legacyKeyring.keyFingerprint);
+        assert.equal(before.keyFingerprint, installed.keyFingerprint);
         assert.equal(before.keyOrigin, 'generated');
-        await engine.connectCloudVault(SERVER_URL);
+        await engine.connectCloudVault(SERVER_URL, accessCode);
+        assert.equal((await getCloudSyncSession())?.accessCode, accessCode);
+        assert.equal(JSON.stringify(env.local).includes(accessCode), false);
         assert.equal(backend.inspectTenantCount(), 1);
         const after = await engine.getStatusSnapshot();
         assert.equal(after.keyFingerprint, before.keyFingerprint);
@@ -339,45 +332,6 @@ test('CloudSyncEngine: a PUT acknowledgment preserves an update queued during up
         }
         assert.equal((await flush).uploaded, 2);
         assert.deepEqual(await listDueCloudOutbox(nowMs), []);
-    } finally {
-        env.restore();
-    }
-});
-
-test('CloudSyncEngine uploads and acknowledges an outbox row written before enqueue identities', async () => {
-    const env = indexStorage();
-    try {
-        await env.ready;
-        const mock = createMockCloudVaultHttp();
-        const client = createCloudVaultClient((url, init) => mock.handler(new Request(url, init)));
-        const engine = createCloudSyncEngine({ client });
-        await createVaultKeySetup(engine.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
-        await engine.connectCloudVault(SERVER_URL, undefined, 'create');
-        const account = await getOrCreateAccount('gemini', 'gaia-outbox-legacy', 'legacy@example.com', 'Legacy Outbox');
-        const conversationId = 'c_outbox_legacy';
-        await ingestIndexes(account.id, [{ conversationId, fields: { title: 'Already queued', titleSource: 'provider' } }]);
-        const db = await new Promise<IDBDatabase>((resolve, reject) => {
-            const request = indexedDB.open('gemini_exporter_cloud_v2');
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-        });
-        try {
-            await new Promise<void>((resolve, reject) => {
-                const tx = db.transaction('outbox', 'readwrite');
-                tx.oncomplete = () => resolve();
-                tx.onabort = () => reject(tx.error);
-                tx.objectStore('outbox').put({
-                    accountId: account.id, conversationId, queuedAt: 1, attempts: 0, nextRetryAt: 0,
-                });
-            });
-        } finally {
-            db.close();
-        }
-        // Enable flushing without a full history scan, which would re-enqueue the legacy row.
-        await updateSettings({ cloudSyncEnabled: true });
-        assert.equal((await listDueCloudOutbox())[0]?.enqueueId, null);
-        assert.equal((await engine.flushOutbox()).uploaded, 1);
-        assert.deepEqual(await listDueCloudOutbox(), []);
     } finally {
         env.restore();
     }

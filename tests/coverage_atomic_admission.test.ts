@@ -5,9 +5,9 @@ import { indexStorage } from './helpers/indexStorage.js';
 import type { PageObservation } from '../src/l2/pageObservation.js';
 import CoverageAdmission from '../src/l2/coverageAdmission.js';
 import { clearLocalScanRecords } from '../src/application/localCleanup.js';
-import { ingestIndexes } from '../src/l2/ingestion.js';
+import { ingestIndexes, ingestDetail } from '../src/l2/ingestion.js';
 import { clearStoredAccountScanRecords, getCoverage, updateCoverageAtomically, getIndex,
-    putIndexes, getExportRecord, putExportRecord } from '../src/l3a/storageService.js';
+    putIndexes, getDetail, getExportRecord, putExportRecord } from '../src/l3a/storageService.js';
 
 const accountId = fixtureAccount().id;
 const otherId = fixtureAccount('chatgpt').id;
@@ -46,7 +46,13 @@ test('Scan cleanup deletes current Account Index, streams and ExportRecords whil
     const env = indexStorage();
     try {
         const key = { accountId, conversationId: 'unchanged' };
-        await putIndexes([{ key, updatedAt: 10 }]);
+        const otherKey = { accountId: otherId, conversationId: key.conversationId };
+        const otherIndex = { key: otherKey, updatedAt: 20 };
+        await putIndexes([{ key, updatedAt: 10 }, otherIndex]);
+        await ingestDetail(otherId, otherKey.conversationId, { quality: { status: 'complete' }, assets: [],
+            messages: [{ role: 'user', content: [] }] });
+        const otherDetail = await getDetail(otherKey);
+        assert.ok(otherDetail);
         await putExportRecord(key, { status: 'ok', format: 'markdown', exportedAt: 10, chatTime: 10 });
         await seedCoverage(accountId, 'recent', baseline);
         await seedCoverage(accountId, 'pinned', baseline);
@@ -55,6 +61,8 @@ test('Scan cleanup deletes current Account Index, streams and ExportRecords whil
         assert.equal(await getCoverage(accountId, 'recent'), null);
         assert.equal(await getCoverage(accountId, 'pinned'), null);
         assert.deepEqual(await getCoverage(otherId, 'recent'), baseline);
+        assert.deepEqual(await getIndex(otherKey), otherIndex);
+        assert.deepEqual(await getDetail(otherKey), otherDetail);
         assert.equal(await getIndex(key), null);
         assert.equal(await getExportRecord(key), null);
     } finally { env.restore(); }

@@ -18,8 +18,8 @@ records atomically deletes Index, Detail, Coverage and ExportRecord for the sele
 Export-history cleanup deletes only ExportRecords; both actions retain Account
 and directory handles. Raw partial Settings use one
 Chrome Storage key, and Patch uses an extension-origin Web Lock. Content scripts can
-read that key, so Settings never hold credentials: reads hide and patches erase the
-retired `cloudSyncAccessCode`; the Vault access code lives only in the vault session. Writes resolve after physical transaction completion;
+read that key. The Vault access code lives in the vault session. Writes resolve
+after physical transaction completion;
 missing values return null/empty collections and IO errors reject. No memory
 fallback, resource bytes or persistent task state is stored in the conversation DB.
 

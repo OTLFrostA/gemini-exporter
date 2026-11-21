@@ -1,5 +1,5 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
-import { openOptions, openPopup, storedSettings, exposeUIStorage } from './uiFixture';
+import { accountId, openOptions, openPopup, seedConversations, storedSettings, exposeUIStorage } from './uiFixture';
 
 /**
  * Real extension test: shared Settings persistence and theme CSS must work across
@@ -129,4 +129,40 @@ test('Light first visible frame has no dark cards or initial background transiti
         expect(await page.locator('#btnThemeToggle').evaluate(node => getComputedStyle(node).transitionDuration)).not.toBe('0s');
         await page.close();
     }
+});
+
+
+test('Light list status chips stay light for every export state', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{ id: 'exported' }, { id: 'updated', updatedAt: 300 }, { id: 'partial' }, { id: 'unavailable' }], {
+        exported: { exportedAt: 200, format: 'markdown', status: 'ok', chatTime: 100 },
+        updated: { exportedAt: 200, format: 'markdown', status: 'ok', chatTime: 100 },
+        partial: { exportedAt: 200, format: 'markdown', status: 'partial', chatTime: 100 },
+        unavailable: { exportedAt: 200, format: 'markdown', status: 'partial', chatTime: 100,
+            attachmentIssues: [{ resourceId: 'photo', name: 'photo.png', code: 'RESOURCE_DOWNLOAD_FAILED', httpStatus: 503 }] },
+    });
+    // An index without a saved Detail cannot be exported offline, so the real export run marks it failed.
+    await page.evaluate(async accountId => {
+        await Reflect.get(globalThis, 'uiFixture').putIndexes([
+            { key: { accountId, conversationId: 'failed' }, title: 'failed', titleSource: 'provider', updatedAt: 50 }]);
+    }, accountId);
+    await page.reload();
+    await page.locator('#devToggle').check();
+    await page.locator('[data-chat-id="failed"] .chat-title').click();
+    await page.locator('#btnExport').click();
+    await expect(page.locator('[data-chat-id="failed"] .status-failed')).toHaveText('Export failed');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+    const palette = async (state: string) => page.locator(`[data-chat-id="${state}"] .status-${state}`)
+        .evaluate(node => { const style = getComputedStyle(node); return [style.color, style.borderColor, style.backgroundColor]; });
+    const dark: string[] = [];
+    for (const state of ['exported', 'updated', 'partial', 'unavailable', 'failed']) {
+        const [, , background] = await palette(state);
+        const channels = background.match(/[0-9]+/g)?.slice(0, 3).map(Number) ?? [];
+        if (!channels.every(channel => channel >= 215)) dark.push(`${state}: ${background}`);
+    }
+    expect(dark, 'light chips with dark backgrounds').toEqual([]);
+    expect(await palette('unavailable')).toEqual(await palette('updated'));
+    expect(await palette('failed')).toEqual(await palette('partial'));
 });

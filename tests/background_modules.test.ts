@@ -69,7 +69,7 @@ test('KeepAlive pings only during an active task and stops exactly once', () => 
     }
 });
 
-test('TabAction marks production Gemini tabs active and unrelated tabs inactive', async () => {
+test('TabAction marks supported platform tabs active and unrelated tabs inactive', async () => {
     const originalChrome = globalThis.chrome;
     const icons: unknown[] = [];
     const titles: unknown[] = [];
@@ -100,8 +100,8 @@ test('TabAction marks production Gemini tabs active and unrelated tabs inactive'
         listeners.updated(0, { url: 'https://other.example/path' }, {});
         listeners.activated({ tabId: 10 });
 
-        const color = { 16: 'icons/icon16.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' };
-        const gray = { 16: 'icons/icon16_gray.png', 48: 'icons/icon48_gray.png', 128: 'icons/icon128_gray.png' };
+        const color = { 16: '/icons/icon16.png', 48: '/icons/icon48.png', 128: '/icons/icon128.png' };
+        const gray = { 16: '/icons/icon16_gray.png', 48: '/icons/icon48_gray.png', 128: '/icons/icon128_gray.png' };
         assert.deepEqual(icons, [
             { tabId: 0, path: color }, // Initial active-tab query must accept ID zero.
             { tabId: 7, path: color },
@@ -111,6 +111,21 @@ test('TabAction marks production Gemini tabs active and unrelated tabs inactive'
             { tabId: 10, path: color },
         ]);
         assert.match((titles[0] as { title: string }).title, /Active/);
+        for (const url of ['https://chatgpt.com/c/123', 'https://chat.openai.com/', 'https://claude.ai/chat/123', 'https://grok.com/c/123']) {
+            listeners.updated(11, { url }, {});
+            assert.deepEqual(icons.at(-1), { tabId: 11, path: color }, url);
+            assert.deepEqual(titles.at(-1), { tabId: 11, title: 'Gemini Exporter (Active)' }, url);
+            listeners.updated(12, {}, { url });
+            assert.deepEqual(icons.at(-1), { tabId: 12, path: color }, url);
+        }
+        for (const url of ['https://other.example/', 'https://chatgpt.com.evil.example/', 'https://assets.grok.com/', 'http://claude.ai/', 'not a URL']) {
+            listeners.updated(11, { url }, {});
+            assert.deepEqual(icons.at(-1), { tabId: 11, path: gray }, url);
+            assert.deepEqual(titles.at(-1), { tabId: 11, title: 'Gemini Exporter (未激活 - 当前非支持的平台页面)' }, url);
+        }
+        const count = icons.length;
+        listeners.updated(11, {}, {});
+        assert.equal(icons.length, count, 'Missing URL does not change action state');
     } finally { globalThis.chrome = originalChrome; }
 });
 
