@@ -13,7 +13,7 @@ export type BlockNode =
     | ThematicBreakBlock
     | UnknownBlock;
 
-export interface ParagraphBlock {
+interface ParagraphBlock {
     type: 'paragraph';
     children: InlineNode[];
 }
@@ -28,19 +28,19 @@ export interface ListItem {
     blocks: BlockNode[];
 }
 
-export interface ListBlock {
+interface ListBlock {
     type: 'list';
     ordered: boolean;
     start?: number;
     items: ListItem[];
 }
 
-export interface QuoteBlock {
+interface QuoteBlock {
     type: 'quote';
     blocks: BlockNode[];
 }
 
-export interface CodeBlock {
+interface CodeBlock {
     type: 'code';
     code: string;
     language?: string;
@@ -52,7 +52,7 @@ export interface MathBlock {
     source: string;
 }
 
-export type TableAlignment = 'left' | 'center' | 'right';
+type TableAlignment = 'left' | 'center' | 'right';
 
 export interface TableColumn {
     align?: TableAlignment;
@@ -78,21 +78,21 @@ export interface TableBlock {
     rows: TableRow[];
 }
 
-export interface ImageBlock {
+interface ImageBlock {
     type: 'image';
     assetId: string;
     alt?: string;
     caption?: InlineNode[];
 }
 
-export interface FileBlock {
+interface FileBlock {
     type: 'file';
     assetId: string;
     label?: string;
     description?: InlineNode[];
 }
 
-export interface ThematicBreakBlock {
+interface ThematicBreakBlock {
     type: 'thematicBreak';
 }
 

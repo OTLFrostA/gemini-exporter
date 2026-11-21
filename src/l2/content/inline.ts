@@ -10,27 +10,27 @@ export type InlineNode =
     | CitationRefInline
     | LineBreakInline;
 
-export interface TextInline {
+interface TextInline {
     type: 'text';
     text: string;
 }
 
-export interface StrongInline {
+interface StrongInline {
     type: 'strong';
     children: InlineNode[];
 }
 
-export interface EmphasisInline {
+interface EmphasisInline {
     type: 'emphasis';
     children: InlineNode[];
 }
 
-export interface StrikethroughInline {
+interface StrikethroughInline {
     type: 'strikethrough';
     children: InlineNode[];
 }
 
-export interface InlineCode {
+interface InlineCode {
     type: 'inlineCode';
     code: string;
 }
@@ -49,18 +49,18 @@ export interface ImageInline {
     title?: string;
 }
 
-export interface InlineMath {
+interface InlineMath {
     type: 'inlineMath';
     source: string;
 }
 
-export interface CitationRefInline {
+interface CitationRefInline {
     type: 'citationRef';
     citationId: string;
     label?: string;
 }
 
-export interface LineBreakInline {
+interface LineBreakInline {
     type: 'lineBreak';
     kind: 'soft' | 'hard';
 }
