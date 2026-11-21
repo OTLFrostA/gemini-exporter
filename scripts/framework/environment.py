@@ -9,7 +9,6 @@ Provides deterministic environment preparation:
 """
 
 import os
-import sys
 import time
 import json
 import urllib.request
@@ -36,7 +35,7 @@ except ImportError:
         CDP_DEFAULT_PORT
     )
 
-from scripts.framework.actions import ExtensionActions, CDPActions
+from scripts.framework.actions import CDPActions
 
 
 @dataclass
