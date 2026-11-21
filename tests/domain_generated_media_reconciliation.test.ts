@@ -6,7 +6,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import type { ChatMessage } from './helpers/historicalConversation.js';
-import type { DomainGeneratedMediaIdentity } from '../src/l2/conversationDetail.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
 import { composeFixture } from './helpers/documentFixture.js';
 import { supplementLegacyGeneratedMedia } from './helpers/recordFixture/generatedMediaReconciliation.js';
@@ -79,7 +78,7 @@ for (const [ambiguity, messages] of [
 ] as const) {
     test(`Ambiguous ${ambiguity} never assigns generated image to an existing message`, () => {
         const conversation = legacy(messages.map(m => ({ ...m })));
-        const { conversation: domain, resourceHints } = historicalFixture(conversation, { generatedMedia: media });
+        const { conversation: domain } = historicalFixture(conversation, { generatedMedia: media });
         assert.ok(domain.detail.messages.slice(0, messages.length).every(m => !m.attachmentIds?.length));
         assert.equal(domain.detail.messages.length, messages.length + 1, 'unresolved media is retained separately');
         assert.equal(messageAssets(domain, domain.detail.messages.length - 1)?.[0].name, 'cat.png');
@@ -92,7 +91,7 @@ test('Domain construction reconciles flattened legacy turns before evidence is d
     const conversation: Conversation = { ...metadata, turns: [{ messages: [
         { role: 'user', content: 'Draw a cat', turnId: `r_${requestId}` }, { role: 'model', content: 'Answer' },
     ] }] };
-    const { conversation: domain, resourceHints } = historicalFixture(conversation, { generatedMedia: media });
+    const { conversation: domain } = historicalFixture(conversation, { generatedMedia: media });
     assert.equal(messageAssets(domain, 1)?.[0].name, 'cat.png');
     assert.equal('turnId' in domain.detail.messages[0], false);
 });
