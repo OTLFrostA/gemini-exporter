@@ -6,7 +6,7 @@ import {
     toOwnedBytes,
     type VaultKeyring,
 } from '../../shared/crypto/index.js';
-import type { CloudAuthKeyMode } from '../../shared/types/cloudSync.js';
+import type { CloudAuthKeyMode, CloudChangesResponse, CloudVaultStatusResponse } from '../../shared/types/cloudSync.js';
 import { calculateBackoff } from '../../shared/utils/retryUtils.js';
 import { mapWithConcurrency } from '../../shared/utils/concurrency.js';
 import { DEFAULT_ACCOUNT_KEY } from '../../l2/accountRegistry.js';
@@ -75,6 +75,31 @@ function matchesSyncedPayload(synced: CloudSyncedRecordState | null, hash: strin
 async function sha256BytesHex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
     const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
     return bytesToHex(digest);
+}
+
+async function rotationRequest<T>(request: () => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            return await request();
+        } catch (error) {
+            if (!(error instanceof OperationError) || error.code !== 'CLOUD_RATE_LIMITED'
+                || error.retryAt === undefined || attempt >= 2) throw error;
+            const delay = error.retryAt - Date.now();
+            if (delay > 60_000) throw error;
+            await new Promise(resolve => setTimeout(resolve, Math.max(0, delay)));
+        }
+    }
+}
+
+function unverifiedBackup(): OperationError {
+    return new OperationError('CLOUD_ROTATION_VERIFY_FAILED', 'Could not verify a complete backup for Cloud Vault rotation');
+}
+
+const CLOUD_CHANGE_PAGE_SIZE = 50;
+
+function isValidChangeFeedCursor(feed: CloudChangesResponse, cursor: number): boolean {
+    return Number.isSafeInteger(feed.nextSince) && feed.nextSince >= cursor
+        && (!feed.hasMore || (feed.nextSince > cursor && feed.items.length > 0));
 }
 
 export type { CloudVaultBackendType } from '../../shared/types/cloudSync.js';
@@ -146,6 +171,7 @@ type ActivateKeyring = (
 ) => Promise<{
     readonly keyFingerprint: string;
     readonly resolution: 'initialized' | 'unlocked' | 'rekeyed';
+    readonly cloudBackup?: { readonly saved: number; readonly restoredChanges: boolean };
 }>;
 
 const CLOUD_SYNC_CROSS_CONTEXT_LOCK = 'gemini_exporter_cloud_sync_op_lock';
@@ -264,7 +290,7 @@ export function createCloudSyncEngine(deps: {
         session: CloudSyncSessionState,
         keyring: VaultKeyring,
         signal?: AbortSignal,
-    ): Promise<CloudSyncSessionState> => {
+    ): Promise<{ session: CloudSyncSessionState; status: CloudVaultStatusResponse }> => {
         const activeClient = clientForSession(session);
         const status = await activeClient.getVaultStatus(session.serverUrl, session.sessionToken, signal);
         if ((session.backend === 'cloud-server' || status.recordCount > 0) && status.keyFingerprint !== keyring.keyFingerprint) {
@@ -274,7 +300,7 @@ export function createCloudSyncEngine(deps: {
                 'This vault is encrypted with a different Master Key. Import the original Recovery Key to unlock it.',
             );
         }
-        return markSessionKeyMismatch(session, false);
+        return { session: await markSessionKeyMismatch(session, false), status };
     };
 
     const readLocalSyncSource = async (
@@ -514,16 +540,21 @@ export function createCloudSyncEngine(deps: {
         return activeFlush;
     };
 
-    const pullChanges = (signal?: AbortSignal): Promise<CloudPullResult> => {
+    const pullChanges = (
+        signal?: AbortSignal,
+        rotationSource?: { session: CloudSyncSessionState; status: CloudVaultStatusResponse; keyring: VaultKeyring },
+    ): Promise<CloudPullResult> => {
         if (activePull) return activePull;
         activePull = (async (): Promise<CloudPullResult> => {
             try {
-                let session = await requireActiveSession();
-                const keyring = await resolveKeyring(session);
-                session = await verifyVaultKeyCompatibility(session, keyring, signal);
+                let session = rotationSource?.session ?? await requireActiveSession();
+                const keyring = rotationSource?.keyring ?? await resolveKeyring(session);
+                const request = rotationSource ? rotationRequest : <T>(run: () => Promise<T>) => run();
+                if (!rotationSource) session = (await verifyVaultKeyCompatibility(session, keyring, signal)).session;
                 let downloaded = 0;
                 let accepted = 0;
                 let changed = 0;
+                let seenRecords = 0;
                 let hasAnyLocalConversation = false;
                 for (const acc of await listAccounts()) {
                     if (acc.providerAccountId === DEFAULT_ACCOUNT_KEY) continue;
@@ -532,27 +563,30 @@ export function createCloudSyncEngine(deps: {
                         break;
                     }
                 }
-                let cursor = hasAnyLocalConversation ? session.pulledSeq : 0;
+                let cursor = !rotationSource && hasAnyLocalConversation ? session.pulledSeq : 0;
 
                 const activeClient = clientForSession(session);
-                for (let page = 0; page < 200; page++) {
+                for (let page = 0; rotationSource || page < 200; page++) {
                     signal?.throwIfAborted();
-                    const feed = await activeClient.listChanges({
+                    const feed = await request(() => activeClient.listChanges({
                         serverUrl: session.serverUrl,
                         sessionToken: session.sessionToken,
                         sinceSeq: cursor,
-                        limit: 50,
+                        limit: CLOUD_CHANGE_PAGE_SIZE,
                         signal,
-                    });
-                    if (!Number.isSafeInteger(feed.nextSince) || feed.nextSince < cursor
-                        || (feed.hasMore && (feed.nextSince === cursor || feed.items.length === 0))) {
+                    }));
+                    if (!isValidChangeFeedCursor(feed, cursor)) {
                         throw new OperationError('CLOUD_SERVER_ERROR', 'Invalid cloud change feed cursor');
                     }
+                    if (rotationSource && feed.headSeq !== rotationSource.status.headSeq) throw unverifiedBackup();
                     if (feed.items.length === 0) break;
+                    seenRecords += feed.items.length;
 
                     const toDownload = [];
                     for (const meta of feed.items) {
-                        const existing = await getSyncedCloudRecordByBlindId(session.ownerSubject, meta.blindRecordId);
+                        // Count old entries for completeness without undoing local deletions.
+                        if (rotationSource && hasAnyLocalConversation && meta.changeSeq <= session.pulledSeq) continue;
+                        const existing = rotationSource ? null : await getSyncedCloudRecordByBlindId(session.ownerSubject, meta.blindRecordId);
                         if (existing && existing.remoteRevision >= meta.revision) {
                             const localIndex = await getIndex({
                                 accountId: existing.accountId,
@@ -569,12 +603,13 @@ export function createCloudSyncEngine(deps: {
                         payloadSha256: string;
                         indexPayloadSha256?: string;
                     } | null> => {
-                        const blob = await activeClient.getEncryptedRecord({
+                        const blob = await request(() => activeClient.getEncryptedRecord({
                             serverUrl: session.serverUrl,
                             sessionToken: session.sessionToken,
                             blindRecordId: meta.blindRecordId,
                             signal,
-                        });
+                        }));
+                        if (rotationSource && (!blob || blob.revision !== meta.revision)) throw unverifiedBackup();
                         if (!blob) {
                             throw new OperationError('CLOUD_SERVER_ERROR', 'Listed remote record disappeared during download');
                         }
@@ -640,11 +675,14 @@ export function createCloudSyncEngine(deps: {
                     }
 
                     cursor = feed.nextSince;
-                    session = { ...session, pulledSeq: cursor };
-                    await putCloudSyncSession(session);
+                    if (!rotationSource) {
+                        session = { ...session, pulledSeq: cursor };
+                        await putCloudSyncSession(session);
+                    }
                     if (!feed.hasMore) break;
                 }
 
+                if (rotationSource && seenRecords !== rotationSource.status.recordCount) throw unverifiedBackup();
                 return { downloaded, accepted, changed, pulledSeq: cursor };
             } finally {
                 activePull = null;
@@ -680,6 +718,66 @@ export function createCloudSyncEngine(deps: {
             await enqueueCloudOutboxKeys(unsynced, now());
         }
         return unsynced.length;
+    };
+
+    const stageCloudBackup = async (
+        session: CloudSyncSessionState, keyring: VaultKeyring, includeDetail: boolean,
+    ): Promise<CloudSyncedRecordState[]> => {
+        const target = { serverUrl: session.serverUrl, sessionToken: session.sessionToken };
+        const written = new Map<string, { state: CloudSyncedRecordState; ciphertextSha256: string }>();
+        for (const account of await listAccounts()) {
+            if (account.providerAccountId === DEFAULT_ACCOUNT_KEY) continue;
+            for (const { key } of await listIndexes(account.id)) {
+                const source = await readLocalSyncSource(key, includeDetail);
+                if (!source) throw unverifiedBackup();
+                const { blindRecordId, envelope } = await sealCloudConversation({
+                    keyring, revision: 1, account, conversation: source,
+                });
+                const ciphertextSha256 = await sha256BytesHex(envelope);
+                const put = await rotationRequest(() => remoteClient.putEncryptedRecord({
+                    ...target, blindRecordId, envelope, expectedRevision: 0,
+                    keyFingerprint: keyring.keyFingerprint, sha256: ciphertextSha256,
+                }));
+                if (put.status !== 'committed' || put.meta.revision !== 1 || put.meta.blindRecordId !== blindRecordId) {
+                    throw unverifiedBackup();
+                }
+                written.set(blindRecordId, {
+                    ciphertextSha256,
+                    state: {
+                        ...key, ownerSubject: session.ownerSubject, blindRecordId,
+                        remoteRevision: 1, syncedAt: now(),
+                        payloadSha256: await sha256Utf8Hex(encodePortableCloudConversation(account, source)),
+                    },
+                });
+            }
+        }
+
+        const verified: CloudSyncedRecordState[] = [];
+        let cursor = 0;
+        // Walk the same feed an empty restore client uses, not just the PUT acknowledgements.
+        for (;;) {
+            const feed = await rotationRequest(() => remoteClient.listChanges({
+                ...target, sinceSeq: cursor, limit: CLOUD_CHANGE_PAGE_SIZE,
+            }));
+            if (!isValidChangeFeedCursor(feed, cursor)) throw unverifiedBackup();
+            for (const meta of feed.items) {
+                const record = written.get(meta.blindRecordId);
+                if (!record || meta.revision !== 1 || meta.sha256 !== record.ciphertextSha256) throw unverifiedBackup();
+                const blob = await rotationRequest(() => remoteClient.getEncryptedRecord({
+                    ...target, blindRecordId: meta.blindRecordId,
+                }));
+                if (!blob || blob.revision !== 1 || await sha256BytesHex(blob.envelope) !== record.ciphertextSha256) {
+                    throw unverifiedBackup();
+                }
+                await openCloudConversation({ keyring, blindRecordId: meta.blindRecordId, ...blob });
+                verified.push(record.state);
+                written.delete(meta.blindRecordId);
+            }
+            if (!feed.hasMore) break;
+            cursor = feed.nextSince;
+        }
+        if (written.size !== 0) throw unverifiedBackup();
+        return verified;
     };
 
     const syncNow = (signal?: AbortSignal): Promise<{ pull: CloudPullResult; push: CloudFlushResult }> => {
@@ -799,7 +897,7 @@ export function createCloudSyncEngine(deps: {
         },
 
         async setIncludeDetail(includeDetail) {
-            await updateSettings({ cloudSyncIncludeDetail: includeDetail });
+            await withVaultOperation(() => updateSettings({ cloudSyncIncludeDetail: includeDetail }));
             if (includeDetail) {
                 const settings = await getSettings();
                 if (settings.cloudSyncEnabled) {
@@ -880,24 +978,39 @@ export function createCloudSyncEngine(deps: {
             }
             const { keyMismatch: _cleared, ...cleanSession } = session;
             if (session.backend === 'cloud-server') {
-                const mode: CloudAuthKeyMode = origin === 'generated' ? 'create' : 'unlock';
-                const auth = await authenticateVaultKey(session.serverUrl, candidateKeyring, mode, session.accessCode);
-                if (origin === 'generated' && !session.keyMismatch && current && session.ownerSubject === portableVaultSubject(current)) {
-                    await pullChanges();
+                if (origin === 'generated') {
+                    const settings = await getSettings();
+                    if (!settings.cloudSyncEnabled) {
+                        throw new OperationError('CLOUD_ROTATION_SYNC_DISABLED', 'Enable Cloud Vault sync before rotating the Master Key');
+                    }
+                    const oldSession = await rotationRequest(requireActiveSession);
+                    const oldKeyring = await resolveKeyring(oldSession);
+                    const source = await rotationRequest(() => verifyVaultKeyCompatibility(oldSession, oldKeyring));
+                    const previous = await pullChanges(undefined, { ...source, keyring: oldKeyring });
+                    const auth = await rotationRequest(() => authenticateVaultKey(
+                        session.serverUrl, candidateKeyring, 'create', session.accessCode,
+                    ));
+                    if (auth.ownerSubject === session.ownerSubject) throw unverifiedBackup();
+                    const nextSession = { ...cleanSession, ...auth, pulledSeq: 0 };
+                    const verified = await stageCloudBackup(nextSession, candidateKeyring, settings.cloudSyncIncludeDetail === true);
+                    const activeSession = await rotationRequest(requireActiveSession);
+                    const latest = await rotationRequest(() => remoteClient.getVaultStatus(activeSession.serverUrl, activeSession.sessionToken));
+                    if (latest.headSeq !== source.status.headSeq || latest.recordCount !== source.status.recordCount
+                        || latest.keyFingerprint !== source.status.keyFingerprint) throw unverifiedBackup();
+                    await activateVaultKeyring(candidateKeyring, 'imported', nextSession, session.ownerSubject, verified);
+                    return {
+                        keyFingerprint, resolution: 'rekeyed',
+                        cloudBackup: { saved: verified.length, restoredChanges: previous.changed > 0 },
+                    };
                 }
+                const auth = await authenticateVaultKey(session.serverUrl, candidateKeyring, 'unlock', session.accessCode);
                 await activateVaultKeyring(
                     candidateKeyring,
                     'imported',
-                    {
-                        ...cleanSession,
-                        ownerSubject: auth.ownerSubject,
-                        sessionToken: auth.sessionToken,
-                        expiresAt: auth.expiresAt,
-                        pulledSeq: 0,
-                    },
+                    { ...cleanSession, ...auth, pulledSeq: 0 },
                     session.ownerSubject,
                 );
-                return { keyFingerprint, resolution: origin === 'generated' ? 'rekeyed' : 'unlocked' };
+                return { keyFingerprint, resolution: 'unlocked' };
             }
 
             const activeClient = clientForSession(session);

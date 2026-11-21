@@ -266,8 +266,9 @@ test('CloudSyncEngine: explicit creation and manual pairing retain auto-enqueue,
         assert.equal(rotateOutcome.resolution, 'rekeyed');
         assert.notEqual(rotateOutcome.keyFingerprint, fingerprint);
         assert.equal(backend.inspectTenantCount(), 2);
+        assert.equal(rotateOutcome.cloudBackup?.saved, 2, 'both local conversations backed up and verified before switching');
         const postRotateSync = await engineC.syncNow();
-        assert.equal(postRotateSync.push.uploaded, 2, 'both local conversations immediately backed up into rotated Cloud Vault');
+        assert.equal(postRotateSync.push.uploaded, 0, 'the verified backup is not reuploaded');
     } finally {
         envC.restore();
     }
