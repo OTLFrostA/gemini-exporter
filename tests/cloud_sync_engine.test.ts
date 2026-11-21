@@ -171,8 +171,16 @@ test('CloudSyncEngine: explicit creation and manual pairing retain auto-enqueue,
     try {
         await envB.ready;
         attachSharedChromeSync(sharedChromeSync);
+        const restoreCursors: string[] = [];
         const engineB = createCloudSyncEngine({
-            client: createCloudVaultClient(transport),
+            client: createCloudVaultClient((url, init) => {
+                const parsed = new URL(url);
+                if (parsed.pathname === '/v2/vault/changes') {
+                    restoreCursors.push(parsed.searchParams.get('since') ?? '');
+                    parsed.searchParams.set('limit', '1');
+                }
+                return transport(parsed.href, init);
+            }),
             now: () => clockMs,
         });
         const unsubscribeB = engineB.installAutoEnqueueListener();
@@ -187,6 +195,7 @@ test('CloudSyncEngine: explicit creation and manual pairing retain auto-enqueue,
             await engineB.waitForIdle();
 
             // Enabling sync on Device B already pulled both records automatically without manual pullChanges()!
+            assert.deepEqual(restoreCursors, ['0', '1']);
             assert.equal((await engineB.getStatusSnapshot()).pendingOutbox, 0, 'restoring from cloud must NOT echo back into Outbox');
 
             // Verify conversation landed on Device B with the upgraded user title and v1 answer
@@ -392,6 +401,56 @@ test('an expired session renews with unlock from the installed key without a pla
         assert.equal(mock.inspectTenantCount(), 1);
     } finally {
         env.restore();
+    }
+});
+
+test('CloudSyncEngine bounds Cloud Vault change feed bodies before parsing', async t => {
+    const limitBytes = 64 * 1024;
+    const chunk = new TextEncoder().encode(' '.repeat(16 * 1024));
+    const feed = new TextEncoder().encode(JSON.stringify({ items: [], nextSince: 0, headSeq: 0, hasMore: false }));
+    for (const scenario of [
+        { name: 'no Content-Length', contentLength: undefined, status: 200, maxBytesRead: limitBytes + chunk.byteLength, code: 'CLOUD_SERVER_ERROR' },
+        { name: 'understated Content-Length', contentLength: String(feed.byteLength), status: 200, maxBytesRead: limitBytes + chunk.byteLength, code: 'CLOUD_SERVER_ERROR' },
+        { name: 'oversized Content-Length', contentLength: String(10 * chunk.byteLength + feed.byteLength), status: 200, maxBytesRead: 0, code: 'CLOUD_SERVER_ERROR' },
+        { name: 'oversized HTTP error', contentLength: undefined, status: 429, maxBytesRead: limitBytes + chunk.byteLength, code: 'CLOUD_RATE_LIMITED' },
+    ]) {
+        await t.test(scenario.name, async () => {
+            const env = indexStorage();
+            try {
+                await env.ready;
+                const mock = createMockCloudVaultHttp();
+                let bytesRead = 0;
+                let cancelled = false;
+                const client = createCloudVaultClient((url, init) => {
+                    const request = new Request(url, init);
+                    if (new URL(url).pathname !== '/v2/vault/changes') return mock.handler(request);
+                    const body = new ReadableStream<Uint8Array>({
+                        pull(controller) {
+                            const next = bytesRead < 10 * chunk.byteLength ? chunk : feed;
+                            bytesRead += next.byteLength;
+                            controller.enqueue(next);
+                            if (next === feed) controller.close();
+                        },
+                        cancel() { cancelled = true; },
+                    }, { highWaterMark: 0 });
+                    const headers: HeadersInit = scenario.contentLength === undefined
+                        ? {}
+                        : { 'Content-Length': scenario.contentLength };
+                    return Promise.resolve(new Response(body, { status: scenario.status, headers }));
+                });
+                const engine = createCloudSyncEngine({ client });
+                await createVaultKeySetup(engine.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
+                await engine.connectCloudVault(SERVER_URL, undefined, 'create');
+
+                const outcome = await engine.syncNow().catch((error: unknown) => error);
+                assert.ok(cancelled, `sync read ${bytesRead} bytes without cancelling the change feed`);
+                assert.equal(bytesRead, scenario.maxBytesRead);
+                assert.ok(outcome instanceof OperationError);
+                assert.equal(outcome.code, scenario.code);
+            } finally {
+                env.restore();
+            }
+        });
     }
 });
 
