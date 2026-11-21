@@ -6,6 +6,7 @@ import { handleDomainIngestionMessage } from './domainStorageHandler.js';
 import { handleAccountRegistryMessage } from './accountRegistryHandler.js';
 import { initCloudSyncBackground, handleCloudSyncMessage } from './cloudSyncHandler.js';
 import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
+import { initLegacyVaultKeyCleanup } from '../../migration/legacyVaultKeys.js';
 import { initTabActionListeners } from './tabAction.js';
 import { ensureV2Ready } from './readiness.js';
 import { assertContentSender, assertExtensionSender, object, requireCurrentContentAccount } from './contentSender.js';
@@ -20,6 +21,7 @@ installProviderHost();
 
 initSessionAccessLevel();
 initLifecycleListeners();
+initLegacyVaultKeyCleanup();
 initUninstallUrl();
 initTabActionListeners();
 initCloudSyncBackground();

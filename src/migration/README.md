@@ -26,3 +26,11 @@ is written only after all repair writes complete; failures retry on next startup
 Legacy v1/v1.7 migration no longer copies update/skip versions. It retains source
 creation dates and actual export dates. Takeout now supplies only activityAt for
 presentation and sorting, and never updatedAt, savedAt or sourceVersion.
+
+Separately, the Vault upgrade clears the retired plaintext IndexedDB key mirror
+and removes only the retired Chrome Sync key slots. It never reads their values
+or imports them into the current keyring. Chrome Sync cleanup uses the names-only
+`getKeys()` API (Chrome 130+) and reruns if sync delivers changes later. Older
+browsers still clear the IndexedDB mirror but do not read Sync values to find
+slots. Reconnect an old Vault with the original recovery key saved outside the
+extension.
