@@ -25,11 +25,11 @@ import { startBrowserDownload, writeToFolder, folderFileExists } from '../../l4/
 import { prepareExportResources } from './prepareExportResources.js';
 import type { ExportRequest, ExportRecord, ExportProgress, ExportResult, ExportItemUpdate, ExportDiagnostic } from './types.js';
 
-export type ExportPendingContent =
+type ExportPendingContent =
     | { format: 'json'; document?: never }
     | { format: Exclude<ExportRequest['format'], 'json'>; document: DocumentAst };
 
-export type ExportRenderInput = ExportPendingContent & {
+type ExportRenderInput = ExportPendingContent & {
     key: ConversationKey;
     account: Account;
     conversation: ReadonlyDomain;
