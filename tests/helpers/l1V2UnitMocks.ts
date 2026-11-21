@@ -269,7 +269,6 @@ export function installL1V2Mocks(): void {
             if (request.endsWith('/l2/content/assetReferences.js')) return assetReferencePort;
             if (request.endsWith('/l2/sourceUri.js')) return sourceUriPort;
             if (request.endsWith('/l2/accountRegistry.js')) return accountIdentityPort;
-            if (request.endsWith('/runtime/devMode.js')) return { isDevMode: () => false };
             if (request.endsWith('/l2/titleAuthority.js')) return {};
             if (request.endsWith('/l2/conversationIndex.js')) return indexComparisonPort;
             if (/\/(?:l2|l3a|l3b|l4|runtime|application|ui)\//.test(request) && !request.endsWith('.d.ts'))
