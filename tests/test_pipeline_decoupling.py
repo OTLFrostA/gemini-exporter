@@ -6,7 +6,6 @@ StreamSettledConfig parametrization, and ChatPlatformDriver turn pipeline orches
 
 import unittest
 from unittest.mock import patch
-import time
 import os
 import sys
 from typing import Dict, Any, List, Optional, Set
@@ -23,9 +22,8 @@ from scripts.framework.pipeline.actions import (
     AssertIdleAction,
     StagePromptAction,
     SingleClickSendAction,
-    HumanCooldownAction
 )
-from scripts.framework.pipeline.executor import SerialActionExecutor, PipelineResult
+from scripts.framework.pipeline.executor import SerialActionExecutor
 from scripts.framework.driver.platform_driver import (
     ChatPlatformDriver,
     TurnResult,

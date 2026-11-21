@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.framework.platforms import load_plugins
 from scripts.framework.platforms.core import (
-    PlatformPlugins, PlatformSession, RunConfig, Tier2Runner, feature_spec, resolve_plan,
+    PlatformSession, RunConfig, Tier2Runner, feature_spec, resolve_plan,
 )
 from scripts.framework.cases.base import DAGRunner, FeatureTestCase
 from scripts.framework.features import FeatureDomain, FeatureRegistry
@@ -349,7 +349,6 @@ class ChatGPTRequestBudgetTests(unittest.TestCase):
         return runner
 
     def test_send_saves_settled_dom_and_local_progress_without_source_reads(self):
-        from scripts.framework.chatgpt_live import ChatGPTLiveRunner
         with tempfile.TemporaryDirectory() as folder:
             runner = self.runner(folder)
             messages = [{'id': 'u', 'role': 'user', 'text': 'Question'},

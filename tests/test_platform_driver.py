@@ -19,10 +19,9 @@ from scripts.framework.driver import (
     PlatformCapabilities,
     GeminiPlatformDriver,
     GeminiDriver,
-    GeminiChatSession
 )
 from scripts.framework.actions import ExtensionActions, CDPActions
-from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
+from scripts.framework.selectors import GeminiSelectors
 
 
 class ConcreteTestDriver(ChatPlatformDriver):

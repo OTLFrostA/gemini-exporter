@@ -7,7 +7,6 @@ for Gemini Exporter automation, staging, and scenario generation.
 No external dependencies required (uses Python standard library only).
 """
 
-import sys
 import os
 import json
 import time
