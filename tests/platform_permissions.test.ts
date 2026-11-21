@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { RESOURCE_DOWNLOAD_ORIGINS, resourceDownloadOrigin, PLATFORM_HOSTS, platformOrigins, SOURCE_PLATFORMS, type SourcePlatform } from '../src/shared/platformHosts.js';
+import { RESOURCE_DOWNLOAD_ORIGINS, resourceDownloadOrigin, PLATFORM_HOSTS, platformOrigins, SOURCE_PLATFORMS } from '../src/shared/platformHosts.js';
 import { hasResourceAccess, requestResourceAccess, hasPlatformAccess, requestPlatformsAccess } from '../src/l1/client/platformAccess.js';
 import { syncPlatformContentScripts, syncAllPlatformContentScripts } from '../src/runtime/capabilities/platformInjection.js';
 

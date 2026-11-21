@@ -5,7 +5,6 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { restoreConversationIndex } from '../src/l2/conversationIndex.js';
 import { parseChatGPTList } from '../src/l1/parsers/chatgpt/parseList.js';
 import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';

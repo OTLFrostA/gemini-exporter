@@ -1,7 +1,7 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { admitFixture } from './helpers/admitFixture.js';
-import { fixtureKey, fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
+import { fixtureKey, fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { restoreDomainSnapshot, validateParserDomain } from '../src/l2/runtimeValidation.js';

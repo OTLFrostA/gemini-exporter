@@ -43,39 +43,24 @@ const crypto = require('crypto');
 test('Test Provenance Manifest: Strict P0 Admission Gate (evidence + cryptographic SHA-256)', () => {
     const data = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf-8'));
 
-    const declaredP0 = data.suites.filter((suite: any) =>
-        suite.classification === 'P0' || (suite.tests || []).some((t: any) => t.classification === 'P0'));
-    if (!declaredP0.length) {
-        assert.strictEqual(data.summary.byClassification.P0, 0,
-            'with no externally verified P0 samples, the manifest must not claim P0 coverage');
+    function verifyEvidence(entry: { evidence?: unknown; originalHash?: unknown }, label: string) {
+        const { evidence, originalHash } = entry;
+        if (typeof evidence !== 'string' || !evidence) assert.fail(`${label} must specify an evidence file path.`);
+        const evidencePath = path.join(__dirname, '..', evidence);
+        assert.ok(fs.existsSync(evidencePath), `${label} evidence file must exist on disk: ${evidence}`);
+        if (typeof originalHash !== 'string') assert.fail(`${label} must specify an originalHash.`);
+        assert.match(originalHash, /^[a-f0-9]{64}$/, `${label} originalHash must be a SHA-256 hex string.`);
+        const computedHash = crypto.createHash('sha256').update(fs.readFileSync(evidencePath)).digest('hex');
+        assert.strictEqual(computedHash, originalHash, `SHA-256 mismatch for ${label} evidence: ${evidence}`);
     }
-    for (const suite of declaredP0) {
-            assert.ok(
-                typeof suite.evidence === 'string' && suite.evidence.length > 0,
-                `P0 suite '${suite.file}' MUST specify an evidence file path.`
-            );
-            const evidencePath = path.join(__dirname, '..', suite.evidence);
-            assert.ok(
-                fs.existsSync(evidencePath),
-                `P0 suite '${suite.file}' evidence file must exist on disk: ${suite.evidence}`
-            );
-            assert.strictEqual(
-                typeof suite.originalHash,
-                'string',
-                `P0 suite '${suite.file}' MUST specify a valid originalHash.`
-            );
-            assert.strictEqual(
-                suite.originalHash.length,
-                64,
-                `P0 suite '${suite.file}' originalHash must be a 64-character SHA-256 hex string.`
-            );
-            const fileContent = fs.readFileSync(evidencePath);
-            const computedHash = crypto.createHash('sha256').update(fileContent).digest('hex');
-            assert.strictEqual(
-                computedHash,
-                suite.originalHash,
-                `Cryptographic SHA-256 mismatch for P0 evidence in '${suite.file}'`
-            );
+    for (const suite of data.suites) {
+        const p0Tests = suite.tests.filter((entry: { classification: string }) => entry.classification === 'P0');
+        if (suite.classification === 'P0' && p0Tests.length === 0) verifyEvidence(suite, `P0 suite '${suite.file}'`);
+        for (const entry of p0Tests) {
+            // Suites based on a single corpus can declare shared evidence once.
+            const evidence = entry.evidence !== undefined || entry.originalHash !== undefined ? entry : suite;
+            verifyEvidence(evidence, `P0 test '${entry.name}' in '${suite.file}'`);
+        }
     }
 });
 

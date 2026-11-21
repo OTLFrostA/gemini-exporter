@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as equal from '../src/l2/domainEquality.js';
-import type { DomainConversationDetail, DomainMessage, DomainAsset } from '../src/l2/conversationDetail.js';
+import type { DomainConversationDetail, DomainAsset } from '../src/l2/conversationDetail.js';
 import type { DomainConversationIndex } from '../src/l2/conversationIndex.js';
 import type { BlockNode } from '../src/l2/content/blocks.js';
 import { fixtureKey } from './helpers/domainFixture.js';

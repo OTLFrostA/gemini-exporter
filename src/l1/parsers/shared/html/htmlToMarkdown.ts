@@ -10,22 +10,146 @@ function stripHtmlTags(str: string): string {
     return current;
 }
 
+const HTML_CODE_BLOCK = /<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi;
+const HTML_INLINE_CODE = /<code>([\s\S]*?)<\/code>/gi;
+
+const HTML_MARKUP = /<!--(?:(?!<!--)[\s\S])*?-->|<\/?[a-z][\w:-]*(?=[\s/>])(?:[^'"<>]|"[^"]*"|'[^']*')*>/;
+const HTML_INLINE_CODE_TOKEN = /<code>(?:(?!<\/?code>)[\s\S])*<\/code>/gi;
+const MARKDOWN_RUN = /`+|\r?\n[ \t]*\r?\n/;
+const SPAN_TOKENS = new RegExp([HTML_CODE_BLOCK.source, HTML_MARKUP.source, MARKDOWN_RUN.source].join('|'), 'gi');
+const PROSE_TOKENS = new RegExp([HTML_INLINE_CODE_TOKEN.source, SPAN_TOKENS.source].join('|'), 'gi');
+type CodeSpan = { start: number; end: number };
+
+function escapedBacktick(source: string, index: number): number {
+    let preceding = index;
+    while (source[preceding - 1] === '\\') preceding--;
+    return (index - preceding) % 2;
+}
+
+function markdownCodeSpans(source: string, tokenPattern: RegExp): CodeSpan[] {
+    const tokens = [...source.matchAll(tokenPattern)];
+    const tableStarts: number[] = [];
+    const tableBoundaries = new Map<number, 'open' | 'close'>();
+    for (const { 0: token, index } of tokens) {
+        if (/^<table(?=[\s>])/i.test(token)) tableStarts.push(index);
+        else if (/^<\/table\s*>$/i.test(token)) {
+            const start = tableStarts.pop();
+            if (start !== undefined) {
+                tableBoundaries.set(start, 'open');
+                tableBoundaries.set(index, 'close');
+            }
+        }
+    }
+    const scopes: Array<{ tag: string; nextByLength: Map<number, { index: number; paragraph: number }> }> = [
+        { tag: '', nextByLength: new Map() },
+    ];
+    const outerScopeLengths: number[] = [];
+    let paragraph = 0;
+    const spans = new Map<number, { start: number; end: number }>();
+    for (let i = tokens.length - 1; i >= 0; i--) {
+        const { 0: run, index } = tokens[i];
+        const scope = scopes[scopes.length - 1];
+        if (run[0] !== '`') {
+            if (/\r?\n[ \t]*\r?\n/.test(run)) paragraph++;
+            const table = tableBoundaries.get(index);
+            if (table === 'close') {
+                outerScopeLengths.push(scopes.length);
+                scopes.push({ tag: '', nextByLength: new Map() });
+            } else if (table === 'open') {
+                scopes.length = outerScopeLengths.pop() ?? 1;
+            }
+            const cellTag = outerScopeLengths.length ? /^<(\/?)(td|th)(?=[\s/>])/i.exec(run) : null;
+            if (cellTag) {
+                const tag = cellTag[2].toLowerCase();
+                if (cellTag[1]) scopes.push({ tag, nextByLength: new Map() });
+                else if (scope.tag === tag) scopes.pop();
+            }
+            continue;
+        }
+        const escaped = escapedBacktick(source, index);
+        const length = run.length - escaped;
+        const close = scope.nextByLength.get(length);
+        if (close?.paragraph === paragraph) spans.set(index, { start: index + escaped, end: close.index + length });
+        scope.nextByLength.set(run.length, { index, paragraph });
+    }
+
+    const selected: CodeSpan[] = [];
+    let cursor = 0;
+    for (const { index } of tokens) {
+        if (index < cursor) continue;
+        const span = spans.get(index);
+        if (!span) continue;
+        selected.push(span);
+        cursor = span.end;
+    }
+    return selected;
+}
+
+function stashSpans(source: string, spans: readonly CodeSpan[], stash: (code: string) => string): string {
+    const parts: string[] = [];
+    let cursor = 0;
+    for (const { start, end } of spans) {
+        parts.push(source.slice(cursor, start), stash(source.slice(start, end)));
+        cursor = end;
+    }
+    return parts.join('') + source.slice(cursor);
+}
+
+function stashMarkdownCodeSpans(source: string, stash: (code: string) => string): string {
+    if (!source.includes('`')) return source;
+    const codeElements = [...source.matchAll(HTML_INLINE_CODE_TOKEN)];
+    if (codeElements.length) {
+        // An apparent HTML element can span two distinct Markdown examples.
+        // Check the ordinary code delimiters before treating real HTML code as opaque.
+        const spans = markdownCodeSpans(source, SPAN_TOKENS);
+        const spansByTag = new Map<number, CodeSpan>();
+        for (const span of spans) {
+            for (const tag of source.slice(span.start, span.end).matchAll(/<\/?code>/gi)) {
+                spansByTag.set(span.start + tag.index, span);
+            }
+        }
+        const examples = new Set<CodeSpan>();
+        for (const [i, { 0: element, index }] of codeElements.entries()) {
+            const opening = spansByTag.get(index);
+            const closing = spansByTag.get(index + element.length - '</code>'.length);
+            if (!opening || !closing || opening === closing) continue;
+            // A split example cannot borrow delimiters from neighboring HTML code.
+            const preceding = codeElements[i - 1];
+            const following = codeElements[i + 1];
+            if (preceding && opening.start < preceding.index + preceding[0].length) continue;
+            if (following && closing.end > following.index) continue;
+            examples.add(opening);
+            examples.add(closing);
+        }
+        source = stashSpans(source, spans.filter(span => examples.has(span)), stash);
+    }
+    return stashSpans(source, markdownCodeSpans(source, PROSE_TOKENS), stash);
+}
+
 export function convertHtmlToMarkdown(html?: string | null): string {
     if (!html) return '';
     if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i|table|a|img)[\s/>]/i.test(html)) return html;
 
     let res = html;
+    const markerIds = new Set([...html.matchAll(/\uFFFDCODE(\d+):/g)].map(match => match[1]));
+    let markerId = 0;
+    while (markerIds.has(String(markerId))) markerId++;
+    const marker = `\uFFFDCODE${markerId}:`;
+    const placeholderSource = String.raw`${marker}(\d+)\uFFFD`;
+    const placeholder = new RegExp(placeholderSource, 'g');
+    const inlineCode = new RegExp(HTML_INLINE_CODE.source + '(?=(`|' + placeholderSource + ')?)', 'gi');
     const __codeSpans: string[] = [];
+    const __restoreCode = (str: string, transform = (code: string) => code): string =>
+        str.replace(placeholder, (_match: string, i: string) => transform(__codeSpans[Number(i)]));
     const __stashCode = (code: string): string => {
-        __codeSpans.push(code);
-        return `\uFFFDCODE${__codeSpans.length - 1}\uFFFD`;
+        __codeSpans.push(__restoreCode(code));
+        return `${marker}${__codeSpans.length - 1}\uFFFD`;
     };
-    const __restoreCode = (str: string): string =>
-        str.replace(/\uFFFDCODE(\d+)\uFFFD/g, (_m: string, i: string) => __codeSpans[Number(i)]);
     // Existing fenced Markdown is authored code, even when it contains HTML-like tags.
     // Recognize both CommonMark fence styles before interpreting real HTML tags.
     const lines = res.match(/[^\n]*(?:\n|$)/g) ?? [];
     let outside = '';
+    let prose = '';
     let pending = '';
     let opened: { marker: string; length: number } | null = null;
     let inHtmlPre = false;
@@ -43,30 +167,33 @@ export function convertHtmlToMarkdown(html?: string | null): string {
         } else {
             // Backticks inside a real HTML <pre> are content, not Markdown delimiters.
             if (/<pre(?:\s|>)/i.test(content)) inHtmlPre = true;
-            const opening = inHtmlPre ? null : /^ {0,3}(`{3,}|~{3,})[^\r\n]*$/.exec(content);
-            if (opening) {
+            const opening = inHtmlPre ? null : /^ {0,3}(`{3,}|~{3,})([^\r\n]*)$/.exec(content);
+            if (opening && (opening[1][0] === '~' || !opening[2].includes('`'))) {
+                outside += stashMarkdownCodeSpans(prose, __stashCode);
+                prose = '';
                 opened = { marker: opening[1][0], length: opening[1].length };
                 pending = line;
-            } else outside += line;
+            } else prose += line;
             if (/<\/pre\s*>/i.test(content)) inHtmlPre = false;
         }
     }
-    res = outside + (pending ? __stashCode(pending) : '');
+    res = outside + stashMarkdownCodeSpans(prose, __stashCode) + (pending ? __stashCode(pending) : '');
 
     const backticks = (content: string, min: number): string => {
         const longest = (content.match(/`+/g) ?? []).reduce((count, run) => Math.max(count, run.length), 0);
         return '`'.repeat(Math.max(min, longest + 1));
     };
-    res = res.replace(/<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi, (_match: string, lang: string | undefined, code: string) => {
-        const cleanCode = unescapeHtml(code).trim();
+    res = res.replace(HTML_CODE_BLOCK, (_match: string, lang: string | undefined, code: string) => {
+        const cleanCode = unescapeHtml(__restoreCode(code)).trim();
         const fence = backticks(cleanCode, 3);
         return __stashCode(`\n${fence}${lang || ''}\n${cleanCode}\n${fence}\n`);
     });
-    res = res.replace(/<code>([\s\S]*?)<\/code>/gi, (_match: string, code: string) => {
-        const content = unescapeHtml(code);
+    res = res.replace(inlineCode, (_match: string, code: string, next: string | undefined) => {
+        const content = unescapeHtml(__restoreCode(code));
         const fence = backticks(content, 1);
         const pad = /^`|`$|^ .* $/.test(content) ? ' ' : '';
-        return __stashCode(`${fence}${pad}${content}${pad}${fence}`);
+        const separator = next && __restoreCode(next).startsWith('`') ? ' ' : '';
+        return __stashCode(`${fence}${pad}${content}${pad}${fence}`) + separator;
     });
     res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m: string, lvl: string, txt: string) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
     res = res.replace(/<(strong|b)(?=[\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
@@ -112,6 +239,9 @@ export function convertHtmlToMarkdown(html?: string | null): string {
                 value = stripHtmlTags(value);
                 value = unescapeHtml(value).replace(/\r?\n/g, ' ').trim();
                 value = value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+                value = __restoreCode(value, code => __stashCode(
+                    code.replace(/(\\*)\|/g, (pipe: string, slashes: string) => slashes.length % 2 ? pipe : '\\' + pipe),
+                ));
                 cells.push({ value, colSpan: span(match[1], 'colspan'), rowSpan: span(match[1], 'rowspan') });
             }
             if (cells.length) parsedRows.push(cells);

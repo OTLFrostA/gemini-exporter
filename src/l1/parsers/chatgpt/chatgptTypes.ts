@@ -4,7 +4,7 @@
  */
 
 /** Author role used by ChatGPT mapping nodes. */
-export type ChatGPTAuthorRole = 'system' | 'assistant' | 'user' | 'tool';
+type ChatGPTAuthorRole = 'system' | 'assistant' | 'user' | 'tool';
 
 /** Minimal message content union needed for export (text-first). */
 export type ChatGPTMessageContent =

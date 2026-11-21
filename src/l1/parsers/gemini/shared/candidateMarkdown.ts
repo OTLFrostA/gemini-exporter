@@ -10,7 +10,7 @@ import { convertHtmlToMarkdown } from '../../shared/html/htmlToMarkdown.js';
 import { stripInternalChipMarkdown } from '../../shared/chipUtils.js';
 import { preprocessGeminiMarkdown } from './markdownCompatibility.js';
 
-export interface CandidateParagraphSpan {
+interface CandidateParagraphSpan {
     readonly start: number;
     readonly end: number;
     readonly offset: number;

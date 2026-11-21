@@ -1,8 +1,7 @@
-import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
-import { parseMarkdownToBlocks } from '../src/l1/parsers/shared/markdown/index.js';
 import { textOfBlocks } from './helpers/contentText.js';
 import { detailGen as geminiDetailGen } from './fixtures/providers/geminiDetail.js';
 

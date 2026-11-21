@@ -337,7 +337,6 @@ test('compile: missing document rejects loudly instead of converting the domain 
     const host = new FakeHost();
     const compiler = makeCompiler(host);
     const controller = new AbortController();
-    const domain = makeDomain();
     await assert.rejects(
         compiler.compile(
             { rendererSchemaVersion: 1 } as any,

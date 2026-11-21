@@ -33,27 +33,11 @@ TARGET_POOL_SIZE = 20
 
 
 class OnlineScenarioProvider:
-    """在线测试场景池统一调度提供者（单例/标准提供源）"""
-
-    _instance = None
-
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super(OnlineScenarioProvider, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
+    """在线测试场景池统一调度提供者（标准提供源）"""
 
     def __init__(self, pool_path: str = DEFAULT_POOL_PATH, archive_path: str = DEFAULT_ARCHIVE_PATH):
-        if getattr(self, "_initialized", False) and pool_path == DEFAULT_POOL_PATH and archive_path == DEFAULT_ARCHIVE_PATH:
-            return
         self.pool_path = pool_path
         self.archive_path = archive_path
-        self._initialized = True
-
-    @classmethod
-    def reset(cls):
-        """仅供测试或重置时使用"""
-        cls._instance = None
 
     def _load_json(self, path: str, default: Any) -> Any:
         if not os.path.isfile(path):

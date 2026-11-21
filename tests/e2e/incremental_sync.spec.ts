@@ -54,7 +54,7 @@ test('diagnostic download includes the failed scan page and its native error env
 });
 
 test('trusted provider-limit window is persisted by L2/L3a and reused for v2 early stop without losing existing facts', async ({ context, extensionId }) => {
-    const gemini = await sourcePage(context);
+    await sourcePage(context);
     let round = 0;
     const requests: string[][] = [[], [], []];
     // Active scan RPC is issued by the extension/provider, not the Gemini tab.
@@ -117,7 +117,7 @@ test('passive non-head Gemini page adds v2 indexes but cannot fabricate trusted 
 });
 
 test('a new complete disjoint recent scan replaces old v2 coverage and never requests pinned', async ({ context, extensionId }) => {
-    const gemini = await sourcePage(context);
+    await sourcePage(context);
     let round = 0;
     const requests: string[][] = [[], []];
     // Active scan RPC is issued by the extension/provider, not the Gemini tab.

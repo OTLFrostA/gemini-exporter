@@ -21,7 +21,7 @@ import { shortId } from '../../../../shared/utils/pathUtils.js';
 
 /** Central Gemini resource decoder: untrusted wire slots stop here.
  * Message composition only receives validated and normalized source evidence. */
-export interface DecodedGeminiUserResources {
+interface DecodedGeminiUserResources {
     images: ImageAttachment[];
     files: UserFileAttachment[];
 }

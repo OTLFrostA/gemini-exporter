@@ -14,12 +14,6 @@ from scripts.framework.selectors import GeminiSelectors
 from scripts.framework.assertions import CDPAssertions, assert_turn_content
 from scripts.framework.cases.sync import prepare_activity_baseline, verify_activity_sync
 
-try:
-    from scripts.cdp_client import CDPConnection
-except ImportError:
-    from cdp_client import CDPConnection
-
-
 def read_initial_export_markdown(download_path: str, chat_id: str) -> str:
     """Read one actual v2 browser delivery: bare Markdown or a media-containing ZIP."""
     conversation_id = chat_id.removeprefix('c_')

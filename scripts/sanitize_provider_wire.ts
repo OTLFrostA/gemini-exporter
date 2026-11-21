@@ -16,7 +16,7 @@ function object(value: Json): value is Record<string, Json> {
 function pointerPart(key: string): string { return key.replaceAll('~', '~0').replaceAll('/', '~1'); }
 
 /** Preserve each Unicode scalar's UTF-8 and UTF-16 widths. Keep common markup punctuation. */
-export function maskFixtureText(value: string): string {
+function maskFixtureText(value: string): string {
     const syntax = /[\t\r\n `*_~$#>+|\[\](){}<\\/.,:;!?=\-]/u;
     return Array.from(value, char => {
         if (syntax.test(char)) return char;

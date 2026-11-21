@@ -13,7 +13,7 @@ export interface ClaudeSourceFile {
     sizeBytes?: number;
 }
 
-export type ClaudeResultPart =
+type ClaudeResultPart =
     | { kind: 'text'; text: string }
     | { kind: 'knowledge'; title: string; url?: string; text?: string; isMissing: boolean }
     | { kind: 'unsupported'; sourceType: string };
@@ -28,7 +28,7 @@ export interface ClaudeToolResult {
     references: string[];
     parts: ClaudeResultPart[] | null;
 }
-export type ClaudeContentBlock =
+type ClaudeContentBlock =
     | { kind: 'text'; text: string }
     | { kind: 'thinking'; thinking: string }
     | ({ kind: 'tool_use' } & ClaudeToolUse)

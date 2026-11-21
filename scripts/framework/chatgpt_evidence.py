@@ -3,7 +3,6 @@ import json
 import re
 import subprocess
 import unicodedata
-from pathlib import Path
 
 from scripts.framework.html_evidence import TreeParser, read_message
 from scripts.framework.cases.export import PdfExportDownloadCase

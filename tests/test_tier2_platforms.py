@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.framework.platforms import load_plugins
 from scripts.framework.platforms.core import (
-    PlatformPlugins, PlatformSession, RunConfig, Tier2Runner, feature_spec, resolve_plan,
+    PlatformSession, RunConfig, Tier2Runner, feature_spec, resolve_plan,
 )
 from scripts.framework.cases.base import DAGRunner, FeatureTestCase
 from scripts.framework.features import FeatureDomain, FeatureRegistry
@@ -349,7 +349,6 @@ class ChatGPTRequestBudgetTests(unittest.TestCase):
         return runner
 
     def test_send_saves_settled_dom_and_local_progress_without_source_reads(self):
-        from scripts.framework.chatgpt_live import ChatGPTLiveRunner
         with tempfile.TemporaryDirectory() as folder:
             runner = self.runner(folder)
             messages = [{'id': 'u', 'role': 'user', 'text': 'Question'},
@@ -425,8 +424,6 @@ class ChatGPTRequestBudgetTests(unittest.TestCase):
             pool = [{'id': name, 'turns': [f'{name} {i}' for i in range(count)]}
                     for name, count in [('A', 5), ('B', 8), ('C', 5), ('D', 8)]]
             pool_path.write_text(json.dumps(pool))
-            OnlineScenarioProvider.reset()
-            self.addCleanup(OnlineScenarioProvider.reset)
             provider = OnlineScenarioProvider(str(pool_path), str(Path(pool_folder)/'archive.json'))
             posted, interrupt = {}, ['A 2']
             def send(prompt):
@@ -499,8 +496,6 @@ class ChatGPTRequestBudgetTests(unittest.TestCase):
             pool_path = Path(pool_folder)/'pool.json'
             pool_path.write_text(json.dumps([{'id': name, 'turns': [f'{name} {i}' for i in range(count)]}
                                              for name, count in [('A', 5), ('B', 8), ('C', 5), ('D', 8)]]))
-            OnlineScenarioProvider.reset()
-            self.addCleanup(OnlineScenarioProvider.reset)
             provider = OnlineScenarioProvider(str(pool_path), str(Path(pool_folder)/'archive.json'))
             posted = {}
 

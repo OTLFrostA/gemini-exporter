@@ -1,8 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as storage from '../src/l3a/storageService.js';
-import { indexStorage, useIndexStorage } from './helpers/indexStorage.js';
-import { fixtureKey } from './helpers/domainFixture.js';
+import { indexStorage } from './helpers/indexStorage.js';
 
 import { ensureUpgraded } from '../src/migration/upgradeV1.js';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';

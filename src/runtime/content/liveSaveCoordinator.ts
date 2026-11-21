@@ -6,6 +6,10 @@ function readCount(value: unknown): number {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) throw new TypeError('Invalid Live Save count');
     return value;
 }
+function readTimestamp(value: unknown): number {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw new TypeError('Invalid Live Save timestamp');
+    return value;
+}
 function readAttachmentIssue(value: unknown): ExportAttachmentIssue {
     if (!value || typeof value !== 'object' || Array.isArray(value)
         || !('resourceId' in value) || typeof value.resourceId !== 'string'
@@ -33,6 +37,8 @@ function readExportResult(value: unknown): ExportResult | null {
         ...('expiredConversations' in value && value.expiredConversations !== undefined
             ? { expiredConversations: readCount(value.expiredConversations) } : {}),
         ...('otherPartial' in value && value.otherPartial !== undefined ? { otherPartial: readCount(value.otherPartial) } : {}),
+        ...('rateLimitedUntil' in value && value.rateLimitedUntil !== undefined
+            ? { rateLimitedUntil: readTimestamp(value.rateLimitedUntil) } : {}),
         ...('attachmentIssues' in value && Array.isArray(value.attachmentIssues)
             ? { attachmentIssues: value.attachmentIssues.map((issue: unknown) => readAttachmentIssue(issue)) } : {}) };
 }

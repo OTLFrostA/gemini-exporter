@@ -25,11 +25,11 @@ import { startBrowserDownload, writeToFolder, folderFileExists } from '../../l4/
 import { prepareExportResources } from './prepareExportResources.js';
 import type { ExportRequest, ExportRecord, ExportProgress, ExportResult, ExportItemUpdate, ExportDiagnostic } from './types.js';
 
-export type ExportPendingContent =
+type ExportPendingContent =
     | { format: 'json'; document?: never }
     | { format: Exclude<ExportRequest['format'], 'json'>; document: DocumentAst };
 
-export type ExportRenderInput = ExportPendingContent & {
+type ExportRenderInput = ExportPendingContent & {
     key: ConversationKey;
     account: Account;
     conversation: ReadonlyDomain;
@@ -311,10 +311,10 @@ export async function executeExportWithSession(
         const linkedPlanner = linked ? createExportPathPlanner(request.format, directory ? undefined : resourceScope) : undefined;
         const bodies: { group: ExportGroup; hasAttachments: boolean }[] = [];
         const settledBodies = new Map<ExportGroup, ExportGroup>();
-        const deliver = async (groups: readonly ExportGroup[], archiveName?: string, savingCancelled = false): Promise<void> => {
+        const deliver = async (groups: readonly ExportGroup[], savingCancelled = false): Promise<void> => {
             if (!groups.length) return;
             let files: ExportArtifact[];
-            try { files = await packageExportFiles(groups.map(group => group.files), request.delivery, archiveName); }
+            try { files = await packageExportFiles(groups.map(group => group.files), request.delivery); }
             catch (error) { throw operationError(error, 'PACKAGING_FAILED'); }
             if (!savingCancelled) signal.throwIfAborted();
             if (request.delivery === 'browserDownload') {
@@ -335,7 +335,7 @@ export async function executeExportWithSession(
                 return { ...group, record: settled?.record ?? group.record, files: [...files.values()] };
             });
             try {
-                await deliver(groups, undefined, savingCancelled);
+                await deliver(groups, savingCancelled);
                 for (const group of groups) bodyDelivered(group.key);
                 await finalize(groups.filter((_, index) => !staged[index].hasAttachments || settledBodies.has(staged[index].group)));
             } catch (error) {

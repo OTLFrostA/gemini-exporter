@@ -14,10 +14,6 @@ const assert = require('node:assert');
 
 
 async function inlineNodes(content: string): Promise<any[]> {
-    const raw: any = {
-        id: 'c1',
-        messages: [{ id: 'm1', role: 'user', content }],
-    };
     const { conversation: domain } = sourceDetail({ messages: [sourceMessage('m1', content, 'model')] });
     const msg = domain.detail.messages[0];
     const out: any[] = [];

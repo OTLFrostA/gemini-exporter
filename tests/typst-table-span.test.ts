@@ -18,10 +18,6 @@ function domainFixture(blocks: any[], assets: any[] = []) {
     return { index: { key: fixtureKey(String('c1'), 'gemini'),   titleSource: "derived",   title: 'Fixture', createdAt: '2026-09-26T10:00:00Z' }, detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets, messages: [{ id: 'm1', role: 'assistant', content: blocks }] } };
 }
 
-function msg(id: string, role: string, blocks: any[]) {
-    return { id, role, content: blocks };
-}
-
 const txt = (text: string) => ({ type: 'text', text });
 const cell = (text: string, extra: any = {}) => ({ children: [txt(text)], ...extra });
 const row = (...cells: any[]) => ({ cells });

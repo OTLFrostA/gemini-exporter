@@ -146,7 +146,6 @@ export const importOpenAI = async (file,id,progress,resources) => {h.imports.pus
 export const importTakeout = async (file,id,progress) => {h.imports.push(id);if(h.holdImport)await new Promise(resolve=>h.finishImport=resolve);if(h.failImport)throw new Error('Invalid ZIP');progress?.(100);h.indexes.push(...(h.importIndexes??[]).filter(row=>!h.indexes.some(old=>old.key.accountId===row.key.accountId&&old.key.conversationId===row.key.conversationId)));return h.takeoutResult ?? {imported:2,added:0,status:'partial'};};
 export const getDirectoryHandle = async () => h.directory;
 export const setDirectoryHandle = async handle => {h.directory=handle;};
-export const clearDirectoryHandle = async () => {};
 // Browser Runtime directory-capability v2 public ports, backed by the test's
 // simulated permission handle; do not load the real controller in a UI test.
 export const getStoredDirHandle = async () => h.directory;
@@ -180,7 +179,6 @@ export const registerCleanup = fn => {
  h.cleanups.push(fn);
  return () => { const index=h.cleanups.indexOf(fn);if(index>=0)h.cleanups.splice(index,1); };
 };
-export const inspectVaultDirectoryStatus = async () => ({ state: 'missing' });
 export const pickVaultDirectoryHandle = async () => {
  const handle = await globalThis.showDirectoryPicker({ mode: 'readwrite' });
  return handle;

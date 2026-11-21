@@ -23,7 +23,6 @@ Outputs to: tests/fixtures/parser_migration_corpus.json
 """
 
 import os
-import sys
 import json
 import zipfile
 import re

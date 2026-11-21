@@ -36,7 +36,7 @@ test('one registry resource spans messages, attachment aliases, body and reasoni
         { role: 'assistant', content: '![four](https://example.test/image)' },
     ] };
     const original = structuredClone(input);
-    const { conversation: domain, resourceHints, acquisitionHints } = historicalFixture(input);
+    const { conversation: domain, acquisitionHints } = historicalFixture(input);
     assert.equal(domain.detail.assets.length, 1);
     const [asset] = domain.detail.assets;
     assert.deepEqual(domain.detail.messages.slice(0, 2).map(message => message.attachmentIds), [[asset.id], [asset.id]]);
@@ -86,7 +86,7 @@ test('document aliases merge across messages without losing metadata or byte pay
         { role: 'assistant', content: '', documents: [document] },
     ] };
     const original = structuredClone(input);
-    const { conversation: domain, resourceHints, acquisitionHints } = historicalFixture(input);
+    const { conversation: domain, acquisitionHints } = historicalFixture(input);
     const [asset] = domain.detail.assets;
     assert.equal(domain.detail.assets.length, 1);
     assert.equal(asset.kind, 'file');
@@ -259,7 +259,7 @@ test('existing raw corpus preserves Domain, AST and all backend outputs across J
     assert.ok(inputs.length > 100);
     for (const input of inputs) {
         const original = structuredClone(input);
-        const { conversation: domain, resourceHints, acquisitionHints } = historicalFixture(input);
+        const { conversation: domain, resourceHints } = historicalFixture(input);
         const semantic = await composeFixture(domain, resourceHints);
         const restored = await composeFixture(JSON.parse(JSON.stringify(domain)), resourceHints);
         const parsed = historicalFixture(input, { providerId: 'gemini' });

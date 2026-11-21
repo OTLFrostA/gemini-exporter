@@ -13,7 +13,7 @@ import { recoverGeminiSourceRanges } from './sourceRanges.js';
 import { cleanGeminiBodyText, createCandidateMarkdownIndex } from './candidateMarkdown.js';
 import { recoverPartialStructuredBlocks } from './partialStructuredRecovery.js';
 
-export interface GeminiBodyParseContext extends MarkdownParseContext {
+interface GeminiBodyParseContext extends MarkdownParseContext {
     sourceCitations?: GeminiSourceCitations;
     recoverLiteralMath?: boolean;
     onStructuredFallback?: (reason: 'source_annotations' | 'body') => void;

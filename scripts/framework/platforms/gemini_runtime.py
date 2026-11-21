@@ -6,16 +6,10 @@ executing features across 5 lifecycle domains and generating the verification ma
 """
 
 import os
-import re
-import sys
-import time
-import json
-import urllib.request
-from typing import Optional, Dict, Any, List, Set, Union
+from typing import Optional, Dict, Any, List, Set
 
-from ..features import FeatureDomain, FeatureRegistry, TestStatus
+from ..features import FeatureDomain
 from ..actions import CDPActions
-from ..assertions import CDPAssertions
 from scripts.framework.cases import (
     GeminiDualParseCase,
     TestContext,
@@ -46,12 +40,6 @@ from scripts.framework.cases import (
     PdfExportDownloadCase,
     DESIGNATED_HISTORICAL_CHATS
 )
-
-try:
-    from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, is_gemini_url
-except ImportError:
-    from cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, is_gemini_url
-
 
 DEFAULT_SCENARIOS = [
     {

@@ -81,10 +81,9 @@ class DAGRunner:
                 if in_degree[neighbor] == 0:
                     queue.append(neighbor)
 
-        # 处理可能存在的环路或孤立项
         if len(order) < len(self.cases):
-            remaining = [self.cases[fid] for fid in self.cases if self.cases[fid] not in order]
-            order.extend(remaining)
+            blocked = ', '.join(fid for fid, degree in in_degree.items() if degree > 0)
+            raise ValueError(f'Cyclic feature dependency; cannot schedule: {blocked}')
 
         return order
 

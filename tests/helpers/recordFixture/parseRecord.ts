@@ -7,7 +7,7 @@ import { normalizeTimestamp } from '../../../src/l1/parsers/shared/time.js';
 import { structuredBodyAttachments } from './contentAdapter.js';
 import { closeSourceCitations } from '../../../src/l1/parsers/shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../../src/l1/parsers/shared/resources/domainResourceAdapter.js';
-import { resolveTitle, isTitleSource } from '../../../src/l2/titleAuthority.js';
+import { resolveTitle } from '../../../src/l2/titleAuthority.js';
 import { validateParserDomain } from '../../../src/l2/runtimeValidation.js';
 import type { BlockNode } from '../../../src/l2/content/blocks.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../../src/l1/parsers/shared/markdown/index.js';
@@ -25,7 +25,6 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 }
 import type {
     DomainCitation,
-    DomainConversationDetail,
     DomainMessage,
 } from '../../../src/l2/conversationDetail.js';
 

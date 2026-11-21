@@ -4,9 +4,6 @@ SubAgent Vision Provider for IDE-integrated AI Agents.
 Enables Antigravity subagent coordination for visual inspection.
 """
 
-import os
-import json
-import time
 from typing import List, Dict, Optional, Any
 
 from .base import VisionProvider, VisualAction, VisualActionType

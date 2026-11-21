@@ -24,11 +24,11 @@ from typing import Dict, Any, List, Optional
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from scripts.visual_agent.sandbox import VisualSandbox, ScreenObservation, WaitResult
+from scripts.visual_agent.sandbox import VisualSandbox, ScreenObservation
 from scripts.visual_agent.providers.base import VisionProvider, VisualAction, VisualActionType
 from scripts.visual_agent.providers.custom_ai_provider import CustomAIVisionProvider
 from scripts.visual_agent.agent import VisualQAAgent, TestMission
-from scripts.visual_agent.scorecard import VisualUXScorecard, SelfHealingEvent, VisualRisk
+from scripts.visual_agent.scorecard import VisualUXScorecard, VisualRisk
 
 
 class MockCDP:

@@ -45,7 +45,7 @@ export interface GeminiTextNode {
     annotations?: GeminiAnnotation[];
 }
 
-export interface GeminiMathBlockNode {
+interface GeminiMathBlockNode {
     nodeType: 12;
     /** Display LaTeX source (legacy runtime field name retained for fixture compatibility). */
     FTa: string;

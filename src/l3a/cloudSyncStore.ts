@@ -5,7 +5,8 @@ import { isDirectoryHandle, type DirectoryHandle } from '../shared/types/directo
 export type { CloudVaultBackendType } from '../shared/types/cloudSync.js';
 
 const CLOUD_DB_NAME = 'gemini_exporter_cloud_v2';
-const CLOUD_DB_VERSION = 1;
+const CLOUD_DB_VERSION = 2;
+const KEYRING_METADATA_INDEX = 'byOwnerFingerprintOrigin';
 
 export interface CloudSyncSessionState {
     readonly id: 'active';
@@ -46,13 +47,16 @@ export interface CloudSyncedRecordState {
 
 export type VaultKeyProvisionOrigin = 'generated' | 'imported';
 
-export interface StoredNonExtractableKeyring {
-    readonly ownerSubject: string;
+export interface VaultKeyMetadata {
     readonly keyFingerprint: string;
+    readonly origin: VaultKeyProvisionOrigin;
+}
+
+export interface StoredNonExtractableKeyring extends VaultKeyMetadata {
+    readonly ownerSubject: string;
     readonly recordIdKey: CryptoKey;
     readonly payloadKey: CryptoKey;
     readonly authKey: CryptoKey;
-    readonly origin: VaultKeyProvisionOrigin;
 }
 
 interface PooledCloudDb {
@@ -68,7 +72,8 @@ function openCloudDBOnFactory(factory: IDBFactory, onEvict?: () => void): Promis
             ? indexedDB.open(CLOUD_DB_NAME, CLOUD_DB_VERSION)
             : factory.open(CLOUD_DB_NAME, CLOUD_DB_VERSION);
         request.onupgradeneeded = () => {
-            const db = request.result;
+            const { result: db, transaction } = request;
+            if (!transaction) throw new Error('Missing Vault database upgrade transaction');
             if (!db.objectStoreNames.contains('session')) {
                 db.createObjectStore('session', { keyPath: 'id' });
             }
@@ -81,8 +86,11 @@ function openCloudDBOnFactory(factory: IDBFactory, onEvict?: () => void): Promis
                 });
                 synced.createIndex('byOwnerBlindId', ['ownerSubject', 'blindRecordId'], { unique: true });
             }
-            if (!db.objectStoreNames.contains('localKeys')) {
-                db.createObjectStore('localKeys', { keyPath: 'ownerSubject' });
+            const localKeys = db.objectStoreNames.contains('localKeys')
+                ? transaction.objectStore('localKeys')
+                : db.createObjectStore('localKeys', { keyPath: 'ownerSubject' });
+            if (!localKeys.indexNames.contains(KEYRING_METADATA_INDEX)) {
+                localKeys.createIndex(KEYRING_METADATA_INDEX, ['ownerSubject', 'keyFingerprint', 'origin']);
             }
             if (!db.objectStoreNames.contains('vaultHandles')) {
                 db.createObjectStore('vaultHandles');
@@ -429,21 +437,26 @@ function isNonExtractableCryptoKey(value: unknown, algorithm: string): value is 
         && 'algorithm' in value && isPlainObject(value.algorithm) && value.algorithm.name === algorithm;
 }
 
+function parseKeyMetadata(fingerprint: unknown, origin: unknown): VaultKeyMetadata | null {
+    return typeof fingerprint === 'string' && /^[0-9a-f]{32}$/.test(fingerprint)
+        && (origin === 'generated' || origin === 'imported')
+        ? { keyFingerprint: fingerprint, origin }
+        : null;
+}
+
 function parseStoredKeyring(raw: unknown): StoredNonExtractableKeyring | null {
-    if (!isPlainObject(raw)
-        || typeof raw.ownerSubject !== 'string'
-        || typeof raw.keyFingerprint !== 'string' || !/^[0-9a-f]{32}$/.test(raw.keyFingerprint)
-        || (raw.origin !== 'generated' && raw.origin !== 'imported')
+    if (!isPlainObject(raw) || typeof raw.ownerSubject !== 'string') return null;
+    const metadata = parseKeyMetadata(raw.keyFingerprint, raw.origin);
+    if (!metadata
         || !isNonExtractableCryptoKey(raw.recordIdKey, 'HMAC')
         || !isNonExtractableCryptoKey(raw.payloadKey, 'AES-GCM')
         || !isNonExtractableCryptoKey(raw.authKey, 'HMAC')) return null;
     return {
+        ...metadata,
         ownerSubject: raw.ownerSubject,
-        keyFingerprint: raw.keyFingerprint,
         recordIdKey: raw.recordIdKey,
         payloadKey: raw.payloadKey,
         authKey: raw.authKey,
-        origin: raw.origin,
     };
 }
 
@@ -451,6 +464,18 @@ export function getStoredNonExtractableKeyring(ownerSubject: string): Promise<St
     return inCloudStores(['localKeys'], 'readonly', (tx, done) => {
         const req = tx.objectStore('localKeys').get(ownerSubject);
         req.onsuccess = () => done(parseStoredKeyring(req.result));
+    });
+}
+
+export function getStoredVaultKeyMetadata(ownerSubject: string): Promise<VaultKeyMetadata | null> {
+    return inCloudStores(['localKeys'], 'readonly', (tx, done) => {
+        const range = IDBKeyRange.bound([ownerSubject], [ownerSubject, []]);
+        const req = tx.objectStore('localKeys').index(KEYRING_METADATA_INDEX).openKeyCursor(range);
+        req.onsuccess = () => {
+            // The index key contains metadata only; no CryptoKey value is cloned into this context.
+            const key = req.result?.key;
+            done(Array.isArray(key) ? parseKeyMetadata(key[1], key[2]) : null);
+        };
     });
 }
 

@@ -10,7 +10,7 @@ interface LocalFontEntry {
     blob(): Promise<Blob>;
 }
 
-export interface ResolvedLocalFont {
+interface ResolvedLocalFont {
     readonly family: string;
     readonly postscriptName: string;
     readonly style: string;

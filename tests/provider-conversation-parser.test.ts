@@ -23,7 +23,7 @@ function textOf(node: any) {
 }
 
 test('markdown body keeps block order and structure', async () => {
-    const { domain, document, resources, diagnostics } = await parseFixture(sample);
+    const { domain, resources, diagnostics } = await parseFixture(sample);
     const user = domain.detail.messages.find((m: any) => m.id === 'm-u1');
     assert.ok(user, 'user message m-u1 present');
     const kinds = user.content.map((b: any) => b.type);
@@ -84,7 +84,7 @@ test('markdown body keeps block order and structure', async () => {
 });
 
 test('reasoning is parsed before Domain and composed as a disclosure', async () => {
-    const { domain, document, resources, sourceVersion } = await parseFixture(sample);
+    const { domain, document } = await parseFixture(sample);
     const model = domain.detail.messages.find((m: any) => m.id === 'm-a1');
     const thought = document.messages[domain.detail.messages.indexOf(model)].blocks[0];
     assert.strictEqual(thought.type, 'disclosure');
@@ -94,7 +94,7 @@ test('reasoning is parsed before Domain and composed as a disclosure', async () 
 });
 
 test('citations have message-local Domain identities referenced by content nodes', async () => {
-    const { domain, document, resources, sourceVersion } = await parseFixture(sample);
+    const { domain } = await parseFixture(sample);
     // Duplicate URL collapses to one message-local citation.
     assert.strictEqual(domain.detail.messages.find((m: any) => m.id === 'm-a1').citations.length, 2);
     assert.deepStrictEqual(
@@ -142,7 +142,7 @@ test('citations have message-local Domain identities referenced by content nodes
 });
 
 test('attachments deduplicate semantic assets and prepare separate resource bindings', async () => {
-    const { domain, document, resources, diagnostics } = await parseFixture(sample);
+    const { domain, document, resources } = await parseFixture(sample);
     // receipt.png appears in both attachments[] and images[] -> one asset.
     // Plus the inline markdown image in m-u1 -> one source-URI asset.
     assert.strictEqual(domain.detail.assets.length, 4);
@@ -175,7 +175,7 @@ test('attachments deduplicate semantic assets and prepare separate resource bind
 });
 
 test('unknown role and non-string content are preserved, never dropped', async () => {
-    const { domain, document, resources, diagnostics } = await parseFixture(sample);
+    const { domain, diagnostics } = await parseFixture(sample);
     const weird = domain.detail.messages.find((m: any) => m.id === 'm-x1');
     assert.ok(weird, 'message with unknown role is kept');
     assert.strictEqual(weird.role, 'unknown');
@@ -192,7 +192,7 @@ test('unknown role and non-string content are preserved, never dropped', async (
 });
 
 test('non-string content becomes bounded, deterministic visible text at normalization', async () => {
-    const { domain, document, resources, diagnostics } = await parseFixture({ id: 'bounded', messages: [
+    const { domain, diagnostics } = await parseFixture({ id: 'bounded', messages: [
         { id: 'm1', role: 'assistant', content: { z: 1, a: 2 } },
         { id: 'm2', role: 'assistant', content: { a: { b: { c: { d: { e: 1 } } } } } },
         { id: 'm3', role: 'assistant', content: { s: 'x'.repeat(5000) } },
@@ -206,7 +206,7 @@ test('non-string content becomes bounded, deterministic visible text at normaliz
 });
 
 test('title authority: rpc candidate wins over takeout/sniff', async () => {
-    const { domain, document, resources, sourceVersion } = await parseFixture(sample);
+    const { domain } = await parseFixture(sample);
     const title = domain.index.title;
     assert.strictEqual(title, 'RPC Authoritative Title');
     const low = await parseFixture({ id: 'x', title: 'Derived topic', titleSource: 'derived', messages: [] });
@@ -214,7 +214,7 @@ test('title authority: rpc candidate wins over takeout/sniff', async () => {
 });
 
 test('conversation identity and authored timestamp facts are preserved', async () => {
-    const { domain, document, resources, sourceVersion } = await parseFixture(sample);
+    const { domain, sourceVersion } = await parseFixture(sample);
     const conv = domain.index;
     assert.strictEqual(fixtureAccountFor(domain).providerId, 'gemini');
     assert.strictEqual(conv.key.conversationId, 'f2b_sample_001');
@@ -225,7 +225,7 @@ test('conversation identity and authored timestamp facts are preserved', async (
 });
 
 test('turns shape flattens to user/assistant messages', async () => {
-    const { domain, document, resources } = await parseFixture(turnsSample);
+    const { domain, resources } = await parseFixture(turnsSample);
     assert.strictEqual(domain.detail.messages.length, 4);
     assert.deepStrictEqual(
         domain.detail.messages.map((m: any) => m.role),
@@ -281,7 +281,7 @@ test('ambiguous inline image basename never binds arbitrarily', async () => {
             ],
         }],
     };
-    const { domain, document, resources, diagnostics } = await parseFixture(input);
+    const { domain } = await parseFixture(input);
     const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
     const inlineImgs = inlineImagesOf(m1);
     assert.strictEqual(inlineImgs.length, 1, 'one inline image parsed');
@@ -307,7 +307,7 @@ test('unique inline image basename still binds to its attachment', async () => {
             ],
         }],
     };
-    const { domain, document, resources, diagnostics } = await parseFixture(input);
+    const { domain, diagnostics } = await parseFixture(input);
     const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
     const inlineImgs = inlineImagesOf(m1);
     assert.strictEqual(inlineImgs.length, 1);
@@ -330,7 +330,7 @@ test('exact full ref wins over an ambiguous basename', async () => {
             ],
         }],
     };
-    const { domain, document, resources, diagnostics } = await parseFixture(input);
+    const { domain, diagnostics } = await parseFixture(input);
     const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
     const inlineImgs = inlineImagesOf(m1);
     assert.strictEqual(inlineImgs.length, 1);
@@ -384,7 +384,7 @@ const pngAttachment = (localName: string, name: string) => ({
 
 test('inline markdown image reusing an attachment asset preserves inline and explicit attachment placements', async () => {
     const input = attachmentConv('see ![pic](assets/shot.png)', [pngAttachment('assets/shot.png', 'shot.png')]);
-    const { domain, document, resources } = await parseFixture(input);
+    const { domain, document } = await parseFixture(input);
     const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
     assert.strictEqual(domain.detail.assets.length, 1);
     const inlines = deepInlineImagesOf(m1);
@@ -395,7 +395,7 @@ test('inline markdown image reusing an attachment asset preserves inline and exp
 
 test('linked inline image reusing an attachment asset preserves inline and explicit attachment placements', async () => {
     const input = attachmentConv('[![pic](assets/shot.png)](https://example.com/full)', [pngAttachment('assets/shot.png', 'shot.png')]);
-    const { domain, document, resources } = await parseFixture(input);
+    const { domain, document } = await parseFixture(input);
     const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
     assert.strictEqual(domain.detail.assets.length, 1);
     const inlines = deepInlineImagesOf(m1);
@@ -406,7 +406,7 @@ test('linked inline image reusing an attachment asset preserves inline and expli
 
 test('attachment not referenced inline keeps its trailing image block', async () => {
     const input = attachmentConv('no images here', [pngAttachment('assets/shot.png', 'shot.png')]);
-    const { domain, document, resources } = await parseFixture(input);
+    const { domain, document } = await parseFixture(input);
     const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
     assert.strictEqual(domain.detail.assets.length, 1);
     assert.strictEqual(deepInlineImagesOf(m1).length, 0);
@@ -420,7 +420,7 @@ test('two attachments with only one inlined keep one inline and both explicit tr
         pngAttachment('assets/a.png', 'a.png'),
         pngAttachment('assets/b.png', 'b.png'),
     ]);
-    const { domain, document, resources } = await parseFixture(input);
+    const { domain, document } = await parseFixture(input);
     const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
     assert.strictEqual(domain.detail.assets.length, 2);
     const inlines = deepInlineImagesOf(m1);

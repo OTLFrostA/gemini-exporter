@@ -1,4 +1,4 @@
-export interface ProtocolRPCS {
+interface ProtocolRPCS {
     LIST: string;
     DETAIL: string;
     LEGACY_LIST: string;
@@ -6,12 +6,12 @@ export interface ProtocolRPCS {
     DELETE: string;
 }
 
-export interface ProtocolTokens {
+interface ProtocolTokens {
     AT: string;
     BL: string;
 }
 
-export interface ProtocolTokenPatterns {
+interface ProtocolTokenPatterns {
     atFromScript: RegExp;
     atGenericFromScript: RegExp;
     blKeyFromScript: RegExp;
@@ -21,7 +21,7 @@ export interface ProtocolTokenPatterns {
     boqBuildFromScript: RegExp;
 }
 
-export interface ProtocolLimits {
+interface ProtocolLimits {
     SLIDING_WINDOW: number;
     SERVER_LIMIT_TEXT: string;
 }
@@ -36,9 +36,6 @@ export const CrossWorldEvents = {
     STREAM_COMPLETE: 'GEMINI_STREAM_GENERATE_COMPLETE',
     LIVE_SAVE_TRIGGER: 'GEMINI_LIVE_SAVE_TRIGGER'
 } as const;
-
-const EVENTS = CrossWorldEvents;
-type CrossWorldEventType = typeof CrossWorldEvents[keyof typeof CrossWorldEvents];
 
 export type DetailErrorCategory =
     | 'confirmed_deleted'
@@ -164,4 +161,3 @@ export const GeminiProtocol: GeminiProtocolModule = {
 };
 
 export default GeminiProtocol;
-

@@ -7,8 +7,6 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
 
 const detailDecoder = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
 const parseListMod = require('../src/l1/parsers/gemini/rpc/parseList.js');

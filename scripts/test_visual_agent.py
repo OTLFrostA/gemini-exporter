@@ -17,13 +17,12 @@ Architecture & Two Pathways:
 
 import sys
 import os
-import time
 import argparse
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from scripts.cdp_client import CDP_DEFAULT_PORT
-from scripts.visual_agent.playground import open_visual_playground, VisualPlayground
+from scripts.visual_agent.playground import open_visual_playground
 from scripts.visual_agent.agent import AutonomousVisualAgent
 from scripts.visual_agent.scorecard import VisualUXScorecard
 from scripts.visual_agent.providers.custom_ai_provider import CustomAIVisionProvider

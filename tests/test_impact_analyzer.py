@@ -25,9 +25,7 @@ from test_impact_analyzer import (
     DependencyGraph,
     get_git_changed_files,
     analyze_impact,
-    normalize_repo_path,
     resolve_import_path,
-    GLOBAL_FILES
 )
 
 

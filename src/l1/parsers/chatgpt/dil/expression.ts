@@ -1,5 +1,5 @@
 /** Deliberately small data-expression interpreter. No provider code is executed. */
-export type Value = string | number | boolean | null | Value[] | { [key: string]: Value };
+type Value = string | number | boolean | null | Value[] | { [key: string]: Value };
 export type Scope = Map<string, Value>;
 const forbidden = new Set(['__proto__', 'prototype', 'constructor']);
 const escapes: ReadonlyMap<string, string> = new Map([['n', '\n'], ['r', '\r'], ['t', '\t'], ['b', '\b'], ['f', '\f']]);
