@@ -253,14 +253,18 @@ test('CloudSyncEngine: explicit creation and manual pairing retain auto-enqueue,
         assert.equal(convergedOnC.index.title, 'User Renamed Topic');
         assert.ok(JSON.stringify(convergedOnC.detail.messages).includes('Device B newer answer v3'));
 
-        // Connected key rotation: if user forgot saved key, generating a fresh key while connected switches cleanly to a new Cloud Vault tenant
+        // Manual rotation backs up the connected Vault even while automatic sync is paused.
+        await engineC.setAutoSyncEnabled(false);
         const rotatedRecoveryKey = await prepareOneTimeVaultKey();
         const rotateOutcome = await createVaultKeySetup(engineC.activateVaultKeyring)(rotatedRecoveryKey, 'generated', fingerprint);
         assert.equal(rotateOutcome.resolution, 'rekeyed');
         assert.notEqual(rotateOutcome.keyFingerprint, fingerprint);
         assert.equal(backend.inspectTenantCount(), 2);
+        assert.equal(rotateOutcome.cloudBackup?.saved, 2, 'both local conversations backed up and verified before switching');
+        assert.equal((await engineC.getStatusSnapshot()).enabled, false, 'manual rotation leaves automatic sync paused');
+        await updateSettings({ cloudSyncEnabled: true });
         const postRotateSync = await engineC.syncNow();
-        assert.equal(postRotateSync.push.uploaded, 2, 'both local conversations immediately backed up into rotated Cloud Vault');
+        assert.equal(postRotateSync.push.uploaded, 0, 'the verified backup is not reuploaded');
     } finally {
         envC.restore();
     }

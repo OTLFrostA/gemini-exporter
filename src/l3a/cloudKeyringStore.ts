@@ -4,6 +4,7 @@ import {
     getStoredNonExtractableKeyring,
     getStoredVaultKeyMetadata,
     type CloudSyncSessionState,
+    type CloudSyncedRecordState,
     type StoredNonExtractableKeyring,
     type VaultKeyProvisionOrigin,
     type VaultKeyMetadata,
@@ -26,6 +27,7 @@ export function activateVaultKeyring(
     origin: VaultKeyProvisionOrigin,
     session?: CloudSyncSessionState,
     previousOwnerSubject?: string,
+    verifiedBackup?: readonly CloudSyncedRecordState[],
 ): Promise<void> {
     return activateStoredKeyring(
         {
@@ -38,5 +40,6 @@ export function activateVaultKeyring(
         },
         session,
         previousOwnerSubject,
+        verifiedBackup,
     );
 }
