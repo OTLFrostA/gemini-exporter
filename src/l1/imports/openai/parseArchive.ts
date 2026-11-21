@@ -6,7 +6,7 @@ import { readOpenAIArchive, type OpenAIArchive, type OpenAIArchiveEntry } from '
 
 interface LibraryFile { id: string; name?: string; mediaType?: string; conversationId?: string }
 
-export interface ParsedOpenAIArchiveConversation {
+interface ParsedOpenAIArchiveConversation {
     conversationId: string;
     parsed: SourceConversationParseResult;
     boundEntries: ReadonlyMap<string, OpenAIArchiveEntry>;
