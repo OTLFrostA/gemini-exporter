@@ -11,7 +11,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, call, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -356,6 +356,90 @@ MOBILE_GEMINI = """
 """
 
 
+def close_test_browser(browser, browser_ws_url):
+    if browser.poll() is not None:
+        return
+    if browser_ws_url:
+        try:
+            connection = CDPConnection(browser_ws_url)
+            try:
+                connection.call("Browser.close", timeout=5)
+            finally:
+                connection.close()
+        except (OSError, RuntimeError):
+            pass
+        try:
+            browser.wait(timeout=10)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+    browser.terminate()
+    try:
+        browser.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        browser.kill()
+        browser.wait(timeout=10)
+
+
+class TestBrowserCleanup(unittest.TestCase):
+    def setUp(self):
+        self.browser = Mock()
+        self.browser.poll.return_value = None
+        self.connection_patch = patch(__name__ + ".CDPConnection")
+        self.connect = self.connection_patch.start()
+        self.addCleanup(self.connection_patch.stop)
+
+    def test_graceful_close_before_wait(self):
+        lifecycle = Mock()
+        lifecycle.attach_mock(self.connect, "connect")
+        lifecycle.attach_mock(self.browser, "browser")
+        close_test_browser(self.browser, "ws://browser")
+        self.assertEqual(lifecycle.mock_calls, [
+            call.browser.poll(), call.connect("ws://browser"),
+            call.connect().call("Browser.close", timeout=5),
+            call.connect().close(), call.browser.wait(timeout=10),
+        ])
+
+    def test_already_exited_browser(self):
+        self.browser.poll.return_value = 0
+        close_test_browser(self.browser, "ws://browser")
+        self.connect.assert_not_called()
+        self.browser.wait.assert_not_called()
+        self.browser.terminate.assert_not_called()
+
+    def test_startup_failure_without_browser_endpoint(self):
+        close_test_browser(self.browser, None)
+        self.connect.assert_not_called()
+        self.browser.terminate.assert_called_once_with()
+        self.browser.wait.assert_called_once_with(timeout=10)
+
+    def test_disconnected_browser_still_waits_for_exit(self):
+        self.connect.return_value.call.side_effect = ConnectionError("closed")
+        close_test_browser(self.browser, "ws://browser")
+        self.connect.return_value.close.assert_called_once_with()
+        self.browser.wait.assert_called_once_with(timeout=10)
+        self.browser.terminate.assert_not_called()
+
+    def test_connection_failure_falls_back_to_termination(self):
+        self.connect.side_effect = OSError("connection refused")
+        self.browser.wait.side_effect = [subprocess.TimeoutExpired("chrome", 10), 0]
+        close_test_browser(self.browser, "ws://browser")
+        self.browser.terminate.assert_called_once_with()
+        self.browser.kill.assert_not_called()
+        self.assertEqual(self.browser.wait.call_count, 2)
+
+    def test_unresponsive_browser_is_killed_and_reaped(self):
+        self.browser.wait.side_effect = [
+            subprocess.TimeoutExpired("chrome", 10),
+            subprocess.TimeoutExpired("chrome", 10), 0,
+        ]
+        close_test_browser(self.browser, "ws://browser")
+        self.assertEqual(self.browser.mock_calls, [
+            call.poll(), call.wait(timeout=10), call.terminate(),
+            call.wait(timeout=10), call.kill(), call.wait(timeout=10),
+        ])
+
+
 class TestGeminiSidebarDelete(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -368,10 +452,10 @@ class TestGeminiSidebarDelete(unittest.TestCase):
             str(browsers[-1]), "--headless=new", "--no-sandbox", "--disable-gpu",
             "--remote-debugging-port=0", f"--user-data-dir={profile.name}", "about:blank",
         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        browser_ws_url = None
 
         def close_browser():
-            browser.terminate()
-            browser.wait(timeout=10)
+            close_test_browser(browser, browser_ws_url)
 
         cls.addClassCleanup(close_browser)
         port_file = Path(profile.name) / "DevToolsActivePort"
@@ -380,7 +464,9 @@ class TestGeminiSidebarDelete(unittest.TestCase):
             time.sleep(0.05)
         if not port_file.exists():
             raise RuntimeError("Chromium CDP did not become ready")
-        port = int(port_file.read_text().splitlines()[0])
+        port, browser_path = port_file.read_text().splitlines()[:2]
+        port = int(port)
+        browser_ws_url = f"ws://127.0.0.1:{port}{browser_path}"
         tab = next(tab for tab in get_tabs(port) if tab["type"] == "page")
         cls.cdp = CDPConnection(tab["webSocketDebuggerUrl"])
         cls.addClassCleanup(cls.cdp.close)
