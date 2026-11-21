@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from scripts.framework.environment import TestEnvironment, EnvironmentContext
 from scripts.framework.cases.chat import InpageBadgeCase
+from scripts.framework.platforms.gemini import GeminiPlugin
 from tests.test_tab_cleanup import TabCleanupTests
 
 
@@ -88,6 +89,28 @@ class TestFrameworkEnvironment(unittest.TestCase):
         self.assertEqual(self.env.output_dir, self.temp_dir)
         self.assertTrue(os.path.isdir(self.env.output_dir))
         self.assertIsNone(self.env.ext_id)
+
+    def test_gemini_session_close_releases_browser_cdp(self):
+        for browser_present, close_raises in ((True, False), (True, True), (False, False)):
+            with self.subTest(browser_present=browser_present, close_raises=close_raises):
+                page_cdp = MockCDP()
+                browser_cdp = MagicMock()
+                if close_raises:
+                    browser_cdp.close.side_effect = RuntimeError("connection already lost")
+                self.env.browser_cdp = browser_cdp if browser_present else None
+                runtime = MagicMock()
+                runtime.ctx.env = self.env
+                runtime.environment_context.active_cdp = page_cdp
+                session = GeminiPlugin.session(runtime)
+
+                session.close()
+                self.assertTrue(page_cdp.closed)
+                self.assertIsNone(self.env.browser_cdp)
+                session.close()
+                if browser_present:
+                    browser_cdp.close.assert_called_once_with()
+                else:
+                    browser_cdp.close.assert_not_called()
 
     @patch("scripts.framework.environment.CDPActions.reinstall_extension")
     def test_reinstall_extension_updates_ext_id(self, mock_reinstall):

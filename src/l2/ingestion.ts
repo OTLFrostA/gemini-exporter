@@ -7,7 +7,7 @@ import CoverageAdmission from './coverageAdmission.js';
 import type { PageObservationHead } from './pageObservation.js';
 import { restoreConversationIndex, type DomainConversationIndex, type ConversationIndex, mergeConversationIndex } from './conversationIndex.js';
 import { getAccount, updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from '../l3a/storageService.js';
-import { updateConversationsAtomically } from '../l3a/conversationStore.js';
+import { updateConversationsAtomically } from '../l3a/batchStorageService.js';
 import { conversationKey } from './conversationKey.js';
 import * as sameStoredFacts from './domainEquality.js';
 
@@ -21,6 +21,7 @@ async function readExistingAccount(accountId: Account['id']): Promise<Account | 
 }
 
 export interface IndexIngestResult { added: number; updated: number }
+export interface IndexAdmissionResult extends IndexIngestResult { accepted: number; rejected: number }
 
 type CommittedKeysListener = (keys: readonly ConversationKey[]) => void;
 const committedKeysListeners = new Set<CommittedKeysListener>();
@@ -41,8 +42,27 @@ function emitCommittedKeys(keys: readonly ConversationKey[]): void {
     }
 }
 
+/** An input is accepted if its supplied facts survive, or it contributes to the final stored row. */
+function acceptsIndexFacts(
+    incoming: DomainConversationIndex, merged: DomainConversationIndex, previous: DomainConversationIndex | null,
+): boolean {
+    const titleMatches = incoming.title === merged.title && incoming.titleSource === merged.titleSource;
+    let all = incoming.title === undefined || titleMatches;
+    let changed = titleMatches && incoming.title !== undefined
+        && (incoming.title !== previous?.title || incoming.titleSource !== previous?.titleSource);
+    const timestamps = ['createdAt', 'updatedAt', 'activityAt'] satisfies (keyof DomainConversationIndex)[];
+    for (const field of timestamps) {
+        const value = incoming[field];
+        if (value === undefined) continue;
+        const matches = value === merged[field];
+        all &&= matches;
+        changed ||= matches && value !== previous?.[field];
+    }
+    return all || changed;
+}
+
 /** Duplicate source rows merge in input order; Storage reads their current values under one transaction. */
-async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promise<IndexIngestResult> {
+async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promise<IndexAdmissionResult> {
     const groups = new Map<string, DomainConversationIndex[]>();
     for (const index of indexes) {
         const key = JSON.stringify([index.key.accountId, index.key.conversationId]);
@@ -51,16 +71,22 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
         else groups.set(key, [index]);
     }
     const entries = [...groups.values()];
-    const changes: IndexIngestResult = { added: 0, updated: 0 };
+    const changes: IndexAdmissionResult = { added: 0, updated: 0, accepted: 0, rejected: 0 };
     let committedKeys: ConversationKey[] = [];
     await updateIndexesAtomically(entries.map(group => group[0].key), previous => {
         const changed: DomainConversationIndex[] = [];
         entries.forEach((group, i) => {
-            let merged = previous[i] ? restoreConversationIndex(previous[i]) : undefined;
+            const stored = previous[i];
+            let merged = stored ? restoreConversationIndex(stored) : undefined;
             for (const incoming of group) merged = mergeConversationIndex(merged, incoming);
-            if (merged && !sameStoredFacts.index(merged, previous[i])) {
+            if (!merged) return;
+            for (const incoming of group) {
+                if (acceptsIndexFacts(incoming, merged, stored)) changes.accepted++;
+                else changes.rejected++;
+            }
+            if (!sameStoredFacts.index(merged, stored)) {
                 changed.push(merged);
-                if (previous[i]) changes.updated++;
+                if (stored) changes.updated++;
                 else changes.added++;
             }
         });
@@ -73,7 +99,7 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
 
 export async function ingestIndexes(accountId: Account['id'],
     items: ReadonlyArray<{ conversationId: ConversationKey['conversationId']; fields: Omit<ConversationIndex, 'key'> }>,
-    page?: PageObservationHead): Promise<IndexIngestResult> {
+    page?: PageObservationHead): Promise<IndexAdmissionResult> {
     const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Index account does not exist');
     const indexes = items.map(item => restoreConversationIndex({ ...item.fields, key: { accountId, conversationId: item.conversationId } }));
@@ -148,7 +174,7 @@ export async function ingestDetailsBatch(
     const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Detail account does not exist');
     if (entries.length === 0) return [];
-    const committedKeys: ConversationKey[] = [];
+    const committedKeys = new Map<ConversationKey['conversationId'], ConversationKey>();
     const prepared = entries.map(entry => {
         const key = { accountId, conversationId: entry.conversationId };
         const baseDecision = buildConversationDecision(key, entry.detail, entry.indexFields);
@@ -156,13 +182,13 @@ export async function ingestDetailsBatch(
             key,
             decide: (oldIndex: DomainConversationIndex | null, oldDetail: DomainConversationDetail | null) => {
                 const decided = baseDecision(oldIndex, oldDetail);
-                if (decided.index || decided.detail) committedKeys.push(key);
+                if (decided.index || decided.detail) committedKeys.set(key.conversationId, key);
                 return decided;
             },
         };
     });
     const outcomes = await updateConversationsAtomically(prepared);
-    emitCommittedKeys(committedKeys);
+    emitCommittedKeys([...committedKeys.values()]);
     return outcomes;
 }
 

@@ -63,6 +63,8 @@ export function assertUiNodeIsolation(): void {
 
 /** Call once at the beginning of every Node UI-unit test file. */
 export function installUiV2Mocks(): void {
+    stub('../../src/runtime/api/applicationHost.js', { installApplicationHost() {} });
+    stub('../../src/runtime/api/providerHost.js', { installProviderHost() {} });
     const dates: Pick<typeof import('../../src/l2/conversationIndex.js'), 'indexActivityTime' | 'compareConversationIndexes'> = {
         indexActivityTime: index => index.updatedAt === undefined ? index.activityAt : index.activityAt === undefined ? index.updatedAt : Math.max(index.updatedAt, index.activityAt),
         compareConversationIndexes: (a, b) => (dates.indexActivityTime(b) ?? -Infinity) - (dates.indexActivityTime(a) ?? -Infinity),
@@ -133,7 +135,6 @@ export function installUiV2Mocks(): void {
         commitOneTimeVaultKey: () => unconfigured('Application.vaultKeySetup.commitOneTimeVaultKey'),
     });
     stub('../../src/runtime/capabilities/vaultFolderAuth.js', {
-        inspectVaultDirectoryStatus: async () => ({ state: 'missing' as const }),
         pickVaultDirectoryHandle: () => unconfigured('Runtime.pickVaultDirectoryHandle'),
         reauthorizeVaultDirectoryHandle: () => unconfigured('Runtime.reauthorizeVaultDirectoryHandle'),
     });

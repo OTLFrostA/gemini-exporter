@@ -66,16 +66,24 @@ test('L2 binds keyless Index rows to the resolved Account and coalesces duplicat
 });
 
 test('L2 Index ingestion returns only unique committed additions and material metadata changes', async () => {
-    assert.deepEqual(await ingestIndexes(ACCOUNT.id, [index('existing', 'Original', 100)]), { added: 1, updated: 0 });
+    assert.deepEqual(await ingestIndexes(ACCOUNT.id, [index('existing', 'Original', 100)]), { added: 1, updated: 0, accepted: 1, rejected: 0 });
     const changes = await ingestIndexes(ACCOUNT.id, [index('existing', 'Renamed', 101),
         index('new', 'Fresh', 90), index('new', 'Fresh', 90)]);
-    assert.deepEqual(changes, { added: 1, updated: 1 });
+    assert.deepEqual(changes, { added: 1, updated: 1, accepted: 3, rejected: 0 });
     assert.equal(indexFor('existing')?.title, 'Renamed');
     assert.deepEqual(await ingestIndexes(ACCOUNT.id, [index('existing', 'Renamed', 101), index('new', 'Fresh', 90)]),
-        { added: 0, updated: 0 });
+        { added: 0, updated: 0, accepted: 2, rejected: 0 });
     rejectNextWrite(new Error('commit failed'));
     await assert.rejects(ingestIndexes(ACCOUNT.id, [index('another')]), /commit failed/);
     assert.equal(indexFor('another'), undefined);
+});
+test('L2 Index acceptance counts each row against the final committed facts', async () => {
+    await ingestIndexes(ACCOUNT.id, [index('existing', 'Local', 200)]);
+    assert.deepEqual(await ingestIndexes(ACCOUNT.id, [index('existing', 'Local', 100)]),
+        { added: 0, updated: 0, accepted: 0, rejected: 1 });
+    assert.deepEqual(await ingestIndexes(ACCOUNT.id, [index('duplicate', 'First', 100), index('duplicate', 'Last', 200)]),
+        { added: 1, updated: 0, accepted: 1, rejected: 1 });
+    assert.deepEqual(await ingestIndexes(ACCOUNT.id, []), { added: 0, updated: 0, accepted: 0, rejected: 0 });
 });
 test('L2 forwards committed page evidence only after the Index decision and binds Registry identity', async () => {
     await ingestIndexes(ACCOUNT.id, [index('c')], evidence([{ id: 'c', time: 100 }]));

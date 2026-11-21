@@ -1,4 +1,7 @@
+import { installApplicationHost } from '../../runtime/api/applicationHost.js';
+
 import { listIndexes } from '../../application/conversations/catalogQueries.js';
+import { installProviderHost } from '../../runtime/api/providerHost.js';
 import { OperationError } from '../../shared/errors/operationError.js';
 import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { createBackoffNotice } from '../shared/backoffNotice.js';
@@ -38,6 +41,9 @@ import { isAccountId } from '../../l2/accountRegistry.js';
 import type { ForegroundTask, ScanEvidence, TaskFeedback, UiMessage } from './state/foregroundTask.js';
 import { mountTaskPanel } from './views/taskPanelView.js';
 import { mountCloudVaultPanel, type CloudVaultControllerHandle } from './controllers/cloudVaultController.js';
+
+installApplicationHost();
+installProviderHost();
 
 type Level = 'info' | 'warn' | 'error';
 type Action = 'export' | 'takeout' | 'cleanup';
@@ -688,6 +694,22 @@ export async function initWorkbench(): Promise<void> {
     });
     control('select', 'chatFilterSelect').addEventListener('change', () => {
         state.filter = control('select', 'chatFilterSelect').value; renderConversations();
+    });
+    control('button', 'btnShowHiddenSelection').addEventListener('click', () => {
+        if (isBusy()) return;
+        const search = control('input', 'chatSearchInput');
+        const filter = control('select', 'chatFilterSelect');
+        state.search = '';
+        state.filter = 'all';
+        search.value = state.search;
+        filter.value = state.filter;
+        renderConversations();
+        search.focus();
+    });
+    control('button', 'btnDeselectHidden').addEventListener('click', () => {
+        if (isBusy()) return;
+        for (const id of state.hiddenBySearch()) state.selected.delete(id);
+        renderConversations();
     });
     control('input', 'btnSelectAll').addEventListener('change', () => {
         if (isBusy() || document.body.dataset.guidedSelection === 'true') return;

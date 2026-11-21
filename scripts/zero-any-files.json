@@ -110,7 +110,6 @@
   "src/l3a/scanCoverageStore.ts",
   "src/l1/parsers/qualityEvidence.ts",
   "src/shared/utils/titleText.ts",
-  "src/runtime/devMode.ts",
   "src/shared/utils/errorText.ts",
   "src/l1/imports/takeout/readArchive.ts",
   "src/l1/parsers/shared/archive/zipBombGuard.ts",

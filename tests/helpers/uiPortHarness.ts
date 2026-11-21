@@ -33,6 +33,8 @@ export const requestResourceAuthorization = async uri => {
 };
 export const hasPlatformAccess = async platform => h[platform+'Access'] ?? (platform==='gemini');
 export const preparePlatformTab = async () => {};
+export const installApplicationHost = () => {};
+export const installProviderHost = () => {};
 export const requestPlatformAuthorization = async platforms => {
  h.connectionRequests.push([platforms,navigator.userActivation.isActive]);
  const granted = h.holdPermission ? await new Promise(resolve=>h.finishPermission=resolve) : !h.permissionDenied;
@@ -178,7 +180,6 @@ export const registerCleanup = fn => {
  h.cleanups.push(fn);
  return () => { const index=h.cleanups.indexOf(fn);if(index>=0)h.cleanups.splice(index,1); };
 };
-export const inspectVaultDirectoryStatus = async () => ({ state: 'missing' });
 export const pickVaultDirectoryHandle = async () => {
  const handle = await globalThis.showDirectoryPicker({ mode: 'readwrite' });
  return handle;

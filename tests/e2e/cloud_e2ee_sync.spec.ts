@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { build } from 'esbuild';
 import type { BrowserContext, Page } from '@playwright/test';
 import { test, expect, launchExtensionContext, seedRegistryAccounts } from './fixtures';
 import { accountId, openOptions } from './uiFixture';
@@ -25,6 +26,77 @@ async function notifyOptionsOfCommit(context: BrowserContext, extensionId: strin
         await sender.evaluate(id => chrome.runtime.sendMessage({ action: 'domainChanged', accountId: id }).catch(() => {}), accountId);
     } finally { await sender.close(); }
 }
+
+test('Vault Options status does not load stored CryptoKey handles', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const setupPage = await openOptions(context, extensionId);
+    await setupPage.locator('#btnCloudVaultSetup').click();
+    await setupPage.locator('#btnGenerateOneTimeKey').click();
+    await setupPage.locator('#btnConfirmOneTimeKey').click();
+    const label = setupPage.locator('#vaultKeyFingerprintLabel');
+    await expect(label).toContainText(/#[0-9a-f]{8}/);
+    const fingerprintLabel = await label.innerText();
+    await setupPage.close();
+
+    await context.addInitScript(() => {
+        if (location.protocol !== 'chrome-extension:') return;
+        const get = IDBObjectStore.prototype.get;
+        let keyringReads = 0;
+        IDBObjectStore.prototype.get = function (query) {
+            if (this.name === 'localKeys') keyringReads++;
+            return get.call(this, query);
+        };
+        Object.defineProperty(window, 'vaultKeyringReads', { get: () => keyringReads });
+    });
+    const page = await openOptions(context, extensionId);
+    await page.locator('#btnCloudVaultSetup').click();
+    await expect(page.locator('#vaultKeyLockedRow')).toBeVisible();
+    await expect(page.locator('#vaultKeyFingerprintLabel')).toHaveText(fingerprintLabel);
+    expect(await page.evaluate(() => Reflect.get(window, 'vaultKeyringReads'))).toBe(0);
+});
+
+test('Local vault reports Restored 0 when an older index-only record loses to local facts', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const page = await openOptions(context, extensionId);
+    await page.locator('#btnCloudVaultSetup').click();
+    const recoveryKey = await generateAndLockKey(page);
+    const seed = await build({
+        stdin: { resolveDir: process.cwd(), loader: 'ts', contents: `
+            import { deriveVaultKeyring, parseRecoveryKey } from './src/shared/crypto/index.ts';
+            import { sealCloudConversation } from './src/application/cloud/cloudArchiveCodec.ts';
+            import { createLocalFolderVaultClient } from './src/l1/cloud/localFolderVaultClient.ts';
+            import { getAccount } from './src/l3a/storageService.ts';
+            globalThis.seedStaleVault = async (accountId, recoveryKey) => {
+                const proto = FileSystemDirectoryHandle.prototype;
+                proto.queryPermission = async () => 'granted';
+                proto.requestPermission = async () => 'granted';
+                const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('StaleIndexVault', { create: true });
+                Object.defineProperty(window, 'showDirectoryPicker', { configurable: true, value: async () => root });
+                const account = await getAccount(accountId);
+                const keyring = await deriveVaultKeyring(await parseRecoveryKey(recoveryKey));
+                const sealed = await sealCloudConversation({ keyring, revision: 1, account,
+                    conversation: { index: { key: { accountId, conversationId: 'stale-index' }, title: 'Retained local conversation', titleSource: 'provider', updatedAt: 100 } } });
+                const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', sealed.envelope));
+                const sha256 = Array.from(digest, x => x.toString(16).padStart(2, '0')).join('');
+                await createLocalFolderVaultClient(async () => root).putEncryptedRecord({ serverUrl: '', sessionToken: '',
+                    blindRecordId: sealed.blindRecordId, expectedRevision: 0, envelope: sealed.envelope, sha256, keyFingerprint: keyring.keyFingerprint });
+            };
+        ` }, bundle: true, write: false, format: 'iife', platform: 'browser',
+    });
+    await page.evaluate(seed.outputFiles[0].text);
+    await page.evaluate(async ({ accountId, recoveryKey }) => {
+        await Reflect.get(globalThis, 'seedStaleVault')(accountId, recoveryKey);
+        await Reflect.get(globalThis, 'uiFixture').ingestIndexes(accountId, [{ conversationId: 'stale-index',
+            fields: { title: 'Retained local conversation', titleSource: 'provider', updatedAt: 200 } }]);
+    }, { accountId, recoveryKey });
+    await page.locator('#btnLocalVaultPick').click();
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Restored');
+    if (process.env.CLOUD_RESTORE_SCREENSHOT) {
+        await page.screenshot({ path: process.env.CLOUD_RESTORE_SCREENSHOT, fullPage: true });
+    }
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Restored 0');
+    expect(await page.evaluate(async id => (await Reflect.get(globalThis, 'uiFixture').getIndex({ accountId: id, conversationId: 'stale-index' })).updatedAt, accountId)).toBe(200);
+});
 
 test('Cloud Vault displays the key once, pairs isolated profiles manually, and syncs encrypted changes both ways', async ({ context, extensionId }) => {
     await seedRegistryAccounts(context);
@@ -312,6 +384,56 @@ test('Options Sync Now preserves a same-conversation update queued by the backgr
     expect([...server.inspectRawBlobs().keys()]).toEqual([expect.stringMatching(/\/r2$/)]);
 });
 
+test('Cloud Vault access code stays out of storage that Gemini content scripts can read', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const server = createMockCloudVaultHttp({ serverAccessCode: SERVER_INVITE_CODE });
+    const authCodes: (string | undefined)[] = [];
+    await context.route(`${VAULT_ORIGIN}/**`, async route => {
+        const req = route.request();
+        if (new URL(req.url()).pathname === '/v2/auth/key') {
+            authCodes.push((JSON.parse(req.postData() ?? '{}') as { accessCode?: string }).accessCode);
+        }
+        const body = req.postDataBuffer();
+        const response = await server.handler(new Request(req.url(), {
+            method: req.method(),
+            headers: req.headers(),
+            ...(body ? { body: new Uint8Array(body) } : {}),
+        }));
+        await route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body: Buffer.from(await response.arrayBuffer()) });
+    });
+    const sourceUrl = 'https://gemini.google.com/app/access-code-probe';
+    await context.route(sourceUrl, route => route.fulfill({ contentType: 'text/html', body: '<title>Gemini</title>' }));
+    const source = await context.newPage();
+    await source.goto(sourceUrl);
+    const page = await openOptions(context, extensionId);
+    const contentWorldStorage = (): Promise<string> => page.evaluate(async url => {
+        const [tab] = await chrome.tabs.query({ url });
+        if (tab?.id === undefined) throw new Error('Missing Gemini source tab');
+        const [injection] = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: async () => JSON.stringify(await chrome.storage.local.get(null)),
+        });
+        return String(injection.result);
+    }, sourceUrl);
+
+    await page.locator('#btnCloudVaultSetup').click();
+    await page.locator('#btnVaultTabCloud').click();
+    await generateAndLockKey(page);
+    await page.locator('#cloudServerUrlInput').fill(VAULT_ORIGIN);
+    await page.locator('#cloudAccessCodeInput').fill(SERVER_INVITE_CODE);
+    await page.locator('#btnCloudConnect').click();
+    await expect(page.locator('#cloudConnectedTarget')).toContainText('vault.example.test');
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Saved 0');
+
+    const afterConnect = await contentWorldStorage();
+    expect(afterConnect).toContain('gemini_exporter_v2_settings');
+    expect(afterConnect).not.toContain(SERVER_INVITE_CODE);
+    await page.reload();
+    await page.locator('#btnCloudVaultSetup').click();
+    await expect(page.locator('#cloudAccessCodeInput')).toHaveValue('');
+    expect(authCodes).toEqual([SERVER_INVITE_CODE]);
+});
+
 test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic .gee1 ciphertext write on disk -> zero plaintext leak -> wipe & local decryption restore', async ({ context, extensionId }) => {
     await seedRegistryAccounts(context);
     const page = await openOptions(context, extensionId);
@@ -408,6 +530,45 @@ test('Local Encrypted Folder Vault UI flow: zero-login folder pick -> automatic 
         expect(diskInspection.manifestText).not.toContain(sensitive);
         expect(diskInspection.rawLatin1).not.toContain(sensitive);
     }
+
+    // Fault only the manifest commit in both extension execution contexts.
+    const injectManifestFailure = () => {
+        Reflect.set(globalThis, 'failVaultManifestClose', true);
+        const original = FileSystemFileHandle.prototype.createWritable;
+        FileSystemFileHandle.prototype.createWritable = async function (...args) {
+            const stream = await original.apply(this, args);
+            if (this.name === 'vault-manifest.json') {
+                const close = stream.close.bind(stream);
+                stream.close = async () => {
+                    if (Reflect.get(globalThis, 'failVaultManifestClose')) {
+                        Reflect.set(globalThis, 'vaultManifestCloseFailed', true);
+                        await stream.abort();
+                        throw new Error('Injected manifest close failure');
+                    }
+                    await close();
+                };
+            }
+            return stream;
+        };
+    };
+    const worker = context.serviceWorkers()[0]!;
+    await page.evaluate(injectManifestFailure);
+    await worker.evaluate(injectManifestFailure);
+    await page.evaluate(async ({ accountId, postTime }) => {
+        await Reflect.get(globalThis, 'uiFixture').ingestIndexes(accountId, [{
+            conversationId: 'c_local_vault_01',
+            fields: { title: 'Uncommitted replacement', titleSource: 'provider', updatedAt: postTime + 1 },
+        }]);
+    }, { accountId, postTime });
+    await page.locator('#btnCloudVaultSetup').click();
+    await page.locator('#btnCloudSyncNow').click();
+    await expect(page.locator('#cloudModalFeedback')).toContainText('Sync complete');
+    const failedInPage = await page.evaluate(() => Reflect.get(globalThis, 'vaultManifestCloseFailed') === true);
+    const failedInWorker = await worker.evaluate(() => Reflect.get(globalThis, 'vaultManifestCloseFailed') === true);
+    expect(failedInPage || failedInWorker).toBe(true);
+    await page.evaluate(() => Reflect.set(globalThis, 'failVaultManifestClose', false));
+    await worker.evaluate(() => Reflect.set(globalThis, 'failVaultManifestClose', false));
+    await page.locator('#btnCloudModalClose').click();
 
     // 4. Wipe extension's local conversation list, then restore catalog!
     await page.locator('#btnMoreActions').click();

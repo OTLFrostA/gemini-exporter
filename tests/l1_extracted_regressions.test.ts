@@ -165,18 +165,21 @@ test('user_file_attachment: extractUserFiles supports multiple diverse extension
 });
 
 test('prompt URLs and Google Docs editor links are not downloadable attachments', () => {
-    assert.deepStrictEqual(attachments.extractUserFiles([
-        ['https://docs.google.com/document/d/example/edit?tab=t.0 这个是我drive里面的文档，你能编辑么'],
-        ['https://docs.google.com/document/d/example/edit'],
-        ['https://drive.google.com/file/d/example/view 请帮我读一下']
-    ]), []);
+    const editorLink = 'https://docs.google.com/document/d/example/edit';
+    const driveLink = 'https://drive.google.com/file/d/example/view';
+    assert.deepStrictEqual(attachments.extractUserFiles([[editorLink, [editorLink]]]), []);
+    assert.deepStrictEqual(attachments.extractUserFiles([[driveLink]]), []);
+    assert.deepStrictEqual(attachments.extractUserFiles([driveLink]), []);
+    assert.deepStrictEqual(attachments.extractUserFiles([[driveLink, [driveLink, 'report.pdf']]]), [{
+        sourceUrl: driveLink, fileName: 'report.pdf', thumbnailUrl: undefined,
+    }]);
 });
 
 test('shopping and lmdx widget references are not downloadable image files', () => {
     const shopping = 'http://googleusercontent.com/shopping_content/11889587029331890754';
     const widget = 'http://googleusercontent.com/lmdx_image/894535722';
     assert.deepStrictEqual(attachments.extractImageEvidence([[shopping, 640, 480], [widget, 700, 280]]), []);
-    assert.deepStrictEqual(attachments.extractUserFiles([[shopping], [widget]]), []);
+    assert.deepStrictEqual(attachments.extractUserFiles([['', [shopping], [widget]]]), []);
     const images = attachments.extractImageEvidence([['https://encrypted-tbn0.gstatic.com/images?q=real', 700, 280]]);
     assert.equal(images.length, 1);
     assert.equal(images[0].sourceEvidence?.detectorKind, 'extractImages [url,w,h]');

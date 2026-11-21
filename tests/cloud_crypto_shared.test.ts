@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OperationError } from '../src/shared/errors/operationError.js';
+import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/cloud/vaultKeySetup.js';
 import {
     MASTER_KEY_BYTES,
     MAX_ENCRYPTED_RECORD_BYTES,
@@ -8,12 +9,68 @@ import {
     decompressUtf8GzipBounded,
     deriveBlindRecordId,
     deriveVaultKeyring,
+    encodeLengthPrefixedTuple,
     formatRecoveryKey,
     generateMasterKeyBytes,
     openUtf8Record,
     parseRecoveryKey,
     sealUtf8Record,
 } from '../src/shared/crypto/index.js';
+
+test('Vault key setup clears owned recovery buffers on success and failure', async t => {
+    const valid = await formatRecoveryKey(new Uint8Array(MASTER_KEY_BYTES).fill(42));
+    const incorrectChecksum = 'GEK1-B' + valid.slice(6);
+    const invalidAlphabet = valid.slice(0, -1) + 'U';
+    const invalidPadding = valid.slice(0, -1) + '1';
+    const activate = t.mock.fn(async () => ({ keyFingerprint: '', resolution: 'initialized' as const }));
+    const setup = createVaultKeySetup(activate);
+    const simulatedFailure = new Error('digest unavailable');
+    const generate = () => prepareOneTimeVaultKey();
+    const importValid = () => setup(valid, 'imported', null);
+    const rejectInvalid = (value: string) => assert.rejects(setup(value, 'imported', null), { code: 'CLOUD_KEY_INVALID' });
+
+    for (const [label, action, digestFails, expectedDigests] of [
+        ['generate', generate, false, 1],
+        ['import', importValid, false, 1],
+        ['bad checksum', () => rejectInvalid(incorrectChecksum), false, 1],
+        ['invalid alphabet', () => rejectInvalid(invalidAlphabet), false, 0],
+        ['invalid padding', () => rejectInvalid(invalidPadding), false, 0],
+        ['generate with failed digest', () => assert.rejects(generate(), simulatedFailure), true, 1],
+        ['import with failed digest', () => assert.rejects(importValid(), simulatedFailure), true, 1],
+    ] as const) {
+        await t.test(label, async subtest => {
+            const ownedBuffers: Uint8Array[] = [];
+            const digestInputs: ArrayBufferView[] = [];
+            const digest = crypto.subtle.digest.bind(crypto.subtle);
+            subtest.mock.method(crypto.subtle, 'digest', async (algorithm: AlgorithmIdentifier, data: BufferSource) => {
+                if (ArrayBuffer.isView(data)) digestInputs.push(data);
+                if (digestFails) throw simulatedFailure;
+                return digest(algorithm, data);
+            });
+            const Bytes = Uint8Array;
+            globalThis.Uint8Array = new Proxy(Bytes, {
+                construct(target, args, newTarget) {
+                    const buffer = Reflect.construct(target, args, newTarget) as Uint8Array;
+                    if (args[0] === MASTER_KEY_BYTES + 2) ownedBuffers.push(buffer);
+                    return buffer;
+                },
+            });
+            try {
+                await action();
+            } finally {
+                globalThis.Uint8Array = Bytes;
+            }
+            assert.equal(digestInputs.length, expectedDigests);
+            assert.equal(
+                digestInputs.every(view => new Bytes(view.buffer, view.byteOffset, view.byteLength).every(byte => byte === 0)),
+                true,
+                'checksum input is cleared',
+            );
+            assert.equal(ownedBuffers.every(buffer => buffer.every(byte => byte === 0)), true, 'recovery buffer is cleared');
+        });
+    }
+    assert.equal(activate.mock.callCount(), 1, 'only the valid import reaches activation');
+});
 
 test('recoveryKey - generates 256-bit random keys, round-trips GEK1 Crockford Base32, tolerates human formatting, and rejects single-char typos', async () => {
     const k1 = generateMasterKeyBytes();
@@ -102,6 +159,49 @@ test('boundedGzip - compresses repetitive JSON effectively and aborts streaming 
     await assert.rejects(
         decompressUtf8GzipBounded(new Uint8Array([1, 2, 3, 4])),
         (err: unknown) => err instanceof OperationError && err.code === 'CLOUD_DECOMPRESSION_LIMIT',
+    );
+});
+
+async function gzipInvalidUtf8(): Promise<Uint8Array<ArrayBuffer>> {
+    const stream = new Blob([new Uint8Array([0xff, 0xfe])]).stream().pipeThrough(new CompressionStream('gzip'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+test('boundedGzip - maps invalid UTF-8 to a cloud OperationError with its cause', async () => {
+    await assert.rejects(
+        decompressUtf8GzipBounded(await gzipInvalidUtf8()),
+        (err: unknown) => err instanceof OperationError
+            && err.code === 'CLOUD_DECOMPRESSION_LIMIT'
+            && err.cause instanceof TypeError,
+    );
+});
+
+test('aeadEnvelope - maps authenticated invalid UTF-8 to a cloud OperationError with its cause', async () => {
+    const keyring = await deriveVaultKeyring(generateMasterKeyBytes());
+    const context = {
+        ownerSubject: 'google-sub-12345',
+        blindRecordId: await deriveBlindRecordId(keyring, 'gemini', 'acct-1', 'invalid-utf8'),
+        revision: 1,
+    };
+    const additionalData = encodeLengthPrefixedTuple([
+        'GEE1-AAD', context.ownerSubject, context.blindRecordId, String(context.revision),
+    ]);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv, additionalData, tagLength: 128 },
+        keyring.payloadKey,
+        await gzipInvalidUtf8(),
+    ));
+    const envelope = new Uint8Array(4 + iv.byteLength + ciphertext.byteLength);
+    envelope.set(new TextEncoder().encode('GEE1'));
+    envelope.set(iv, 4);
+    envelope.set(ciphertext, 4 + iv.byteLength);
+
+    await assert.rejects(
+        openUtf8Record(keyring, envelope, context),
+        (err: unknown) => err instanceof OperationError
+            && err.code === 'CLOUD_DECOMPRESSION_LIMIT'
+            && err.cause instanceof TypeError,
     );
 });
 

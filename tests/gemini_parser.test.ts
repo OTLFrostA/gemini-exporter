@@ -20,6 +20,10 @@ test('gemini_parser - isRealTitle', () => {
     assert.strictEqual(isRealTitle('Google AI'), false);
     assert.strictEqual(isRealTitle('39d5b41870e49a67'), false);
     assert.strictEqual(isRealTitle('c_39d5b41870e49a67'), false);
+    assert.strictEqual(isRealTitle('deadbeef', 'c_deadbeef'), false);
+    assert.strictEqual(isRealTitle('2025-2026'), true);
+    assert.strictEqual(isRealTitle('12345678'), true);
+    assert.strictEqual(isRealTitle('deadbeef'), true);
     assert.strictEqual(isRealTitle('我拟定了一个研究方案'), false);
     assert.strictEqual(isRealTitle('量子计算的基本原理'), true);
     assert.strictEqual(isRealTitle('AI Prompt Engineering Guide'), true);

@@ -24,3 +24,22 @@ export const fixtureOrigins = describeFixtures(
     p0CapturedCases,
     captured(CORPUS_REL, 'Full multi-frame Gemini batchexecute (MaZiqc + hNvQHb) HTTP response with signed media tokens scrubbed.'),
 );
+
+export const inlineHtmlFallback = {
+    conversationId: '1cea7e48cc166b57',
+    literal: '<strong>bold</strong>',
+    wire(): string {
+        const frames = p0CapturedCases.G_P0_CAPTURED_PYTHON_CODE_01().split('\n');
+        const detailFrame = frames.findIndex(line => line.startsWith('[["wrb.fr","hNvQHb",'));
+        if (detailFrame < 1) throw new Error('Missing length-prefixed detail frame in the Python code capture');
+        const rows = JSON.parse(frames[detailFrame]);
+        const detail = JSON.parse(rows[0][2]);
+        const model = detail[0][0][3];
+        model[0][0][1][0] = 'Use `' + this.literal + '` here.\n\n```html\n' + this.literal + '\n```';
+        model[12] = null;
+        rows[0][2] = JSON.stringify(detail);
+        frames[detailFrame] = JSON.stringify(rows);
+        frames[detailFrame - 1] = String(frames[detailFrame].length);
+        return frames.join('\n');
+    },
+};

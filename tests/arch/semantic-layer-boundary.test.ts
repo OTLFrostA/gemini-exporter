@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { transformSync } from 'esbuild';
+import { specifiers, tokens } from '../helpers/moduleSpecifiers.js';
 
 const root = resolve(__dirname, '../..');
 const core = resolve(root, 'src');
@@ -15,61 +16,6 @@ function files(dir: string): string[] {
 }
 const sources = new Map(files(core).map(file => [relative(core, file).replace(/\\/g, '/'), file]));
 
-/** Ignore comments, strings and regex bodies while retaining literal module specifiers. */
-interface Token { value: string; literal?: boolean }
-function tokens(source: string): Token[] {
-    const result: Token[] = [];
-    let index = 0;
-    while (index < source.length) {
-        const rest = source.slice(index);
-        if (/^\s/.test(rest)) { index++; continue; }
-        if (rest.startsWith('//')) { const end = source.indexOf('\n', index); index = end < 0 ? source.length : end; continue; }
-        if (rest.startsWith('/*')) { const end = source.indexOf('*/', index + 2); index = end < 0 ? source.length : end + 2; continue; }
-        const quote = source[index];
-        if (quote === "'" || quote === '"' || quote === '`') {
-            let value = '', escaped = false;
-            index++;
-            while (index < source.length) {
-                const char = source[index++];
-                if (escaped) { value += char; escaped = false; }
-                else if (char === '\\') escaped = true;
-                else if (char === quote) break;
-                else value += char;
-            }
-            result.push({ value, literal: quote !== '`' || !value.includes('${') });
-            continue;
-        }
-        const previous = result.at(-1)?.value;
-        if (quote === '/' && (!previous || /^(?:[=(,:!?;{\[]|return|case|=>)$/.test(previous))) {
-            index++;
-            let bracket = false;
-            while (index < source.length) {
-                const char = source[index++];
-                if (char === '\\') index++;
-                else if (char === '[') bracket = true;
-                else if (char === ']') bracket = false;
-                else if (char === '/' && !bracket) break;
-            }
-            while (/[a-z]/i.test(source[index] ?? '') && index < source.length) index++;
-            result.push({ value: '<regex>' });
-            continue;
-        }
-        const word = /^[$\w]+/.exec(rest);
-        const value = word?.[0] ?? quote;
-        result.push({ value }); index += value.length;
-    }
-    return result;
-}
-function specifiers(source: string): string[] {
-    const stream = tokens(source), result: string[] = [];
-    stream.forEach((token, index) => {
-        if (token.literal) return;
-        const next = stream[index + 1], arg = stream[index + 2];
-        if ((token.value === 'from' || token.value === 'import') && next?.literal) result.push(next.value);
-        else if ((token.value === 'import' || token.value === 'require') && next?.value === '(' && arg?.literal) result.push(arg.value);
-    });
-    return result;
-}
 /** esbuild determines runtime edges; source tokens retain erased type-only dependencies. */
 function dependencies(file: string, text = readFileSync(file, 'utf8')): Edge[] {
     const output = transformSync(text, { loader: file.endsWith('.tsx') ? 'tsx' : file.endsWith('.ts') ? 'ts' : 'js', format: 'esm', legalComments: 'none' }).code;
@@ -82,6 +28,40 @@ function dependencies(file: string, text = readFileSync(file, 'utf8')): Edge[] {
     });
 }
 const graph = new Map([...sources].map(([name, file]) => [name, dependencies(file)]));
+
+test('L1 cannot add dependencies on Runtime, Application or UI', () => {
+    const existingRuntimeEdges = new Set([
+        'l1/client/gemini/bootstrap.ts → runtime/content/accountContext.ts',
+        'l1/client/gemini/bootstrap.ts → runtime/content/cleanupRegistry.ts',
+        'l1/sniffer/chatgpt/messageBridge.ts → runtime/api/contentDomainIngestion.ts',
+        'l1/sniffer/claude/messageBridge.ts → runtime/api/contentDomainIngestion.ts',
+        'l1/sniffer/gemini/captureReceiver.ts → runtime/api/contentAccountRegistry.ts',
+        'l1/sniffer/gemini/captureReceiver.ts → runtime/api/contentDomainIngestion.ts',
+        'l1/sniffer/gemini/captureReceiver.ts → runtime/content/accountContext.ts',
+        'l1/sniffer/gemini/messageBridge.ts → runtime/content/cleanupRegistry.ts',
+        'l1/sniffer/grok/messageBridge.ts → runtime/api/contentDomainIngestion.ts',
+    ]);
+    const violations = [...graph].flatMap(([owner, edges]) => !owner.startsWith('l1/') ? [] : edges
+        .filter(({ target }) => /^(runtime|application|ui)\//.test(target))
+        .map(({ target }) => `${owner} → ${target}`)
+        .filter(edge => !existingRuntimeEdges.has(edge)));
+    assert.deepEqual(violations, []);
+});
+
+test('Gemini provider has no transitive Runtime, Application or UI dependencies', () => {
+    const seen = new Set<string>();
+    function walk(owner: string, chain: string[]): void {
+        if (seen.has(owner)) return;
+        seen.add(owner);
+        for (const { target } of graph.get(owner) ?? []) {
+            const path = [...chain, target];
+            assert.ok(!/^(runtime|application|ui)\//.test(target), path.join(' → '));
+            walk(target, path);
+        }
+    }
+    const owner = 'l1/client/gemini/geminiProvider.ts';
+    walk(owner, [owner]);
+});
 
 test('the compatibility directory is retired and no production source imports it', () => {
     assert.equal(existsSync(resolve(core, 'core/compatibility')), false);
@@ -102,9 +82,23 @@ test('v1 migration stays isolated to worker readiness and remains covered by the
 });
 
 function renderer(owner: string): boolean {
-    return /^l4\/format\/(?:html|json|markdown|shared|typst)\//.test(owner);
+    return owner.startsWith('l4/format/');
 }
+test('renderer coverage includes DOCX and PDF dependency violations', () => {
+    for (const owner of ['l4/format/docx/renderDocx.ts', 'l4/format/pdf/compileDocumentPdf.ts']) {
+        assert.ok(sources.has(owner), `${owner} is scanned`);
+        assert.ok(renderer(owner), `${owner} is a renderer`);
+        assert.ok(forbidden(owner, 'l2/ingestion.ts'), `${owner} cannot ingest Domain data`);
+    }
+    assert.equal(forbidden('l4/format/pdf/compileDocumentPdf.ts', 'l4/format/pdf/errors.ts'), false);
+    assert.equal(forbidden('l4/format/docx/renderDocx.ts', 'l4/format/pdf/errors.ts'), true);
+    assert.equal(forbidden('l4/format/pdf/compileDocumentPdf.ts', 'l4/format/resources/imageContent.ts'), false);
+    for (const format of ['markdown', 'docx']) {
+        assert.equal(forbidden(`l4/format/${format}/probe.ts`, 'l4/format/resources/imageContent.ts'), true);
+    }
+});
 function forbidden(owner: string, target: string): boolean {
+    if (owner.startsWith('application/')) return /^(runtime\/|migration\/)/.test(target);
     if (owner === 'shared/diagnostics/diagnostic.ts') return target !== 'shared/utils/jsonTypes.ts';
     if (owner.startsWith('shared/')) return !target.startsWith('shared/');
     if (owner.startsWith('l2/')) {
@@ -116,6 +110,10 @@ function forbidden(owner: string, target: string): boolean {
     if (owner.startsWith('l3b/ast/')) return !target.startsWith('l3b/ast/') && target !== 'l2/conversationDetail.ts';
     if (owner.startsWith('l3b/compose/')) return !/^(l2\/|l3b\/|shared\/(?:diagnostics|utils)\/)/.test(target);
     if (renderer(owner)) {
+        const formatDirectory = owner.split('/').slice(0, 3).join('/') + '/';
+        if (target.startsWith(formatDirectory)) return false;
+        // PDF compilation validates embedded image bytes before rendering.
+        if (owner.startsWith('l4/format/pdf/') && target.startsWith('l4/format/resources/')) return false;
         // Packaging owns the type-only binding; JSON intentionally reads trusted Domain.
         if (target === 'l4/packaging/resourceBindings.ts') return false;
         if (owner === 'l4/format/json/serializeDomainJson.ts' && /^l2\//.test(target)) {
@@ -152,6 +150,44 @@ test('semantic layers own their files and obey dependency direction, including t
     }
     for (const old of ['core/api/parser/', 'core/content/', 'core/export/document/', 'core/engine/takeout/', 'core/engine/template/', 'core/provider/record/']) {
         assert.ok(![...sources.keys()].some(name => name.startsWith(old)), `obsolete directory still owns code: ${old}`);
+    }
+});
+
+function reachable(owner: string, stopAtL1 = false): Set<string> {
+    const seen = new Set<string>();
+    function walk(current: string): void {
+        if (seen.has(current)) return;
+        seen.add(current);
+        // L1's own Runtime edges are owned by the L1 boundary.
+        if (stopAtL1 && current.startsWith('l1/')) return;
+        for (const edge of graph.get(current) ?? []) if (edge.runtime) walk(edge.target);
+    }
+    walk(owner);
+    return seen;
+}
+
+test('Application runtime-edge chains outside L1 cannot reach Runtime or migration', () => {
+    for (const owner of graph.keys()) {
+        if (!owner.startsWith('application/')) continue;
+        for (const target of reachable(owner, true)) {
+            assert.ok(!/^(runtime\/|migration\/)/.test(target), `${owner} reaches ${target}`);
+        }
+    }
+});
+
+test('bundle entries reaching the Application host install the Runtime adapter', () => {
+    const build = readFileSync(resolve(root, 'build.js'), 'utf8');
+    const entries = build.match(/const BUNDLE_ENTRIES = \{([\s\S]*?)\n\};/)?.[1];
+    assert.ok(entries, 'BUNDLE_ENTRIES must be readable');
+    const paths = [...entries.matchAll(/path\.join\(SRC, ([^)]+)\)/g)].map(match =>
+        [...match[1].matchAll(/'([^']+)'/g)].map(part => part[1]).join('/'));
+    assert.ok(paths.length > 0);
+    for (const entry of paths) {
+        if (!reachable(entry).has('application/host.ts')) continue;
+        assert.ok(graph.get(entry)?.some(edge => edge.runtime && edge.target === 'runtime/api/applicationHost.ts'),
+            `${entry} must import the Runtime host installer`);
+        assert.match(readFileSync(sources.get(entry)!, 'utf8'), /\binstallApplicationHost\(\)/,
+            `${entry} must call the Runtime host installer`);
     }
 });
 

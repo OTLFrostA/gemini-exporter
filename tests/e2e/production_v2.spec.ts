@@ -5,6 +5,7 @@ import { build } from 'esbuild';
 import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
+import { inlineHtmlFallback } from '../fixtures/providers/gemini/detail/p0CapturedCases.js';
 import { requestGen as geminiDetailRequestGen } from '../fixtures/providers/geminiDetailRequest.js';
 import { streamGen as geminiStreamGen } from '../fixtures/providers/geminiStream.js';
 import { requestGen as geminiStreamRequestGen } from '../fixtures/providers/geminiStreamRequest.js';
@@ -13,11 +14,15 @@ const accountId = '10000000-0000-4000-8000-000000000001';
 let bundle: string;
 test.beforeAll(async () => {
     const output = await build({ stdin: { resolveDir: path.resolve(__dirname, '../..'), loader: 'ts', contents: `
+        import { installApplicationHost } from './src/runtime/api/applicationHost.ts';
+        installApplicationHost();
         import * as storage from './src/l3a/storageService.ts';
         import * as domain from './src/l2/ingestion.ts';
         import { readConversation } from './src/l2/readConversation.ts';
         import { resolveScanTarget } from './src/runtime/capabilities/tabService.ts';
         import { runLiveSave } from './src/runtime/background/liveSaveHandler.ts';
+        import { installProviderHost } from './src/runtime/api/providerHost.ts';
+        installProviderHost();
         Object.assign(globalThis, { productionProbe: { ...storage, ...domain, readConversation, resolveScanTarget, runLiveSave } });
     ` }, bundle: true, write: false, format: 'iife', platform: 'browser', conditions: ['worker', 'browser'], logLevel: 'silent',
         define: { __EXT_VERSION__: '"2.0.0"' } });
@@ -158,6 +163,31 @@ test('MAIN fetch → isolated L1 → Background L2 commits in extension IDB and 
     await expect(source.locator('#geminiExportBadge')).toContainText(String(GEMINI_LIST_CAPTURE.firstPageRows));
     expect(await page.evaluate(async accountId => Object.keys(await Reflect.get(globalThis, 'productionProbe').listExportRecords(accountId)).length, accountId)).toBe(0);
     expect(await source.evaluate(async () => (await indexedDB.databases()).map(db => db.name))).not.toContain('gemini_exporter_v2');
+});
+
+test('captured Gemini Markdown fallback preserves inline HTML in an Options download', async ({ context, extensionId }) => {
+    const page = await workbench(context, extensionId);
+    const source = await sourcePage(context);
+    const { conversationId, literal } = inlineHtmlFallback;
+    const wire = inlineHtmlFallback.wire();
+    await source.route('**/batchexecute*', route => route.fulfill({ contentType: 'application/json', body: wire }));
+    await source.waitForFunction(() => window.__gemExporterHookInstalled === true);
+    const body = geminiDetailRequestGen('G_E2E_PRODUCTION_PASSIVE_DETAIL_REQUEST_01')
+        .replace('c_passive', 'c_' + conversationId);
+    await source.evaluate(async body => {
+        await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body });
+    }, body);
+    await expect.poll(() => page.evaluate(async ({ accountId, conversationId }) => !!await Reflect.get(globalThis, 'productionProbe')
+        .readConversation({ accountId, conversationId }), { accountId, conversationId })).toBe(true);
+    await page.reload();
+    await expect(page.locator('#list .item')).toHaveCount(1);
+    await page.locator('#format').selectOption('markdown');
+    await page.locator('#btnSelectAll').click();
+    const download = page.waitForEvent('download');
+    await page.locator('#btnExport').click();
+    const contents = await readFile((await (await download).path())!, 'utf8');
+    expect(contents).toContain('```html\n' + literal + '\n```');
+    expect(contents).toContain('Use `' + literal + '` here.');
 });
 
 test('Service Worker unified Live Save writes a real stored directory handle and reports missing permissions without changing Settings', async ({ context, extensionId }) => {

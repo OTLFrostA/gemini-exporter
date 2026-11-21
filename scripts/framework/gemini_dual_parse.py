@@ -86,14 +86,17 @@ def finish_capture(cdp, directory, expected_ids):
 
 
 def run_check(repo_root, source, destination):
+    summary_file = Path(destination) / 'summary.json'
+    summary_file.unlink(missing_ok=True)
     command = ['node', '-r', str(Path(repo_root) / 'tests/ts_register.js'),
                str(Path(repo_root) / 'scripts/check_gemini_dual_parse.ts'),
                '--input', str(source), '--output', str(destination)]
     result = subprocess.run(command, cwd=repo_root, capture_output=True, text=True, timeout=180)
-    summary_file = Path(destination) / 'summary.json'
+    if result.returncode not in (0, 1):
+        raise RuntimeError(f'Gemini dual parse execution failed: {result.stderr[-1500:]}')
     if not summary_file.is_file():
         raise RuntimeError(f'Gemini dual parse produced no report: {result.stderr[-1500:]}')
     summary = json.loads(summary_file.read_text(encoding='utf-8'))
-    if result.returncode not in (0, 1):
+    if summary.get('passed') is not (result.returncode == 0):
         raise RuntimeError(f'Gemini dual parse execution failed: {result.stderr[-1500:]}')
     return result.returncode == 0 and summary.get('passed') is True, summary

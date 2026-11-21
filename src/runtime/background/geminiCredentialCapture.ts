@@ -1,4 +1,4 @@
-import { GEMINI_RPC_CREDENTIALS, type GeminiRpcCredentialsMessage } from '../api/geminiRpcCredentials.js';
+import { GEMINI_RPC_CREDENTIALS, type GeminiRpcCredentialsMessage } from '../../shared/types/geminiRpcCredentials.js';
 
 const GEMINI_ORIGIN = 'https://gemini.google.com';
 

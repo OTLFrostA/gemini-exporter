@@ -43,3 +43,116 @@ test('HTML inline code preserves literal tag text while converting surrounding m
     assert.ok(converted.includes('`<h1>Literal</h1>`'));
     assert.ok(converted.includes('**Actual**'));
 });
+
+test('Markdown code spans preserve HTML while surrounding markup is converted', () => {
+    const inline = '`<strong>literal</strong>`';
+    const multi = '``<code>`literal`\n&amp;</code>``';
+    const html = '<code>`literal` &amp;</code>';
+    assert.equal(
+        convertHtmlToMarkdown(`Use ${inline} and ${multi}; <strong>real</strong> and ${html}.`),
+        `Use ${inline} and ${multi}; **real** and ` + '`` `literal` & ``.',
+    );
+    assert.equal(convertHtmlToMarkdown('```<b>literal</b>``` and <b>real</b>'), '```<b>literal</b>``` and **real**');
+});
+
+test('unmatched and escaped Markdown backticks do not shield surrounding HTML', () => {
+    const source = '\`\`<b>first</b> \\\`<b>second</b> \`\n\n<b>third</b> \`\`';
+    assert.equal(convertHtmlToMarkdown(source), '\`\`**first** \\\`**second** \`\n\n**third** \`\`');
+    assert.equal(convertHtmlToMarkdown('\\``<b>literal</b>` <b>real</b>'), '\\``<b>literal</b>` **real**');
+});
+
+test('backticks inside HTML attributes or comments cannot close Markdown code spans', () => {
+    assert.equal(convertHtmlToMarkdown('Unmatched ` then <b title="`">real</b>.'), 'Unmatched ` then **real**.');
+    assert.equal(convertHtmlToMarkdown('Unmatched ` then <!-- hidden ` --> <b>real</b>.'), 'Unmatched ` then  **real**.');
+    assert.equal(convertHtmlToMarkdown('Use `<code>` and <b>real</b> and `</code>`.'), 'Use `<code>` and **real** and `</code>`.');
+    const span = '`<b title="`">example</b>`';
+    assert.equal(convertHtmlToMarkdown('Use ' + span + ' and <b>real</b>.'), 'Use ' + span + ' and **real**.');
+});
+
+test('backticks inside real HTML code cannot close an unmatched prose delimiter', () => {
+    assert.equal(convertHtmlToMarkdown('Unmatched ` then <code>`raw` &lt;b&gt;</code>.'), 'Unmatched ` then `` `raw` <b> ``.');
+    assert.equal(convertHtmlToMarkdown('Use `<code>` then <code>`real` &lt;b&gt;</code> and `</code>`.'),
+        'Use `<code>` then `` `real` <b> `` and `</code>`.');
+});
+
+test('literal HTML comment openers in code do not consume following prose', () => {
+    assert.equal(
+        convertHtmlToMarkdown('Type `<!--` and keep this text. <!-- hidden --> <b>real</b>.'),
+        'Type `<!--` and keep this text.  **real**.',
+    );
+});
+
+test('partial HTML examples preserve literal tags without shielding intervening markup', () => {
+    assert.equal(
+        convertHtmlToMarkdown('Use `use <code>` then <code>x</code> and `</code>`.'),
+        'Use `use <code>` then `x` and `</code>`.',
+    );
+    assert.equal(
+        convertHtmlToMarkdown('Use `use <code>` then <b>real</b> and `</code>`.'),
+        'Use `use <code>` then **real** and `</code>`.',
+    );
+});
+
+test('formatted HTML between separate partial code tags is converted', () => {
+    for (const [opening, closing] of [
+        ['`<code>example`', '`</code>`'],
+        ['``<code>example with a ` backtick``', '``end </code> suffix``'],
+    ]) {
+        const input = `Use ${opening} and <b>real</b> and ${closing}.`;
+        const expected = `Use ${opening} and **real** and ${closing}.`;
+        assert.equal(convertHtmlToMarkdown(input), expected);
+        assert.equal(convertHtmlToMarkdown(`<p>${input}</p>`).trim(), expected);
+        assert.ok(convertHtmlToMarkdown(`<table><tr><td>${input}</td><td>Other</td></tr></table>`)
+            .includes(`| ${expected} | Other |`));
+    }
+});
+
+test('backticks in separate HTML code elements cannot form a Markdown span across the elements', () => {
+    const source = '<code>left`</code> <b>one</b> <code>`middle`</code> <b>two</b> <code>`right</code>';
+    assert.equal(convertHtmlToMarkdown(source), '`` left` `` **one** `` `middle` `` **two** `` `right ``');
+    assert.equal(
+        convertHtmlToMarkdown('Unmatched ` then <code>`first`</code> <b>and</b> <code>`second</code>'),
+        'Unmatched ` then `` `first` `` **and** `` `second ``',
+    );
+});
+
+test('adjacent HTML and Markdown code preserve both code spans without leaking placeholders', () => {
+    assert.equal(
+        convertHtmlToMarkdown('<code>` raw `</code>`md`'),
+        '`` ` raw ` `` `md`',
+    );
+});
+
+test('mixed HTML and Markdown never expose internal code placeholders', () => {
+    const nested = '`<code>` ``<code>`` <b>real</b> ``</code>`` `</code>`';
+    const inputs = [
+        nested,
+        '``<code>`` `<code>` <b>real</b> `</code>` ``</code>``',
+        '`<code>` ``<code data-demo>`` <em>real</em> ``</code>`` `</code>`',
+        '<code>` raw `</code>`md`',
+        '<pre><code>`&lt;code&gt;`</code></pre>',
+    ];
+    for (const input of inputs) {
+        for (const source of [input, `<p>${input}</p>`, `<table><tr><td>${input}</td></tr></table>`]) {
+            assert.doesNotMatch(convertHtmlToMarkdown(source), /[\uE000\uFFFD]CODE\d+[\uE000\uFFFD]/, source);
+        }
+    }
+});
+
+test('source text shaped like a code placeholder is retained verbatim', () => {
+    const literal = '\uFFFDCODE7\uFFFD \uFFFDCODE0:0\uFFFD';
+    assert.equal(
+        convertHtmlToMarkdown(`${literal} then \`${literal}\` and <b>real</b>.`),
+        `${literal} then \`${literal}\` and **real**.`,
+    );
+});
+
+test('literal closing cell tags are preserved in Markdown code outside HTML tables', () => {
+    const example = 'Close cells with `</td>` or `</th>` here.';
+    assert.equal(convertHtmlToMarkdown(example + ' <b>Real</b>'), example + ' **Real**');
+    const table = '<table><tr><td>left</td><td>right</td></tr></table>';
+    assert.equal(convertHtmlToMarkdown(example + table + example),
+        example + '\n\n| left | right |\n| --- | --- |\n\n' + example);
+    assert.equal(convertHtmlToMarkdown(example + ' Use `</table>` for tables. <b>Real</b>'),
+        example + ' Use `</table>` for tables. **Real**');
+});

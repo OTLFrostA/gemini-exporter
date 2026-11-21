@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { initGeminiCredentialCapture } from '../src/runtime/background/geminiCredentialCapture.js';
-import { GEMINI_RPC_CREDENTIALS } from '../src/runtime/api/geminiRpcCredentials.js';
+import { GEMINI_RPC_CREDENTIALS } from '../src/shared/types/geminiRpcCredentials.js';
 
 type RequestDetails = chrome.webRequest.OnBeforeRequestDetails;
 

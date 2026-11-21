@@ -5,6 +5,7 @@
  * Types are checked against the frozen v2 public entrypoints. Mock decisions are
  * scripted by tests; this deliberately does NOT reproduce L2 selection/Coverage.
  */
+import { provideProviderHost } from '../../src/l1/client/providerHost.js';
 import type { Account } from '../../src/l2/accountRegistry.js';
 import type { ConversationKey } from '../../src/l2/conversationKey.js';
 import type { DetailIngestResult } from '../../src/l2/ingestion.js';
@@ -68,7 +69,7 @@ const ingestion: Pick<Ingest, 'ingestIndexes' | 'ingestDetail' | 'ingestDeletedC
         await ports.beforeIndexCommit?.();
         if (ports.indexError) throw ports.indexError;
         ports.indexes.push({ accountId, items, page });
-        return { added: items.length, updated: 0 };
+        return { added: items.length, updated: 0, accepted: items.length, rejected: 0 };
     },
     async ingestDetail(accountId, conversationId, detail, indexFields) {
         await ports.beforeDetailCommit?.();
@@ -252,7 +253,6 @@ export function installL1V2Mocks(): void {
                 ingestContentDeletedConversation: ingestion.ingestDeletedConversation,
             };
             if (request.endsWith('/runtime/api/domainChanges.js')) return { notifyDomainChanged: (id: string) => { ports.notifications.push(id); } };
-            if (request.endsWith('/runtime/api/accountRegistry.js')) return accountRegistry;
             if (request.endsWith('/runtime/api/contentAccountRegistry.js')) return {
                 getContentAccount: accountRegistry.getAccount,
                 getOrCreateContentAccount: accountRegistry.getOrCreateAccount,
@@ -269,7 +269,6 @@ export function installL1V2Mocks(): void {
             if (request.endsWith('/l2/content/assetReferences.js')) return assetReferencePort;
             if (request.endsWith('/l2/sourceUri.js')) return sourceUriPort;
             if (request.endsWith('/l2/accountRegistry.js')) return accountIdentityPort;
-            if (request.endsWith('/runtime/devMode.js')) return { isDevMode: () => false };
             if (request.endsWith('/l2/titleAuthority.js')) return {};
             if (request.endsWith('/l2/conversationIndex.js')) return indexComparisonPort;
             if (/\/(?:l2|l3a|l3b|l4|runtime|application|ui)\//.test(request) && !request.endsWith('.d.ts'))
@@ -277,4 +276,11 @@ export function installL1V2Mocks(): void {
         }
         return Reflect.apply(originalLoad, loader, [request, parent, isMain]);
     };
+    provideProviderHost({
+        getAccount: accountRegistry.getAccount,
+        async resolveGeminiRoute(accountId) {
+            if (ports.current?.accountId !== accountId) throw new Error('No mocked Gemini account route');
+            return ports.current.slot;
+        },
+    });
 }

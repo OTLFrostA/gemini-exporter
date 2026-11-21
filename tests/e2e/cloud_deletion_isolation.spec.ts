@@ -21,12 +21,15 @@ let bundle: string;
 test.beforeAll(async () => {
     const output = await build({
         stdin: { contents: [
+            "import { installApplicationHost } from './src/runtime/api/applicationHost.ts'; installApplicationHost();",
             "import * as storage from './src/l3a/storageService.ts';",
             "import { ingestDetail, ingestIndexes } from './src/l2/ingestion.ts';",
             "import { readConversation } from './src/l2/readConversation.ts';",
             "import { runExport } from './src/application/export/runExport.ts';",
             "import { GeminiProvider } from './src/l1/client/gemini/geminiProvider.ts';",
             "import { ConfirmedGeminiConversationNotFound } from './src/l1/client/gemini/geminiClient.ts';",
+            "import { installProviderHost } from './src/runtime/api/providerHost.ts';",
+            "installProviderHost();",
             "globalThis.deletionProbe = { ...storage, ingestDetail, ingestIndexes, readConversation, runExport, GeminiProvider, ConfirmedGeminiConversationNotFound };",
         ].join('\n'), resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' },
         bundle: true, write: false, platform: 'browser', format: 'iife',

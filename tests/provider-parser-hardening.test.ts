@@ -146,7 +146,7 @@ test('inline image reuses the matching attachment asset', async () => {
 });
 
 test('image with no source remains a semantic asset and the backend reports unavailable resources', async () => {
-    const { domain, msg, diagnostics } = await norm('x ![]() y');
+    const { domain, msg } = await norm('x ![]() y');
     const img = msg.content[0].children.find((c: any) => c.type === 'image');
     assert.ok(img?.type === 'image');
     const asset = domain.detail.assets.find((a: any) => a.id === img.assetId);

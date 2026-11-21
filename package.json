@@ -34,9 +34,10 @@
   "author": "Wenbo Cui",
   "license": "MIT",
   "devDependencies": {
+    "@babel/parser": "^7.29.14",
+    "@babel/types": "^7.29.14",
     "@playwright/test": "^1.62.1",
     "@types/chrome": "^0.2.9",
-    "@types/katex": "^0.16.8",
     "@types/node": "^26.5.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

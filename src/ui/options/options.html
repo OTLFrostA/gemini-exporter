@@ -282,6 +282,9 @@
   #localDataControls{display:flex;flex-direction:column;gap:0;}
   .conversation-selection{display:flex;align-items:center;gap:9px;flex:none;min-height:26px;margin:8px 1px 4px;padding:0 9px;color:var(--muted);}
   .conversation-selection .stat{font-size:11px;}
+  .hidden-selection-notice{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:none;margin:0 0 10px;padding:9px 12px;border:1px solid var(--border-focus);border-radius:8px;background:var(--card);font-size:12px;color:var(--text);}
+  .hidden-selection-notice[hidden]{display:none;}
+  .hidden-selection-notice span{flex:1;min-width:180px;}
   .conversation-selection #btnSelectAll{width:14px;height:14px;margin:0;flex:none;cursor:pointer;accent-color:var(--accent);}
   .conversation-selection #btnSelectAll:disabled{cursor:default;opacity:.45;}
   #list{border:0;border-radius:0;background:transparent;padding:2px 0;}
@@ -473,6 +476,11 @@
     <div class="conversation-selection">
       <input id="btnSelectAll" type="checkbox" aria-label="全选当前可见会话">
       <span id="selectedStat" class="stat"></span>
+    </div>
+    <div id="hiddenSelectionNotice" class="hidden-selection-notice" hidden>
+      <span id="hiddenSelectionText" role="status" aria-live="polite"></span>
+      <button id="btnShowHiddenSelection" type="button" class="ghost small" data-ui-en="Show" data-ui-zh="显示">Show</button>
+      <button id="btnDeselectHidden" type="button" class="ghost small" data-ui-en="Deselect" data-ui-zh="取消选择">Deselect</button>
     </div>
     <div id="list" class="list" style="flex:1; margin:0; overflow-y:auto; padding-right:4px;"></div>
   </div>

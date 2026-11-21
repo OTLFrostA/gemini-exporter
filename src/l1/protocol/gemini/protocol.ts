@@ -36,9 +36,6 @@ export const CrossWorldEvents = {
     LIVE_SAVE_TRIGGER: 'GEMINI_LIVE_SAVE_TRIGGER'
 } as const;
 
-const EVENTS = CrossWorldEvents;
-type CrossWorldEventType = typeof CrossWorldEvents[keyof typeof CrossWorldEvents];
-
 export function parseRpcRequestId(value: unknown): string | undefined {
     return typeof value === 'string' && /^\d{1,9}$/.test(value) ? value : undefined;
 }

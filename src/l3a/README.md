@@ -1,15 +1,25 @@
 # Storage v2
 
-`storageService.ts` exports the frozen passive persistence API from the
-[Storage design](https://app.notion.com/p/3fb5d4d759e1816dbc65c1cd23854e00).
+Consumers outside L3a use only these three public entrypoints:
 
-The conversation IndexedDB (`gemini_exporter_v2`, version 2) holds six stores and only the
-unique `accounts.providerIdentity` index. The public surface has 23 functions,
+- `storageService.ts`: the frozen 26-function passive persistence API from the
+  [Storage design](https://app.notion.com/p/3fb5d4d759e1816dbc65c1cd23854e00).
+- `batchStorageService.ts`: atomic multi-item snapshot/batch persistence for L2
+  admission/reads and Application export finalization.
+- `vaultStorageService.ts`: passive session, outbox, receipt, keyring and folder
+  handle persistence for the separate vault IndexedDB.
+
+Concrete store modules are internal implementations, not consumer entrypoints.
+
+The conversation IndexedDB (`gemini_exporter_v2`, version 3) holds six stores and only the
+unique `accounts.providerIdentity` index. The frozen public surface has 26 functions,
 including the narrowly scoped atomic Account admission port for L2. Clearing scan
 records atomically deletes Index, Detail, Coverage and ExportRecord for the selected account.
 Export-history cleanup deletes only ExportRecords; both actions retain Account
 and directory handles. Raw partial Settings use one
-Chrome Storage key, and Patch uses an extension-origin Web Lock. Writes resolve after physical transaction completion;
+Chrome Storage key, and Patch uses an extension-origin Web Lock. Content scripts can
+read that key, so Settings never hold credentials: reads hide and patches erase the
+retired `cloudSyncAccessCode`; the Vault access code lives only in the vault session. Writes resolve after physical transaction completion;
 missing values return null/empty collections and IO errors reject. No memory
 fallback, resource bytes or persistent task state is stored in the conversation DB.
 
@@ -23,6 +33,9 @@ processes one account and one Detail cursor at a time, waiting for each update
 before continuing, and never loads an account's bodies with `getAll()`. An aborted
 upgrade rolls back all writes and evicts the failed pooled connection so the next
 storage read can retry.
+
+The v2-to-v3 upgrade removes historical source timestamps outside the JavaScript Date
+range while retaining valid metadata, bodies and export receipts.
 
 L2 owns identity, Index merging, Detail selection and Coverage admission.
 Application owns defaults, Skip, export records and user record cleanup. Runtime

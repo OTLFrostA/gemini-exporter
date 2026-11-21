@@ -66,7 +66,7 @@ test('production RPC client parses raw responses without invoking the legacy det
     const transport = require('../src/l1/client/gemini/api/rpcClient.js') as typeof import('../src/l1/client/gemini/api/rpcClient.js');
     const originalCred = credentials.resolveCred, originalPost = transport.postBatchexecute;
     credentials.resolveCred = async () => ({ at: 'test', bl: 'test', accountSlot: 'u0', fSid: 'test' });
-    transport.postBatchexecute = async () => new Response(geminiDetailGen('G_NATIVE_ACQ_01'));
+    transport.postBatchexecute = async () => ({ response: new Response(), text: geminiDetailGen('G_NATIVE_ACQ_01') });
     try {
         const { GeminiAPIClient } = require('../src/l1/client/gemini/geminiClient.js') as typeof import('../src/l1/client/gemini/geminiClient.js');
         const detail = await new GeminiAPIClient().fetchConversationPage('native', null, 'u0');

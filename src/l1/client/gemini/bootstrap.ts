@@ -8,7 +8,7 @@ import {
     withCredMapLock,
 } from './api/credStorage.js';
 import { isCurrentAccount, matchesCurrentAccount, resolveCurrentAccount } from '../../../runtime/content/accountContext.js';
-import { GEMINI_RPC_CREDENTIALS } from '../../../runtime/api/geminiRpcCredentials.js';
+import { GEMINI_RPC_CREDENTIALS } from '../../../shared/types/geminiRpcCredentials.js';
 import { readAccountParameters } from '../../../l2/accountRegistry.js';
 import { registerCleanup } from '../../../runtime/content/cleanupRegistry.js';
 import { getErrorMessage } from '../../../shared/utils/errorText.js';

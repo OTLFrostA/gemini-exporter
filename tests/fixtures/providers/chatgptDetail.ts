@@ -1,4 +1,6 @@
-import { describeFixtures, synthetic } from './provenance.js';
+import { describeFixtures, synthetic, derived } from './provenance.js';
+import dilCorpus from '../chatgpt_dil_corpus.json';
+import dynamicQuestionnaire from '../chatgpt_dynamic_questionnaire.json';
 import type { ChatGPTConversationNode } from '../../../src/l1/parsers/chatgpt/chatgptTypes.js';
 
 /** Native JSON returned by GET /backend-api/conversation/:id (one payload per key). */
@@ -139,10 +141,106 @@ const fixtureMap = {
         }),
         id: '6acffdc5-c4d0-83e8-8e1b-ba60979a618a',
     }),
+    'C_DERIVED_DIL_MULTIMODAL_AUDIT_01': () => {
+        const codeEntry = dilCorpus[1];
+        const bilingualEntry = dilCorpus[7];
+        return {
+            id: '6acffdc5-c4d0-83e8-8e1b-000000000101',
+            title: 'Extended Hamming (8,4) SECDED Engineering Audit',
+            create_time: 1760000000,
+            update_time: 1760000120,
+            current_node: 'a2',
+            is_archived: false,
+            mapping: {
+                root: { id: 'root', children: ['u1'] },
+                u1: {
+                    ...textNode('u1', 'root', 'user', 'Provide a runnable Python encoder/syndrome verifier for the extended Hamming (8,4) SECDED code.'),
+                    children: ['a1'],
+                },
+                a1: {
+                    id: 'a1',
+                    parent: 'u1',
+                    children: ['u2'],
+                    message: {
+                        id: 'message-a1',
+                        author: { role: 'assistant' },
+                        recipient: 'all',
+                        status: 'finished_successfully',
+                        end_turn: true,
+                        weight: 1,
+                        content: { content_type: 'text', parts: [codeEntry.raw] },
+                        metadata: { model_slug: 'gpt-5', model_dil_v2: { fallbackMarkdown: codeEntry.fallback } },
+                    },
+                },
+                u2: {
+                    ...textNode('u2', 'a1', 'user', 'Summarize the bilingual EN/ZH engineering audit verdict table and conventions.'),
+                    children: ['a2'],
+                },
+                a2: {
+                    id: 'a2',
+                    parent: 'u2',
+                    children: [],
+                    message: {
+                        id: 'message-a2',
+                        author: { role: 'assistant' },
+                        recipient: 'all',
+                        status: 'finished_successfully',
+                        end_turn: true,
+                        weight: 1,
+                        content: { content_type: 'text', parts: [bilingualEntry.raw] },
+                        metadata: { model_slug: 'gpt-5', model_dil_v2: { fallbackMarkdown: bilingualEntry.fallback } },
+                    },
+                },
+            },
+        };
+    },
+    'C_DERIVED_DYNAMIC_QUESTIONNAIRE_01': () => ({
+        id: '6ad9b0a8-1b6c-83e8-af11-3071d09cd382',
+        title: '家庭堆肥知识小问卷',
+        create_time: 1760000200,
+        update_time: 1760000260,
+        current_node: 'answer',
+        is_archived: false,
+        mapping: {
+            root: { id: 'root', children: ['question'] },
+            question: {
+                ...textNode('question', 'root', 'user', '请生成一份家庭堆肥知识互动小问卷。'),
+                children: ['answer'],
+            },
+            answer: {
+                id: 'answer',
+                parent: 'question',
+                children: [],
+                message: {
+                    id: 'message-compost',
+                    author: { role: 'assistant' },
+                    recipient: 'all',
+                    status: 'finished_successfully',
+                    end_turn: true,
+                    weight: 1,
+                    content: { content_type: 'text', parts: [dynamicQuestionnaire.raw] },
+                    metadata: { model_slug: 'gpt-5', model_dil_v2: { fallbackMarkdown: dynamicQuestionnaire.fallbackMarkdown } },
+                },
+            },
+        },
+    }),
 };
 
 export function detailGen<K extends keyof typeof fixtureMap>(key: K): ReturnType<(typeof fixtureMap)[K]> {
     return fixtureMap[key]() as ReturnType<(typeof fixtureMap)[K]>;
 }
 
-export const fixtureOrigins = describeFixtures(fixtureMap, synthetic("Authored ChatGPT protocol, content or state counterexample; no saved capture is used."));
+export const fixtureOrigins = describeFixtures(
+    fixtureMap,
+    synthetic("Authored ChatGPT protocol, content or state counterexample; no saved capture is used."),
+    {
+        C_DERIVED_DIL_MULTIMODAL_AUDIT_01: derived(
+            ["tests/fixtures/chatgpt_dil_corpus.json"],
+            "Captured live ChatGPT DIL Python CodeBlock, LaTeX math and bilingual audit table replies wrapped in a native /backend-api/conversation/:id mapping envelope.",
+        ),
+        C_DERIVED_DYNAMIC_QUESTIONNAIRE_01: derived(
+            ["tests/fixtures/chatgpt_dynamic_questionnaire.json"],
+            "Captured live ChatGPT interactive compost questionnaire DIL body and official fallbackMarkdown wrapped in a native /backend-api/conversation/:id mapping envelope.",
+        ),
+    },
+);

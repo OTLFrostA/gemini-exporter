@@ -2,7 +2,7 @@ import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { TypstConversationRenderPayload } from '../typst/transport.js';
 
 /** Prepared output bytes, never a semantic Asset or source conversation. */
-export interface PdfResource { blob?: Blob; bytes?: Uint8Array }
+interface PdfResource { blob?: Blob; bytes?: Uint8Array }
 export interface PdfCompileContext {
     assets: { resolve(resourceId: string): Promise<PdfResource | null> };
     signal: AbortSignal;

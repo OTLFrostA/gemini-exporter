@@ -1,25 +1,6 @@
 import { OperationError } from '../../shared/errors/operationError.js';
 import { isDirectoryHandle, type DirectoryHandle } from '../../shared/types/directoryHandle.js';
-import { getStoredLocalVaultHandle } from '../../l3a/cloudSyncStore.js';
-
-export type VaultDirectoryStatus =
-    | { readonly state: 'missing' }
-    | { readonly state: 'prompt'; readonly folderName: string }
-    | { readonly state: 'granted'; readonly folderName: string; readonly handle: DirectoryHandle };
-
-export async function inspectVaultDirectoryStatus(): Promise<VaultDirectoryStatus> {
-    const handle = await getStoredLocalVaultHandle();
-    if (!handle) return { state: 'missing' };
-    try {
-        const perm = await handle.queryPermission({ mode: 'readwrite' });
-        if (perm === 'granted') {
-            return { state: 'granted', folderName: handle.name, handle };
-        }
-        return { state: 'prompt', folderName: handle.name };
-    } catch {
-        return { state: 'prompt', folderName: handle.name };
-    }
-}
+import { getStoredLocalVaultHandle } from '../../l3a/vaultStorageService.js';
 
 /** Open the browser directory picker inside a user click gesture. */
 export async function pickVaultDirectoryHandle(): Promise<DirectoryHandle> {
