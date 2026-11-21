@@ -443,13 +443,39 @@ test('UI v2: Badge owns visibility-triggered count Pull without exposing a Runti
     await expect.poll(() => read(page, 'countRequests')).toBe(2);
     await expect(page.locator('#geminiExportBadge')).toContainText('9 conversations indexed');
 });
+test('UI v2: Badge uses the system sans-serif font', async ({ page }) => {
+    await mount(page, 'badge');
+    await expect(page.locator('#geminiExportBadge')).toHaveCSS('font-family', /^ui-sans-serif,/);
+});
+for (const theme of ['dark', 'light']) test(`UI v2: Badge saved styling clears with feedback in ${theme} theme`, async ({ page }) => {
+    await mount(page, 'badge', { settings: { theme } });
+    const badge = page.locator('#geminiExportBadge');
+    await expect(badge).toContainText('9 conversations indexed');
+    await expect(badge).not.toHaveClass(/live-saved/);
+    await page.evaluate(() => Reflect.get(window, 'badge').showLiveSaveResult({ exported: 1, partial: 0,
+        failed: [], skipped: 0, aborted: false }, Reflect.get(window, 'harness').source));
+    await expect(badge).toContainText('✓ Saved');
+    await expect(badge).toHaveClass(/live-saved/, { timeout: 1000 });
+    await expect(badge).toHaveCSS('border-top-color', 'rgb(16, 185, 129)');
+    await expect(badge).toContainText('9 conversations indexed', { timeout: 4000 });
+    await expect(badge).not.toHaveClass(/live-saved/);
+    await page.evaluate(() => Reflect.get(window, 'badge').showLiveSaveError(Reflect.get(window, 'harness').source));
+    await expect(badge).toContainText('Save failed');
+    await expect(badge).not.toHaveClass(/live-saved/);
+});
 test('UI v2: Badge drag sends position to Runtime on pointerup, ignores ordinary clicks and resizes', async ({ page }) => {
     await mount(page,'badge'); await expect(page.locator('#geminiExportBadge')).toContainText('9 conversations indexed');
     await expect(page.locator('#geminiExportBadge .pulse')).toHaveCount(1);
     await expect(page.locator('#geminiExportBadge')).toHaveCSS('background-color', 'rgb(15, 16, 26)');
     const badge=page.locator('#geminiExportBadge'); const before=await badge.boundingBox();
-    await page.mouse.move(before!.x+15,before!.y+10);await page.mouse.down();await page.mouse.move(before!.x-100,before!.y-80);
+    await page.mouse.move(before!.x+15,before!.y+10);await page.mouse.down();
+    await expect(badge).not.toHaveClass(/dragging/);
+    await page.mouse.move(before!.x-100,before!.y-40);
+    await expect(badge).toHaveClass(/dragging/, { timeout: 1000 });
+    await expect(badge).toHaveCSS('cursor', 'grabbing');
+    await expect(badge).toHaveCSS('transform', 'none');
     expect(await read(page,'patches')).toEqual([]);await page.mouse.up();
+    await expect(badge).not.toHaveClass(/dragging/);
     const updates=(await read(page,'messages')).filter((m: {action: string})=>m.action==='updateBadgePosition');
     expect(updates).toHaveLength(1); expect(updates[0].position).toMatchObject({left: expect.any(Number), top: expect.any(Number)});
     expect(await read(page,'patches')).toEqual([]);

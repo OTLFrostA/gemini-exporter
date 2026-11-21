@@ -36,6 +36,7 @@ function render(): void {
     const visibleFeedback = !isDeveloperMode() && feedbackResult?.attachmentIssues?.length
         && feedbackResult.otherPartial === 0 && !feedbackResult.failed.length && !feedbackResult.aborted ? 'ok' : feedback;
     badge?.classList.toggle('live-save-warning', visibleFeedback === 'unavailable');
+    badge?.classList.toggle('live-saved', visibleFeedback === 'ok');
     if (badge) badge.title = feedbackResult ? exportSummary(feedbackResult) : '';
     label.textContent = extensionContextInvalidated || !chrome.runtime?.id
         ? text('Extension updated. Refresh this page.', '插件已更新，请刷新页面')
@@ -116,10 +117,12 @@ function ensureBadgeImpl(): HTMLElement | null {
     });
     badge.addEventListener('pointermove', event => {
         if (!dragging || Math.hypot(event.clientX - startX, event.clientY - startY) < 4 && !moved) return;
-        moved = true; positionChanged = true; position(left + event.clientX - startX, top + event.clientY - startY);
+        moved = true; element.classList.add('dragging');
+        positionChanged = true; position(left + event.clientX - startX, top + event.clientY - startY);
     });
     badge.addEventListener('pointerup', event => {
         if (!dragging) return; dragging = false;
+        element.classList.remove('dragging');
         element.releasePointerCapture(event.pointerId);
         if (moved) {
             const rect = element.getBoundingClientRect();
@@ -133,7 +136,7 @@ function ensureBadgeImpl(): HTMLElement | null {
                 .catch(console.warn);
         }
     });
-    badge.addEventListener('pointercancel', () => { dragging = false; moved = true; });
+    badge.addEventListener('pointercancel', () => { dragging = false; moved = true; element.classList.remove('dragging'); });
     const open = () => {
         void resolveCurrentAccount().catch(() => null)
             .then(context => chrome.runtime.sendMessage({ action: 'openOptions', accountId: context?.accountId ?? null }))
