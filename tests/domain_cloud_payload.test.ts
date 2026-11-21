@@ -101,7 +101,7 @@ test('L2 cloudPayload strips device-local Account UUID and preserves full semant
     assert.ok(decoded.detail);
     assert.equal('key' in decoded.detail, false);
     assert.equal(decoded.index.title, 'Quantum Harmonic Oscillator');
-    assert.equal(decoded.detail?.messages.length, 2);
+    assert.deepEqual(decoded.detail.messages, conv.detail?.messages);
     assert.equal(decoded.detail?.assets[1]?.document?.contentMarkdown, '```python\nimport numpy as np\n```');
 
     // Privacy-minimal Index-only mode omits detail completely
