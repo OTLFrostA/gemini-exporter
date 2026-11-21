@@ -540,7 +540,8 @@ export function createCloudSyncEngine(deps: {
                         limit: 50,
                         signal,
                     });
-                    if (!Number.isSafeInteger(feed.nextSince) || feed.nextSince < cursor) {
+                    if (!Number.isSafeInteger(feed.nextSince) || feed.nextSince < cursor
+                        || (feed.hasMore && (feed.nextSince === cursor || feed.items.length === 0))) {
                         throw new OperationError('CLOUD_SERVER_ERROR', 'Invalid cloud change feed cursor');
                     }
                     if (feed.items.length === 0) break;

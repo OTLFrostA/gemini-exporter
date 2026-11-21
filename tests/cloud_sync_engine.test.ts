@@ -453,7 +453,7 @@ for (const action of ['restore', 'heal']) {
     });
 }
 
-for (const scenario of ['feed floor', 'missing record', 'regressing cursor', 'fractional cursor', 'empty invalid cursor', 'newer revision']) {
+for (const scenario of ['feed floor', 'missing record', 'regressing cursor', 'fractional cursor', 'empty invalid cursor', 'stalled page', 'empty partial page', 'newer revision']) {
     test(`CloudSyncEngine revision safety: ${scenario}`, async () => {
         const env = indexStorage();
         try {
@@ -483,8 +483,11 @@ for (const scenario of ['feed floor', 'missing record', 'regressing cursor', 'fr
                     const feed = await client.listChanges({ ...args, sinceSeq: 0 });
                     return {
                         ...feed,
-                        items: scenario === 'empty invalid cursor' ? [] : feed.items.map(meta => ({ ...meta, revision: scenario === 'feed floor' ? 2 : 1 })),
-                        nextSince: scenario === 'regressing cursor' ? 6 : scenario.includes('cursor') ? 1.5 : 8,
+                        items: scenario === 'empty invalid cursor' || scenario === 'empty partial page' ? []
+                            : feed.items.map(meta => ({ ...meta, revision: scenario === 'feed floor' ? 2 : 1 })),
+                        nextSince: scenario === 'regressing cursor' ? 6 : scenario === 'stalled page' ? 7
+                            : scenario.includes('cursor') ? 1.5 : 8,
+                        hasMore: scenario === 'stalled page' || scenario === 'empty partial page',
                     };
                 },
                 async getEncryptedRecord(args) {
@@ -492,7 +495,7 @@ for (const scenario of ['feed floor', 'missing record', 'regressing cursor', 'fr
                 },
             } });
             await deleteStoredConversation(key);
-            if (scenario === 'regressing cursor') {
+            if (scenario === 'regressing cursor' || scenario === 'stalled page') {
                 await ingestIndexes(account.id, [{ conversationId: 'c_anchor', fields: { title: 'Keep local cursor', titleSource: 'provider' } }]);
             }
             if (scenario === 'newer revision') {
