@@ -21,7 +21,7 @@ async function readExistingAccount(accountId: Account['id']): Promise<Account | 
 }
 
 export interface IndexIngestResult { added: number; updated: number }
-export interface IndexAdmissionResult extends IndexIngestResult { accepted: number; rejected: number }
+interface IndexAdmissionResult extends IndexIngestResult { accepted: number; rejected: number }
 
 type CommittedKeysListener = (keys: readonly ConversationKey[]) => void;
 const committedKeysListeners = new Set<CommittedKeysListener>();

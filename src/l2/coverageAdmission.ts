@@ -34,7 +34,7 @@ export async function hasTrustedBoundary(accountId: string, frozenBaseline: Stre
         return { ...(JSON.stringify(next) !== JSON.stringify(current) ? { next } : {}), result: true };
     });
 }
-export function resetAccountCoverage(accountId: string): void {
+function resetAccountCoverage(accountId: string): void {
     resetAccountCoverageSessions(accountId);
 }
 const CoverageAdmission = { getCoverage, recordPageCoverage, hasTrustedBoundary, resetAccountCoverage };
