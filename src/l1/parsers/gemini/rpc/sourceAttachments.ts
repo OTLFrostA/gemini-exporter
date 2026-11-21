@@ -22,7 +22,7 @@ export interface ImageAttachment {
     mimeType?: string;
 }
 
-export interface GeminiResponseImageEvidence {
+interface GeminiResponseImageEvidence {
     images: ImageAttachment[];
     /** Body-local images retain their own order and token deduplication. */
     structuredImages: ImageAttachment[];
