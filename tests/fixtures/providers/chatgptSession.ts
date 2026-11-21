@@ -87,6 +87,11 @@ const fixtureMap = {
         user: { id: 'boundary-user' },
         account: { id: 'boundary-space' },
     }),
+    'C_PARITY_EXPORT_SESSION_01': () => ({
+        accessToken: 'parity-chatgpt-token',
+        user: { id: 'parity-user', name: 'ChatGPT Parity QA' },
+        account: { id: 'parity-workspace' },
+    }),
 };
 export function sessionGen(key: keyof typeof fixtureMap): Record<string, unknown> {
     return fixtureMap[key]();

@@ -3115,18 +3115,60 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/provider-cross-platform-export-parity.test.ts",
+      "domain": "multi_provider_export",
+      "classification": "P0",
+      "provenanceSource": "Captured Gemini Bragg and Grok text/image endpoint bodies; captured ChatGPT DIL and questionnaire fragments wrapped in authored Detail trees (derived); authored Claude widget and questionnaire Detail payloads (synthetic).",
+      "policy": "MUST_PASS_REAL_REGRESSION",
+      "notes": "Starts at Index-only state and drives the production export pipeline to Markdown, HTML, JSON and DOCX on all four providers, plus a ChatGPT Markdown batch ZIP. Asset downloading is disabled; Grok image metadata is checked in the exported JSON.",
+      "testCount": 5,
+      "tests": [
+        {
+          "name": "Cross-platform parity [ChatGPT derived DIL & questionnaire]: real ChatGPTProvider refreshes Index-only conversations and exports MD/HTML/JSON/DOCX/ZIP without leaking DIL source",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Cross-platform parity [Claude native widgets & questionnaire]: real ClaudeProvider refreshes Index-only conversations and exports MD/HTML/JSON/DOCX without leaking private tool instructions",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "P0 real capture [Grok text/table/code/math]: real GrokProvider refreshes Index-only conversation from captured Grok text endpoints and exports MD/HTML/JSON/DOCX",
+          "classification": "P0",
+          "evidence": "tests/fixtures/providers/grokDetail.json",
+          "originalHash": "bac336494c9ea67f6c436ebe97c7e67d1cb887849049e9e4a3aa2e899b34f585",
+          "policy": "MUST_PASS_REAL_REGRESSION"
+        },
+        {
+          "name": "P0 real capture [Grok 3-turn image generation]: real GrokProvider refreshes Index-only conversation from captured Grok image endpoints and exports MD/HTML/JSON/DOCX with generated asset metadata",
+          "classification": "P0",
+          "evidence": "tests/fixtures/providers/grokImageDetail.json",
+          "originalHash": "b99c2ace12ca133a6bc056e0f657db479a4336f2d252527e6f083212f0931ae7",
+          "policy": "MUST_PASS_REAL_REGRESSION"
+        },
+        {
+          "name": "Cross-platform parity [Gemini P0 5-turn Bragg capture]: real GeminiProvider refreshes Index-only conversation and exports MD/HTML/JSON/DOCX with native Word math and tables",
+          "classification": "P0",
+          "evidence": "tests/fixtures/providers/gemini/captured/p0_golden_rpc_corpus.json",
+          "originalHash": "2d34330cc9d4c8ca1ee90f0b518eb42a8fc16c459a741917a3f44d2f3fa60ca0",
+          "policy": "MUST_PASS_REAL_REGRESSION"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 53,
-    "totalTests": 525,
+    "totalSuites": 54,
+    "totalTests": 530,
     "byClassification": {
-      "P0": 6,
+      "P0": 9,
       "P1": 18,
-      "P2": 499,
+      "P2": 501,
       "P3": 2,
       "P4": 0
     }
   },
-  "lastAudited": "2026-11-16"
+  "lastAudited": "2026-11-20"
 }
