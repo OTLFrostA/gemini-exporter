@@ -1,8 +1,17 @@
 name: V2 Module Unit Isolation
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/v2-unit-isolation.yml'
   pull_request:
-    branches: [dev/v2]
+    branches: [main, dev/v2]
     paths:
       - 'src/**'
       - 'tests/**'
