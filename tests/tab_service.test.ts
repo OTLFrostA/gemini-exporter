@@ -59,22 +59,32 @@ test('Tab routing requires a registered real Account UUID, not a Gemini URL slot
 
 test('Verified Provider + Account match wins over first tab or URL slot; active match is preferred', async t => {
     const probes: number[] = [];
+    const operations: Array<{ id: number; action: string; accountId: string }> = [];
     withChrome(t, { runtime: { lastError: null }, tabs: {
         query: async () => [
-            { id: 1, active: false, url: 'https://gemini.google.com/u/0/app' },
-            { id: 2, active: false, url: 'https://gemini.google.com/u/1/app' },
+            { id: 1, active: true, url: 'https://gemini.google.com/u/0/app' },
+            { id: 2, active: true, url: 'https://gemini.google.com/u/1/app' },
+            { id: 4, active: false, url: 'https://gemini.google.com/u/0/app' },
             { id: 3, active: true, url: 'https://gemini.google.com/u/0/app' }
         ],
         sendMessage: (id: number, message: any, callback: Function) => {
-            assert.equal(message.action, 'getAccountContext');
+            if (message.action !== 'getAccountContext') {
+                operations.push({ id, action: message.action, accountId: message.accountId });
+                callback({ ok: true });
+                return;
+            }
             probes.push(id);
             callback({ ok: true, accountContext: { accountId: id === 1 ? B : A,
                 providerId: id === 2 ? 'chatgpt' : 'gemini' } });
         }
     } });
     const route = router();
+    await route.sendToGeminiTab({ action: 'export' }, A);
+    assert.deepEqual(operations, [{ id: 3, action: 'export', accountId: A }]);
+    assert.deepEqual(probes, [1, 2, 3]);
+    probes.length = 0;
     assert.equal((await route.resolveAccountTab(A)).id, 3);
-    assert.deepEqual(probes, [3]); // matching active tab, no first-tab fallback
+    assert.deepEqual(probes, [1, 2, 3]);
     assert.equal((await route.getAITab('gemini', A))?.id, 3);
 });
 
@@ -215,10 +225,14 @@ test('An unavailable selected Gemini account cannot fall back to another Gemini 
 test('Unselected scan discovers independent providers concurrently', async t => {
     withChrome(t, { runtime: { lastError: null }, tabs: { query: async () => [] } });
     const started: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    let markAllStarted!: () => void;
+    const allStarted = new Promise<void>(resolve => { markAllStarted = resolve; });
     const discover = (platform: string) => async () => {
         started.push(platform);
-        await new Promise<void>(resolve => setImmediate(resolve));
-        assert.deepEqual(started, ['chatgpt', 'claude', 'grok'], 'provider probes should already be in flight');
+        if (started.length === 3) markAllStarted();
+        await gate;
         return [];
     };
     const route = router({
@@ -226,7 +240,21 @@ test('Unselected scan discovers independent providers concurrently', async t => 
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: discover('claude') },
         'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: discover('grok') },
     });
-    await assert.rejects(route.resolveScanTarget(), /Open Gemini/);
+    const outcome = assert.rejects(route.resolveScanTarget(), /Open Gemini/);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        await Promise.race([
+            allStarted,
+            new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(new Error('Provider discoveries did not all start before release')), 1000);
+            }),
+        ]);
+        assert.deepEqual([...started].sort(), ['chatgpt', 'claude', 'grok']);
+    } finally {
+        clearTimeout(timer);
+        release();
+        await outcome;
+    }
 });
 
 test('Selected ChatGPT scan does not probe unrelated platforms', async t => {
