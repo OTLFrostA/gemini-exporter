@@ -544,6 +544,10 @@ export function createCloudSyncEngine(deps: {
                         limit: 50,
                         signal,
                     });
+                    if (!Number.isSafeInteger(feed.nextSince) || feed.nextSince < cursor
+                        || (feed.hasMore && (feed.nextSince === cursor || feed.items.length === 0))) {
+                        throw new OperationError('CLOUD_SERVER_ERROR', 'Invalid cloud change feed cursor');
+                    }
                     if (feed.items.length === 0) break;
 
                     const toDownload = [];
@@ -571,7 +575,12 @@ export function createCloudSyncEngine(deps: {
                             blindRecordId: meta.blindRecordId,
                             signal,
                         });
-                        if (!blob) return null;
+                        if (!blob) {
+                            throw new OperationError('CLOUD_SERVER_ERROR', 'Listed remote record disappeared during download');
+                        }
+                        if (blob.revision < meta.revision) {
+                            throw new OperationError('CLOUD_SERVER_ERROR', 'Downloaded remote record revision regressed');
+                        }
                         const portable = await openCloudConversation({
                             keyring, blindRecordId: meta.blindRecordId, revision: blob.revision, envelope: blob.envelope,
                         });

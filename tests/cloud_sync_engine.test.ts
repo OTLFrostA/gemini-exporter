@@ -9,7 +9,8 @@ import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import { createMockCloudVaultHttp } from './helpers/mockCloudVaultHttp.js';
 import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/cloud/vaultKeySetup.js';
-import { enqueueCloudOutboxKeys, listDueCloudOutbox, putCloudSyncSession } from '../src/l3a/cloudSyncStore.js';
+import { enqueueCloudOutboxKeys, listDueCloudOutbox, putCloudSyncSession, getCloudSyncSession, getSyncedCloudRecord, putSyncedCloudRecord } from '../src/l3a/cloudSyncStore.js';
+import { deleteStoredConversation, getIndex } from '../src/l3a/storageService.js';
 import { deriveBlindRecordId, deriveVaultKeyring, encodeLengthPrefixedTuple, parseRecoveryKey } from '../src/shared/crypto/index.js';
 import { OperationError } from '../src/shared/errors/operationError.js';
 import { CLOUD_MAX_RECORD_BYTES } from '../src/shared/types/cloudSync.js';
@@ -493,6 +494,116 @@ test('CloudSyncEngine pullChanges rejects authenticated invalid UTF-8 with CLOUD
         env.restore();
     }
 });
+
+for (const action of ['restore', 'heal']) {
+    test(`CloudSyncEngine same-key reset lets a paired device ${action} despite its old revision`, async () => {
+        const env = indexStorage();
+        try {
+            await env.ready;
+            const mock = createMockCloudVaultHttp();
+            const client = createCloudVaultClient((url, init) => mock.handler(new Request(url, init)));
+            const engineA = createCloudSyncEngine({ client });
+            await createVaultKeySetup(engineA.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
+            const { session } = await engineA.connectCloudVault(SERVER_URL, undefined, 'create');
+            const account = await getOrCreateAccount('gemini', 'gaia-reset');
+            const key = { accountId: account.id, conversationId: 'c_reset' };
+            await updateSettings({ cloudSyncEnabled: true });
+            for (let revision = 1; revision <= 5; revision++) {
+                await ingestIndexes(account.id, [{ conversationId: key.conversationId, fields: {
+                    title: `Revision ${revision}`, titleSource: 'provider', updatedAt: 1700000000000 + revision,
+                } }]);
+                await enqueueCloudOutboxKeys([key]);
+                assert.equal((await engineA.flushOutbox()).uploaded, 1);
+            }
+            const pairedRecord = await getSyncedCloudRecord(session.ownerSubject, key);
+            assert.equal(pairedRecord?.remoteRevision, 5);
+            assert.ok(pairedRecord);
+            await engineA.resetVaultWithCurrentKey();
+            await enqueueCloudOutboxKeys([key]);
+            assert.equal((await engineA.flushOutbox()).uploaded, 1);
+            assert.equal((await getSyncedCloudRecord(session.ownerSubject, key))?.remoteRevision, 1);
+
+            // Switch to the paired device's pre-reset sync metadata.
+            await putSyncedCloudRecord(pairedRecord);
+            await putCloudSyncSession({ ...session, pulledSeq: 5 });
+            const engineB = createCloudSyncEngine({ client });
+            if (action === 'restore') {
+                await deleteStoredConversation(key);
+                assert.equal((await engineB.pullChanges()).accepted, 1);
+                assert.equal((await getIndex(key))?.title, 'Revision 5');
+                assert.equal((await getSyncedCloudRecord(session.ownerSubject, key))?.remoteRevision, 1);
+            } else {
+                await ingestIndexes(account.id, [{ conversationId: key.conversationId, fields: {
+                    title: 'Paired device update', titleSource: 'provider', updatedAt: 1700000000010,
+                } }]);
+                await enqueueCloudOutboxKeys([key]);
+                const result = await engineB.flushOutbox();
+                assert.equal(result.retriedLater, 0);
+                assert.equal(result.uploaded, 1);
+                assert.equal((await getSyncedCloudRecord(session.ownerSubject, key))?.remoteRevision, 2);
+            }
+        } finally { env.restore(); }
+    });
+}
+
+for (const scenario of ['feed floor', 'missing record', 'regressing cursor', 'fractional cursor', 'empty invalid cursor', 'stalled page', 'empty partial page', 'newer revision']) {
+    test(`CloudSyncEngine revision safety: ${scenario}`, async () => {
+        const env = indexStorage();
+        try {
+            await env.ready;
+            const mock = createMockCloudVaultHttp();
+            const client = createCloudVaultClient((url, init) => mock.handler(new Request(url, init)));
+            const engine = createCloudSyncEngine({ client });
+            await createVaultKeySetup(engine.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
+            const { session } = await engine.connectCloudVault(SERVER_URL, undefined, 'create');
+            const account = await getOrCreateAccount('gemini', 'gaia-revision-safety');
+            const key = { accountId: account.id, conversationId: 'c_revision_safety' };
+            await ingestIndexes(account.id, [{ conversationId: key.conversationId, fields: { title: 'Original', titleSource: 'provider' } }]);
+            await updateSettings({ cloudSyncEnabled: true });
+            await enqueueCloudOutboxKeys([key]);
+            assert.equal((await engine.flushOutbox()).uploaded, 1);
+            if (scenario === 'newer revision') {
+                await ingestIndexes(account.id, [{ conversationId: key.conversationId, fields: { title: 'Newer', titleSource: 'provider', updatedAt: Date.now() + 1000 } }]);
+                await enqueueCloudOutboxKeys([key]);
+                assert.equal((await engine.flushOutbox()).uploaded, 1);
+            }
+            const original = await getSyncedCloudRecord(session.ownerSubject, key);
+            assert.ok(original);
+            await putCloudSyncSession({ ...session, pulledSeq: 7 });
+            const guarded = createCloudSyncEngine({ client: {
+                ...client,
+                async listChanges(args) {
+                    const feed = await client.listChanges({ ...args, sinceSeq: 0 });
+                    return {
+                        ...feed,
+                        items: scenario === 'empty invalid cursor' || scenario === 'empty partial page' ? []
+                            : feed.items.map(meta => ({ ...meta, revision: scenario === 'feed floor' ? 2 : 1 })),
+                        nextSince: scenario === 'regressing cursor' ? 6 : scenario === 'stalled page' ? 7
+                            : scenario.includes('cursor') ? 1.5 : 8,
+                        hasMore: scenario === 'stalled page' || scenario === 'empty partial page',
+                    };
+                },
+                async getEncryptedRecord(args) {
+                    return scenario === 'missing record' ? null : client.getEncryptedRecord(args);
+                },
+            } });
+            await deleteStoredConversation(key);
+            if (scenario === 'regressing cursor' || scenario === 'stalled page') {
+                await ingestIndexes(account.id, [{ conversationId: 'c_anchor', fields: { title: 'Keep local cursor', titleSource: 'provider' } }]);
+            }
+            if (scenario === 'newer revision') {
+                assert.equal((await guarded.pullChanges()).accepted, 1);
+                assert.equal((await getSyncedCloudRecord(session.ownerSubject, key))?.remoteRevision, 2);
+                assert.equal((await getCloudSyncSession())?.pulledSeq, 8);
+            } else {
+                await assert.rejects(guarded.pullChanges(), { code: 'CLOUD_SERVER_ERROR' });
+                assert.equal(await getIndex(key), null);
+                assert.deepEqual(await getSyncedCloudRecord(session.ownerSubject, key), original);
+                assert.equal((await getCloudSyncSession())?.pulledSeq, 7);
+            }
+        } finally { env.restore(); }
+    });
+}
 
 test('transport blocks canonical key text before fetch and surfaces the server retry deadline', async () => {
     let requests = 0;
