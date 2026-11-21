@@ -253,9 +253,6 @@ export function mountCloudVaultPanel(callbacks: {
             const candidate = snap.serverUrl ?? settings.cloudSyncServerUrl ?? '';
             if (!candidate.startsWith('local-vault://')) serverInput.value = candidate;
         }
-        if (!accessCodeInput.value && settings.cloudSyncAccessCode) {
-            accessCodeInput.value = settings.cloudSyncAccessCode;
-        }
         paint();
     };
 
