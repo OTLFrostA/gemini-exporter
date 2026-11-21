@@ -87,7 +87,7 @@ test('space variant [cite:2] declared in metadata transforms to citationRef [2]'
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -110,7 +110,7 @@ test('repeated citation marker in the same sentence both convert cleanly', async
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -134,7 +134,7 @@ test('ordinary user handwritten [cite: 1] is preserved as plain text', async () 
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -158,7 +158,7 @@ test('model text with unconfirmed [cite: 1] (no matching metadata) is preserved 
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -184,7 +184,7 @@ test('only metadata-confirmed marker converts; non-matching marker in same messa
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -210,7 +210,7 @@ test('marker inside code block and inline code is preserved untouched', async ()
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
 
     const p1 = msg.content[0];
@@ -246,7 +246,7 @@ test('existing [1] web citations do not regress', async () => {
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -276,7 +276,7 @@ test('orthogonal coexistence: both web [1] and grounding [cite: 1] in same messa
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -308,7 +308,7 @@ test('source AST replaces metadata-confirmed cite tokens with citation reference
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
 
     const body = JSON.stringify(domain.detail.messages.map((message: any) => message.content));
     assert.ok(!body.includes('cite:'));
@@ -387,7 +387,7 @@ test('metadata-confirmed [cite:1,2] transforms to two citationRefs in order', as
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -417,7 +417,7 @@ test('combined marker with spaces [cite: 1, 2] transforms to two citationRefs', 
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const para = domain.detail.messages[0].content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 2);
@@ -440,7 +440,7 @@ test('duplicate number inside one combined marker [cite:1,1] collapses to one ci
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const para = domain.detail.messages[0].content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 1);
@@ -461,7 +461,7 @@ test('unconfirmed [cite:1,2] (no metadata) is preserved as plain text', async ()
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const para = domain.detail.messages[0].content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 0);
@@ -484,7 +484,7 @@ test('only single marker confirmed: combined marker in same message remains text
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const para = domain.detail.messages[0].content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 1);
@@ -508,7 +508,7 @@ test('combined marker inside inline code is preserved while confirmed prose comb
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
     const para = domain.detail.messages[0].content[0];
     const inlineCode = para.children.find((c: any) => c.type === 'inlineCode');
     assert.ok(inlineCode);
@@ -532,7 +532,7 @@ test('combined [cite:1,2] becomes source citation references without metadata le
         ],
     };
 
-    const { conversation: domain, diagnostics } = sourceConversation(rawConv);
+    const { conversation: domain } = sourceConversation(rawConv);
 
     const body = JSON.stringify(domain.detail.messages.map((message: any) => message.content));
     assert.ok(!body.includes('cite:'));

@@ -18,15 +18,10 @@ const path = require('path');
 
 const { assertDomainClosure } = require('../src/l2/closure.js');
 const {
-    convertGeminiInlines,
-} = require('../src/l1/parsers/gemini/shared/structuredContentAdapter.js');
-const {
     decodeGeminiAnnotation,
-    decodeGeminiStructuredNode,
     decodeGeminiStructuredPayload,
     inspectStructuredContent,
 } = require('../src/l1/parsers/gemini/rpc/structuredContent.js');
-const { decodeGeminiDetail } = require('../src/l1/parsers/gemini/rpc/detailDecoder.js');
 const { decodeTurn } = require('../src/l1/parsers/gemini/rpc/extractors.js');
 const { extractImageEvidence: extractImages } = require('../src/l1/parsers/gemini/rpc/sourceAttachments.js');
 
@@ -729,7 +724,6 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
     const errorDiags = diagnostics.filter((d: any) => d.severity === 'error');
     assert.strictEqual(errorDiags.length, 0, 'No error diagnostics during normalization');
 
-    const msg = domain.detail.messages[0];
     const imageBlocks = domain.detail.messages[0].attachmentIds ?? [];
     assert.strictEqual(imageBlocks.length, 1, 'Exactly 1 image block placed in Domain message');
     assert.equal(domain.detail.assets[0].name, '贝尔测试实验示意图');
@@ -769,7 +763,6 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
     };
 
     const resStructured = await sourceConversation(convStructured as any);
-    const msgStructured = resStructured.conversation.detail.messages[0];
     const imgBlocksStructured = resStructured.conversation.detail.messages[0].attachmentIds ?? [];
     assert.strictEqual(imgBlocksStructured.length, 1, 'Structured path has exactly 1 image block');
     assert.strictEqual(resStructured.conversation.detail.assets.length, 1, 'Structured path has exactly 1 asset');
@@ -788,7 +781,6 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
     };
 
     const resFallback = await sourceConversation(convFallback as any);
-    const msgFallback = resFallback.conversation.detail.messages[0];
     const imgBlocksFallback = resFallback.conversation.detail.messages[0].attachmentIds ?? [];
     assert.strictEqual(imgBlocksFallback.length, 1, 'Fallback path has exactly 1 image block');
     assert.strictEqual(resFallback.conversation.detail.assets.length, 1, 'Fallback path has exactly 1 asset');
@@ -813,7 +805,7 @@ test('UI-only nodeType 0 (e.g. attachmentType 22/26 follow-up chips) continue to
         ],
     };
 
-    const { conversation: domain, diagnostics } = await sourceConversation(conv as any);
+    const { conversation: domain } = await sourceConversation(conv as any);
     const msg = domain.detail.messages[0];
     const imageBlocks = domain.detail.messages[0].attachmentIds ?? [];
     assert.strictEqual(imageBlocks.length, 0, 'UI chips create 0 image blocks');
@@ -825,4 +817,3 @@ test('UI-only nodeType 0 (e.g. attachmentType 22/26 follow-up chips) continue to
     assert.strictEqual(msg.content[1].type, 'table');
     assert.ok(msg.content[1]?.type === 'table');
 });
-

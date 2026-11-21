@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { sources } from '../scripts/audit-provider-fixtures.cjs';
 
 test('Grok source and browser mocks use matching native endpoint generators', () => {

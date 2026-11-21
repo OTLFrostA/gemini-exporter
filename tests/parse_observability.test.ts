@@ -34,7 +34,7 @@ test('P1-8b: 正常 payload 无拒识、无漂移', () => {
 });
 
 test('P1-8c: parser 统一质量状态，拒识内容判 partial', () => {
-    const res = detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_03'));
+    detailDecoder.decodeGeminiDetail(geminiDetailGen('G_OBSERVABILITY_03'));
     const result = parseGeminiRpcConversation(geminiDetailGen('G_OBSERVABILITY_04'), { providerId: 'gemini', account: fixtureAccount(), targetConvId: 'abc123def456' });
     const quality = result.conversation.detail.quality;
     assert.strictEqual(result.evidence?.rejectedTurns, 1);
