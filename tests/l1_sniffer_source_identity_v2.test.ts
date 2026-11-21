@@ -8,7 +8,6 @@ const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
 const uuid = '12345678-1234-4234-8234-123456789abc';
 const account = { id: uuid, providerId: 'gemini', providerAccountId: 'gaia' };
-const sender = { id: 'ext', tab: { id: 7 }, frameId: 0, url: 'https://gemini.google.com/app' };
 function load(file: string, stubs: Record<string, unknown>) {
     const original = Module._load;
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
@@ -23,22 +22,6 @@ function load(file: string, stubs: Record<string, unknown>) {
         return require(filename);
     } finally { Module._load = original; }
 }
-const chromeBase = () => ({ runtime: { id: 'ext' }, tabs: { sendMessage: (_id: unknown, _message: unknown, _options: unknown, callback: Function) => callback({ ok: true, accountContext: { accountId: uuid, providerId: 'gemini' } }) } });
-const ready = { ensureV2Ready: async () => {} };
-const storage = { getAccount: async () => account };
-const security = () => load('src/runtime/background/contentSender.ts', { 'src/l3a/storageService.js': storage });
-async function invoke(handler: Function, message: unknown, origin: unknown = sender) {
-    let count = 0;
-    let finish: (value: any) => void = () => {};
-    const response = new Promise<any>(resolve => { finish = resolve; });
-    assert.equal(handler(message, origin, (value: unknown) => { count++; finish(value); }), true);
-    const result = await response;
-    await Promise.resolve();
-    assert.equal(count, 1);
-    return result;
-}
-
-
 function contentWindow() {
     const target = new EventTarget();
     return Object.assign(target, { __gemExporterCleanups: [] as Function[] });
@@ -74,4 +57,3 @@ test('an early source completion survives readiness wait and keeps its captured 
     assert.equal(commits, 1);
     assert.deepEqual(keys, [{ accountId: uuid, conversationId: 'abcdef123456' }]);
 });
-

@@ -7,7 +7,6 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { historicalFixture } from './helpers/nativeFixture.js';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import type { ChatMessage, Attachment } from './helpers/historicalConversation.js';
 

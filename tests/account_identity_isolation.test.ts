@@ -23,7 +23,6 @@ const {
 
 const { resolveCred } = require('../src/l1/client/gemini/api/credentialManager.js');
 const TabService = require('../src/runtime/capabilities/tabService.js');
-const ConversationsStore = require('../src/ui/options/state/conversationsStore.js');
 
 
 // 1. Account Sniffer Tests

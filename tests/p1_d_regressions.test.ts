@@ -46,7 +46,7 @@ test('confirmed deletion atomically removes Index, Detail and ExportRecord witho
     assert.ok(await getIndex(key('chat', B))); assert.ok(await getDetail(key('chat', B))); assert.deepEqual(await getExportRecord(key('chat', B)), record);
 });
 test('a failed deletion transaction rolls back all three stores', async t => {
-    const env = host(t); await seed(); await putExportRecord(key(), record);
+    host(t); await seed(); await putExportRecord(key(), record);
     // A transaction abort is injected at the IDB host boundary, not in Domain.
     const original = IDBObjectStore.prototype.delete;
     t.mock.method(IDBObjectStore.prototype, 'delete', function(this: IDBObjectStore, value: IDBValidKey) {

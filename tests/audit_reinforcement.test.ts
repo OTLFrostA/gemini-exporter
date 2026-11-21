@@ -11,7 +11,6 @@ export {};
 
 const test = require('node:test');
 const assert = require('node:assert');
-const path = require('node:path');
 
 // L2 admission rejects fat Index data before passive Storage receives a write decision.
 test('L2 rejects fat metadata without changing stored indexes', async () => {
