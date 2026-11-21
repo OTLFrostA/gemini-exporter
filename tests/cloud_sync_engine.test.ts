@@ -36,6 +36,39 @@ test('vaultClient rejects insecure non-loopback HTTP URLs and normalizes HTTPS o
     assert.equal(normalizeCloudServerUrl('http://localhost:8787/api/'), 'http://localhost:8787/api');
 });
 
+test('CloudSyncEngine upgrades existing key metadata without requiring recovery key re-entry', async () => {
+    const env = indexStorage();
+    try {
+        await env.ready;
+        const legacyKeyring = await deriveVaultKeyring(new Uint8Array(32).fill(42));
+        await new Promise<void>((resolve, reject) => {
+            const request = indexedDB.open('gemini_exporter_cloud_v2', 1);
+            request.onupgradeneeded = () => {
+                request.result.createObjectStore('localKeys', { keyPath: 'ownerSubject' }).put({
+                    ownerSubject: 'primary:vault', origin: 'generated', ...legacyKeyring,
+                });
+            };
+            request.onsuccess = () => { request.result.close(); resolve(); };
+            request.onerror = () => reject(request.error);
+        });
+        const backend = createMockCloudVaultHttp();
+        const engine = createCloudSyncEngine({ client: createCloudVaultClient(
+            (url, init) => backend.handler(new Request(url, init)),
+        ) });
+        const before = await engine.getStatusSnapshot();
+        assert.equal(before.hasRecoveryKey, true);
+        assert.equal(before.keyFingerprint, legacyKeyring.keyFingerprint);
+        assert.equal(before.keyOrigin, 'generated');
+        await engine.connectCloudVault(SERVER_URL);
+        assert.equal(backend.inspectTenantCount(), 1);
+        const after = await engine.getStatusSnapshot();
+        assert.equal(after.keyFingerprint, before.keyFingerprint);
+        assert.equal(after.keyOrigin, 'imported');
+    } finally {
+        env.restore();
+    }
+});
+
 test('CloudSyncEngine: explicit creation and manual pairing retain auto-enqueue, offline retry and conflict healing', async () => {
     const backend = createMockCloudVaultHttp();
     const sharedChromeSync: Record<string, unknown> = {};

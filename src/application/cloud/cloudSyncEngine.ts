@@ -23,6 +23,7 @@ import {
     countOversizedCloudRecords,
     enqueueCloudOutboxKeys,
     getCloudSyncSession,
+    getInitializedVaultKeyMetadata,
     getInitializedVaultKeyring,
     getStoredLocalVaultHandle,
     getSyncedCloudRecord,
@@ -198,8 +199,10 @@ export function createCloudSyncEngine(deps: {
         }
     };
 
-    const resolveKeyring = async (session: CloudSyncSessionState): Promise<VaultKeyring> => {
-        const initialized = await getInitializedVaultKeyring();
+    const requireCompatibleKey = <T extends Pick<VaultKeyring, 'keyFingerprint'>>(
+        session: CloudSyncSessionState,
+        initialized: T | null,
+    ): T => {
         if (!initialized) {
             throw new OperationError('CLOUD_KEY_NOT_INITIALIZED', 'Initialize your Master Key first');
         }
@@ -209,9 +212,12 @@ export function createCloudSyncEngine(deps: {
         return initialized;
     };
 
+    const resolveKeyring = async (session: CloudSyncSessionState): Promise<VaultKeyring> =>
+        requireCompatibleKey(session, await getInitializedVaultKeyring());
+
     const authenticateVaultKey = async (
         serverUrl: string,
-        keyring: VaultKeyring,
+        keyring: Pick<VaultKeyring, 'keyFingerprint' | 'authKey'>,
         mode: CloudAuthKeyMode,
         accessCode?: string,
     ) => {
@@ -696,7 +702,7 @@ export function createCloudSyncEngine(deps: {
             if (perm !== 'granted') {
                 throw new OperationError('DIRECTORY_PERMISSION_REQUIRED', 'Local vault directory requires readwrite permission');
             }
-            const initialized = await getInitializedVaultKeyring();
+            const initialized = await getInitializedVaultKeyMetadata();
             if (!initialized) {
                 throw new OperationError('CLOUD_KEY_NOT_INITIALIZED', 'Initialize your Master Key before connecting a Vault folder');
             }
@@ -771,7 +777,7 @@ export function createCloudSyncEngine(deps: {
             await withVaultOperation(async () => {
                 if (enabled) {
                     const session = await requireActiveSession();
-                    await resolveKeyring(session);
+                    requireCompatibleKey(session, await getInitializedVaultKeyMetadata());
                     if (session.enabledSinceAt === undefined) {
                         await putCloudSyncSession({ ...session, enabledSinceAt: now() });
                     }
@@ -828,7 +834,7 @@ export function createCloudSyncEngine(deps: {
             }
             const [oversizedSkipped, initializedKey] = await Promise.all([
                 session ? countOversizedCloudRecords(session.ownerSubject) : Promise.resolve(0),
-                getInitializedVaultKeyring(),
+                getInitializedVaultKeyMetadata(),
             ]);
             return {
                 enabled: settings.cloudSyncEnabled === true,
@@ -857,7 +863,7 @@ export function createCloudSyncEngine(deps: {
         activateVaultKeyring: (candidateKeyring, origin, expectedFingerprint) => withVaultOperation(async () => {
             const session = await getCloudSyncSession();
             const keyFingerprint = candidateKeyring.keyFingerprint;
-            const current = await getInitializedVaultKeyring();
+            const current = await getInitializedVaultKeyMetadata();
             if ((current?.keyFingerprint ?? null) !== expectedFingerprint) {
                 throw new OperationError('CLOUD_KEY_CHANGED', 'The active Master Key has changed. Review the current key before trying again.');
             }
@@ -910,7 +916,7 @@ export function createCloudSyncEngine(deps: {
 
         resetVaultWithCurrentKey: () => withVaultOperation(async () => {
             const session = await requireActiveSession();
-            await resolveKeyring(session);
+            requireCompatibleKey(session, await getInitializedVaultKeyMetadata());
             const activeClient = clientForSession(session);
             await activeClient.purgeVault(session.serverUrl, session.sessionToken);
             await clearSyncedCloudRecordsForOwner(session.ownerSubject);
