@@ -8,7 +8,6 @@ import { getErrorMessage } from "../../../shared/utils/errorText.js";
 import GeminiClientCredentialManager, {
     getBlFromPage,
     getAtFromPage,
-    detectSlot,
     updateCredential,
     resolveCred
 } from "./api/credentialManager.js";
