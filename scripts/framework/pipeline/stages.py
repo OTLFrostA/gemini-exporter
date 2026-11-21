@@ -6,7 +6,6 @@ IDLE -> STAGED -> DISPATCHED -> STREAMING -> SETTLED -> COOLDOWN -> IDLE
 """
 
 from enum import Enum, auto
-from typing import Set
 
 
 class PipelineStage(Enum):

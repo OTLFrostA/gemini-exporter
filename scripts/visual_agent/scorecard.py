@@ -5,10 +5,9 @@ Outputs Markdown and HTML reports covering feature flow, visual clipping risks, 
 """
 
 import os
-import json
 import time
 from html import escape
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Dict, Optional, Any
 
 

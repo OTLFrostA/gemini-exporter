@@ -22,6 +22,4 @@ export interface GlobalSettings {
     cloudSyncIncludeDetail?: boolean;
     /** Configured Cloud Vault base URL (HTTPS or local loopback). */
     cloudSyncServerUrl?: string;
-    /** Optional shared access/invite code for self-hosted Cloud Vault servers. */
-    cloudSyncAccessCode?: string;
 }

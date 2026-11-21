@@ -1,5 +1,4 @@
 # scripts/framework/cases/tour.py
-import time
 from typing import Tuple, Optional, Dict, Any
 
 from scripts.framework.cases.base import FeatureTestCase, TestContext

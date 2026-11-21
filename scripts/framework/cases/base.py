@@ -5,13 +5,11 @@ Gemini test context; common case/scheduler APIs are re-exported for compatibilit
 """
 
 import os
-import sys
 import time
 import json
-import urllib.request
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 
-from scripts.framework.features import Feature, FeatureDomain, FeatureRegistry, TestStatus, TestResult
+from scripts.framework.features import FeatureRegistry
 from scripts.framework.scenario_provider import OnlineScenarioProvider
 from scripts.framework.lifecycle_tracker import SessionLifecycleTracker
 from scripts.framework.pipeline import SerialActionExecutor
@@ -19,9 +17,9 @@ from scripts.framework.environment import TestEnvironment
 from scripts.framework.integrity.model import validate_frozen_evidence
 
 try:
-    from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, is_gemini_url
+    from scripts.cdp_client import CDPConnection
 except ImportError:
-    from cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, is_gemini_url
+    from cdp_client import CDPConnection
 
 
 class TestContext:

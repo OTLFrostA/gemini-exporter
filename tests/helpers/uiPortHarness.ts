@@ -180,7 +180,6 @@ export const registerCleanup = fn => {
  h.cleanups.push(fn);
  return () => { const index=h.cleanups.indexOf(fn);if(index>=0)h.cleanups.splice(index,1); };
 };
-export const inspectVaultDirectoryStatus = async () => ({ state: 'missing' });
 export const pickVaultDirectoryHandle = async () => {
  const handle = await globalThis.showDirectoryPicker({ mode: 'readwrite' });
  return handle;

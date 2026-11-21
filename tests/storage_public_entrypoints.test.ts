@@ -29,6 +29,6 @@ test('vault Storage exposes exactly the agreed passive IO functions', () => {
         'getStoredLocalVaultHandle', 'getSyncedCloudRecord', 'getSyncedCloudRecordByBlindId',
         'listDueCloudOutbox', 'putCloudSyncSession', 'putLocalVaultConnection',
         'putSyncedCloudRecord', 'recordCloudOutboxFailure', 'removeCloudOutboxEntry',
-        'setStoredLocalVaultHandle', 'activateVaultKeyring', 'getInitializedVaultKeyring',
+        'setStoredLocalVaultHandle', 'activateVaultKeyring', 'getInitializedVaultKeyMetadata', 'getInitializedVaultKeyring',
     ].sort());
 });

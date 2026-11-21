@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
+import { fixtureKey } from './helpers/domainFixture.js';
 import { prepareReadingResourcesFixture } from './helpers/pdfAcquisitionFixture.js';
 import { buildMinimalValidPdf } from './helpers/stubPdfCompiler.js';
 import { resourceValue } from './helpers/resources.js';

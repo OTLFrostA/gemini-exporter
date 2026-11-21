@@ -53,12 +53,12 @@ function encodeCrockfordBase32(bytes: Uint8Array): string {
     return out;
 }
 
-function decodeCrockfordBase32(encoded: string, expectedByteLength: number): Uint8Array<ArrayBuffer> {
+function decodeCrockfordBase32(encoded: string, out: Uint8Array): void {
+    const expectedByteLength = out.byteLength;
     const expectedChars = Math.ceil((expectedByteLength * 8) / 5);
     if (encoded.length !== expectedChars) {
         throw new OperationError('CLOUD_KEY_INVALID', 'Invalid recovery key length');
     }
-    const out = new Uint8Array(expectedByteLength);
     let bits = 0;
     let value = 0;
     let offset = 0;
@@ -80,24 +80,20 @@ function decodeCrockfordBase32(encoded: string, expectedByteLength: number): Uin
     if (offset !== expectedByteLength || (value & trailingMask) !== 0) {
         throw new OperationError('CLOUD_KEY_INVALID', 'Non-canonical recovery key padding bits');
     }
-    return out;
 }
 
-async function computeChecksum(masterKey: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
+async function computeChecksum(masterKey: Uint8Array): Promise<number> {
     const input = new Uint8Array(CHECKSUM_DOMAIN.byteLength + masterKey.byteLength);
-    input.set(CHECKSUM_DOMAIN, 0);
-    input.set(masterKey, CHECKSUM_DOMAIN.byteLength);
-    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', input));
-    return toOwnedBytes(digest.subarray(0, CHECKSUM_BYTES));
-}
-
-function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
-    if (a.byteLength !== b.byteLength) return false;
-    let diff = 0;
-    for (let i = 0; i < a.byteLength; i++) {
-        diff |= a[i] ^ b[i];
+    try {
+        input.set(CHECKSUM_DOMAIN);
+        input.set(masterKey, CHECKSUM_DOMAIN.byteLength);
+        const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', input));
+        const checksum = (digest[0] << 8) | digest[1];
+        digest.fill(0);
+        return checksum;
+    } finally {
+        input.fill(0);
     }
-    return diff === 0;
 }
 
 /**
@@ -110,9 +106,15 @@ export async function formatRecoveryKey(masterKey: Uint8Array): Promise<string> 
     }
     const checksum = await computeChecksum(masterKey);
     const combined = new Uint8Array(MASTER_KEY_BYTES + CHECKSUM_BYTES);
-    combined.set(masterKey, 0);
-    combined.set(checksum, MASTER_KEY_BYTES);
-    const raw32 = encodeCrockfordBase32(combined); // 34 bytes = 272 bits -> 55 Base32 chars (11 groups of 5)
+    let raw32: string;
+    try {
+        combined.set(masterKey);
+        combined[MASTER_KEY_BYTES] = checksum >>> 8;
+        combined[MASTER_KEY_BYTES + 1] = checksum & 0xff;
+        raw32 = encodeCrockfordBase32(combined); // 34 bytes = 272 bits -> 55 Base32 chars (11 groups of 5)
+    } finally {
+        combined.fill(0);
+    }
     const groups: string[] = [RECOVERY_KEY_PREFIX];
     for (let i = 0; i < raw32.length; i += 5) {
         groups.push(raw32.slice(i, i + 5));
@@ -132,13 +134,16 @@ export async function parseRecoveryKey(input: string): Promise<Uint8Array<ArrayB
         throw new OperationError('CLOUD_KEY_INVALID', 'Unsupported or missing recovery key version prefix');
     }
     const body = compact.slice(RECOVERY_KEY_PREFIX.length);
-    const combined = decodeCrockfordBase32(body, MASTER_KEY_BYTES + CHECKSUM_BYTES);
-    const masterKey = toOwnedBytes(combined.subarray(0, MASTER_KEY_BYTES));
-    const actualChecksum = combined.subarray(MASTER_KEY_BYTES);
-    const expectedChecksum = await computeChecksum(masterKey);
-    if (!constantTimeEqual(actualChecksum, expectedChecksum)) {
-        masterKey.fill(0);
-        throw new OperationError('CLOUD_KEY_INVALID', 'Recovery key checksum verification failed');
+    const combined = new Uint8Array(MASTER_KEY_BYTES + CHECKSUM_BYTES);
+    try {
+        decodeCrockfordBase32(body, combined);
+        const masterKey = combined.subarray(0, MASTER_KEY_BYTES);
+        const actualChecksum = (combined[MASTER_KEY_BYTES] << 8) | combined[MASTER_KEY_BYTES + 1];
+        if (actualChecksum !== await computeChecksum(masterKey)) {
+            throw new OperationError('CLOUD_KEY_INVALID', 'Recovery key checksum verification failed');
+        }
+        return masterKey.slice();
+    } finally {
+        combined.fill(0);
     }
-    return masterKey;
 }

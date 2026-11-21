@@ -10,14 +10,13 @@ Operates as an active, intelligent QA agent interacting with the VisualPlaygroun
 import os
 import sys
 import time
-import json
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from .playground import VisualPlayground, ScreenObservation, WaitResult
-from .providers.base import VisionProvider, VisualAction, VisualActionType
+from .playground import VisualPlayground
+from .providers.base import VisionProvider, VisualActionType
 from .scorecard import VisualUXScorecard, SelfHealingEvent, VisualRisk
 
 

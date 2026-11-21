@@ -11,9 +11,6 @@ Gemini Exporter 在线测试会话生命周期管理器 (SessionLifecycleTracker
 4. 在测试结束阶段统一输出会话留存报告，无需人工维护清理开关。
 """
 
-import sys
-import os
-import time
 from typing import List, Set
 
 

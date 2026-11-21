@@ -3,17 +3,14 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { admitFixture } from './helpers/admitFixture.js';
 import { bindFixture, fixtureAccount, fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
-import { withRegistry } from './helpers/registryMock.js';
 import { parseIndexMetadata } from '../src/l1/parsers/shared/parseIndexMetadata.js';
-import { indexFixture } from './helpers/indexFixture.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 import { validateParserDomain } from '../src/l2/runtimeValidation.js';
-import { test, beforeEach } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { storageIdentity } from './helpers/admitFixture.js';
-import { readFixture, removeFixture } from './helpers/admitFixture.js';
+import { readFixture } from './helpers/admitFixture.js';
 import { restoreDomainSnapshot as readStorageDomain } from '../src/l2/runtimeValidation.js';
-import { parseLegacyStorageConversation } from './helpers/recordFixture/parseConversation.js';
 import type { DomainFixture } from './helpers/domainFixture.js';
 
 

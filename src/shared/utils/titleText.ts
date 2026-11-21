@@ -27,7 +27,6 @@ export function isRealTitle(title?: string | null, id?: string | number): boolea
     if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|Google Gemini|Bard|Google Bard|Google AI|New chat|新对话|Search|搜索)$/i.test(t)) return false;
     if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return false;
     if (/^(Google Account|Sign in|Sign-in|Sign in with Google|登录|重新登录)/i.test(t)) return false;
-    if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
     if (/^[0-9a-f]{16}$/i.test(t) || /^c_[0-9a-f]{16}$/i.test(t)) return false;
     if (RESEARCH_PROMPT_PREFIX_RE.test(t)) return false;
     return true;

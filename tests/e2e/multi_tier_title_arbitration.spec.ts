@@ -82,6 +82,28 @@ test('v2 title precedence is user > provider > derived across actual passive RPC
     await expect(options.locator('[data-chat-id="' + id + '"]')).not.toContainText('RPC 更晚的标题');
 });
 
+test('provider titles made of digits or hex letters replace derived titles, but a title equal to its ID does not', async ({ context, extensionId }) => {
+    const titles = { numeric_year_chat: '2025-2026', numeric_digits_chat: '12345678', hex_word_chat: 'deadbeef' };
+    const idTitled = 'title_is_id_chat';
+    const options = await openOptions(context, extensionId);
+    await seedConversations(options, [...Object.keys(titles), idTitled].map(id =>
+        ({ id, title: '原始提问 ' + id, titleSource: 'derived' as const, updatedAt: 1690000000000 })));
+    const source = await sourcePage(context);
+
+    await providerList(source, 'G_DYNAMIC_NUMERIC_TITLE_LIST_01');
+    await expect.poll(async () => (await index(options, idTitled))?.updatedAt).toBe(1700000000000);
+    for (const [id, title] of Object.entries(titles)) {
+        expect(await index(options, id)).toMatchObject({ title, titleSource: 'provider' });
+    }
+    expect(await index(options, idTitled)).toMatchObject({ title: '原始提问 ' + idTitled, titleSource: 'derived' });
+
+    await refresh(options);
+    for (const [id, title] of Object.entries(titles)) {
+        await expect(options.locator(`[data-chat-id="${id}"]`)).toContainText(title);
+    }
+    await expect(options.locator(`[data-chat-id="${idTitled}"]`)).toContainText('原始提问 ' + idTitled);
+});
+
 test('a native Gemini detail with no titled metadata derives a v2 Index title from its first authored user question', async ({ context, extensionId }) => {
     const options = await openOptions(context, extensionId);
     const source = await sourcePage(context);

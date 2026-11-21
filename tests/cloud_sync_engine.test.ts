@@ -12,6 +12,7 @@ import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/
 import { enqueueCloudOutboxKeys, listDueCloudOutbox, putCloudSyncSession } from '../src/l3a/cloudSyncStore.js';
 import { deriveBlindRecordId, deriveVaultKeyring, encodeLengthPrefixedTuple, parseRecoveryKey } from '../src/shared/crypto/index.js';
 import { OperationError } from '../src/shared/errors/operationError.js';
+import { CLOUD_MAX_RECORD_BYTES } from '../src/shared/types/cloudSync.js';
 
 const SERVER_URL = 'https://vault.gemini-exporter.test';
 
@@ -33,6 +34,39 @@ test('vaultClient rejects insecure non-loopback HTTP URLs and normalizes HTTPS o
     assert.throws(() => normalizeCloudServerUrl('http://vault.example.com'), /HTTPS/);
     assert.equal(normalizeCloudServerUrl('https://vault.example.com/'), 'https://vault.example.com');
     assert.equal(normalizeCloudServerUrl('http://localhost:8787/api/'), 'http://localhost:8787/api');
+});
+
+test('CloudSyncEngine upgrades existing key metadata without requiring recovery key re-entry', async () => {
+    const env = indexStorage();
+    try {
+        await env.ready;
+        const legacyKeyring = await deriveVaultKeyring(new Uint8Array(32).fill(42));
+        await new Promise<void>((resolve, reject) => {
+            const request = indexedDB.open('gemini_exporter_cloud_v2', 1);
+            request.onupgradeneeded = () => {
+                request.result.createObjectStore('localKeys', { keyPath: 'ownerSubject' }).put({
+                    ownerSubject: 'primary:vault', origin: 'generated', ...legacyKeyring,
+                });
+            };
+            request.onsuccess = () => { request.result.close(); resolve(); };
+            request.onerror = () => reject(request.error);
+        });
+        const backend = createMockCloudVaultHttp();
+        const engine = createCloudSyncEngine({ client: createCloudVaultClient(
+            (url, init) => backend.handler(new Request(url, init)),
+        ) });
+        const before = await engine.getStatusSnapshot();
+        assert.equal(before.hasRecoveryKey, true);
+        assert.equal(before.keyFingerprint, legacyKeyring.keyFingerprint);
+        assert.equal(before.keyOrigin, 'generated');
+        await engine.connectCloudVault(SERVER_URL);
+        assert.equal(backend.inspectTenantCount(), 1);
+        const after = await engine.getStatusSnapshot();
+        assert.equal(after.keyFingerprint, before.keyFingerprint);
+        assert.equal(after.keyOrigin, 'imported');
+    } finally {
+        env.restore();
+    }
 });
 
 test('CloudSyncEngine: explicit creation and manual pairing retain auto-enqueue, offline retry and conflict healing', async () => {
@@ -137,8 +171,16 @@ test('CloudSyncEngine: explicit creation and manual pairing retain auto-enqueue,
     try {
         await envB.ready;
         attachSharedChromeSync(sharedChromeSync);
+        const restoreCursors: string[] = [];
         const engineB = createCloudSyncEngine({
-            client: createCloudVaultClient(transport),
+            client: createCloudVaultClient((url, init) => {
+                const parsed = new URL(url);
+                if (parsed.pathname === '/v2/vault/changes') {
+                    restoreCursors.push(parsed.searchParams.get('since') ?? '');
+                    parsed.searchParams.set('limit', '1');
+                }
+                return transport(parsed.href, init);
+            }),
             now: () => clockMs,
         });
         const unsubscribeB = engineB.installAutoEnqueueListener();
@@ -153,6 +195,7 @@ test('CloudSyncEngine: explicit creation and manual pairing retain auto-enqueue,
             await engineB.waitForIdle();
 
             // Enabling sync on Device B already pulled both records automatically without manual pullChanges()!
+            assert.deepEqual(restoreCursors, ['0', '1']);
             assert.equal((await engineB.getStatusSnapshot()).pendingOutbox, 0, 'restoring from cloud must NOT echo back into Outbox');
 
             // Verify conversation landed on Device B with the upgraded user title and v1 answer
@@ -361,6 +404,56 @@ test('an expired session renews with unlock from the installed key without a pla
     }
 });
 
+test('CloudSyncEngine bounds Cloud Vault change feed bodies before parsing', async t => {
+    const limitBytes = 64 * 1024;
+    const chunk = new TextEncoder().encode(' '.repeat(16 * 1024));
+    const feed = new TextEncoder().encode(JSON.stringify({ items: [], nextSince: 0, headSeq: 0, hasMore: false }));
+    for (const scenario of [
+        { name: 'no Content-Length', contentLength: undefined, status: 200, maxBytesRead: limitBytes + chunk.byteLength, code: 'CLOUD_SERVER_ERROR' },
+        { name: 'understated Content-Length', contentLength: String(feed.byteLength), status: 200, maxBytesRead: limitBytes + chunk.byteLength, code: 'CLOUD_SERVER_ERROR' },
+        { name: 'oversized Content-Length', contentLength: String(10 * chunk.byteLength + feed.byteLength), status: 200, maxBytesRead: 0, code: 'CLOUD_SERVER_ERROR' },
+        { name: 'oversized HTTP error', contentLength: undefined, status: 429, maxBytesRead: limitBytes + chunk.byteLength, code: 'CLOUD_RATE_LIMITED' },
+    ]) {
+        await t.test(scenario.name, async () => {
+            const env = indexStorage();
+            try {
+                await env.ready;
+                const mock = createMockCloudVaultHttp();
+                let bytesRead = 0;
+                let cancelled = false;
+                const client = createCloudVaultClient((url, init) => {
+                    const request = new Request(url, init);
+                    if (new URL(url).pathname !== '/v2/vault/changes') return mock.handler(request);
+                    const body = new ReadableStream<Uint8Array>({
+                        pull(controller) {
+                            const next = bytesRead < 10 * chunk.byteLength ? chunk : feed;
+                            bytesRead += next.byteLength;
+                            controller.enqueue(next);
+                            if (next === feed) controller.close();
+                        },
+                        cancel() { cancelled = true; },
+                    }, { highWaterMark: 0 });
+                    const headers: HeadersInit = scenario.contentLength === undefined
+                        ? {}
+                        : { 'Content-Length': scenario.contentLength };
+                    return Promise.resolve(new Response(body, { status: scenario.status, headers }));
+                });
+                const engine = createCloudSyncEngine({ client });
+                await createVaultKeySetup(engine.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
+                await engine.connectCloudVault(SERVER_URL, undefined, 'create');
+
+                const outcome = await engine.syncNow().catch((error: unknown) => error);
+                assert.ok(cancelled, `sync read ${bytesRead} bytes without cancelling the change feed`);
+                assert.equal(bytesRead, scenario.maxBytesRead);
+                assert.ok(outcome instanceof OperationError);
+                assert.equal(outcome.code, scenario.code);
+            } finally {
+                env.restore();
+            }
+        });
+    }
+});
+
 test('CloudSyncEngine pullChanges rejects authenticated invalid UTF-8 with CLOUD_DECOMPRESSION_LIMIT', async () => {
     const env = indexStorage();
     try {
@@ -418,4 +511,70 @@ test('transport blocks canonical key text before fetch and surfaces the server r
         && 'code' in error && error.code === 'CLOUD_RATE_LIMITED' && 'retryAt' in error
         && typeof error.retryAt === 'number' && error.retryAt >= started + 60_000);
     assert.equal(requests, 1);
+});
+
+async function pullWithOversizedDownload(declareLength: boolean): Promise<{ error: unknown; pulledBytes: number; cancelled: boolean }> {
+    const env = indexStorage();
+    try {
+        await env.ready;
+        const mock = createMockCloudVaultHttp();
+        const chunk = new Uint8Array(64 * 1024);
+        const totalBytes = 64 * 1024 * 1024;
+        let pulledBytes = 0;
+        let cancelled = false;
+        const client = createCloudVaultClient(async (url, init) => {
+            const response = await mock.handler(new Request(url, init));
+            if ((init?.method ?? 'GET') !== 'GET' || !new URL(url).pathname.startsWith('/v2/vault/records/')) return response;
+            const body = new ReadableStream<Uint8Array>({
+                pull(controller) {
+                    if (pulledBytes >= totalBytes) return controller.close();
+                    pulledBytes += chunk.byteLength;
+                    controller.enqueue(chunk.slice());
+                },
+                cancel() {
+                    cancelled = true;
+                },
+            });
+            const headers = new Headers(response.headers);
+            if (declareLength) headers.set('Content-Length', String(totalBytes));
+            return new Response(body, { status: 200, headers });
+        });
+        const engine = createCloudSyncEngine({ client });
+        const recoveryKey = await prepareOneTimeVaultKey();
+        await createVaultKeySetup(engine.activateVaultKeyring)(recoveryKey, 'generated', null);
+        const { session } = await engine.connectCloudVault(SERVER_URL, undefined, 'create');
+        const keyring = await deriveVaultKeyring(await parseRecoveryKey(recoveryKey));
+        const blindRecordId = await deriveBlindRecordId(keyring, 'gemini', 'gaia-oversized', 'c_oversized');
+        await mock.seedRawRecord(session.ownerSubject, blindRecordId, new TextEncoder().encode('GEE1-placeholder'));
+
+        const error = await createCloudSyncEngine({ client }).pullChanges().then(() => null, (e: unknown) => e);
+        return { error, pulledBytes, cancelled };
+    } finally {
+        env.restore();
+    }
+}
+
+test('pullChanges stops reading a record download once it passes the 2 MiB ceiling', async () => {
+    const { error, pulledBytes, cancelled } = await pullWithOversizedDownload(false);
+    assert.ok(error instanceof OperationError && error.code === 'CLOUD_RECORD_TOO_LARGE', String(error));
+    assert.ok(pulledBytes <= CLOUD_MAX_RECORD_BYTES + 128 * 1024, `read ${pulledBytes} bytes before rejecting`);
+    assert.equal(cancelled, true, 'the oversized response body is cancelled');
+});
+
+test('pullChanges rejects a record download whose Content-Length exceeds 2 MiB without reading it', async () => {
+    const { error, pulledBytes, cancelled } = await pullWithOversizedDownload(true);
+    assert.ok(error instanceof OperationError && error.code === 'CLOUD_RECORD_TOO_LARGE', String(error));
+    assert.ok(pulledBytes <= 128 * 1024, `read ${pulledBytes} bytes before rejecting`);
+    assert.equal(cancelled, true, 'the oversized response body is cancelled');
+});
+
+test('getEncryptedRecord still returns a record of exactly 2 MiB intact', async () => {
+    const envelope = crypto.getRandomValues(new Uint8Array(64 * 1024));
+    const full = new Uint8Array(CLOUD_MAX_RECORD_BYTES);
+    for (let offset = 0; offset < full.byteLength; offset += envelope.byteLength) full.set(envelope, offset);
+    const client = createCloudVaultClient(async () => new Response(full, {
+        headers: { 'X-Record-Revision': '1', 'X-Record-Change-Seq': '1', 'X-Content-SHA256': '' },
+    }));
+    const record = await client.getEncryptedRecord({ serverUrl: SERVER_URL, sessionToken: 't', blindRecordId: '0'.repeat(64) });
+    assert.deepEqual(record?.envelope, full);
 });

@@ -1,4 +1,4 @@
-import { fixtureKey, fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeTimestamp } from '../src/l1/parsers/shared/time.js';

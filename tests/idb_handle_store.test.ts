@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as storage from '../src/l3a/storageService.js';
 import { useStorageUnitEnvironment as useIndexStorage } from './helpers/l3aStorageUnitEnvironment.js';
-import { fixtureKey } from './helpers/domainFixture.js';
 
 import { openStorageDB } from '../src/l3a/idb.js';
 import { isDirectoryHandle } from '../src/shared/types/directoryHandle.js';

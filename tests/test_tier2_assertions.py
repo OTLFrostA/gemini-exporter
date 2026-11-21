@@ -33,7 +33,8 @@ from scripts.framework.cases.workbench import LanguageToggleCase
 from scripts.framework.driver.platform_driver import TurnResult
 from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
 from scripts.framework.features import FeatureDomain, FeatureRegistry, TestStatus
-from scripts.framework.scenario_provider import OnlineScenarioProvider
+from scripts.framework.scenario_provider import DEFAULT_POOL_PATH, OnlineScenarioProvider
+from scripts.manage_scenario_pool import get_effective_pool
 from scripts.framework.image_evidence import assert_image_files, assert_zip_images, image_pixels, capture_webpage_images
 from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
 
@@ -1300,18 +1301,33 @@ class V2SingleConversationDeliveryTests(unittest.TestCase):
 
 
 class CoverageTests(unittest.TestCase):
+    def test_custom_scenario_providers_do_not_replace_context_default(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pool = Path(directory) / 'pool.json'
+            pool.write_text(json.dumps([{'id': 'custom', 'turns': ['one', 'two']}]))
+            provider = OnlineScenarioProvider(str(pool), str(Path(directory) / 'archive.json'))
+
+            ctx = TestContext()
+            self.assertEqual(ctx.provider.pool_path, DEFAULT_POOL_PATH)
+            default_count = len(get_effective_pool(DEFAULT_POOL_PATH))
+            self.assertEqual(ctx.provider.get_status()['count'], default_count)
+            self.assertNotEqual(ctx.provider.get_status()['count'], provider.get_status()['count'])
+
+            second_pool = Path(directory) / 'second.json'
+            second_pool.write_text('[]')
+            second_provider = OnlineScenarioProvider(str(second_pool), str(Path(directory) / 'second_archive.json'))
+            self.assertEqual(second_provider.get_status()['count'], 0)
+            self.assertEqual(provider.pool_path, str(pool))
+            self.assertEqual(provider.get_status()['count'], 1)
+
     def test_missing_required_scenario_is_not_consumed_as_generic(self):
         with tempfile.TemporaryDirectory() as directory:
             pool, archive = Path(directory) / 'pool.json', Path(directory) / 'archive.json'
             pool.write_text(json.dumps([{'id': 'text', 'features': ['code'], 'turns': ['one', 'two']}]))
-            OnlineScenarioProvider.reset()
             provider = OnlineScenarioProvider(str(pool), str(archive))
-            try:
-                with self.assertRaises(RuntimeError): provider.pop_scenario(['imagen'])
-                self.assertEqual(len(json.loads(pool.read_text())), 1)
-                self.assertFalse(archive.exists())
-            finally:
-                OnlineScenarioProvider.reset()
+            with self.assertRaises(RuntimeError): provider.pop_scenario(['imagen'])
+            self.assertEqual(len(json.loads(pool.read_text())), 1)
+            self.assertFalse(archive.exists())
 
     def test_scenarios_need_no_forced_modality_and_page_images_cannot_pass_export(self):
         ctx = TestContext(dataset=[{'turns': ['one', 'two']}, {'turns': ['one', 'two']}])

@@ -9,6 +9,7 @@ and Subgraph Pruning (子图剪枝) in scripts/framework.
 import os
 import io
 import sys
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 from typing import Tuple, Optional, Dict, Any
@@ -230,6 +231,29 @@ class TestDAGSubgraphPruning(unittest.TestCase):
                 if failed:
                     self.assertFalse(dag.cases[failed].critical)
                     self.assertEqual(ctx.registry.get_result(failed).status, TestStatus.FAIL)
+
+    def test_live_runner_rejects_cycle_before_executing_cases(self):
+        from scripts.test_live_chat_and_export import run_live_chat_and_export
+
+        takeout = self.dag.cases['feat_takeout_zip_import']
+        language = self.dag.cases['feat_language_toggle']
+        result = (True, 'fixture passed', None)
+        with tempfile.TemporaryDirectory() as output_dir, \
+                patch.object(FrameworkRunner, '_assemble_dag', return_value=self.dag), \
+                patch.object(FrameworkRunner, 'prepare', return_value=True), \
+                patch.object(takeout, 'execute', return_value=result) as run_takeout, \
+                patch.object(language, 'execute', return_value=result) as run_language, \
+                patch('sys.stdout', new=io.StringIO()):
+            options = dict(port=None, output_dir=output_dir, target_features=language.feature_id)
+            self.assertTrue(run_live_chat_and_export(**options))
+            run_takeout.reset_mock()
+            run_language.reset_mock()
+
+            # Language requires Takeout; this reverse ordering edge closes the cycle.
+            takeout.after = [language.feature_id]
+            passed = run_live_chat_and_export(**options)
+
+        self.assertEqual((passed, run_takeout.call_count, run_language.call_count), (False, 0, 0))
 
     def test_noncritical_target_and_failed_dependency_fail_selected_run(self):
         for dependent in (False, True):

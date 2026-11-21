@@ -314,11 +314,9 @@ for (const body of ['messages', 'turns'] as const) {
 
 for (const body of ['messages', 'turns'] as const) {
     test(`Domain adapter drops message turnId and preserves opaque request provenance from ${body}`, async () => {
-        for (const [requestId, normalized] of [
-            ['r_abcd1234', 'r_abcd1234'], ['ABCD1234', 'ABCD1234'],
-            [' R_ABCD1234 ', 'R_ABCD1234'], ['abcd1234', 'abcd1234'],
-            ['r_r_ABCD1234', 'r_r_ABCD1234'], ['r_', 'r_'], [' R_ ', 'R_'],
-            [' OpenAI-Request-XyZ ', 'OpenAI-Request-XyZ'], ['Claude_Req:AbC', 'Claude_Req:AbC'],
+        for (const requestId of [
+            'r_abcd1234', 'ABCD1234', ' R_ABCD1234 ', 'abcd1234',
+            'r_r_ABCD1234', 'r_', ' R_ ', ' OpenAI-Request-XyZ ', 'Claude_Req:AbC',
         ]) {
             const messages = [{ id: 'message-1', role: 'assistant', content: 'Answer', turnId: 'turn-1', providerRequestId: requestId }];
             const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };

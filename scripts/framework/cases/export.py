@@ -15,7 +15,6 @@ from scripts.framework.actions import CDPActions
 from scripts.framework.assertions import CDPAssertions, assert_archive_targets, assert_scan_result
 from scripts.framework.pdf_evidence import assert_pdf_turn_content
 from scripts.framework.html_evidence import assert_html_turn_content
-from scripts.framework.selectors import WorkbenchSelectors
 from scripts.framework.l3_contracts import audit_l3_contracts
 from scripts.framework.v2_probe import install_probe
 from scripts.framework.cases.sync import wait_for_prior_scan, clear_scan_records, select_source_account

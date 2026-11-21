@@ -9,12 +9,6 @@ from scripts.framework.actions import CDPActions
 from scripts.framework.assertions import CDPAssertions
 from scripts.framework.cases.sync import read_sync_state, verify_activity_sync, select_source_account
 
-try:
-    from scripts.cdp_client import CDPConnection
-except ImportError:
-    from cdp_client import CDPConnection
-
-
 class ContinuedChatPromotionCase(FeatureTestCase):
     def __init__(self):
         super().__init__(

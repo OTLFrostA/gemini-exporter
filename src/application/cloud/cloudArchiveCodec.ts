@@ -25,7 +25,7 @@ export interface SealedCloudConversation {
 /**
  * Bind the envelope to the key fingerprint rather than a backend's session identity.
  */
-export function portableVaultSubject(keyring: VaultKeyring): string {
+export function portableVaultSubject(keyring: Pick<VaultKeyring, 'keyFingerprint'>): string {
     return `vault:${keyring.keyFingerprint}`;
 }
 
