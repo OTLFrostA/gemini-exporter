@@ -13,13 +13,12 @@ Gemini Exporter 依赖感知测试影响分析器 (Dependency-Aware Test Impact 
 """
 
 import os
-import sys
 import re
 import json
 import argparse
 import subprocess
 from collections import defaultdict, deque
-from typing import Set, List, Dict, Tuple, Optional
+from typing import Set, List, Dict, Optional
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
