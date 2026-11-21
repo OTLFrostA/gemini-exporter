@@ -74,7 +74,7 @@ test('real MAIN → isolated → background discovery deduplicates across slots 
     const pages = await Promise.all(urls.map(() => context.newPage()));
     for (const page of pages) {
         await page.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><head>
-            <script>window._WIZ_global_data = {qDCSke: '10987654321', oPEP7c: 'alice@example.com'};</script></head><body>
+            <script>window._WIZ_global_data = {qDCSke: '10987654321', oPEP7c: 'alice@example.com', "SNlM0e": "test-registry-token"};</script></head><body>
             <button aria-label="Google Account: Alice (alice@example.com)">Profile</button></body></html>` }));
     }
     await Promise.all(pages.map((page, index) => page.goto(urls[index])));
@@ -94,7 +94,7 @@ test('real MAIN → isolated → background discovery deduplicates across slots 
 
     // A credential-bearing request uses the Registry UUID, including the default→u0 route.
     await pages[0].route('**/batchexecute*', route => route.fulfill({ body: geminiListGen('G_E2E_ACCOUNT_REGISTRY_EMPTY_BATCH_01') }));
-    await pages[0].evaluate(() => fetch('/_/BardChatUi/data/batchexecute?f.sid=test-registry-sid&at=test-registry-token'));
+    await pages[0].evaluate(() => fetch('/_/BardChatUi/data/batchexecute?f.sid=test-registry-sid&at=test-registry-token', { method: 'POST' }));
     await expect.poll(async () => options.evaluate(async () => {
         const value = await chrome.storage.session.get<{ gemini_credentials_map?: Record<string, { accountId?: string }> }>('gemini_credentials_map');
         return value.gemini_credentials_map?.['test-registry-sid']?.accountId;

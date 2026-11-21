@@ -27,7 +27,6 @@ interface ProtocolLimits {
 }
 
 export const CrossWorldEvents = {
-    CREDENTIALS: 'GEMINI_CREDENTIALS',
     ACCOUNT_OBSERVED: 'GEMINI_ACCOUNT_OBSERVED',
     ACCOUNT_REQUESTED: 'GEMINI_ACCOUNT_REQUESTED',
     CONVERSATION_DELETED: 'GEMINI_CONVERSATION_DELETED',
@@ -36,6 +35,10 @@ export const CrossWorldEvents = {
     STREAM_COMPLETE: 'GEMINI_STREAM_GENERATE_COMPLETE',
     LIVE_SAVE_TRIGGER: 'GEMINI_LIVE_SAVE_TRIGGER'
 } as const;
+
+export function parseRpcRequestId(value: unknown): string | undefined {
+    return typeof value === 'string' && /^\d{1,9}$/.test(value) ? value : undefined;
+}
 
 export type DetailErrorCategory =
     | 'confirmed_deleted'

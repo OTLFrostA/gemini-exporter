@@ -41,13 +41,7 @@ test('hookCredentials - unrelated fetch and XHR traffic does not rescan account 
     xhr.open('POST', 'https://gemini.google.com/batchexecute?at=token&f.sid=xhr-sid');
     xhr.send();
     assert.ok(scans > afterFetch, 'batchexecute XHR still refreshes the account');
-    const credentials = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
-    assert.deepEqual(credentials.map(p => p.msg.payload.sid), ['fetch-sid', 'xhr-sid']);
-    for (const credential of credentials) {
-        const observation = credential.msg.payload.accountObservation;
-        assert.ok(observation && typeof observation === 'object' && 'providerAccountId' in observation);
-        assert.equal(observation.providerAccountId, '10000000001');
-    }
+    assert.ok(posted.every(p => p.msg.type !== 'GEMINI_CREDENTIALS'));
 });
 
 // ============================================================================
@@ -58,13 +52,16 @@ test('hookCredentials - unrelated fetch and XHR traffic does not rescan account 
 test('p0-lock: deletion sniffing requires the exact request-bound acknowledgement and ignores decoys', async () => {
     const { posted, win } = createHookSandbox();
     const id = 'deadbeef00112233';
-    const body = geminiDeleteRequestGen('G_REGRESSION_MIXED_DELETE_REQUEST_01');
+    const body = new URLSearchParams(geminiDeleteRequestGen('G_REGRESSION_MIXED_DELETE_REQUEST_01'));
+    body.set('at', 'fixture-at');
     win.__nextResponseText = geminiDeleteGen('G_REGRESSION_LOCK_DELETE_RESPONSE_01');
     await win.fetch('https://gemini.google.com/u/0/batchexecute', { method: 'POST', body });
     await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve));
     const deleted = posted.filter(p => p.msg.type === 'GEMINI_CONVERSATION_DELETED');
     assert.equal(deleted.length, 1); assert.equal(deleted[0].msg.payload.id, id);
-    assert.equal(deleted[0].msg.payload.requestBody, body);
+    const relayBody = deleted[0].msg.payload.requestBody;
+    assert.ok(typeof relayBody === 'string');
+    assert.deepEqual([...new URLSearchParams(relayBody)], [['f.req', body.get('f.req')]]);
     assert.equal(deleted[0].msg.payload.responseText, win.__nextResponseText);
 });
 test('p0-lock: response-only ids, unacknowledged requests and unrelated hex values cannot authorize deletion', async () => {
@@ -145,7 +142,7 @@ test('hookCredentials - arbitrary Request-like objects are not treated as browse
     await win.fetch(req as any, { method: 'POST', body: geminiListRequestGen('G_HOOK_MALFORMED_LIST_REQUEST_01') });
     await new Promise(r => setTimeout(r, 50));
 
-    // Must not emit credentials, stream events, or relayed batchexecute payloads
+    // Must not emit stream events or relayed batchexecute payloads
     assert.strictEqual(posted.length, 0, 'Request object input must not be intercepted by (url || "").toString() logic');
 
     // In contrast, a direct string URL (or URL object) is recognized and intercepted
@@ -155,7 +152,7 @@ test('hookCredentials - arbitrary Request-like objects are not treated as browse
     });
     await new Promise(r => setTimeout(r, 50));
     assert.ok(posted.length > 0, 'String URL must be recognized and intercepted');
-    assert.ok(posted.some(p => p.msg.type === 'GEMINI_CREDENTIALS'), 'Credentials must be captured from string URL');
+    assert.ok(posted.some(p => p.msg.type === 'GEMINI_NETWORK_BATCHEXECUTE'));
 });
 
 
@@ -170,42 +167,6 @@ test('hookCredentials - real Request inputs preserve list cursor context', async
     assert.deepEqual(JSON.parse(JSON.stringify(relay.msg.payload.listRequest)), { streamId: 'recent', requestCursor: 'cursor' });
     assert.equal(relay.msg.payload.truncated, false);
     assert.ok(typeof relay.msg.payload.requestedAt === 'number' && relay.msg.payload.requestedAt > 0);
-});
-
-
-test('hookCredentials - native fetch RequestInit body captures credentials', async () => {
-    const { posted, win } = createHookSandbox();
-    await win.fetch('https://gemini.google.com/u/0/batchexecute', {
-        method: 'POST',
-        body: geminiListRequestGen('G_HOOK_OVERRIDE_CREDENTIAL_REQUEST_01')
-    });
-    await new Promise(r => setTimeout(r, 20));
-
-    const credentials = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
-    assert.equal(credentials.length, 1);
-    assert.equal(credentials[0].msg.payload.at, 'override_at_token');
-});
-
-
-test('hookCredentials - credential token sources preserve URL, body, and encoded form precedence', async () => {
-    const { posted, win } = createHookSandbox();
-    const base = 'https://gemini.google.com/batchexecute?f.sid=token-sid';
-    const cases: [string, string, string][] = [
-        [base + '&at=url%20token', 'at=body_token', 'url token'],
-        [base, 'request=1&at=body_token', 'body_token'],
-        [base, 'a%74=form+token', 'form token'],
-        [base, 'at=form+token', 'form token'],
-        [base, 'at=literal%2Btoken', 'literal+token'],
-        [base, 'at=literal%25token', 'literal%token'],
-        [base, 'format=wrong&at=right', 'right'],
-    ];
-    for (const [url, body, expected] of cases) {
-        posted.length = 0;
-        await win.fetch(url, { method: 'POST', body });
-        const credentials = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
-        assert.equal(credentials.length, 1);
-        assert.equal(credentials[0].msg.payload.at, expected);
-    }
 });
 
 
@@ -316,41 +277,4 @@ test('Takeout later meaningful title replaces a placeholder through current L1 i
     const persisted = JSON.stringify(detail.messages);
     assert.ok(persisted.includes('model response 1'));
     assert.ok(persisted.includes('model response 2'));
-});
-
-
-test('hookCredentials - fetch and XHR canonicalize URLSearchParams before credential extraction', async () => {
-    const { posted, win, Xhr } = createHookSandbox();
-    const url = 'https://gemini.google.com/batchexecute?f.sid=form-sid';
-    for (const body of ['at=form%20token', new URLSearchParams({ at: 'form token' })]) {
-        posted.length = 0;
-        await win.fetch(url, { method: 'POST', body });
-        const fetchCredentials = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
-        assert.equal(fetchCredentials.length, 1);
-        assert.equal(fetchCredentials[0].msg.payload.at, 'form token');
-        assert.equal(fetchCredentials[0].msg.payload.sid, 'form-sid');
-        posted.length = 0;
-        const xhr = new Xhr();
-        xhr.open('POST', url);
-        xhr.send(body);
-        const xhrCredentials = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
-        assert.equal(xhrCredentials.length, 1);
-        assert.equal(xhrCredentials[0].msg.payload.at, 'form token');
-        assert.equal(xhrCredentials[0].msg.payload.sid, 'form-sid');
-    }
-});
-
-
-test('hookCredentials - credential-shaped text inside another form field is not an AT source', async () => {
-    const { posted, win, Xhr } = createHookSandbox();
-    const url = 'https://gemini.google.com/batchexecute';
-    for (const body of ['f.req=at=not-a-token', 'format=not-a-token',
-        new URLSearchParams({ 'f.req': 'at=not-a-token' })]) {
-        posted.length = 0;
-        await win.fetch(url, { method: 'POST', body });
-        const xhr = new Xhr();
-        xhr.open('POST', url);
-        xhr.send(body);
-        assert.equal(posted.some(p => p.msg.type === 'GEMINI_CREDENTIALS'), false);
-    }
 });

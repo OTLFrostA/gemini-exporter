@@ -29,9 +29,11 @@ const v2 = (page: import('@playwright/test').Page) => page.evaluate(async id => 
 test('diagnostic download includes the failed scan page and its native error envelope', async ({ context, extensionId }) => {
     await sourcePage(context);
     const responseText = geminiListGen('G_E2E_INCREMENTAL_ERROR_LIST_01');
-    await context.route('**/batchexecute*', route => route.fulfill({
-        contentType: 'application/json', body: responseText,
-    }));
+    let scanSid: string | null = null;
+    await context.route('**/batchexecute*', route => {
+        scanSid = new URL(route.request().url()).searchParams.get('f.sid');
+        return route.fulfill({ contentType: 'application/json', body: responseText });
+    });
     const options = await openOptions(context, extensionId);
     await options.click('#btnSyncAll');
     await expect(options.locator('#scanStatus')).toHaveText('Read 0 conversation records, added 0, total 0. Scan failed: invalid Gemini response');
@@ -51,6 +53,67 @@ test('diagnostic download includes the failed scan page and its native error env
             failure: 'invalid_response', details: { topParsed: responseText },
         } } });
     expect((await v2(options)).coverage?.range ?? null).toBeNull();
+    expect(scanSid).toBeTruthy();
+    expect(await options.evaluate(async sid => {
+        const { gemini_credentials_map } = await chrome.storage.session.get('gemini_credentials_map');
+        return !!sid && Object.hasOwn(gemini_credentials_map ?? {}, sid);
+    }, scanSid)).toBe(false);
+});
+
+for (const { scenario, duringLoad, reload } of [
+    { scenario: 'uses a fresh native RPC credential received after page load' },
+    { scenario: 'uses a fresh native RPC credential received during page load', duringLoad: true },
+    { scenario: 'uses a rotated inline credential after reload without a native RPC', reload: true },
+]) test(`Options sync ${scenario}`, async ({ context, extensionId }) => {
+    const gemini = await context.newPage();
+    let inlineToken = 'stale-inline-token';
+    await gemini.route('https://gemini.google.com/**', route => route.fulfill({
+        contentType: 'text/html',
+        body: `<script>window.WIZ_global_data={qDCSke:"10000000001","SNlM0e":"${inlineToken}"}</script>`
+            + (duringLoad ? '<img src="/defer-load.png">' : ''),
+    }));
+    let finishImage!: () => void;
+    const finishPageLoad = new Promise<void>(resolve => { finishImage = resolve; });
+    await gemini.route('**/defer-load.png', async route => {
+        await finishPageLoad;
+        await route.fulfill({ status: 204 });
+    });
+    await gemini.goto('https://gemini.google.com/app', { waitUntil: duringLoad ? 'domcontentloaded' : 'load' });
+    const options = await openOptions(context, extensionId);
+    const credentials = () => options.evaluate(async () => {
+        const { gemini_credentials_map } = await chrome.storage.session.get<{ gemini_credentials_map?: Record<string, { at?: string; accountId?: string }> }>('gemini_credentials_map');
+        return gemini_credentials_map ?? {};
+    });
+    await expect.poll(async () => Object.values(await credentials())).toContainEqual(
+        expect.objectContaining({ at: 'stale-inline-token', accountId })
+    );
+
+    const responseText = geminiListGen('G_E2E_INCREMENTAL_ERROR_LIST_01');
+    let scanCredential: { sid: string | null; at: string | null } | undefined;
+    await context.route('**/batchexecute*', route => {
+        const sid = new URL(route.request().url()).searchParams.get('f.sid');
+        const at = new URLSearchParams(route.request().postData() ?? '').get('at');
+        scanCredential = { sid, at };
+        return route.fulfill({ contentType: 'application/json', body: responseText });
+    });
+    await gemini.route('**/batchexecute*', route => route.fulfill({ body: responseText }));
+    await gemini.evaluate(() => fetch('/_/BardChatUi/data/batchexecute?f.sid=native-sid&_reqid=451903', {
+        method: 'POST', body: new URLSearchParams({ at: 'fresh-network-token' }),
+    }).then(() => undefined));
+    try {
+        await expect.poll(async () => (await credentials())['native-sid']?.at).toBe('fresh-network-token');
+    } finally {
+        finishImage();
+    }
+    await gemini.waitForLoadState('load');
+    if (reload) {
+        inlineToken = 'rotated-inline-token';
+        await gemini.reload();
+    }
+
+    await options.click('#btnSyncAll');
+    await expect(options.locator('#scanStatus')).toContainText('invalid Gemini response');
+    expect(scanCredential).toEqual({ sid: 'native-sid', at: reload ? inlineToken : 'fresh-network-token' });
 });
 
 test('trusted provider-limit window is persisted by L2/L3a and reused for v2 early stop without losing existing facts', async ({ context, extensionId }) => {

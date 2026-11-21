@@ -126,12 +126,16 @@ test('P2-3: 401 但 map 中无此 sid → 两条路径都是 no-op（不写不�
     }
 });
 
-// ---------- P2-4: bootstrap hook payload 的 p.bl 优先 ----------
-test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值', async () => {
+test('P2-4: private RPC credential update prefers the request build label', async () => {
     const previous = new Map(['chrome', 'window', 'document', 'location'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
     const store: Record<string, any> = {};
+    const runtime: { receive?: (message: unknown, sender: chrome.runtime.MessageSender) => void } = {};
     (globalThis as any).chrome = {
-        runtime: { id: 'test-ext', sendMessage: async (message: any) => ({ok:true,value:{id:'10000000-0000-4000-8000-000000000003',providerId:message.providerId,providerAccountId:message.providerAccountId}}) },
+        runtime: {
+            id: 'test-ext',
+            sendMessage: async (message: any) => ({ok:true,value:{id:'10000000-0000-4000-8000-000000000003',providerId:message.providerId,providerAccountId:message.providerAccountId}}),
+            onMessage: { addListener: (listener: typeof runtime.receive) => { runtime.receive = listener; }, removeListener: () => {} },
+        },
         storage: {
             local: {
                 get: async (keys: string[]) => {
@@ -173,16 +177,8 @@ test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值'
         store['gemini_credentials_map'] = {
             sid1: { at: 'old-at', sid: 'sid1', bl: 'old-bl', accountSlot: 'u0', lastUsed: 1 }
         };
-        const handler = (listeners['message'] || [])[0];
-        assert.ok(handler, 'bootstrap 应注册 message 监听器');
-        await handler({
-            source: mockWindow,
-            origin: 'https://gemini.google.com',
-            data: {
-                type: 'GEMINI_CREDENTIALS',
-                payload: { sid: 'sid1', at: 'hook-at', bl: 'hook-bl', url: 'https://gemini.google.com/app' }
-            }
-        });
+        if (!runtime.receive) throw new Error('bootstrap must register the private runtime listener');
+        runtime.receive({ action: 'geminiRpcCredentials', payload: { sid: 'sid1', at: 'hook-at', bl: 'hook-bl' } }, { id: 'test-ext' });
         // runSerializedCredOp 是链式异步，等一拍
         for (let i = 0; i < 50 && store['gemini_credentials_map']?.sid1?.bl !== 'hook-bl'; i++) {
             await new Promise(r => setTimeout(r, 20));
