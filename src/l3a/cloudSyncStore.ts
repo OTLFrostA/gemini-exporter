@@ -25,7 +25,7 @@ export interface CloudSyncSessionState {
 export interface CloudOutboxEntry {
     readonly accountId: string;
     readonly conversationId: string;
-    readonly enqueueId: string | null;
+    readonly enqueueId: string;
     readonly queuedAt: number;
     readonly attempts: number;
     readonly nextRetryAt: number;
@@ -71,30 +71,21 @@ function openCloudDBOnFactory(factory: IDBFactory, onEvict?: () => void): Promis
         const request = factory === indexedDB
             ? indexedDB.open(CLOUD_DB_NAME, CLOUD_DB_VERSION)
             : factory.open(CLOUD_DB_NAME, CLOUD_DB_VERSION);
-        request.onupgradeneeded = () => {
-            const { result: db, transaction } = request;
-            if (!transaction) throw new Error('Missing Vault database upgrade transaction');
-            if (!db.objectStoreNames.contains('session')) {
-                db.createObjectStore('session', { keyPath: 'id' });
+        request.onupgradeneeded = event => {
+            if (event.oldVersion !== 0) {
+                request.transaction?.abort();
+                return;
             }
-            if (!db.objectStoreNames.contains('outbox')) {
-                db.createObjectStore('outbox', { keyPath: ['accountId', 'conversationId'] });
-            }
-            if (!db.objectStoreNames.contains('syncedRecords')) {
-                const synced = db.createObjectStore('syncedRecords', {
-                    keyPath: ['ownerSubject', 'accountId', 'conversationId'],
-                });
-                synced.createIndex('byOwnerBlindId', ['ownerSubject', 'blindRecordId'], { unique: true });
-            }
-            const localKeys = db.objectStoreNames.contains('localKeys')
-                ? transaction.objectStore('localKeys')
-                : db.createObjectStore('localKeys', { keyPath: 'ownerSubject' });
-            if (!localKeys.indexNames.contains(KEYRING_METADATA_INDEX)) {
-                localKeys.createIndex(KEYRING_METADATA_INDEX, ['ownerSubject', 'keyFingerprint', 'origin']);
-            }
-            if (!db.objectStoreNames.contains('vaultHandles')) {
-                db.createObjectStore('vaultHandles');
-            }
+            const db = request.result;
+            db.createObjectStore('session', { keyPath: 'id' });
+            db.createObjectStore('outbox', { keyPath: ['accountId', 'conversationId'] });
+            const synced = db.createObjectStore('syncedRecords', {
+                keyPath: ['ownerSubject', 'accountId', 'conversationId'],
+            });
+            synced.createIndex('byOwnerBlindId', ['ownerSubject', 'blindRecordId'], { unique: true });
+            const localKeys = db.createObjectStore('localKeys', { keyPath: 'ownerSubject' });
+            localKeys.createIndex(KEYRING_METADATA_INDEX, ['ownerSubject', 'keyFingerprint', 'origin']);
+            db.createObjectStore('vaultHandles');
         };
         request.onsuccess = () => {
             const db = request.result;
@@ -201,6 +192,7 @@ function parseOutboxEntry(raw: unknown): CloudOutboxEntry | null {
     if (!isPlainObject(raw)) return null;
     if (typeof raw.accountId !== 'string' || !raw.accountId
         || typeof raw.conversationId !== 'string' || !raw.conversationId
+        || typeof raw.enqueueId !== 'string' || !raw.enqueueId
         || typeof raw.queuedAt !== 'number' || !Number.isSafeInteger(raw.queuedAt)
         || typeof raw.attempts !== 'number' || !Number.isSafeInteger(raw.attempts)
         || typeof raw.nextRetryAt !== 'number' || !Number.isSafeInteger(raw.nextRetryAt)) {
@@ -209,7 +201,7 @@ function parseOutboxEntry(raw: unknown): CloudOutboxEntry | null {
     return {
         accountId: raw.accountId,
         conversationId: raw.conversationId,
-        enqueueId: typeof raw.enqueueId === 'string' ? raw.enqueueId : null,
+        enqueueId: raw.enqueueId,
         queuedAt: raw.queuedAt,
         attempts: raw.attempts,
         nextRetryAt: raw.nextRetryAt,

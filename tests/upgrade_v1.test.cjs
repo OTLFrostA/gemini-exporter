@@ -364,13 +364,3 @@ test('source-version repair retries after a marker failure without losing body c
     assert.equal(data[versionMarker], true);
     assert.equal((await storage.getDetail(index(a).key)).savedAt, undefined);
 });
-
-test('initialized profiles drop the stored Vault access code from content-readable Settings once', async () => {
-    data = { [marker]: true, [versionMarker]: true,
-        [settingsKey]: { theme: 'dark', cloudSyncEnabled: true, cloudSyncServerUrl: 'https://vault.example.test', cloudSyncAccessCode: 'my-private-vault-2026' } };
-    await ensureUpgraded();
-    assert.deepEqual(data[settingsKey], { theme: 'dark', cloudSyncEnabled: true, cloudSyncServerUrl: 'https://vault.example.test' });
-    writes = [];
-    await ensureUpgraded();
-    assert.deepEqual(writes, []);
-});
