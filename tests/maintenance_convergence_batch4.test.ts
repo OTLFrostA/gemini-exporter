@@ -1,4 +1,3 @@
-import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');

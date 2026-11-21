@@ -1,9 +1,7 @@
-import { fixtureAccount } from './helpers/domainFixture.js';
-import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { restoreDomainSnapshot } from '../src/l2/runtimeValidation.js';
 import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.js';
 
 const captured = () => historicalFixture({ id: 'upgraded', title: 'Snapshot title', messages: [{ role: 'assistant', content: 'Saved body' }] });

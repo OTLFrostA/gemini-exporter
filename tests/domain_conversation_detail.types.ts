@@ -1,4 +1,3 @@
-import { fixtureKey } from './helpers/domainFixture.js';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import type { DomainAsset, DomainMessage, DomainMessageRole } from '../src/l2/conversationDetail.js';
 import type { DomainConversationWithDetail } from '../src/l2/conversation.js';
