@@ -44,7 +44,7 @@ async function activeVaultOwner(page: Page): Promise<string> {
     }));
 }
 
-for (const scenario of ['write failure', 'corrupt read-back', 'verified backup', 'local deletion', 'paired upload'] as const) {
+for (const scenario of ['write failure', 'corrupt read-back', 'invalid cursor', 'verified backup', 'local deletion', 'paired upload'] as const) {
     test(`Cloud Vault rotation: ${scenario}`, async ({ context, extensionId }) => {
         const server = createMockCloudVaultHttp();
         await seedRegistryAccounts(context);
@@ -78,7 +78,11 @@ for (const scenario of ['write failure', 'corrupt read-back', 'verified backup',
                 uploaded += 1;
                 candidatePaths.add(pathname);
             }
-            const responseBody = Buffer.from(await response.arrayBuffer());
+            let responseBody = Buffer.from(await response.arrayBuffer());
+            if (scenario === 'invalid cursor' && rotating && browser === context && uploaded === 2
+                && req.method() === 'GET' && pathname === '/v2/vault/changes') {
+                responseBody = Buffer.from(JSON.stringify({ ...JSON.parse(responseBody.toString()), nextSince: 0.5 }));
+            }
             if (isCandidateRead && scenario === 'corrupt read-back') {
                 responseBody[responseBody.length - 1] ^= 1;
             }
@@ -153,8 +157,9 @@ for (const scenario of ['write failure', 'corrupt read-back', 'verified backup',
         await expect(page.locator('#btnCloudSyncNow')).toBeEnabled();
         const feedback = page.locator('#cloudModalFeedback');
         const expectedSaved = scenario === 'local deletion' ? 1 : 2;
-        const expectedReads = scenario === 'write failure' ? 0 : scenario === 'corrupt read-back' ? 1 : expectedSaved;
-        const failed = scenario === 'write failure' || scenario === 'corrupt read-back';
+        const expectedReads = scenario === 'write failure' || scenario === 'invalid cursor' ? 0
+            : scenario === 'corrupt read-back' ? 1 : expectedSaved;
+        const failed = scenario === 'write failure' || scenario === 'invalid cursor' || scenario === 'corrupt read-back';
         expect.soft(oldStillActiveAtWrites).toEqual(Array(expectedSaved).fill(true));
         expect.soft(oldStillActiveAtReads).toEqual(Array(expectedReads).fill(true));
         expect.soft(uploaded).toBe(scenario === 'write failure' ? 1 : expectedSaved);

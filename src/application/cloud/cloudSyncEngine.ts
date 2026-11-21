@@ -6,7 +6,7 @@ import {
     toOwnedBytes,
     type VaultKeyring,
 } from '../../shared/crypto/index.js';
-import type { CloudAuthKeyMode, CloudVaultStatusResponse } from '../../shared/types/cloudSync.js';
+import type { CloudAuthKeyMode, CloudChangesResponse, CloudVaultStatusResponse } from '../../shared/types/cloudSync.js';
 import { calculateBackoff } from '../../shared/utils/retryUtils.js';
 import { mapWithConcurrency } from '../../shared/utils/concurrency.js';
 import { DEFAULT_ACCOUNT_KEY } from '../../l2/accountRegistry.js';
@@ -93,6 +93,13 @@ async function rotationRequest<T>(request: () => Promise<T>): Promise<T> {
 
 function unverifiedBackup(): OperationError {
     return new OperationError('CLOUD_ROTATION_VERIFY_FAILED', 'Could not verify a complete backup for Cloud Vault rotation');
+}
+
+const CLOUD_CHANGE_PAGE_SIZE = 50;
+
+function isValidChangeFeedCursor(feed: CloudChangesResponse, cursor: number): boolean {
+    return Number.isSafeInteger(feed.nextSince) && feed.nextSince >= cursor
+        && (!feed.hasMore || (feed.nextSince > cursor && feed.items.length > 0));
 }
 
 export type { CloudVaultBackendType } from '../../shared/types/cloudSync.js';
@@ -565,11 +572,10 @@ export function createCloudSyncEngine(deps: {
                         serverUrl: session.serverUrl,
                         sessionToken: session.sessionToken,
                         sinceSeq: cursor,
-                        limit: 50,
+                        limit: CLOUD_CHANGE_PAGE_SIZE,
                         signal,
                     }));
-                    if (!Number.isSafeInteger(feed.nextSince) || feed.nextSince < cursor
-                        || (feed.hasMore && (feed.nextSince === cursor || feed.items.length === 0))) {
+                    if (!isValidChangeFeedCursor(feed, cursor)) {
                         throw new OperationError('CLOUD_SERVER_ERROR', 'Invalid cloud change feed cursor');
                     }
                     if (rotationSource && feed.headSeq !== rotationSource.status.headSeq) throw unverifiedBackup();
@@ -750,7 +756,10 @@ export function createCloudSyncEngine(deps: {
         let cursor = 0;
         // Walk the same feed an empty restore client uses, not just the PUT acknowledgements.
         for (;;) {
-            const feed = await rotationRequest(() => remoteClient.listChanges({ ...target, sinceSeq: cursor }));
+            const feed = await rotationRequest(() => remoteClient.listChanges({
+                ...target, sinceSeq: cursor, limit: CLOUD_CHANGE_PAGE_SIZE,
+            }));
+            if (!isValidChangeFeedCursor(feed, cursor)) throw unverifiedBackup();
             for (const meta of feed.items) {
                 const record = written.get(meta.blindRecordId);
                 if (!record || meta.revision !== 1 || meta.sha256 !== record.ciphertextSha256) throw unverifiedBackup();
@@ -765,7 +774,6 @@ export function createCloudSyncEngine(deps: {
                 written.delete(meta.blindRecordId);
             }
             if (!feed.hasMore) break;
-            if (feed.items.length === 0 || feed.nextSince <= cursor) throw unverifiedBackup();
             cursor = feed.nextSince;
         }
         if (written.size !== 0) throw unverifiedBackup();
