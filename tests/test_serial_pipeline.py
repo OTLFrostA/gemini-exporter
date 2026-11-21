@@ -6,9 +6,11 @@ process mutual exclusion, and fail-fast circuit breaking.
 """
 
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -53,6 +55,80 @@ class MockAction(AtomicAction):
 
 class TestSerialPipeline(unittest.TestCase):
 
+    @unittest.skipIf(os.name == "nt", "Requires POSIX flock")
+    def test_process_lock_release_preserves_successor_exclusivity(self):
+        import fcntl
+        import select
+
+        with tempfile.TemporaryDirectory() as directory:
+            lock_path = os.path.join(directory, "runner.lock")
+            lock1, lock3 = ProcessLock(lock_path), ProcessLock(lock_path)
+            successor = None
+            successor_ready = False
+            real_flock = fcntl.flock
+
+            def unlock_and_acquire_successor(fd, operation):
+                nonlocal successor, successor_ready
+                real_flock(fd, operation)
+                if operation == fcntl.LOCK_UN:
+                    successor = subprocess.Popen(
+                        [sys.executable, "-c", (
+                            "import sys\n"
+                            "from scripts.framework.pipeline import ProcessLock\n"
+                            "with ProcessLock(sys.argv[1]):\n"
+                            "    print('acquired', flush=True)\n"
+                            "    sys.stdin.read()\n"
+                        ), lock_path],
+                        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                    readable, _, _ = select.select([successor.stdout], [], [], 10)
+                    successor_ready = bool(readable) and successor.stdout.readline().strip() == "acquired"
+
+            try:
+                lock1.acquire()
+                with patch("fcntl.flock", side_effect=unlock_and_acquire_successor):
+                    lock1.release()
+                self.assertTrue(successor_ready, "Successor must acquire during release")
+                with self.assertRaises(ProcessLockError):
+                    lock3.acquire()
+            finally:
+                lock3.release()
+                lock1.release()
+                if successor is not None:
+                    try:
+                        successor.communicate(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        successor.kill()
+                        successor.communicate()
+
+    @unittest.skipIf(os.name == "nt" or getattr(os, "geteuid", lambda: 0)() == 0,
+                     "Requires POSIX permissions and a non-root user")
+    def test_process_lock_read_only_file_acquisition_and_conflict(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lock_path = os.path.join(directory, "runner.lock")
+            with ProcessLock(lock_path):
+                pass
+            os.chmod(lock_path, 0o444)
+            lock1, lock2 = ProcessLock(lock_path), ProcessLock(lock_path)
+            try:
+                lock1.acquire()
+                self.assertTrue(lock1._acquired)
+                with self.assertRaises(ProcessLockError) as conflict:
+                    lock2.acquire()
+                self.assertIn("冲突进程信息", str(conflict.exception))
+                self.assertIsNone(lock2.fd)
+                lock1.release()
+                self.assertIsNone(lock1.fd)
+                lock2.acquire()
+                self.assertTrue(lock2._acquired)
+            finally:
+                lock2.release()
+                lock1.release()
+
     def test_process_lock_acquisition_and_conflict(self):
         with tempfile.TemporaryDirectory() as directory:
             lock_path = os.path.join(directory, "runner.lock")
@@ -67,14 +143,18 @@ class TestSerialPipeline(unittest.TestCase):
 
                 lock1.release()
                 self.assertFalse(lock1._acquired)
-                self.assertFalse(os.path.exists(lock_path))
+                self.assertTrue(os.path.exists(lock_path))
+                with open(lock_path, encoding="utf-8") as lock_file:
+                    self.assertEqual(lock_file.read(), "")
 
                 lock2.acquire()
                 self.assertTrue(lock2._acquired)
             finally:
                 lock2.release()
                 lock1.release()
-            self.assertFalse(os.path.exists(lock_path))
+            self.assertTrue(os.path.exists(lock_path))
+            with open(lock_path, encoding="utf-8") as lock_file:
+                self.assertEqual(lock_file.read(), "")
 
     def test_executor_state_machine_transition_success(self):
         executor = SerialActionExecutor()
