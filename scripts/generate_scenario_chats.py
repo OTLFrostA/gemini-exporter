@@ -88,9 +88,8 @@ def run_scenarios(dataset_path, port=CDP_DEFAULT_PORT, delay=2, only_id=None):
     failed_scenarios = 0
 
     try:
-        # 严格校验并锁定模型为 3.8 Flash + High
-        print("🔒 校验锁定模型环境 (3.8 Flash + High)...")
-        driver.ensure_model(target_model="3.8 Flash", target_thinking=True)
+        print("🔎 确认 Gemini 使用 Auto 模式...")
+        driver.ensure_auto_mode()
 
         for idx, sc in enumerate(scenarios, 1):
             sc_id = sc.get("id", f"sc_{idx}")

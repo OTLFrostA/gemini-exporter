@@ -101,11 +101,11 @@ class ChatGenerationCase(FeatureTestCase):
         try:
             driver = ctx.get_gemini_driver(cdp_gemini)
             baseline = prepare_activity_baseline(ctx, cdp_gemini)
-            # 模型前置门禁断言
+            # 发帖前确认使用 Auto
             try:
-                driver.ensure_model(target_model="3.8 Flash", target_thinking=True, force_menu_check=True)
+                driver.ensure_auto_mode()
             except RuntimeError as e:
-                return False, f"模型检查不满足: {e}", None
+                return False, f"Auto 模式检查失败: {e}", None
 
             scenarios = ctx.ensure_scenarios()
             for chat_idx in range(min(2, len(scenarios))):

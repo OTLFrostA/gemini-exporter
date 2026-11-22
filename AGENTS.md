@@ -49,6 +49,7 @@
 * 正式产品仍使用 optional 平台权限。此测试模式不验收真实授权弹窗、拒绝或撤销权限等行为；这些场景须使用原始 optional manifest 单独验证，不能因 Tier 2/3 通过而宣称通过。
 
 ### 第二层：真实调试 Chrome 全流程实跑测试 (Tier 2: Live Debug Staging)
+* Gemini 实跑与场景生成使用网页上的 **Auto（自动）** 模式。发帖前确认选中 Auto，由 Gemini 自行选择实际模型和思考档位。
 * **执行命令**：`npm run test:tier2`（对应 `python3 scripts/test_live_chat_and_export.py`）。
 * **适用场景**：修改了 Protobuf/JSPB 解析引擎、Google Takeout 导入逻辑、会话排序、网络请求拦截或发布新版本前。
 * **环境准备**：需先通过 `./scripts/open_test_chrome.sh`（Windows 环境运行 `.\scripts\open_test_chrome.ps1` 或 `.\scripts\open_test_chrome.cmd`）启动开启 9222 调试端口的独立 Chrome。三个启动器默认使用 `--headless=new`，所有平台 Tier 2 / Tier 3 共用后台虚拟窗口，避免抢占桌面焦点。首次登录手动加 `--headed`，登录后正常关闭该测试 Chrome，再不带 `--headed` 重启；不要用手动登录实例跑自动测试。已有有窗口实例不能原地切换，启动器仍拒绝替换或终止占用 9222 的浏览器。

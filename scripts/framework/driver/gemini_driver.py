@@ -125,244 +125,74 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         """等待 Gemini 页面核心输入框与 DOM 挂载就绪"""
         return CDPActions.wait_for_gemini_ready(self.cdp, max_wait=int(timeout))
 
-    def _open_thinking_submenu(self):
-        """Expand the thinking picker when Gemini uses a nested menu."""
-        return self.cdp.eval(f"""
-        (() => {{
-            const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
-            if (!menu) return false;
-            const item = menu.querySelector('[value="thinking_level"]') ||
-                Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'))
-                    .find(el => (el.textContent || '').trim().toLowerCase() === 'thinking level');
-            if (!item) return false;
-            if (item.getAttribute('aria-expanded') !== 'true') item.click();
-            return true;
-        }})()
-        """)
+    def ensure_auto_mode(self) -> bool:
+        """Select Gemini's Auto mode and verify the selection before any prompt is sent."""
+        # Keep the picker open in the background tab without activating the Chrome window.
+        self.cdp.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
+        deadline = time.monotonic() + 15
+        next_open_at = 0.0
+        select_auto = True
+        picker_used = False
 
-    def _read_model_menu(self):
-        return self.cdp.eval(f"""
-        (() => {{
-            const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
-            if (!menu) return null;
-            // Submenus may be nested or rendered in a separate overlay.
-            const thinking = menu.querySelector('[value="thinking_level"]');
-            const submenu = thinking && document.getElementById(thinking.getAttribute('aria-controls'));
-            const items = Array.from(new Set([
-                ...menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'),
-                ...(submenu ? submenu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}') : [])
-            ])).filter(el => el.getClientRects().length > 0);
-            return items.map(el => ({{
-                text: (el.textContent || '').trim().replace(/\\s+/g, ' '),
-                isSelected: el.classList.contains('selected') || el.getAttribute('aria-checked') === 'true'
-            }}));
-        }})()
-        """)
-
-    def ensure_model(self, target_model: str = "3.8 Flash", target_thinking: bool = True, force_menu_check: bool = False, **kwargs) -> bool:
-        """
-        严格校验并锁定 Gemini 模型与思考模式。
-        如果 target_model="3.8 Flash"，严格检查菜单中是否存在 3.8 Flash 选项。
-        如果 target_thinking=True，严格检查菜单中是否存在 Medium (中等强度思考) 选项。
-        若任一能力在当前账号/界面中不存在，立即主动抛出致命异常中断测试，绝不隐式降级或盲跑。
-        """
-        cdp = self.cdp
-        # 1. 首先缓冲等待模型切换按钮挂载就绪并包含文本（最多等待 15 秒，避免 SPA 路由切换瞬间 DOM 未就绪）
-        wait_btn_start = time.time()
-        while time.time() - wait_btn_start < 15.0:
-            btn_info = cdp.eval(f"""
-            (() => {{
-                if (/^(www\\.)?google\\.com$/.test(location.hostname) && location.pathname.startsWith('/sorry')) {{
-                    return {{ blocked: true }};
-                }}
-                const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
-                if (!btn) return null;
-                const text = (btn.textContent || '').trim();
-                const label = (btn.getAttribute('aria-label') || '').trim();
-                if (text || label) {{
-                    return {{ text, label, disabled: !!btn.disabled }};
-                }}
-                return null;
-            }})()
-            """)
-            if btn_info and btn_info.get('blocked'):
-                raise RuntimeError('Google 人机验证拦截：请在测试 Chrome 完成验证后重新运行；未继续发帖')
-            if btn_info:
-                break
-            time.sleep(0.5)
-
-        saw_menu = False
-        for pass_idx in range(5):
-            status = cdp.eval(f"""
-            (() => {{
-                const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
-                if (!btn) return null;
-                const text = (btn.textContent || '').trim();
-                const label = (btn.getAttribute('aria-label') || '').trim();
-                return {{ text, label, disabled: !!btn.disabled }};
-            }})()
-            """)
-            if not status:
-                time.sleep(0.5)
-                continue
-
-            # The picker button only says "Flash"; verify version and thinking
-            # level from the selected menu items on every check.
-            opened = cdp.eval(f"""
-            (() => {{
-                const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
-                if (btn && !btn.disabled) {{
-                    if (btn.getAttribute('aria-expanded') !== 'true') btn.click();
-                    return true;
-                }}
-                return false;
-            }})()
-            """)
-            if not opened:
-                time.sleep(0.5)
-                continue
-
-            time.sleep(0.5)
-
-            menu_info = None
-            menu_deadline = time.monotonic() + 5.0
-            while time.monotonic() < menu_deadline:
-                menu_info = self._read_model_menu()
-                if menu_info:
-                    break
+        try:
+            while (now := time.monotonic()) < deadline:
+                state = self.cdp.eval(f"""
+                (() => {{
+                    if (/^(www\\.)?google\\.com$/.test(location.hostname) && location.pathname.startsWith('/sorry')) {{
+                        return 'blocked';
+                    }}
+                    const buttons = [...document.querySelectorAll('{GeminiSelectors.MODE_MENU_BTN}')];
+                    const button = buttons.find(element => !element.disabled && element.getClientRects().length);
+                    if (!button) return 'waiting';
+                    const menus = [...document.querySelectorAll('{GeminiSelectors.MODE_MENU}')];
+                    const menu = menus.find(element => element.getClientRects().length);
+                    if (!menu) {{
+                        if (!{json.dumps(now >= next_open_at)} || button.getAttribute('aria-expanded') === 'true') return 'waiting';
+                        button.click();
+                        return 'opened';
+                    }}
+                    const items = [...menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}')]
+                        .filter(element => element.getClientRects().length);
+                    if (items.length === 0) return 'waiting';
+                    const auto = items.find(element => {{
+                        const label = element.querySelector('.label')?.textContent.trim();
+                        if (label) return /^(?:auto|自动|自動)$/i.test(label);
+                        return /^(?:auto(?:\\s|$)|自动|自動)/i.test(element.textContent.trim());
+                    }});
+                    if (!auto) return 'unavailable';
+                    const checked = auto.getAttribute('aria-checked');
+                    if (checked === 'true' || (checked === null && auto.classList.contains('selected'))) {{
+                        return 'selected';
+                    }}
+                    if ({json.dumps(select_auto)}) {{
+                        auto.click();
+                        return 'choosing';
+                    }}
+                    return 'waiting';
+                }})()
+                """)
+                if state == 'blocked':
+                    raise RuntimeError('Google 人机验证拦截：请在测试 Chrome 完成验证后重新运行；未继续发帖')
+                if state in ('opened', 'choosing', 'selected', 'unavailable'):
+                    picker_used = True
+                if state == 'selected':
+                    return True
+                if state == 'unavailable':
+                    raise RuntimeError('Gemini 模式菜单未提供 Auto；未继续发帖')
+                if state == 'opened':
+                    next_open_at = now + 1
+                elif state == 'choosing':
+                    next_open_at = now + 0.25
+                    select_auto = False
                 time.sleep(0.25)
-
-            if not menu_info:
-                cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                continue
-            saw_menu = True
-
-            if target_thinking and any(it["text"].lower() == "thinking level" for it in menu_info):
-                self._open_thinking_submenu()
-                submenu_deadline = time.monotonic() + 5.0
-                while time.monotonic() < submenu_deadline:
-                    expanded_info = self._read_model_menu()
-                    if expanded_info:
-                        menu_info = expanded_info
-                        if any(it["text"].lower().split(" ", 1)[0] == "medium" for it in menu_info):
-                            break
-                    time.sleep(0.25)
-
-            if "3.8" in target_model.lower() and "flash" in target_model.lower():
-                has_target_model_opt = any(
-                    ("3.8" in it["text"].lower() and "flash" in it["text"].lower() and "lite" not in it["text"].lower())
-                    for it in menu_info
-                )
-                target_model_label = "3.8 Flash"
-            elif "flash" in target_model.lower():
-                has_target_model_opt = any(
-                    ("flash" in it["text"].lower() and "lite" not in it["text"].lower())
-                    for it in menu_info
-                )
-                target_model_label = "Flash"
-            else:
-                has_target_model_opt = any(target_model.lower() in it["text"].lower() for it in menu_info)
-                target_model_label = target_model
-
-            has_thinking_opt = any(
-                (it["text"].lower().split(" ", 1)[0] == "medium")
-                for it in menu_info
-            )
-
-            missing = []
-            if not has_target_model_opt:
-                missing.append(f"{target_model_label} 模型选项")
-            if target_thinking and not has_thinking_opt:
-                missing.append("Medium (中等强度思考) 选项")
-
-            if missing:
-                cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                avail = [it["text"] for it in menu_info]
-                err_msg = f"❌【测试安全门禁拦截】当前 Gemini 页面中缺失必要能力: {' 和 '.join(missing)}！当前可用菜单项: {avail}。测试已被强制熔断终止，杜绝盲跑或使用非预期模型。"
-                print(f"\n🛑 {err_msg}\n")
-                raise RuntimeError(err_msg)
-
-            is_flash_selected = any(
-                ("3.8" in it["text"].lower() and "flash" in it["text"].lower() and "lite" not in it["text"].lower() and it["isSelected"])
-                for it in menu_info
-            )
-            is_thinking_selected = not target_thinking or any(
-                (it["text"].lower().split(" ", 1)[0] == "medium" and it["isSelected"])
-                for it in menu_info
-            )
-
-            if is_flash_selected and is_thinking_selected:
-                cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                time.sleep(0.3)
-                return True
-
-            if not is_flash_selected:
-                cdp.eval(f"""
-                (() => {{
-                    const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
-                    if (!menu) return;
-                    const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
-                    for (const el of items) {{
-                        const t = (el.textContent || '').trim().toLowerCase();
-                        if (t.includes('3.8') && t.includes('flash') && !t.includes('lite')) {{
-                            el.click();
-                            return;
-                        }}
-                    }}
-                }})()
-                """)
-                time.sleep(0.5)
-
-            if not is_thinking_selected:
-                still_open = cdp.eval(f"!!document.querySelector('{GeminiSelectors.MODE_MENU}')")
-                if not still_open:
-                    cdp.eval(f"""
-                    (() => {{
-                        const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
-                        if (btn) btn.click();
-                    }})()
-                    """)
-                    time.sleep(0.5)
-
-                if any(it["text"].lower() == "thinking level" for it in menu_info):
-                    self._open_thinking_submenu()
-                    time.sleep(0.5)
-
-                cdp.eval(f"""
-                (() => {{
-                    const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
-                    if (!menu) return;
-                    const thinking = menu.querySelector('[value="thinking_level"]');
-                    const submenu = thinking && document.getElementById(thinking.getAttribute('aria-controls'));
-                    const scope = submenu || menu;
-                    const items = Array.from(scope.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
-                    for (const el of items) {{
-                        const t = (el.textContent || '').trim().toLowerCase();
-                        if (/^medium(?:\\s|$)/.test(t)) {{
-                            el.click();
-                            return;
-                        }}
-                    }}
-                }})()
-                """)
-                time.sleep(0.5)
-
-            cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-            cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-            time.sleep(0.4)
-
-        if not saw_menu:
-            raise RuntimeError("❌【测试安全门禁拦截】模型菜单在有界重试内未挂载，未继续发帖")
-        final_status = cdp.eval(f"""
-        (() => {{
-            const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
-            return btn ? ((btn.getAttribute('aria-label') || '') + ' ' + (btn.textContent || '')) : '';
-        }})()
-        """) or ""
-        raise RuntimeError(f"❌【测试安全门禁拦截】无法将模型切换至 3.8 Flash + Medium！当前状态: '{final_status}'。测试已被主动终止。")
+            raise RuntimeError('未能确认 Gemini 已切换至 Auto；未继续发帖')
+        finally:
+            if picker_used:
+                for event_type in ('rawKeyDown', 'keyUp'):
+                    self.cdp.call('Input.dispatchKeyEvent', {
+                        'type': event_type, 'windowsVirtualKeyCode': 27, 'key': 'Escape', 'code': 'Escape'
+                    })
+                time.sleep(0.25)
 
     def execute_turn_pipeline(
         self,
@@ -488,8 +318,8 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         }
 
     def prepare_turn_environment(self) -> bool:
-        """Verify the selected model; page completion is observed independently of the extension."""
-        self.ensure_model(target_model="3.8 Flash", target_thinking=True, force_menu_check=False)
+        """Verify Auto before the turn; observe completion independently of the extension."""
+        self.ensure_auto_mode()
         return True
 
     def build_turn_pipeline(
@@ -665,7 +495,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         else:
             raise RuntimeError(f"New chat readiness timed out after {timeout}s; last state: {state!r}")
 
-        self.ensure_model(target_model="3.8 Flash", target_thinking=True, force_menu_check=False)
+        self.ensure_auto_mode()
 
         session = GeminiChatSession(driver=self, chat_id=None)
         self.active_session = session
@@ -699,7 +529,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         else:
             raise RuntimeError(f"Chat {chat_id_clean!r} readiness timed out after {timeout}s; last state: {state!r}")
 
-        self.ensure_model(target_model="3.8 Flash", target_thinking=True, force_menu_check=False)
+        self.ensure_auto_mode()
 
         session = GeminiChatSession(driver=self, chat_id=chat_id_clean)
         self.active_session = session

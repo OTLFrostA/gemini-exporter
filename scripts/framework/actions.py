@@ -699,17 +699,6 @@ class CDPActions(ExtensionActions):
         return str(title).strip() if title else None
 
     @staticmethod
-    def ensure_model_and_thinking(cdp, target_model: str = "3.8 Flash", target_thinking: bool = True, force_menu_check: bool = False) -> bool:
-        """严格校验并锁定 Gemini 模型与思考模式 (委托至 GeminiPlatformDriver 权威实现)"""
-        from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
-        driver = GeminiPlatformDriver(cdp)
-        return driver.ensure_model(
-            target_model=target_model,
-            target_thinking=target_thinking,
-            force_menu_check=force_menu_check
-        )
-
-    @staticmethod
     def send_gemini_turn(cdp, turn_input: Any, max_wait: int = 300) -> Tuple[bool, str]:
         """向 Gemini 聚焦输入框、粘贴 Prompt、单次物理点击并以单飞串行流水线权威等待流式生成落地 (受网关监控)"""
         if isinstance(turn_input, dict):
