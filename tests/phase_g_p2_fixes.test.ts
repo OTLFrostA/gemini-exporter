@@ -172,6 +172,7 @@ test('P2-4: private RPC credential update prefers the request build label', asyn
     (globalThis as any).location = { href: 'https://gemini.google.com/app', origin: 'https://gemini.google.com' };
     try {
         delete require.cache[require.resolve('../src/l1/client/gemini/bootstrap.js')];
+        require('../src/runtime/content/installContentHost.js').installContentRuntimeHost();
         require('../src/l1/client/gemini/bootstrap.js').initBootstrap();
         // 预置旧 bl
         store['gemini_credentials_map'] = {

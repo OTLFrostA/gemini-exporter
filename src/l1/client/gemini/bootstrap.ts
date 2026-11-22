@@ -7,10 +7,9 @@ import {
     markCredSessionAccessFailed as sharedMarkFailed,
     withCredMapLock,
 } from './api/credStorage.js';
-import { isCurrentAccount, matchesCurrentAccount, resolveCurrentAccount } from '../../../runtime/content/accountContext.js';
+import { contentRuntimeHost } from '../../contentPorts.js';
 import { GEMINI_RPC_CREDENTIALS } from '../../../shared/types/geminiRpcCredentials.js';
 import { readAccountParameters } from '../../../l2/accountRegistry.js';
-import { registerCleanup } from '../../../runtime/content/cleanupRegistry.js';
 import { getErrorMessage } from '../../../shared/utils/errorText.js';
 import { isOwnRpcRequest } from './api/rpcClient.js';
 
@@ -193,7 +192,7 @@ async function ensureCredsOnce(): Promise<BootstrapCredential | null> {
         if (!isExtAlive()) return null;
         const slot = detectSlotFromUrl();
         const atFromPage = extractAtFromPage(!nativeToken);
-        const account = await resolveCurrentAccount();
+        const account = await contentRuntimeHost().account.resolveCurrentAccount();
         const blFromPage = extractBlFromPage();
         if (blFromPage) {
             updateContextCreds({ bl: blFromPage });
@@ -279,17 +278,18 @@ function receiveRpcCredentials(message: unknown, sender: chrome.runtime.MessageS
             const map = await loadCredentialsMap();
             const stored = map.get(sid);
             const old = stored && sameBootstrapSlot(stored.accountSlot, slot) ? stored : undefined;
-            const account = slot === pageSlot ? await resolveCurrentAccount(undefined, slot) : null;
+            const accountPort = contentRuntimeHost().account;
+            const account = slot === pageSlot ? await accountPort.resolveCurrentAccount(undefined, slot) : null;
             // The MAIN hook posts the account observation before sending the RPC.
             // The account refresh above follows that post on the same page bus.
             const captured = requestId ? rpcAccounts.get(requestId) : undefined;
             if (captured && requestId) rpcAccounts.delete(requestId);
-            const matchesRpcAccount = captured?.slot === slot && matchesCurrentAccount(captured.observation);
+            const matchesRpcAccount = captured?.slot === slot && accountPort.matchesCurrentAccount(captured.observation);
             const samePageSlot = slot === detectSlotFromUrl();
             const pageAt = samePageSlot ? extractAtFromPage(false) : '';
             const at = p.at || old?.at || pageAt;
             const sameToken = at === old?.at;
-            const verifiedAccountId = account && isCurrentAccount(account) && ((p.at && matchesRpcAccount) || (at && at === pageAt))
+            const verifiedAccountId = account && accountPort.isCurrentAccount(account) && ((p.at && matchesRpcAccount) || (at && at === pageAt))
                 ? account.accountId : undefined;
             const credential: BootstrapCredential = {
                 ...(sameToken ? old : undefined),
@@ -315,6 +315,7 @@ export function initBootstrap(): void {
     window.__gemExporterExtractBl = extractBlFromPage;
     window.__gemExporterEnsureCreds = ensureCreds;
 
+    const { registerCleanup, account: accountPort } = contentRuntimeHost();
     void ensureCreds();
     const refresh = () => { void ensureCreds(); };
     document.addEventListener('DOMContentLoaded', refresh, { once: true });
@@ -347,7 +348,7 @@ export function initBootstrap(): void {
                         if (!oldest.done) rpcAccounts.delete(oldest.value);
                     }
                 }
-                void resolveCurrentAccount(observation, payload.slot).catch(error => console.warn('[Gemini Exporter] Account discovery failed', getErrorMessage(error)));
+                void accountPort.resolveCurrentAccount(observation, payload.slot).catch(error => console.warn('[Gemini Exporter] Account discovery failed', getErrorMessage(error)));
             } catch (error) { if (isDev()) console.debug('[Gemini Exporter] Invalid account observation', error); }
             return;
         }

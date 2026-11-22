@@ -6,6 +6,7 @@
  * scripted by tests; this deliberately does NOT reproduce L2 selection/Coverage.
  */
 import { provideProviderHost } from '../../src/l1/client/providerHost.js';
+import { provideContentRuntimeHost } from '../../src/l1/contentPorts.js';
 import type { Account } from '../../src/l2/accountRegistry.js';
 import type { ConversationKey } from '../../src/l2/conversationKey.js';
 import type { DetailIngestResult } from '../../src/l2/ingestion.js';
@@ -282,5 +283,20 @@ export function installL1V2Mocks(): void {
             if (ports.current?.accountId !== accountId) throw new Error('No mocked Gemini account route');
             return ports.current.slot;
         },
+    });
+    provideContentRuntimeHost({
+        ingestion: {
+            ingestIndexes: ingestion.ingestIndexes,
+            ingestDetail: ingestion.ingestDetail,
+            ingestDeletedConversation: ingestion.ingestDeletedConversation,
+        },
+        account: {
+            getAccount: accountRegistry.getAccount,
+            resolveRequestAccount: accountContext.resolveRequestAccount,
+            resolveCurrentAccount: accountContext.resolveCurrentAccount,
+            matchesCurrentAccount: accountContext.matchesCurrentAccount,
+            isCurrentAccount: context => context !== null && accountContext.isCurrentAccount(context),
+        },
+        registerCleanup: () => () => {},
     });
 }

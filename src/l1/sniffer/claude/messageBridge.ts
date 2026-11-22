@@ -4,7 +4,7 @@ import { isRecord } from '../../../shared/utils/typeGuards.js';
 import { CLAUDE_SOURCE_EVENT, claudeRequest, claudeUuid } from './observation.js';
 import { parseClaudeConversation } from '../../parsers/claude/parseConversation.js';
 import { parseClaudeList } from '../../parsers/claude/parseList.js';
-import { ingestContentIndexes, ingestContentDetail, ingestContentDeletedConversation } from '../../../runtime/api/contentDomainIngestion.js';
+import { contentRuntimeHost, type ContentIngestionPort } from '../../contentPorts.js';
 import { registerSerializedWindowBridge } from '../shared/streamAndBridge.js';
 
 interface ClaudeMessageBridgeCallbacks {
@@ -13,9 +13,11 @@ interface ClaudeMessageBridgeCallbacks {
     onNativeDetailAccepted: (conversationId: string) => void;
     onSaveRequested: (key: ConversationKey, refreshDetail: boolean) => Promise<unknown>;
     registerCleanup: (cleanup: () => void) => void;
+    ingestion?: ContentIngestionPort;
 }
 
 export function initClaudeMessageBridge(deps: ClaudeMessageBridgeCallbacks): void {
+    const ingestion = () => deps.ingestion ?? contentRuntimeHost().ingestion;
     registerSerializedWindowBridge({
         eventType: CLAUDE_SOURCE_EVENT,
         label: 'Claude capture',
@@ -30,7 +32,7 @@ export function initClaudeMessageBridge(deps: ClaudeMessageBridgeCallbacks): voi
             if (request.kind === 'list') {
                 const body = isRecord(raw.responseBody) && 'data' in raw.responseBody ? raw.responseBody.data : raw.responseBody;
                 const parsed = parseClaudeList(body);
-                await ingestContentIndexes(account.id, parsed.conversations.map(item => ({ conversationId: item.id,
+                await ingestion().ingestIndexes(account.id, parsed.conversations.map(item => ({ conversationId: item.id,
                     fields: { ...(item.title ? { title: item.title, titleSource: 'provider' as const } : {}),
                         ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}), updatedAt: item.updatedAt } })));
                 return;
@@ -38,12 +40,12 @@ export function initClaudeMessageBridge(deps: ClaudeMessageBridgeCallbacks): voi
             const cid = request.conversationId;
             if (!cid) return;
             if (request.kind === 'delete') {
-                await ingestContentDeletedConversation(account.id, cid);
+                await ingestion().ingestDeletedConversation(account.id, cid);
                 return;
             }
             if (request.kind === 'detail') {
                 const parsed = parseClaudeConversation(raw.responseBody, cid);
-                const admission = await ingestContentDetail(account.id, cid, parsed.conversation.detail, parsed.conversation.index);
+                const admission = await ingestion().ingestDetail(account.id, cid, parsed.conversation.detail, parsed.conversation.index);
                 if (!admission.accepted) return;
                 deps.onNativeDetailAccepted(cid);
             }
@@ -63,7 +65,7 @@ export function initClaudeMessageBridge(deps: ClaudeMessageBridgeCallbacks): voi
         if (!rows.length || signature === sidebarSignature) return;
         const account = await deps.currentAccount();
         if (!account || !deps.isActive()) return;
-        await ingestContentIndexes(account.id, [...new Map(rows.map(row => [row.id, row])).values()].map(row => ({
+        await ingestion().ingestIndexes(account.id, [...new Map(rows.map(row => [row.id, row])).values()].map(row => ({
             conversationId: row.id, fields: { title: row.title, titleSource: 'provider' as const },
         })));
         sidebarSignature = signature;

@@ -8,6 +8,7 @@ import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountIds.js';
 import { beforeEach, afterEach } from 'node:test';
 import { installApplicationHost } from '../../src/runtime/api/applicationHost.js';
 import { installDomainStorage } from '../../src/runtime/api/domainStorage.js';
+import { installContentRuntimeHost } from '../../src/runtime/content/installContentHost.js';
 
 
 /** Production Storage over a fresh IndexedDB test backend; Chrome Settings/IPC are boundary doubles. */
@@ -15,6 +16,7 @@ export function indexStorage(seed: Record<string, unknown> = {}, options: { seed
     installDomainStorage();
     installApplicationHost();
     installProviderHost();
+    installContentRuntimeHost();
     const previous = globalThis.chrome, previousDB = globalThis.indexedDB, previousRange = globalThis.IDBKeyRange;
     const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
     // Node's fake browser environment needs the extension-origin Web Locks contract.

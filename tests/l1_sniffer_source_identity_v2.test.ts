@@ -37,9 +37,6 @@ test('an early source completion survives readiness wait and keeps its captured 
     const context = { accountId: uuid, providerId: 'gemini', slot: 'u0' };
     let current = context;
     const bridge = load('src/l1/sniffer/gemini/messageBridge.ts', {
-        'src/runtime/api/contentAccountRegistry.js': { getContentAccount: async () => account },
-        'src/runtime/content/accountContext.js': { resolveRequestAccount: async () => { await pending; return context; }, resolveCurrentAccount: async () => current },
-        'src/runtime/api/contentDomainIngestion.js': { ingestContentIndexes: async () => { commits++; current = { ...context, accountId: '87654321-4321-4321-8321-cba987654321' }; } },
         'src/l1/client/gemini/listObservation.js': {},
         'src/l1/parsers/gemini/rpc/parseConversation.js': {},
         'src/l1/parsers/gemini/rpc/mergePages.js': {},
@@ -48,7 +45,22 @@ test('an early source completion survives readiness wait and keeps its captured 
         'src/shared/utils/devMode.js': { isDevMode: () => false },
         'src/l1/parsers/gemini/rpc/parseList.js': {},
     });
-    bridge.init({ onStreamComplete: (key: unknown) => keys.push(key) });
+    bridge.init({
+        account: {
+            getAccount: async () => account,
+            resolveRequestAccount: async () => { await pending; return context; },
+            resolveCurrentAccount: async () => current,
+            matchesCurrentAccount: () => false,
+            isCurrentAccount: () => false,
+        },
+        ingestion: {
+            ingestIndexes: async () => { commits++; current = { ...context, accountId: '87654321-4321-4321-8321-cba987654321' }; return { added: 1, updated: 0 }; },
+            ingestDetail: async () => ({ accepted: false, changed: false }),
+            ingestDeletedConversation: async () => {},
+        },
+        registerCleanup: () => () => {},
+        onStreamComplete: (key: unknown) => keys.push(key),
+    });
     const event = { source: global.window, origin: global.location.origin, data: { type: 'GEMINI_STREAM_GENERATE_COMPLETE', payload: { slot: 'u0', requestAccountObservation: { providerId: 'gemini', providerAccountId: 'gaia' }, id: 'abcdef123456' } } };
     const operation = bridge.handleWindowMessage(event);
     await Promise.resolve(); assert.equal(commits, 0);

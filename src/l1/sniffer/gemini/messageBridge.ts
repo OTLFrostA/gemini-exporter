@@ -1,6 +1,6 @@
 import { parseGeminiCapturedSource } from '../../parsers/gemini/capturedSource.js';
 import { GeminiCaptureReceiver, type GeminiCaptureCallbacks } from './captureReceiver.js';
-import { registerCleanup } from '../../../runtime/content/cleanupRegistry.js';
+import { contentRuntimeHost } from '../../contentPorts.js';
 import { isDevMode } from '../../../shared/utils/devMode.js';
 
 let receiver: GeminiCaptureReceiver | null = null;
@@ -12,6 +12,7 @@ export function init(dependencies: GeminiCaptureCallbacks = {}) {
     if (!listening) {
         window.addEventListener('message', receiveWindowMessage);
         listening = true;
+        const registerCleanup = dependencies.registerCleanup ?? contentRuntimeHost().registerCleanup;
         registerCleanup(() => {
             window.removeEventListener('message', receiveWindowMessage);
             listening = false; receiver = null; pendingAdmissions.clear();
