@@ -1,26 +1,11 @@
-import type { GeminiStructuredDocument, GeminiStructuredNode } from './structuredContent.js';
+import type { GeminiStructuredDocument, GeminiStructuredNode, ImageAttachment } from './types.js';
+export type { ImageAttachment } from './types.js';
 import { isInternalChipUrl as canonicalIsInternalChipUrl } from '../../shared/chipUtils.js';
 import { isJsonValue, type JsonValue } from '../../../../shared/utils/jsonTypes.js';
 import { payloadToMs } from './payload.js';
 import { decodeDocumentLinks } from './cardNodes.js';
 import { GEMINI_NODE_TYPES, isWireArray, isWireRecord } from './jspbSchema.js';
 import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA, userTextContainer } from './extractors.js';
-
-export interface ImageAttachment {
-    /** JSON-serialized matched wire tuple; never an unvalidated runtime value. */
-    sourceEvidence?: { detectorKind: string; node: JsonValue };
-    isGenerated?: boolean;
-    providerRequestId?: string;
-    imageOrdinal?: number;
-    sourceUrl: string;
-    width?: number;
-    height?: number;
-    size?: number;
-    token?: string;
-    fileName?: string;
-    title?: string;
-    mimeType?: string;
-}
 
 interface GeminiResponseImageEvidence {
     images: ImageAttachment[];

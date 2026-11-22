@@ -97,10 +97,8 @@ export interface TurnDriftReport {
     warnings: string[];
 }
 
-export interface Citation {
-    url: string;
-    title: string;
-}
+import type { Citation } from './types.js';
+export type { Citation } from './types.js';
 
 export interface TitleResult {
     title: string;

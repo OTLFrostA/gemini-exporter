@@ -1,4 +1,4 @@
-import type { GeminiStructuredNode, GeminiStructuredFragment, GeminiTextNode } from './structuredContent.js';
+import type { GeminiStructuredNode, GeminiStructuredFragment, GeminiTextNode } from './types.js';
 import { DOMParser, onErrorStopParsing } from '@xmldom/xmldom';
 import {
     GEMINI_ANNOTATION_TYPES,
