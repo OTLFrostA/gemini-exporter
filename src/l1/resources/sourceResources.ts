@@ -2,9 +2,15 @@ import { OperationError, operationError } from '../../shared/errors/operationErr
 import { ResourceHttpError, ResourceProcessingError } from '../../shared/resources/resourceResult.js';
 import type { DomainAsset } from '../../l2/conversationDetail.js';
 import { readConversationKey, type ConversationKey } from '../../l2/conversationKey.js';
-import type { SourceConversationParseResult } from '../parsers/parsingResult.js';
+import type { ResourceAcquisitionHints } from './resourceAcquisition.js';
 import type { ResourceBytes } from '../../shared/resources/resourceResult.js';
 import { diagnosticOrigin, emitDiagnostic, type Diagnostic } from '../../shared/diagnostics/diagnostic.js';
+
+export interface RetainableParsedConversation {
+    readonly conversationId: string;
+    readonly conversation: { readonly detail: { readonly assets: readonly DomainAsset[] } };
+    readonly acquisitionHints: ResourceAcquisitionHints;
+}
 
 type ResourceReader = (signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void) => Promise<ResourceBytes>;
 const conversationIdentity = (key: ConversationKey) => JSON.stringify([key.accountId, key.conversationId]);
@@ -29,7 +35,7 @@ export function createSourceResourceContext() {
         /** Called only after L2 accepts this entire Detail candidate. Replace, never
          * merge, previous readers: the same assetId may mean different bytes in a
          * later selected snapshot. ZIP-specific readers can be appended with retain(). */
-        retainParsed(key: ConversationKey, parsed: SourceConversationParseResult) {
+        retainParsed(key: ConversationKey, parsed: RetainableParsedConversation) {
             readConversationKey(key);
             if (released) throw new Error('Resource context released');
             if (key.conversationId !== parsed.conversationId) throw new TypeError('Resource conversation mismatch');

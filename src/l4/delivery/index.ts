@@ -1,7 +1,7 @@
 import { operationError } from '../../shared/errors/operationError.js';
 import type { ExportArtifact } from '../artifacts.js';
 import { FsWriter } from './writers/fsWriter.js';
-import { assertExportPath } from '../packaging/exportPath.js';
+import { assertExportPath } from '../shared/exportPath.js';
 
 /** Resolves on an uncancelled download action, without tracking browser download completion. */
 export async function startBrowserDownload(file: ExportArtifact): Promise<void> {

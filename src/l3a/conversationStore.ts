@@ -2,7 +2,7 @@ import type { Account } from '../l2/accountRegistry.js';
 import type { ConversationKey } from '../l2/conversationKey.js';
 import type { DomainConversationIndex } from '../l2/conversationIndex.js';
 import type { DomainConversationDetail } from '../l2/conversationDetail.js';
-import type { DetailIngestResult } from '../l2/ingestion.js';
+import type { DetailIngestResult } from '../l2/contracts/ingestionTypes.js';
 import { inStore, inStores, readOne } from './idb.js';
 
 export const conversationAddress = (key: ConversationKey): [string, string] => [key.accountId, key.conversationId];

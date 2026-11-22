@@ -1,5 +1,5 @@
 import type { Account } from './accountRegistry.js';
-import type { CoverageKey } from './streamCoverage.js';
+import type { CoverageKey } from './contracts/coverageTypes.js';
 
 /** Provider-neutral cursor evidence; does not carry source conversation payloads. */
 export interface PageObservationEvidence {

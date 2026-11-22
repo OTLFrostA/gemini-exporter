@@ -1,15 +1,14 @@
 import { GeminiProtocol } from '../../../protocol/gemini/protocol.js';
-
-export interface GeminiListRequestContext {
-    streamId: 'recent' | 'pinned';
-    requestCursor: string | null;
-}
-export interface GeminiDetailRequestContext { conversationId: string; requestCursor: string | null }
-export interface GeminiRequestContext {
-    list: GeminiListRequestContext | null;
-    detail: GeminiDetailRequestContext | null;
-    deletionId: string | null;
-}
+import type {
+    GeminiListRequestContext,
+    GeminiDetailRequestContext,
+    GeminiRequestContext,
+} from '../../../protocol/gemini/requestTypes.js';
+export type {
+    GeminiListRequestContext,
+    GeminiDetailRequestContext,
+    GeminiRequestContext,
+} from '../../../protocol/gemini/requestTypes.js';
 
 function array(value: unknown): value is unknown[] { return Array.isArray(value); }
 
