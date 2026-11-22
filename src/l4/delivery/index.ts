@@ -3,13 +3,16 @@ import type { ExportArtifact } from '../artifacts.js';
 import { FsWriter } from './writers/fsWriter.js';
 import { assertExportPath } from '../shared/exportPath.js';
 
+const DEFAULT_BLOB_REVOKE_DELAY_MS = 30_000;
+
 /** Resolves on an uncancelled download action, without tracking browser download completion. */
-export async function startBrowserDownload(file: ExportArtifact): Promise<void> {
+export async function startBrowserDownload(file: ExportArtifact, revokeDelayMs = DEFAULT_BLOB_REVOKE_DELAY_MS): Promise<void> {
     assertExportPath(file.fileName);
     if (file.fileName.includes('/')) throw new Error('Browser download requires a root-level final file');
     const blob = file.content instanceof Blob ? file.content : new Blob([typeof file.content === 'string' ? file.content : new Uint8Array(file.content)], { type: file.mimeType });
     const url = URL.createObjectURL(blob);
     let anchor: HTMLAnchorElement | undefined;
+    let downloadStarted = false;
     try {
         anchor = document.createElement('a');
         anchor.href = url;
@@ -17,12 +20,33 @@ export async function startBrowserDownload(file: ExportArtifact): Promise<void> 
         document.body.appendChild(anchor);
         const started = anchor.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
         if (!started) throw new Error('Browser download action was blocked');
+        downloadStarted = true;
     } catch (error) {
         throw operationError(error, 'FILE_WRITE_FAILED');
     } finally {
         anchor?.remove();
-        // Keep the URL alive through the browser's navigation task.
-        setTimeout(() => URL.revokeObjectURL(url), 0);
+        if (!downloadStarted) {
+            URL.revokeObjectURL(url);
+        } else {
+            let revoked = false;
+            const revoke = (): void => {
+                if (revoked) return;
+                revoked = true;
+                clearTimeout(timer);
+                if (typeof globalThis.removeEventListener === 'function') {
+                    globalThis.removeEventListener('pagehide', revoke);
+                }
+                URL.revokeObjectURL(url);
+            };
+            // Keep the Blob URL alive long enough for Chromium's download manager to open large ZIPs.
+            const timer = setTimeout(revoke, revokeDelayMs);
+            if (typeof timer === 'object' && timer !== null && 'unref' in timer && typeof timer.unref === 'function') {
+                timer.unref();
+            }
+            if (typeof globalThis.addEventListener === 'function') {
+                globalThis.addEventListener('pagehide', revoke, { once: true });
+            }
+        }
     }
 }
 

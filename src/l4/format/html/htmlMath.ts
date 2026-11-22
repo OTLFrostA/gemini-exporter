@@ -57,6 +57,9 @@ export function renderMathHtml(
             output: 'mathml',
             displayMode: display,
             throwOnError: true,
+            trust: false,
+            maxSize: 50,
+            maxExpand: 1000,
         });
         // Keep the original authoring source available for copy/accessibility audits.
         const preserved = mathml.replace(/(<annotation encoding="application\/x-tex">)[\s\S]*?(<\/annotation>)/,
