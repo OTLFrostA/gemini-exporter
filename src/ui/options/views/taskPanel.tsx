@@ -64,7 +64,7 @@ function FailureCard({ groups, failedCount, dismissed, developerMode, task, read
     </div>;
 }
 
-export function TaskPanel({ failureHost, ...props }: TaskPanelProps & { failureHost: HTMLElement }) {
+export function TaskPanel({ failureHost, scanHost, ...props }: TaskPanelProps & { failureHost: HTMLElement; scanHost: HTMLElement }) {
     const { task, feedback, percent, scanning, scanMessage, scanSlow, onCancel } = props;
     const exporting = task.kind === 'export';
     const message = feedback.kind === 'empty' ? '' : typeof feedback.message === 'function' ? feedback.message() : feedback.message;
@@ -87,15 +87,17 @@ export function TaskPanel({ failureHost, ...props }: TaskPanelProps & { failureH
                     ? text('Cancelling…', '正在取消…') : exporting && task.phase === 'refreshing'
                         ? text('Refreshing history…', '正在刷新记录…') : text('Abort Export', '终止导出')}</button>
         </div>
-        <p id="scanStatus" role="status" aria-live="polite" className="stat" hidden={scanMessage === null}
-            data-sync-evidence={props.scanEvidence ? JSON.stringify(props.scanEvidence) : undefined}
-            data-source-summary={props.sourceSummary ? JSON.stringify(props.sourceSummary) : undefined}
-            style={{ margin: 0, textAlign: 'center', lineHeight: 1.5, overflowWrap: 'anywhere' }}>{props.onTakeout && scanMessage?.includes('Takeout')
-                ? <>{scanMessage.slice(0, scanMessage.indexOf('Takeout'))}<a href="#takeout" onClick={event => { event.preventDefault(); props.onTakeout?.(); }}>Takeout</a>{scanMessage.slice(scanMessage.indexOf('Takeout') + 7)}</>
-                : scanMessage ?? ''}</p>
-        <div id="scanSlowHint" className="stat" role="note" style={{ display: scanSlow ? 'block' : 'none', textAlign: 'center', lineHeight: 1.5, overflowWrap: 'anywhere', padding: '2px 0' }}>
-            {text('As conversation history grows, Gemini scans may take significantly longer.', '随着对话历史增加，Gemini 的扫描时间可能会显著变长。')}
-        </div>
+        {createPortal(<>
+            <p id="scanStatus" role="status" aria-live="polite" className="stat" hidden={scanMessage === null}
+                data-sync-evidence={props.scanEvidence ? JSON.stringify(props.scanEvidence) : undefined}
+                data-source-summary={props.sourceSummary ? JSON.stringify(props.sourceSummary) : undefined}
+                style={{ margin: 0, lineHeight: 1.5, overflowWrap: 'anywhere' }}>{props.onTakeout && scanMessage?.includes('Takeout')
+                    ? <>{scanMessage.slice(0, scanMessage.indexOf('Takeout'))}<a href="#takeout" onClick={event => { event.preventDefault(); props.onTakeout?.(); }}>Takeout</a>{scanMessage.slice(scanMessage.indexOf('Takeout') + 7)}</>
+                    : scanMessage ?? ''}</p>
+            <div id="scanSlowHint" className="stat" role="note" hidden={!scanSlow} style={{ lineHeight: 1.5, overflowWrap: 'anywhere' }}>
+                {text('As conversation history grows, Gemini scans may take significantly longer.', '随着对话历史增加，Gemini 的扫描时间可能会显著变长。')}
+            </div>
+        </>, scanHost)}
         <p id="status" role="status" aria-live="polite" className="stat" data-level={feedback.kind === 'status' ? feedback.level : undefined}
             style={{ display: feedback.kind === 'progress' ? 'none' : 'block', margin: 0, textAlign: 'center', minHeight: 20, lineHeight: 1.5, overflowWrap: 'anywhere', padding: '2px 0' }}>{message}</p>
         {createPortal(<FailureCard {...props} />, failureHost)}

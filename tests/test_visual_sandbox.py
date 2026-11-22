@@ -376,6 +376,8 @@ class TestVisualSandbox(unittest.TestCase):
         key_calls = [c for c in self.mock_cdp.call_history if c["method"] == "Input.dispatchKeyEvent"]
         self.assertTrue(any(c["params"].get("key") == "Enter" and c["params"].get("type") == "rawKeyDown" for c in key_calls))
         self.assertTrue(any(c["params"].get("key") == "Enter" and c["params"].get("type") == "keyUp" for c in key_calls))
+        self.assertEqual([c["params"]["type"] for c in key_calls], ["rawKeyDown", "char", "keyUp"])
+        self.assertEqual(key_calls[1]["params"]["text"], "\r")
 
         self.sandbox.press_key("Escape")
         self.assertTrue(any(c["params"].get("key") == "Escape" for c in self.mock_cdp.call_history))

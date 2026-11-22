@@ -59,10 +59,13 @@ function updateStat(state: ConversationViewState): void {
     selectAll.setAttribute('aria-label', label);
     selectAll.title = label;
     const total = state.indexes.length;
-    const hiddenCount = state.hiddenBySearch().length;
+    const hiddenCount = state.hiddenSelection().length;
+    const hiddenReason = state.filter === 'all' ? text('by search', '未在搜索结果中显示')
+        : state.search.trim() ? text('by search or filter', '未在搜索或筛选结果中显示')
+            : text('by filter', '未在筛选结果中显示');
     elementById('hiddenSelectionNotice').hidden = hiddenCount === 0;
     elementById('hiddenSelectionText').textContent = hiddenCount
-        ? text(`${hiddenCount} selected ${hiddenCount === 1 ? 'conversation' : 'conversations'} hidden by search`, `已选 ${hiddenCount} 个会话未在搜索结果中显示`) : '';
+        ? text(`${hiddenCount} selected ${hiddenCount === 1 ? 'conversation' : 'conversations'} hidden ${hiddenReason}`, `已选 ${hiddenCount} 个会话${hiddenReason}`) : '';
     requiredElement('button', 'btnShowHiddenSelection').disabled = document.body.dataset.foregroundBusy === 'true';
     requiredElement('button', 'btnDeselectHidden').disabled = document.body.dataset.foregroundBusy === 'true';
     elementById('selectedStat').textContent =

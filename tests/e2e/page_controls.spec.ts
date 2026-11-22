@@ -95,7 +95,8 @@ test('compact conversation toolbar keeps source, search, filter and overflow act
         expect(aligned, 'all controls must fit in one ordered row').toBe(true);
     }
 
-    await more.click();
+    await more.focus();
+    await page.keyboard.press('Enter');
     await expect(menu).toBeVisible();
     await expect(more).toHaveAttribute('aria-expanded', 'true');
     await expect(page.locator('#btnImportTakeout')).toBeVisible();
@@ -152,4 +153,20 @@ test('cleanup confirmation is screenshot-visible, traps focus, cancels safely an
     await expect(modal).toBeHidden();
     await expect(page.locator('#list .item')).toHaveCount(1);
     expect(nativeDialogs).toBe(0);
+});
+
+test('support links stay fully visible above the bottom edge in the 1280 × 800 workbench', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const page = await openOptions(context, extensionId);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const links = page.locator('.support-links > a');
+    await expect(links).toHaveCount(3);
+    const fullyVisible = await links.evaluateAll(anchors => anchors.every(anchor => {
+        const { top, left, bottom, right } = anchor.getBoundingClientRect();
+        const hit = document.elementFromPoint((left + right) / 2, bottom - 1);
+        const label = anchor.querySelector('.support-link-label');
+        return top >= 0 && bottom <= innerHeight && anchor.contains(hit)
+            && !!label && label.scrollWidth <= label.clientWidth;
+    }));
+    expect(fullyVisible).toBe(true);
 });

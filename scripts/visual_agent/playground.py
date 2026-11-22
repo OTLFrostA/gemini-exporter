@@ -482,10 +482,16 @@ class VisualPlayground:
             "code": code,
             "modifiers": modifiers
         })
-        if len(key) == 1 and not modifiers:
+        # Chromium activates a focused native button on the Enter character,
+        # not on the raw key event alone.
+        character = "\r" if k == "Enter" else k if len(k) == 1 else ""
+        if character and not modifiers:
             self.cdp.call("Input.dispatchKeyEvent", {
                 "type": "char",
-                "text": key
+                "text": character,
+                "windowsVirtualKeyCode": vk,
+                "key": k,
+                "code": code,
             })
         self.cdp.call("Input.dispatchKeyEvent", {
             "type": "keyUp",

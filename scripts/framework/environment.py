@@ -131,7 +131,7 @@ class TestEnvironment:
     def get_extension_id(self) -> Optional[str]:
         if self.ext_id:
             return self.ext_id
-        self.ext_id = get_extension_id(self.port)
+        self.ext_id = get_extension_id(self.port, self.repo_path)
         return self.ext_id
 
     def get_tabs(self) -> List[Dict[str, Any]]:

@@ -708,7 +708,7 @@ export async function initWorkbench(): Promise<void> {
     });
     control('button', 'btnDeselectHidden').addEventListener('click', () => {
         if (isBusy()) return;
-        for (const id of state.hiddenBySearch()) state.selected.delete(id);
+        for (const id of state.hiddenSelection()) state.selected.delete(id);
         renderConversations();
     });
     control('input', 'btnSelectAll').addEventListener('change', () => {

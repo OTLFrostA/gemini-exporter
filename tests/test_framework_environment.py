@@ -251,7 +251,7 @@ class TestFrameworkEnvironment(unittest.TestCase):
         page_cdp = MockCDP()
         self.env.setup_download_behavior(output_dir=self.temp_dir, cdp=page_cdp)
 
-        mock_extension_id.assert_called_once_with(9222)
+        mock_extension_id.assert_called_once_with(9222, self.env.repo_path)
         permission_calls = [c for c in mock_browser_cdp.calls if c["method"] == "Browser.grantPermissions"]
         self.assertEqual(permission_calls, [{"method": "Browser.grantPermissions", "params": {
             "permissions": ["localFonts"], "origin": "chrome-extension://download_test_extension",
@@ -460,6 +460,23 @@ class TestExporterIdentity(unittest.TestCase):
                              {"url": "chrome-extension://second/src/ui/options/options.html"}]
         with self.assertRaisesRegex(RuntimeError, "ambiguous"):
             get_extension_id()
+
+
+    @patch("scripts.cdp_client.get_tabs")
+    @patch("scripts.cdp_client.get_browser_ws_url", return_value="ws://browser")
+    @patch("scripts.cdp_client.CDPConnection")
+    def test_ambiguous_targets_use_the_enabled_workspace_installation(self, connection, ws, tabs):
+        from scripts.cdp_client import get_extension_id
+        tabs.return_value = [
+            {"url": "chrome-extension://stale/dist/background/background.js"},
+            {"url": "chrome-extension://current/src/ui/options/options.html"},
+        ]
+        connection.return_value.call.return_value = {"result": {"extensions": [
+            {"id": "stale", "enabled": True, "path": "/tmp/other-worktree"},
+            {"id": "current", "enabled": True, "path": "/tmp/test-worktree"},
+        ]}}
+        self.assertEqual(get_extension_id(repo_path="/tmp/test-worktree"), "current")
+        connection.return_value.close.assert_called_once()
 
 
 class TestUninstallLifecycleIdentity(unittest.TestCase):

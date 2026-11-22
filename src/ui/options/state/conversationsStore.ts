@@ -56,20 +56,19 @@ export class ConversationViewState {
         } finally { this.activeRefreshes--; }
     }
     visible(): DomainConversationIndex[] {
-        return this.indexes.filter(row => {
-            const record = this.records[row.key.conversationId];
-            const matches = this.filter === 'all'
-                || this.filter === 'no_record' && !record
-                || this.filter === 'has_record' && !!record;
-            return matches && this.matchesSearch(row);
-        }).sort(compareConversationIndexes);
+        return this.indexes.filter(row => this.matchesView(row)).sort(compareConversationIndexes);
+    }
+    private matchesView(row: DomainConversationIndex): boolean {
+        const record = this.records[row.key.conversationId];
+        return (this.filter === 'all' || this.filter === (record ? 'has_record' : 'no_record'))
+            && this.matchesSearch(row);
     }
     keys() {
         return this.indexes.filter(row => this.selected.has(row.key.conversationId)).map(row => ({ ...row.key }));
     }
-    hiddenBySearch(): string[] {
+    hiddenSelection(): string[] {
         return this.indexes.filter(row => this.selected.has(row.key.conversationId)
-            && !this.matchesSearch(row))
+            && !this.matchesView(row))
             .map(row => row.key.conversationId);
     }
     private matchesSearch(row: DomainConversationIndex): boolean {
