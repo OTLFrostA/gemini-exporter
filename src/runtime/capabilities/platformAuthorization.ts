@@ -31,12 +31,18 @@ export async function findAuthorizedAccount(platforms: readonly SourcePlatform[]
         if (platform === 'chatgpt') return (await discoverChatGPTAccounts())[0]?.id ?? null;
         if (platform === 'grok') return (await discoverGrokAccounts())[0]?.id ?? null;
         if (platform === 'claude') return (await discoverClaudeAccounts())[0]?.id ?? null;
-        const source = tabs.find(tab => tab.active) ?? tabs[0];
-        if (source.id === undefined) return null;
-        const context = readBoundAccountContext(await sendTabMessage(source.id, { action: 'getAccountContext' }, 3000), platform);
-        if (!context) return null;
-        const account = await getAccount(context.accountId);
-        return account?.providerId === platform && account.providerAccountId !== 'default' ? account.id : null;
+        // The active Gemini tab may still be loading or signed out while another
+        // open document already has a verified account binding.
+        tabs.sort((a, b) => Number(b.active) - Number(a.active));
+        const candidates = await Promise.allSettled(tabs.map(async ({ id }) => {
+            if (id === undefined) return null;
+            const context = readBoundAccountContext(await sendTabMessage(id, { action: 'getAccountContext' }, 3000), platform);
+            if (!context) return null;
+            const account = await getAccount(context.accountId);
+            return account?.providerId === platform && account.providerAccountId !== 'default' ? account.id : null;
+        }));
+        const bound = candidates.find(candidate => candidate.status === 'fulfilled' && candidate.value !== null);
+        return bound?.status === 'fulfilled' ? bound.value : null;
     }));
     return results.flatMap(result => result.status === 'fulfilled' && result.value ? [result.value] : [])[0] ?? null;
 }

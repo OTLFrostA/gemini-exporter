@@ -82,6 +82,26 @@ test('no accounts: visit only an authorized site, detect on return, then explain
     await page.getByRole('heading', { name: 'Scan conversations', exact: true }).waitFor();
 });
 
+test('the account lesson wraps Tab in both directions and blocks programmatic background focus', async () => {
+    page = await browser.newPage();
+    await mount(page, 'options', { accounts: [], tabs: [] }, '?startTour=1');
+    await page.locator('#tourNextBtn:enabled').click();
+    const gemini = page.locator('#btnConnectPlatform-gemini');
+    await gemini.waitFor();
+    await page.locator('#btnDetectAccount:enabled').waitFor();
+    const focus = () => page.evaluate(() => document.activeElement?.id);
+    await page.keyboard.press('Tab');
+    assert.equal(await focus(), 'tourCloseBtn');
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await focus(), 'tourPrevBtn');
+    await page.keyboard.press('Tab');
+    assert.equal(await focus(), 'tourCloseBtn');
+    await page.keyboard.press('Tab');
+    assert.equal(await focus(), 'btnConnectPlatform-gemini');
+    await page.locator('#btnThemeToggle').focus();
+    assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('tour-popover')), true);
+});
+
 test('an import-only default account does not skip website account detection', async () => {
     page = await browser.newPage();
     await mount(page, 'options', { accounts: [{ id: A, providerId: 'gemini', providerAccountId: 'default' }], tabs: [] }, '?startTour=1');

@@ -18,15 +18,26 @@ test('Show reveals a selected conversation hidden by both search and export stat
     const search = page.locator('#chatSearchInput');
     const status = page.locator('#chatFilterSelect');
     await status.selectOption('no_record');
+    await expect(page.locator('#hiddenSelectionNotice')).toContainText('1 selected conversation hidden by filter');
+    await expect(page.locator('#btnExport')).toBeEnabled();
     await search.fill('Orchard');
     await expect(ocean).toBeHidden();
-    await expect(page.locator('#hiddenSelectionNotice')).toContainText('1 selected conversation hidden by search');
+    await expect(page.locator('#hiddenSelectionNotice')).toContainText('1 selected conversation hidden by search or filter');
 
     await page.locator('#btnShowHiddenSelection').click();
     await expect(ocean).toBeChecked();
     await expect(search).toHaveValue('');
     await expect(status).toHaveValue('all');
     await expect(page.locator('#hiddenSelectionNotice')).toBeHidden();
+
+    await page.locator('[data-chat-id="orchard"] input').check();
+    await status.selectOption('has_record');
+    await expect(page.locator('#hiddenSelectionNotice')).toContainText('1 selected conversation hidden by filter');
+    await page.locator('#btnDeselectHidden').click();
+    await expect(page.locator('#hiddenSelectionNotice')).toBeHidden();
+    await expect(page.locator('#selectedStat')).toHaveText('1 of 2 selected');
+    await expect(status).toHaveValue('has_record');
+    await expect(ocean).toBeChecked();
 });
 
 test('search preserves selection, explains hidden items and exports the full selection', async ({ context, extensionId }, testInfo) => {

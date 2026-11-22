@@ -182,21 +182,49 @@ function overlay(
         popover.style.top = `clamp(12px, ${y}px, calc(100vh - ${height}px - 12px))`;
         popover.style.transform = 'none';
     };
+    const interactionRoots = () => interactive ? [currentTarget(), ...currentRelated()] : [];
+    const canInteract = (node: Node) => popover.contains(node)
+        || interactionRoots().some(item => item?.contains(node));
     const guard = (event: MouseEvent) => {
         const node = event.target;
         // Internal Blob deliveries are programmatic actions, not clicks on the workbench.
         if (!event.isTrusted && node instanceof HTMLAnchorElement && node.hasAttribute('download')
             && node.href.startsWith(`blob:${location.origin}/`)) return;
-        if (node instanceof Node && (popover.contains(node) || node instanceof Element && !!node.closest('.tour-coach-card') && container.contains(node) || interactive && [currentTarget(), ...currentRelated()].some(item => item?.contains(node)))) return;
+        if (node instanceof Node && (canInteract(node) || node instanceof Element && !!node.closest('.tour-coach-card') && container.contains(node))) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         if (mode !== 'tour') close();
     };
+    const focusSelector = 'a[href], button, input, select, textarea, [tabindex]';
     const keydown = (event: KeyboardEvent) => {
-        if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+        const focused = document.activeElement;
+        // Let the native select picker handle its own Escape and Tab first.
+        if (focused instanceof HTMLSelectElement && focused.matches(':open')) return;
+        if (event.key === 'Escape') {
+            event.preventDefault(); event.stopPropagation(); close();
+        } else if (event.key === 'Tab') {
+            const candidates = new Set<HTMLElement>();
+            for (const scope of [popover, ...interactionRoots()]) {
+                if (!scope) continue;
+                if (scope !== popover && scope.matches(focusSelector)) candidates.add(scope);
+                for (const control of scope.querySelectorAll<HTMLElement>(focusSelector)) candidates.add(control);
+            }
+            const stops = [...candidates].filter(control => control.tabIndex >= 0
+                && !control.matches(':disabled, [aria-disabled="true"]') && control.checkVisibility({ visibilityProperty: true })
+                && !control.closest('[inert]'));
+            const index = stops.findIndex(control => control === focused);
+            const next = event.shiftKey ? (index <= 0 ? stops.length - 1 : index - 1)
+                : index + 1 === stops.length ? 0 : index + 1;
+            event.preventDefault();
+            (stops[next] ?? popover).focus();
+        }
+    };
+    const guardFocus = (event: FocusEvent) => {
+        if (event.target instanceof Node && !canInteract(event.target)) popover.focus({ preventScroll: true });
     };
     document.addEventListener('click', guard, true);
     document.addEventListener('keydown', keydown, true);
+    document.addEventListener('focusin', guardFocus);
     window.addEventListener('resize', layout);
     window.addEventListener('scroll', layout, true);
     const frame = requestAnimationFrame(layout);
@@ -213,7 +241,7 @@ function overlay(
     const leftCard = document.querySelector('.card-left');
     if (leftCard) {
         sizeObserver.observe(leftCard);
-        for (const child of leftCard.children) sizeObserver.observe(child);
+        for (const child of leftCard.querySelectorAll(':scope > *, .card-left-scroll > *')) sizeObserver.observe(child);
     }
     // Scan status and controls can change workbench layout without a window resize.
     const workbenchList = document.getElementById('list');
@@ -224,6 +252,7 @@ function overlay(
         cancelAnimationFrame(frame);
         document.removeEventListener('click', guard, true);
         document.removeEventListener('keydown', keydown, true);
+        document.removeEventListener('focusin', guardFocus);
         window.removeEventListener('resize', layout);
         window.removeEventListener('scroll', layout, true);
         if (previousFocus instanceof HTMLElement || previousFocus instanceof SVGElement) previousFocus.focus();

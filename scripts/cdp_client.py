@@ -199,7 +199,7 @@ GOOGLE_INTERNAL_EXTS = {
 }
 
 
-def get_extension_id(port=CDP_DEFAULT_PORT):
+def get_extension_id(port=CDP_DEFAULT_PORT, repo_path=None):
     # Identify only exact Exporter entrypoints. Never uninstall an arbitrary
     # extension merely because it happens to be the first non-Google worker.
     paths = {
@@ -216,6 +216,22 @@ def get_extension_id(port=CDP_DEFAULT_PORT):
                 and url.netloc not in GOOGLE_INTERNAL_EXTS and url.path in paths):
             candidates.add(url.netloc)
     if len(candidates) > 1:
+        # Debug targets can retain workers from previously installed checkouts.
+        # For a test workspace, disambiguate using Chrome's installed inventory.
+        browser_ws = get_browser_ws_url(port) if repo_path else None
+        if browser_ws:
+            browser = CDPConnection(browser_ws)
+            try:
+                inventory = browser.call("Extensions.getExtensions").get("result", {}).get("extensions", [])
+                installed = {
+                    entry["id"] for entry in inventory
+                    if entry.get("id") in candidates and entry.get("enabled") is True
+                    and entry.get("path") and os.path.realpath(entry["path"]) == os.path.realpath(repo_path)
+                }
+                if len(installed) == 1:
+                    return installed.pop()
+            finally:
+                browser.close()
         raise RuntimeError("Multiple Gemini Exporter extensions found; refusing ambiguous extension selection")
     return next(iter(candidates), None)
 
