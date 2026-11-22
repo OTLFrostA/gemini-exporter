@@ -1,5 +1,5 @@
 import { OperationError } from '../../shared/errors/operationError.js';
-import type { VaultKeyring } from '../../shared/crypto/index.js';
+import { sealSessionSecrets, type VaultKeyring } from '../../shared/crypto/index.js';
 import type { CloudVaultStatusResponse } from '../../shared/types/cloudSync.js';
 import { DEFAULT_ACCOUNT_KEY } from '../../l2/accountRegistry.js';
 import { encodePortableCloudConversation } from '../../l2/cloudPayload.js';
@@ -24,6 +24,7 @@ import {
     unverifiedBackup,
     withVaultOperation,
     type ActivateKeyring,
+    type ActiveCloudSession,
     type CloudPullResult,
 } from './vaultShared.js';
 
@@ -31,14 +32,14 @@ export function createVaultKeyRotation(ctx: {
     readonly connection: VaultConnection;
     readonly pullChanges: (
         signal?: AbortSignal,
-        rotationSource?: { session: CloudSyncSessionState; status: CloudVaultStatusResponse; keyring: VaultKeyring },
+        rotationSource?: { session: ActiveCloudSession; status: CloudVaultStatusResponse; keyring: VaultKeyring },
     ) => Promise<CloudPullResult>;
     readonly now: () => number;
 }): { activateVaultKeyring: ActivateKeyring } {
     const { connection, pullChanges, now } = ctx;
 
     const stageCloudBackup = async (
-        session: CloudSyncSessionState,
+        session: ActiveCloudSession,
         keyring: VaultKeyring,
         includeDetail: boolean,
     ): Promise<CloudSyncedRecordState[]> => {
@@ -122,41 +123,69 @@ export function createVaultKeyRotation(ctx: {
                     const source = await rotationRequest(() => connection.verifyVaultKeyCompatibility(oldSession, oldKeyring));
                     const previous = await pullChanges(undefined, { ...source, keyring: oldKeyring });
                     const auth = await rotationRequest(() => connection.authenticateVaultKey(
-                        session.serverUrl, candidateKeyring, 'create', session.accessCode,
+                        session.serverUrl, candidateKeyring, 'create', oldSession.accessCode,
                     ));
                     if (auth.ownerSubject === session.ownerSubject) throw unverifiedBackup();
-                    const nextSession = { ...cleanSession, ...auth, pulledSeq: 0 };
-                    const verified = await stageCloudBackup(nextSession, candidateKeyring, settings.cloudSyncIncludeDetail === true);
+                    const nextSealed = await sealSessionSecrets(
+                        candidateKeyring,
+                        { sessionToken: auth.sessionToken, ...(oldSession.accessCode ? { accessCode: oldSession.accessCode } : {}) },
+                        { serverUrl: session.serverUrl, ownerSubject: auth.ownerSubject },
+                    );
+                    const nextStoredSession: CloudSyncSessionState = {
+                        ...cleanSession,
+                        ownerSubject: auth.ownerSubject,
+                        expiresAt: auth.expiresAt,
+                        sealedCredentials: nextSealed,
+                        pulledSeq: 0,
+                    };
+                    const nextActiveSession: ActiveCloudSession = {
+                        ...nextStoredSession,
+                        sessionToken: auth.sessionToken,
+                        ...(oldSession.accessCode ? { accessCode: oldSession.accessCode } : {}),
+                    };
+                    const verified = await stageCloudBackup(nextActiveSession, candidateKeyring, settings.cloudSyncIncludeDetail === true);
                     const activeSession = await rotationRequest(connection.requireActiveSession);
                     const latest = await rotationRequest(() => connection.remoteClient.getVaultStatus(activeSession.serverUrl, activeSession.sessionToken));
                     if (latest.headSeq !== source.status.headSeq || latest.recordCount !== source.status.recordCount
                         || latest.keyFingerprint !== source.status.keyFingerprint) throw unverifiedBackup();
-                    await persistActivatedVaultKeyring(candidateKeyring, 'imported', nextSession, session.ownerSubject, verified);
+                    await persistActivatedVaultKeyring(candidateKeyring, 'imported', nextStoredSession, session.ownerSubject, verified);
                     return {
                         keyFingerprint,
                         resolution: 'rekeyed',
                         cloudBackup: { saved: verified.length, restoredChanges: previous.changed > 0 },
                     };
                 }
-                const auth = await connection.authenticateVaultKey(session.serverUrl, candidateKeyring, 'unlock', session.accessCode);
+                const accessCode = await connection.readSessionAccessCode(session);
+                const auth = await connection.authenticateVaultKey(session.serverUrl, candidateKeyring, 'unlock', accessCode);
+                const nextSealed = await sealSessionSecrets(
+                    candidateKeyring,
+                    { sessionToken: auth.sessionToken, ...(accessCode ? { accessCode } : {}) },
+                    { serverUrl: session.serverUrl, ownerSubject: auth.ownerSubject },
+                );
                 await persistActivatedVaultKeyring(
                     candidateKeyring,
                     'imported',
-                    { ...cleanSession, ...auth, pulledSeq: 0 },
+                    {
+                        ...cleanSession,
+                        ownerSubject: auth.ownerSubject,
+                        expiresAt: auth.expiresAt,
+                        sealedCredentials: nextSealed,
+                        pulledSeq: 0,
+                    },
                     session.ownerSubject,
                 );
                 return { keyFingerprint, resolution: 'unlocked' };
             }
 
             const activeClient = connection.clientForSession(session);
-            const vaultStatus = await activeClient.getVaultStatus(session.serverUrl, session.sessionToken);
+            const vaultStatus = await activeClient.getVaultStatus(session.serverUrl, 'local-folder-session');
             if (origin === 'generated') {
                 if (vaultStatus.recordCount > 0 && (!current || vaultStatus.keyFingerprint !== current.keyFingerprint)) {
                     await persistActivatedVaultKeyring(candidateKeyring, 'generated', { ...cleanSession, keyMismatch: true, pulledSeq: 0 });
                     return { keyFingerprint, resolution: 'initialized' };
                 }
                 if (vaultStatus.recordCount > 0) await pullChanges();
-                await activeClient.purgeVault(session.serverUrl, session.sessionToken);
+                await activeClient.purgeVault(session.serverUrl, 'local-folder-session');
                 await persistActivatedVaultKeyring(candidateKeyring, 'generated', { ...cleanSession, pulledSeq: 0 });
                 return { keyFingerprint, resolution: 'rekeyed' };
             }

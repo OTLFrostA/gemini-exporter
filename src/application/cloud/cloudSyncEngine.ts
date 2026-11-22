@@ -6,6 +6,7 @@ import { createVaultKeyRotation } from './vaultKeyRotation.js';
 import { createVaultPullSync } from './vaultPullSync.js';
 import { createVaultPushSync } from './vaultPushSync.js';
 import {
+    toStoredCloudSession,
     withVaultOperation,
     type ActivateKeyring,
     type AutoEnqueueSuppression,
@@ -99,7 +100,7 @@ export function createCloudSyncEngine(deps: {
                     const session = await connection.requireActiveSession();
                     connection.requireCompatibleKey(session, await getInitializedVaultKeyMetadata());
                     if (session.enabledSinceAt === undefined) {
-                        await putCloudSyncSession({ ...session, enabledSinceAt: now() });
+                        await putCloudSyncSession({ ...toStoredCloudSession(session), enabledSinceAt: now() });
                     }
                 }
                 await updateSettings({ cloudSyncEnabled: enabled });

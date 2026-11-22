@@ -7,16 +7,16 @@ export type { CloudVaultBackendType } from '../shared/types/cloudSync.js';
 const CLOUD_DB_NAME = 'gemini_exporter_cloud_v2';
 const CLOUD_DB_VERSION = 2;
 const KEYRING_METADATA_INDEX = 'byOwnerFingerprintOrigin';
+const MIN_SEALED_SESSION_BYTES = 4 + 12 + 16;
 
 export interface CloudSyncSessionState {
     readonly id: 'active';
     readonly backend: CloudVaultBackendType;
     readonly serverUrl: string;
     readonly ownerSubject: string;
-    readonly sessionToken: string;
     readonly expiresAt: number;
     readonly folderName?: string;
-    readonly accessCode?: string;
+    readonly sealedCredentials?: Uint8Array<ArrayBuffer>;
     readonly keyMismatch?: boolean;
     readonly pulledSeq: number;
     readonly enabledSinceAt?: number;
@@ -166,21 +166,28 @@ function parseSessionState(raw: unknown): CloudSyncSessionState | null {
         || (raw.backend !== 'local-folder' && raw.backend !== 'cloud-server')
         || typeof raw.serverUrl !== 'string' || !raw.serverUrl
         || typeof raw.ownerSubject !== 'string' || !raw.ownerSubject
-        || typeof raw.sessionToken !== 'string' || !raw.sessionToken
         || typeof raw.expiresAt !== 'number' || !Number.isSafeInteger(raw.expiresAt)
         || typeof raw.pulledSeq !== 'number' || !Number.isSafeInteger(raw.pulledSeq) || raw.pulledSeq < 0) {
         return null;
+    }
+    let sealedCredentials: Uint8Array<ArrayBuffer> | undefined;
+    if (raw.backend === 'cloud-server') {
+        if (!(raw.sealedCredentials instanceof Uint8Array) || raw.sealedCredentials.byteLength < MIN_SEALED_SESSION_BYTES) {
+            return null;
+        }
+        const copy = new Uint8Array(raw.sealedCredentials.byteLength);
+        copy.set(raw.sealedCredentials);
+        sealedCredentials = copy;
     }
     return {
         id: 'active',
         backend: raw.backend,
         serverUrl: raw.serverUrl,
         ownerSubject: raw.ownerSubject,
-        sessionToken: raw.sessionToken,
         expiresAt: raw.expiresAt,
         pulledSeq: raw.pulledSeq,
         ...(typeof raw.folderName === 'string' && raw.folderName ? { folderName: raw.folderName } : {}),
-        ...(typeof raw.accessCode === 'string' && raw.accessCode ? { accessCode: raw.accessCode } : {}),
+        ...(sealedCredentials ? { sealedCredentials } : {}),
         ...(raw.keyMismatch === true ? { keyMismatch: true } : {}),
         ...(typeof raw.enabledSinceAt === 'number' && Number.isSafeInteger(raw.enabledSinceAt)
             ? { enabledSinceAt: raw.enabledSinceAt }
@@ -244,8 +251,12 @@ export function getCloudSyncSession(): Promise<CloudSyncSessionState | null> {
 }
 
 export function putCloudSyncSession(session: CloudSyncSessionState): Promise<void> {
+    const safeSession = parseSessionState(session);
+    if (!safeSession) {
+        return Promise.reject(new Error('Refusing to persist invalid CloudSyncSessionState'));
+    }
     return inCloudStores(['session'], 'readwrite', (tx, done) => {
-        tx.objectStore('session').put(session);
+        tx.objectStore('session').put(safeSession);
         done(undefined);
     });
 }
@@ -481,16 +492,20 @@ export function activateStoredKeyring(
     if (!safeEntry) {
         return Promise.reject(new Error('Refusing to persist invalid CryptoKey handles in Vault store'));
     }
+    const safeSession = session ? parseSessionState(session) : undefined;
+    if (session && !safeSession) {
+        return Promise.reject(new Error('Refusing to persist invalid CloudSyncSessionState'));
+    }
     return inCloudStores(['localKeys', 'session', 'syncedRecords', 'outbox'], 'readwrite', (tx, done) => {
         tx.objectStore('localKeys').put(safeEntry);
-        if (previousOwnerSubject && previousOwnerSubject !== session?.ownerSubject) {
+        if (previousOwnerSubject && previousOwnerSubject !== safeSession?.ownerSubject) {
             tx.objectStore('syncedRecords').delete(
                 IDBKeyRange.bound([previousOwnerSubject], [previousOwnerSubject, []]),
             );
         }
-        if (session) {
-            tx.objectStore('session').put(session);
-            tx.objectStore('syncedRecords').delete(IDBKeyRange.bound([session.ownerSubject], [session.ownerSubject, []]));
+        if (safeSession) {
+            tx.objectStore('session').put(safeSession);
+            tx.objectStore('syncedRecords').delete(IDBKeyRange.bound([safeSession.ownerSubject], [safeSession.ownerSubject, []]));
             if (verifiedBackup) {
                 for (const record of verifiedBackup) tx.objectStore('syncedRecords').put(record);
             } else {
@@ -522,11 +537,15 @@ export function putLocalVaultConnection(
     handle: DirectoryHandle,
     resetSyncedRecords: boolean,
 ): Promise<void> {
+    const safeSession = parseSessionState(session);
+    if (!safeSession) {
+        return Promise.reject(new Error('Refusing to persist invalid local vault session'));
+    }
     return inCloudStores(['session', 'vaultHandles', 'syncedRecords'], 'readwrite', (tx, done) => {
-        tx.objectStore('session').put(session);
+        tx.objectStore('session').put(safeSession);
         tx.objectStore('vaultHandles').put(handle, 'local-vault');
         if (resetSyncedRecords) {
-            const range = IDBKeyRange.bound([session.ownerSubject], [session.ownerSubject, []]);
+            const range = IDBKeyRange.bound([safeSession.ownerSubject], [safeSession.ownerSubject, []]);
             tx.objectStore('syncedRecords').delete(range);
         }
         done(undefined);

@@ -15,7 +15,6 @@ import {
     recordCloudOutboxFailure,
     removeCloudOutboxEntry,
     type CloudOutboxEntry,
-    type CloudSyncSessionState,
 } from '../../l3a/vaultStorageService.js';
 import { getSettings } from '../settings/index.js';
 import {
@@ -31,6 +30,7 @@ import {
     sha256BytesHex,
     sha256Utf8Hex,
     withVaultOperation,
+    type ActiveCloudSession,
     type AutoEnqueueSuppression,
     type CloudFlushResult,
 } from './vaultShared.js';
@@ -46,7 +46,7 @@ export function createVaultPushSync(ctx: {
     let activeFlush: Promise<CloudFlushResult> | null = null;
 
     const pushSingleConversation = async (
-        session: CloudSyncSessionState,
+        session: ActiveCloudSession,
         keyring: VaultKeyring,
         includeDetail: boolean,
         entry: CloudOutboxEntry,

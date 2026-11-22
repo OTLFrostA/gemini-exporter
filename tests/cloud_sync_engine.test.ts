@@ -10,8 +10,9 @@ import { indexStorage } from './helpers/indexStorage.js';
 import { createMockCloudVaultHttp } from './helpers/mockCloudVaultHttp.js';
 import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/cloud/vaultKeySetup.js';
 import { enqueueCloudOutboxKeys, listDueCloudOutbox, putCloudSyncSession, getCloudSyncSession, getSyncedCloudRecord, putSyncedCloudRecord } from '../src/l3a/cloudSyncStore.js';
+import { getInitializedVaultKeyring } from '../src/l3a/cloudKeyringStore.js';
 import { deleteStoredConversation, getIndex } from '../src/l3a/storageService.js';
-import { deriveBlindRecordId, deriveVaultKeyring, encodeLengthPrefixedTuple, parseRecoveryKey } from '../src/shared/crypto/index.js';
+import { deriveBlindRecordId, deriveVaultKeyring, encodeLengthPrefixedTuple, openSessionSecrets, parseRecoveryKey } from '../src/shared/crypto/index.js';
 import { OperationError } from '../src/shared/errors/operationError.js';
 import { CLOUD_MAX_RECORD_BYTES } from '../src/shared/types/cloudSync.js';
 
@@ -37,23 +38,58 @@ test('vaultClient rejects insecure non-loopback HTTP URLs and normalizes HTTPS o
     assert.equal(normalizeCloudServerUrl('http://localhost:8787/api/'), 'http://localhost:8787/api');
 });
 
-test('CloudSyncEngine reads current key metadata and stores the access code only in the Vault session', async () => {
+test('CloudSyncEngine seals sessionToken and accessCode at rest with non-extractable payloadKey and renews on expiry', async () => {
     const env = indexStorage();
     try {
         await env.ready;
         const accessCode = 'test-vault-access-code';
+        let clockMs = Date.now();
         const backend = createMockCloudVaultHttp({ serverAccessCode: accessCode });
-        const engine = createCloudSyncEngine({ client: createCloudVaultClient(
-            (url, init) => backend.handler(new Request(url, init)),
-        ) });
+        const engine = createCloudSyncEngine({
+            client: createCloudVaultClient((url, init) => backend.handler(new Request(url, init))),
+            now: () => clockMs,
+        });
         const installed = await createVaultKeySetup(engine.activateVaultKeyring)(await prepareOneTimeVaultKey(), 'generated', null);
         const before = await engine.getStatusSnapshot();
         assert.equal(before.hasRecoveryKey, true);
         assert.equal(before.keyFingerprint, installed.keyFingerprint);
         assert.equal(before.keyOrigin, 'generated');
         await engine.connectCloudVault(SERVER_URL, accessCode);
-        assert.equal((await getCloudSyncSession())?.accessCode, accessCode);
+        const storedSession = await getCloudSyncSession();
+        assert.ok(storedSession?.sealedCredentials instanceof Uint8Array);
+        assert.equal('sessionToken' in (storedSession ?? {}), false, 'sessionToken must not be stored in plaintext');
+        assert.equal('accessCode' in (storedSession ?? {}), false, 'accessCode must not be stored in plaintext');
+        const sealedText = new TextDecoder('latin1').decode(storedSession!.sealedCredentials);
+        assert.equal(sealedText.includes(accessCode), false, 'sealedCredentials must not contain plaintext accessCode');
         assert.equal(JSON.stringify(env.local).includes(accessCode), false);
+        const keyring = await getInitializedVaultKeyring();
+        assert.ok(keyring);
+        const decrypted = await openSessionSecrets(keyring!, storedSession!.sealedCredentials!, {
+            serverUrl: storedSession!.serverUrl,
+            ownerSubject: storedSession!.ownerSubject,
+        });
+        assert.equal(decrypted.accessCode, accessCode);
+        assert.ok(decrypted.sessionToken.length > 0);
+        assert.equal(sealedText.includes(decrypted.sessionToken), false, 'sealedCredentials must not contain plaintext sessionToken');
+        await assert.rejects(
+            openSessionSecrets(keyring!, storedSession!.sealedCredentials!, {
+                serverUrl: 'https://evil.example.test',
+                ownerSubject: storedSession!.ownerSubject,
+            }),
+            { code: 'CLOUD_AUTH_REQUIRED' },
+        );
+        // Advance clock past session expiry and confirm automatic renewal still succeeds with the sealed accessCode.
+        clockMs = storedSession!.expiresAt + 60_000;
+        const pull = await engine.pullChanges();
+        assert.equal(pull.downloaded, 0);
+        const renewedSession = await getCloudSyncSession();
+        assert.ok(renewedSession?.sealedCredentials instanceof Uint8Array);
+        const renewedSecrets = await openSessionSecrets(keyring!, renewedSession!.sealedCredentials!, {
+            serverUrl: renewedSession!.serverUrl,
+            ownerSubject: renewedSession!.ownerSubject,
+        });
+        assert.equal(renewedSecrets.accessCode, accessCode);
+        assert.notEqual(renewedSecrets.sessionToken, decrypted.sessionToken);
         assert.equal(backend.inspectTenantCount(), 1);
         const after = await engine.getStatusSnapshot();
         assert.equal(after.keyFingerprint, before.keyFingerprint);
@@ -646,4 +682,79 @@ test('getEncryptedRecord still returns a record of exactly 2 MiB intact', async 
     }));
     const record = await client.getEncryptedRecord({ serverUrl: SERVER_URL, sessionToken: 't', blindRecordId: '0'.repeat(64) });
     assert.deepEqual(record?.envelope, full);
+});
+
+test('vaultClient enforces redirect: error on all endpoints and rejects malformed blindRecordId before fetch', async () => {
+    const redirects: Array<RequestRedirect | undefined> = [];
+    let fetchCalls = 0;
+    const validId = 'a'.repeat(64);
+    const client = createCloudVaultClient(async (url, init) => {
+        fetchCalls++;
+        redirects.push(init?.redirect);
+        const path = new URL(url).pathname;
+        if (path === '/v2/vault/status') {
+            return Response.json({
+                ownerSubject: 'vault:' + '0'.repeat(32),
+                recordCount: 0,
+                usedBytes: 0,
+                quotaBytes: 100,
+                headSeq: 0,
+                keyFingerprint: '0'.repeat(32),
+            });
+        }
+        if (path === '/v2/vault/changes') {
+            return Response.json({ items: [], nextSince: 0, headSeq: 0, hasMore: false });
+        }
+        if (path === `/v2/vault/records/${validId}` && init?.method === 'PUT') {
+            return Response.json({
+                blindRecordId: validId,
+                revision: 1,
+                changeSeq: 1,
+                byteLength: 32,
+                sha256: 'b'.repeat(64),
+                updatedAt: 1,
+            });
+        }
+        if (path === `/v2/vault/records/${validId}`) {
+            return new Response(null, { status: 404 });
+        }
+        return new Response(null, { status: 204 });
+    });
+
+    for (const badId of ['../vault', 'short', 'A'.repeat(64), `${validId}?x=1`]) {
+        await assert.rejects(
+            client.getEncryptedRecord({ serverUrl: SERVER_URL, sessionToken: 't', blindRecordId: badId }),
+            { code: 'CLOUD_ENVELOPE_INVALID' },
+        );
+        await assert.rejects(
+            client.putEncryptedRecord({
+                serverUrl: SERVER_URL,
+                sessionToken: 't',
+                blindRecordId: badId,
+                expectedRevision: 0,
+                envelope: new Uint8Array(32),
+                sha256: 'b'.repeat(64),
+                keyFingerprint: '0'.repeat(32),
+            }),
+            { code: 'CLOUD_ENVELOPE_INVALID' },
+        );
+    }
+    assert.equal(fetchCalls, 0, 'malformed blindRecordId must be rejected before calling fetch');
+
+    await client.getVaultStatus(SERVER_URL, 't');
+    await client.putEncryptedRecord({
+        serverUrl: SERVER_URL,
+        sessionToken: 't',
+        blindRecordId: validId,
+        expectedRevision: 0,
+        envelope: new Uint8Array(32),
+        sha256: 'b'.repeat(64),
+        keyFingerprint: '0'.repeat(32),
+    });
+    await client.getEncryptedRecord({ serverUrl: SERVER_URL, sessionToken: 't', blindRecordId: validId });
+    await client.listChanges({ serverUrl: SERVER_URL, sessionToken: 't', sinceSeq: 0 });
+    await client.purgeVault(SERVER_URL, 't');
+
+    assert.equal(redirects.length, 5);
+    assert.ok(redirects.every(mode => mode === 'error'), `expected redirect: error on all endpoints, got ${JSON.stringify(redirects)}`);
 });

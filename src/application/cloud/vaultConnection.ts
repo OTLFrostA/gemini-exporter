@@ -1,5 +1,10 @@
 import { OperationError } from '../../shared/errors/operationError.js';
-import { deriveServerAuthToken, type VaultKeyring } from '../../shared/crypto/index.js';
+import {
+    deriveServerAuthToken,
+    openSessionSecrets,
+    sealSessionSecrets,
+    type VaultKeyring,
+} from '../../shared/crypto/index.js';
 import type { CloudAuthKeyMode, CloudVaultStatusResponse } from '../../shared/types/cloudSync.js';
 import type { DirectoryHandle } from '../../shared/types/directoryHandle.js';
 import {
@@ -30,7 +35,12 @@ import {
 } from '../../l1/cloud/localFolderVaultClient.js';
 import { getSettings, updateSettings } from '../settings/index.js';
 import { portableVaultSubject } from './cloudArchiveCodec.js';
-import { withVaultOperation, type CloudSyncStatusSnapshot } from './vaultShared.js';
+import {
+    toStoredCloudSession,
+    withVaultOperation,
+    type ActiveCloudSession,
+    type CloudSyncStatusSnapshot,
+} from './vaultShared.js';
 
 export function createVaultConnection(deps: {
     readonly client?: CloudVaultClient;
@@ -85,44 +95,82 @@ export function createVaultConnection(deps: {
         return auth;
     };
 
-    const requireActiveSession = async (): Promise<CloudSyncSessionState> => {
+    const readSessionAccessCode = async (session: CloudSyncSessionState): Promise<string | undefined> => {
+        if (session.backend !== 'cloud-server' || !session.sealedCredentials) return undefined;
+        const initialized = await getInitializedVaultKeyring();
+        if (!initialized || session.ownerSubject !== portableVaultSubject(initialized)) return undefined;
+        try {
+            const secrets = await openSessionSecrets(initialized, session.sealedCredentials, {
+                serverUrl: session.serverUrl,
+                ownerSubject: session.ownerSubject,
+            });
+            return secrets.accessCode;
+        } catch {
+            return undefined;
+        }
+    };
+
+    const requireActiveSession = async (): Promise<ActiveCloudSession> => {
         const session = await getCloudSyncSession();
         if (!session) {
             throw new OperationError('CLOUD_AUTH_REQUIRED', 'Connect to Encrypted Vault before syncing');
         }
-        if (session.expiresAt <= now()) {
-            if (session.backend === 'cloud-server') {
-                const keyring = await resolveKeyring(session);
-                const renewed = await authenticateVaultKey(session.serverUrl, keyring, 'unlock', session.accessCode);
-                const refreshed: CloudSyncSessionState = {
-                    ...session,
-                    sessionToken: renewed.sessionToken,
-                    expiresAt: renewed.expiresAt,
-                };
-                await putCloudSyncSession(refreshed);
-                return refreshed;
+        if (session.backend === 'local-folder') {
+            if (session.expiresAt <= now()) {
+                throw new OperationError('CLOUD_AUTH_REQUIRED', 'Cloud Sync session has expired; please reconnect');
             }
-            throw new OperationError('CLOUD_AUTH_REQUIRED', 'Cloud Sync session has expired; please reconnect');
+            return { ...session, sessionToken: 'local-folder-session' };
         }
-        return session;
+        if (!session.sealedCredentials) {
+            throw new OperationError('CLOUD_AUTH_REQUIRED', 'Cloud Sync session credentials are missing; please reconnect');
+        }
+        const keyring = await resolveKeyring(session);
+        const secrets = await openSessionSecrets(keyring, session.sealedCredentials, {
+            serverUrl: session.serverUrl,
+            ownerSubject: session.ownerSubject,
+        });
+        if (session.expiresAt <= now()) {
+            const renewed = await authenticateVaultKey(session.serverUrl, keyring, 'unlock', secrets.accessCode);
+            const sealedCredentials = await sealSessionSecrets(
+                keyring,
+                { sessionToken: renewed.sessionToken, ...(secrets.accessCode ? { accessCode: secrets.accessCode } : {}) },
+                { serverUrl: session.serverUrl, ownerSubject: session.ownerSubject },
+            );
+            const refreshed: CloudSyncSessionState = {
+                ...session,
+                sealedCredentials,
+                expiresAt: renewed.expiresAt,
+            };
+            await putCloudSyncSession(refreshed);
+            return {
+                ...refreshed,
+                sessionToken: renewed.sessionToken,
+                ...(secrets.accessCode ? { accessCode: secrets.accessCode } : {}),
+            };
+        }
+        return {
+            ...session,
+            sessionToken: secrets.sessionToken,
+            ...(secrets.accessCode ? { accessCode: secrets.accessCode } : {}),
+        };
     };
 
     const markSessionKeyMismatch = async (
-        session: CloudSyncSessionState,
+        session: ActiveCloudSession,
         mismatch: boolean,
-    ): Promise<CloudSyncSessionState> => {
+    ): Promise<ActiveCloudSession> => {
         if (Boolean(session.keyMismatch) === mismatch) return session;
         const { keyMismatch: _prev, ...rest } = session;
-        const updated: CloudSyncSessionState = mismatch ? { ...rest, keyMismatch: true } : rest;
-        await putCloudSyncSession(updated);
+        const updated: ActiveCloudSession = mismatch ? { ...rest, keyMismatch: true } : rest;
+        await putCloudSyncSession(toStoredCloudSession(updated));
         return updated;
     };
 
     const verifyVaultKeyCompatibility = async (
-        session: CloudSyncSessionState,
+        session: ActiveCloudSession,
         keyring: VaultKeyring,
         signal?: AbortSignal,
-    ): Promise<{ session: CloudSyncSessionState; status: CloudVaultStatusResponse }> => {
+    ): Promise<{ session: ActiveCloudSession; status: CloudVaultStatusResponse }> => {
         const activeClient = clientForSession(session);
         const status = await activeClient.getVaultStatus(session.serverUrl, session.sessionToken, signal);
         if ((session.backend === 'cloud-server' || status.recordCount > 0) && status.keyFingerprint !== keyring.keyFingerprint) {
@@ -141,6 +189,7 @@ export function createVaultConnection(deps: {
         requireCompatibleKey,
         resolveKeyring,
         authenticateVaultKey,
+        readSessionAccessCode,
         requireActiveSession,
         markSessionKeyMismatch,
         verifyVaultKeyCompatibility,
@@ -163,7 +212,6 @@ export function createVaultConnection(deps: {
                 backend: 'local-folder',
                 serverUrl: LOCAL_VAULT_SERVER_URL,
                 ownerSubject: LOCAL_VAULT_OWNER_SUBJECT,
-                sessionToken: 'local-folder-session',
                 expiresAt: Number.MAX_SAFE_INTEGER,
                 folderName: handle.name,
                 pulledSeq: sameFolder ? existingSession?.pulledSeq ?? 0 : 0,
@@ -190,16 +238,20 @@ export function createVaultConnection(deps: {
                 const pulledSeq = existingSession?.ownerSubject === auth.ownerSubject
                     && existingSession.serverUrl === normalizedUrl
                     ? existingSession.pulledSeq : 0;
+                const sealedCredentials = await sealSessionSecrets(
+                    initialized,
+                    { sessionToken: auth.sessionToken, ...(trimmedCode ? { accessCode: trimmedCode } : {}) },
+                    { serverUrl: normalizedUrl, ownerSubject: auth.ownerSubject },
+                );
                 const session: CloudSyncSessionState = {
                     id: 'active',
                     backend: 'cloud-server',
                     serverUrl: normalizedUrl,
                     ownerSubject: auth.ownerSubject,
-                    sessionToken: auth.sessionToken,
+                    sealedCredentials,
                     expiresAt: auth.expiresAt,
                     pulledSeq,
                     enabledSinceAt: existingSession?.enabledSinceAt ?? now(),
-                    ...(trimmedCode ? { accessCode: trimmedCode } : {}),
                 };
                 await putCloudSyncSession(session);
                 await updateSettings({ cloudSyncServerUrl: normalizedUrl });
@@ -269,7 +321,7 @@ export function createVaultConnection(deps: {
             const activeClient = clientForSession(session);
             await activeClient.purgeVault(session.serverUrl, session.sessionToken);
             await clearSyncedCloudRecordsForOwner(session.ownerSubject);
-            const { keyMismatch: _cleared, ...cleanSession } = session;
+            const { keyMismatch: _cleared, ...cleanSession } = toStoredCloudSession(session);
             await putCloudSyncSession({ ...cleanSession, pulledSeq: 0 });
         }),
     };

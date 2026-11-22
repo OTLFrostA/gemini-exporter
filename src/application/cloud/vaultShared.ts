@@ -21,6 +21,29 @@ export const CLOUD_SYNC_CROSS_CONTEXT_LOCK = 'gemini_exporter_cloud_sync_op_lock
 
 export type { CloudVaultBackendType } from '../../shared/types/cloudSync.js';
 
+/** Runtime-only decrypted view of a connected Vault session (never persisted to IndexedDB). */
+export interface ActiveCloudSession extends CloudSyncSessionState {
+    readonly sessionToken: string;
+    readonly accessCode?: string;
+}
+
+/** Strip in-memory credentials before writing a session record back to IndexedDB. */
+export function toStoredCloudSession(session: CloudSyncSessionState | ActiveCloudSession): CloudSyncSessionState {
+    const stored: CloudSyncSessionState = {
+        id: session.id,
+        backend: session.backend,
+        serverUrl: session.serverUrl,
+        ownerSubject: session.ownerSubject,
+        expiresAt: session.expiresAt,
+        pulledSeq: session.pulledSeq,
+        ...(session.folderName ? { folderName: session.folderName } : {}),
+        ...(session.sealedCredentials ? { sealedCredentials: session.sealedCredentials } : {}),
+        ...(session.keyMismatch ? { keyMismatch: true } : {}),
+        ...(session.enabledSinceAt !== undefined ? { enabledSinceAt: session.enabledSinceAt } : {}),
+    };
+    return stored;
+}
+
 export interface CloudSyncStatusSnapshot {
     readonly enabled: boolean;
     readonly includeDetail: boolean;

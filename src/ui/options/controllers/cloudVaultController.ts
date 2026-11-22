@@ -447,6 +447,7 @@ export function mountCloudVaultPanel(callbacks: {
         resetArmed = false;
         rekeyExpanded = false;
         offerExplicitCreate = false;
+        accessCodeInput.value = '';
         wipeEphemeralKeyInputs();
     };
 
@@ -469,6 +470,7 @@ export function mountCloudVaultPanel(callbacks: {
             }
             offerExplicitCreate = false;
             await defaultCloudSyncEngine.connectCloudVault(serverUrl, accessCode, explicitMode);
+            accessCodeInput.value = '';
             await defaultCloudSyncEngine.setAutoSyncEnabled(true);
             const synced = await runSyncAndNotify();
             setModalFeedback(text(
