@@ -42,7 +42,9 @@ test('Live Save badge preserves the real ChatGPT 429 cooldown across the worker 
     const bundle = await build({ stdin: { contents: `
         import { BadgeView } from './src/ui/badge/badgeView.ts';
         import { init, executeLiveSave } from './src/runtime/content/liveSaveCoordinator.ts';
-        import { resolveCurrentAccount } from './src/runtime/content/accountContext.ts';
+        import { configureAccountAdapter, resolveCurrentAccount } from './src/runtime/content/accountContext.ts';
+        import { createChatGPTAccountAdapter } from './src/runtime/content/adapters/chatgptAccountAdapter.ts';
+        configureAccountAdapter(createChatGPTAccountAdapter());
         const account = ${JSON.stringify(account)};
         globalThis.chrome = {
             runtime: { id: 'test-extension', async sendMessage(message) {
