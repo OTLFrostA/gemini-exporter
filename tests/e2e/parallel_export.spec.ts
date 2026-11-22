@@ -29,6 +29,8 @@ test('Folder: a delayed native close permits later downloads and commits, with o
     await seedRegistryAccounts(context);
     const page = await openOptions(context, extensionId);
     const bundle = await build({stdin:{resolveDir:path.resolve(__dirname,'../..'),loader:'ts',contents:`
+        import { installDomainStorage } from './src/runtime/api/domainStorage.ts';
+        installDomainStorage();
         import { installApplicationHost } from './src/runtime/api/applicationHost.ts';
         installApplicationHost();
         import { runExport } from './src/application/export/runExport.ts';
@@ -156,6 +158,8 @@ test(`${delivery}: source preparation stays independent and final documents reso
     await seedRegistryAccounts(context);
     const page = await openOptions(context, extensionId);
     const bundle = await build({stdin:{resolveDir:path.resolve(__dirname,'../..'),loader:'ts',contents:`
+        import { installDomainStorage } from './src/runtime/api/domainStorage.ts';
+        installDomainStorage();
         import { installApplicationHost } from './src/runtime/api/applicationHost.ts';
         installApplicationHost();
         import { runExport } from './src/application/export/runExport.ts';

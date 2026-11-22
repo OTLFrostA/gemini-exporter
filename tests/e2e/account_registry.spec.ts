@@ -3,6 +3,8 @@ import { listGen as geminiListGen } from '../fixtures/providers/gemini.js';
 import type { Page } from '@playwright/test';
 
 const registryBundle = require('esbuild').buildSync({ stdin: { resolveDir: require('node:path').resolve(__dirname, '../..'), loader: 'ts', contents: `
+    import { installDomainStorage } from './src/runtime/api/domainStorage.ts';
+    installDomainStorage();
     import * as registry from './src/runtime/api/accountRegistry.ts'; globalThis.accountProbe = registry;
 ` }, bundle: true, write: false, format: 'iife', logLevel: 'silent' }).outputFiles[0].text;
 async function accounts(page: Page) {

@@ -150,10 +150,8 @@ const getConversationSnapshot: typeof import('../../src/l3a/batchStorageService.
         index: indexes.get(address(key)) ?? null,
         detail: details.get(address(key)) ?? null,
     });
-const batchStorageMock = {
-    getConversationSnapshot,
-    updateConversationsAtomically,
-} satisfies Partial<typeof import('../../src/l3a/batchStorageService.js')>;
+const getSourceCooldown = async () => 0;
+const extendSourceCooldown = async (_accountId: string, until: number) => until;
 
 type Loader = { _load(request: string, parent?: NodeModule | null, isMain?: boolean): unknown };
 const loader = Module as unknown as Loader;
@@ -161,18 +159,25 @@ const originalLoad = loader._load;
 let ingestion!: typeof import('../../src/l2/ingestion.js');
 let admission!: typeof import('../../src/l2/accountAdmission.js');
 let coverageAdmission!: typeof import('../../src/l2/coverageAdmission.js');
+let storagePort!: typeof import('../../src/l2/ports/storagePort.js');
 
 loader._load = (request, parent, isMain) => {
     const caller = parent?.filename.replace(/\\/g, '/') ?? '';
     if (caller.includes('/src/l2/')) {
-        if (request === '../l3a/storageService.js') return storage;
-        if (request === '../l3a/batchStorageService.js') return batchStorageMock;
         if (['../l1/', '../l3a/', '../l3b/', '../l4/', '../application/', '../runtime/', '../ui/', '../migration/'].some(part => request.includes(part)))
             throw new Error('Unmocked L2 external-v2 runtime dependency: ' + request);
     }
     return originalLoad.call(loader, request, parent, isMain);
 };
 try {
+    storagePort = require('../../src/l2/ports/storagePort.js') as typeof import('../../src/l2/ports/storagePort.js');
+    storagePort.provideDomainStorage({
+        ...storage,
+        getConversationSnapshot,
+        updateConversationsAtomically,
+        getSourceCooldown,
+        extendSourceCooldown,
+    });
     ingestion = require('../../src/l2/ingestion.js') as typeof import('../../src/l2/ingestion.js');
     admission = require('../../src/l2/accountAdmission.js') as typeof import('../../src/l2/accountAdmission.js');
     coverageAdmission = require('../../src/l2/coverageAdmission.js') as typeof import('../../src/l2/coverageAdmission.js');

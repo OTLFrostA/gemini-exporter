@@ -6,14 +6,13 @@ import { acceptDetailFacts, restoreDomainDetail } from './runtimeValidation.js';
 import CoverageAdmission from './coverageAdmission.js';
 import type { PageObservationHead } from './pageObservation.js';
 import { restoreConversationIndex, type DomainConversationIndex, type ConversationIndex, mergeConversationIndex } from './conversationIndex.js';
-import { getAccount, updateIndexesAtomically, updateConversationAtomically, deleteStoredConversation } from '../l3a/storageService.js';
-import { updateConversationsAtomically } from '../l3a/batchStorageService.js';
+import { domainStorage } from './ports/storagePort.js';
 import { conversationKey } from './conversationKey.js';
 import * as sameStoredFacts from './domainEquality.js';
 
 /** Runtime handles readiness and IPC; L2 reads and validates persisted Account facts directly. */
 async function readExistingAccount(accountId: Account['id']): Promise<Account | null> {
-    const stored = await getAccount(accountId);
+    const stored = await domainStorage().getAccount(accountId);
     if (stored === null) return null;
     const account = readAccount(stored);
     if (account.id !== accountId) throw new TypeError('Account registry UUID mismatch');
@@ -23,23 +22,9 @@ async function readExistingAccount(accountId: Account['id']): Promise<Account | 
 import type { IndexIngestResult, IndexAdmissionResult, DetailIngestResult } from './contracts/ingestionTypes.js';
 export type { IndexIngestResult, DetailIngestResult } from './contracts/ingestionTypes.js';
 
-type CommittedKeysListener = (keys: readonly ConversationKey[]) => void;
-const committedKeysListeners = new Set<CommittedKeysListener>();
-
-export function subscribeCommittedKeys(listener: CommittedKeysListener): () => void {
-    committedKeysListeners.add(listener);
-    return () => { committedKeysListeners.delete(listener); };
-}
-
 function emitCommittedKeys(keys: readonly ConversationKey[]): void {
-    if (keys.length === 0 || committedKeysListeners.size === 0) return;
-    for (const listener of committedKeysListeners) {
-        try {
-            listener(keys);
-        } catch (error) {
-            console.warn('[L2] Committed keys listener failed:', error);
-        }
-    }
+    if (keys.length === 0) return;
+    domainStorage().onCommittedKeys?.(keys);
 }
 
 /** An input is accepted if its supplied facts survive, or it contributes to the final stored row. */
@@ -73,7 +58,7 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
     const entries = [...groups.values()];
     const changes: IndexAdmissionResult = { added: 0, updated: 0, accepted: 0, rejected: 0 };
     let committedKeys: ConversationKey[] = [];
-    await updateIndexesAtomically(entries.map(group => group[0].key), previous => {
+    await domainStorage().updateIndexesAtomically(entries.map(group => group[0].key), previous => {
         const changed: DomainConversationIndex[] = [];
         entries.forEach((group, i) => {
             const stored = previous[i];
@@ -150,7 +135,7 @@ export async function ingestDetail(accountId: Account['id'], conversationId: Con
     const key = { accountId, conversationId };
     let wroteFacts = false;
     const baseDecision = buildConversationDecision(key, detail, indexFields);
-    const outcome = await updateConversationAtomically(key, (oldIndex, oldDetail) => {
+    const outcome = await domainStorage().updateConversationAtomically(key, (oldIndex, oldDetail) => {
         const decided = baseDecision(oldIndex, oldDetail);
         wroteFacts = Boolean(decided.index || decided.detail);
         return decided;
@@ -179,7 +164,7 @@ export async function ingestDetailsBatch(
             },
         };
     });
-    const outcomes = await updateConversationsAtomically(prepared);
+    const outcomes = await domainStorage().updateConversationsAtomically(prepared);
     emitCommittedKeys([...committedKeys.values()]);
     return outcomes;
 }
@@ -189,5 +174,5 @@ export async function ingestDeletedConversation(accountId: Account['id'], conver
     const key = conversationKey(accountId, conversationId);
     const account = await readExistingAccount(accountId);
     if (!account) throw new TypeError('Deletion account does not exist');
-    await deleteStoredConversation(key);
+    await domainStorage().deleteStoredConversation(key);
 }

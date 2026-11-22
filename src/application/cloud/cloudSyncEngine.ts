@@ -12,7 +12,7 @@ import { mapWithConcurrency } from '../../shared/utils/concurrency.js';
 import { DEFAULT_ACCOUNT_KEY } from '../../l2/accountRegistry.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
 import { encodePortableCloudConversation, type PortableCloudConversation } from '../../l2/cloudPayload.js';
-import { subscribeCommittedKeys } from '../../l2/ingestion.js';
+import { applicationHost } from '../host.js';
 import { readConversation } from '../../l2/readConversation.js';
 import { getAccount, listAccounts, getDetail, getIndex, listIndexes } from '../../l3a/storageService.js';
 import {
@@ -1082,7 +1082,9 @@ export function createCloudSyncEngine(deps: {
         },
 
         installAutoEnqueueListener() {
-            return subscribeCommittedKeys(keys => {
+            const subscribe = applicationHost().subscribeCommittedKeys;
+            if (!subscribe) return () => {};
+            return subscribe(keys => {
                 if (suppressAutoEnqueueDepth > 0 || keys.length === 0) return;
                 const task = (async () => {
                     const [settings, session] = await Promise.all([

@@ -1,11 +1,11 @@
 import { readAccountParameters, readAccountRegistry, findAccount, readAccount, DEFAULT_ACCOUNT_KEY, isLegacyGeminiIdentityUpgrade, type Account } from './accountRegistry.js';
-import { admitAccountAtomically } from '../l3a/storageService.js';
+import { domainStorage } from './ports/storagePort.js';
 
 /** L2 decides ownership; Storage serializes the decision with the account write. */
 export async function getOrCreateAccount(providerId: Account['providerId'], providerAccountId: Account['providerAccountId'],
     email?: Account['email'], displayName?: Account['displayName']): Promise<Account> {
     const parameters = readAccountParameters({ providerId, providerAccountId, email, displayName });
-    return admitAccountAtomically(providerId, current => {
+    return domainStorage().admitAccountAtomically(providerId, current => {
         const accounts = readAccountRegistry([...current]);
         if (providerAccountId === DEFAULT_ACCOUNT_KEY) {
             // Unknown content belongs to an existing real subject, never a second placeholder.

@@ -6,7 +6,7 @@ import { importOpenAI } from '../src/application/imports/importOpenAI.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { getDetail, getIndex, getCoverage, getExportRecord } from '../src/l3a/storageService.js';
 import { assertDomainClosure } from '../src/l2/closure.js';
-import { subscribeCommittedKeys } from '../src/l2/ingestion.js';
+import { subscribeCommittedKeys } from '../src/runtime/api/domainStorage.js';
 import type { ConversationKey } from '../src/l2/conversationKey.js';
 import { handlePlatformArchiveImport } from '../src/ui/options/controllers/takeoutController.js';
 

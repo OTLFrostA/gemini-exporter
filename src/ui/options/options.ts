@@ -1,4 +1,5 @@
 import { installApplicationHost } from '../../runtime/api/applicationHost.js';
+import { installDomainStorage } from '../../runtime/api/domainStorage.js';
 
 import { listIndexes } from '../../application/conversations/catalogQueries.js';
 import { installProviderHost } from '../../runtime/api/providerHost.js';
@@ -42,6 +43,7 @@ import type { ForegroundTask, ScanEvidence, TaskFeedback, UiMessage } from './st
 import { mountTaskPanel } from './views/taskPanelView.js';
 import { mountCloudVaultPanel, type CloudVaultControllerHandle } from './controllers/cloudVaultController.js';
 
+installDomainStorage();
 installApplicationHost();
 installProviderHost();
 
