@@ -155,13 +155,13 @@ export function createVaultConnection(deps: {
         };
     };
 
-    const markSessionKeyMismatch = async <T extends CloudSyncSessionState>(
-        session: T,
+    const markSessionKeyMismatch = async (
+        session: ActiveCloudSession,
         mismatch: boolean,
-    ): Promise<T> => {
+    ): Promise<ActiveCloudSession> => {
         if (Boolean(session.keyMismatch) === mismatch) return session;
         const { keyMismatch: _prev, ...rest } = session;
-        const updated = (mismatch ? { ...rest, keyMismatch: true } : rest) as T;
+        const updated: ActiveCloudSession = mismatch ? { ...rest, keyMismatch: true } : rest;
         await putCloudSyncSession(toStoredCloudSession(updated));
         return updated;
     };
