@@ -26,3 +26,10 @@ export {
     sealUtf8Record,
     openUtf8Record,
 } from './aeadEnvelope.js';
+export {
+    MIN_SEALED_SESSION_BYTES,
+    type CloudSessionSecrets,
+    type SessionSecretsAuthContext,
+    sealSessionSecrets,
+    openSessionSecrets,
+} from './sessionSecrets.js';

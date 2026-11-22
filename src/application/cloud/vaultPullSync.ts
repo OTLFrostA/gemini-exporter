@@ -9,7 +9,6 @@ import {
     getSyncedCloudRecordByBlindId,
     putCloudSyncSession,
     putSyncedCloudRecord,
-    type CloudSyncSessionState,
 } from '../../l3a/vaultStorageService.js';
 import { openCloudConversation, restoreCloudConversationsToLocal } from './cloudArchiveCodec.js';
 import type { VaultConnection } from './vaultConnection.js';
@@ -18,7 +17,9 @@ import {
     isValidChangeFeedCursor,
     rotationRequest,
     sha256Utf8Hex,
+    toStoredCloudSession,
     unverifiedBackup,
+    type ActiveCloudSession,
     type AutoEnqueueSuppression,
     type CloudPullResult,
 } from './vaultShared.js';
@@ -33,7 +34,7 @@ export function createVaultPullSync(ctx: {
 
     const pullChanges = (
         signal?: AbortSignal,
-        rotationSource?: { session: CloudSyncSessionState; status: CloudVaultStatusResponse; keyring: VaultKeyring },
+        rotationSource?: { session: ActiveCloudSession; status: CloudVaultStatusResponse; keyring: VaultKeyring },
     ): Promise<CloudPullResult> => {
         if (activePull) return activePull;
         activePull = (async (): Promise<CloudPullResult> => {
@@ -161,7 +162,7 @@ export function createVaultPullSync(ctx: {
                     cursor = feed.nextSince;
                     if (!rotationSource) {
                         session = { ...session, pulledSeq: cursor };
-                        await putCloudSyncSession(session);
+                        await putCloudSyncSession(toStoredCloudSession(session));
                     }
                     if (!feed.hasMore) break;
                 }

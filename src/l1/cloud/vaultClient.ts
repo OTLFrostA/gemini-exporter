@@ -12,6 +12,7 @@ import { isRecord } from '../../shared/utils/typeGuards.js';
 export type CloudFetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
 const OUTBOUND_MASTER_KEY_LEAK_RE = /GEK1-[0-9A-Z]{5}/i;
+const BLIND_ID_PATTERN = /^[0-9a-f]{64}$/;
 const MAX_CHANGES_RESPONSE_BYTES = 64 * 1024;
 
 /** Catch accidental use of canonical recovery-key text in the vault transport. */
@@ -282,6 +283,7 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
         async getVaultStatus(serverUrl, sessionToken, signal) {
             const base = normalizeCloudServerUrl(serverUrl);
             const res = await fetchFn(`${base}/v2/vault/status`, {
+                redirect: 'error',
                 headers: { Authorization: `Bearer ${sessionToken}` },
                 signal,
             });
@@ -309,9 +311,13 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
         },
 
         async putEncryptedRecord(input) {
+            if (!BLIND_ID_PATTERN.test(input.blindRecordId)) {
+                throw new OperationError('CLOUD_ENVELOPE_INVALID', 'Invalid blindRecordId');
+            }
             const base = normalizeCloudServerUrl(input.serverUrl);
             const res = await fetchFn(`${base}/v2/vault/records/${input.blindRecordId}`, {
                 method: 'PUT',
+                redirect: 'error',
                 headers: {
                     Authorization: `Bearer ${input.sessionToken}`,
                     'Content-Type': 'application/octet-stream',
@@ -339,8 +345,12 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
         },
 
         async getEncryptedRecord(input) {
+            if (!BLIND_ID_PATTERN.test(input.blindRecordId)) {
+                throw new OperationError('CLOUD_ENVELOPE_INVALID', 'Invalid blindRecordId');
+            }
             const base = normalizeCloudServerUrl(input.serverUrl);
             const res = await fetchFn(`${base}/v2/vault/records/${input.blindRecordId}`, {
+                redirect: 'error',
                 headers: { Authorization: `Bearer ${input.sessionToken}` },
                 signal: input.signal,
             });
@@ -364,6 +374,7 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
             const base = normalizeCloudServerUrl(input.serverUrl);
             const limit = input.limit ?? 100;
             const res = await fetchFn(`${base}/v2/vault/changes?since=${input.sinceSeq}&limit=${limit}`, {
+                redirect: 'error',
                 headers: { Authorization: `Bearer ${input.sessionToken}` },
                 signal: input.signal,
             });
@@ -390,6 +401,7 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
             const base = normalizeCloudServerUrl(serverUrl);
             const res = await fetchFn(`${base}/v2/vault`, {
                 method: 'DELETE',
+                redirect: 'error',
                 headers: { Authorization: `Bearer ${sessionToken}` },
                 signal,
             });
