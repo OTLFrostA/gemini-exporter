@@ -5,7 +5,7 @@ import { CHATGPT_SOURCE_EVENT, chatGPTConversationId, chatGPTRequest, confirmedC
 import { parseChatGPTConversation } from '../../parsers/chatgpt/parseConversation.js';
 import { parseChatGPTList } from '../../parsers/chatgpt/parseList.js';
 import { decodeChatGPTDetail } from '../../parsers/chatgpt/decodeDetail.js';
-import { ingestContentIndexes, ingestContentDetail, ingestContentDeletedConversation } from '../../../runtime/api/contentDomainIngestion.js';
+import { contentRuntimeHost, type ContentIngestionPort } from '../../contentPorts.js';
 import { registerSerializedWindowBridge } from '../shared/streamAndBridge.js';
 
 interface ChatGPTMessageBridgeCallbacks {
@@ -13,6 +13,7 @@ interface ChatGPTMessageBridgeCallbacks {
     currentAccount: () => Promise<(Account & { id: string }) | null>;
     onSaveRequested: (key: ConversationKey, refreshDetail: boolean) => Promise<unknown>;
     registerCleanup: (cleanup: () => void) => void;
+    ingestion?: ContentIngestionPort;
 }
 
 function mapListItems(items: readonly ProviderConversationItem[]) {
@@ -43,10 +44,11 @@ export function initChatGPTMessageBridge(deps: ChatGPTMessageBridgeCallbacks): v
             if (!request || request.kind !== raw.kind) return;
             const account = await deps.currentAccount();
             if (!deps.isActive() || !account || account.providerAccountId !== raw.requestIdentity) return;
+            const ingestion = deps.ingestion ?? contentRuntimeHost().ingestion;
             if (request.kind === 'list' || request.kind === 'sidebar') {
                 const parsed = parseChatGPTList(raw.responseBody);
                 if (parsed.conversations.some(item => !chatGPTConversationId(item.id))) return;
-                await ingestContentIndexes(account.id, mapListItems(parsed.conversations));
+                await ingestion.ingestIndexes(account.id, mapListItems(parsed.conversations));
                 return;
             }
             if (!chatGPTConversationId(raw.conversationId)
@@ -54,7 +56,7 @@ export function initChatGPTMessageBridge(deps: ChatGPTMessageBridgeCallbacks): v
             const key = { accountId: account.id, conversationId: raw.conversationId };
             if (request.kind === 'delete') {
                 if ('requestBody' in raw && confirmedChatGPTDeletion(raw.requestBody, raw.responseBody, method)) {
-                    await ingestContentDeletedConversation(account.id, key.conversationId);
+                    await ingestion.ingestDeletedConversation(account.id, key.conversationId);
                 }
                 return;
             }
@@ -66,7 +68,7 @@ export function initChatGPTMessageBridge(deps: ChatGPTMessageBridgeCallbacks): v
                     throw error;
                 }
                 const parsed = parseChatGPTConversation({ account, conversation, assetsByNode: new Map() });
-                const admission = await ingestContentDetail(account.id, key.conversationId, parsed.conversation.detail, parsed.conversation.index);
+                const admission = await ingestion.ingestDetail(account.id, key.conversationId, parsed.conversation.detail, parsed.conversation.index);
                 if (!admission.accepted || !admission.changed) return;
             }
             await deps.onSaveRequested(key, request.kind === 'stream');

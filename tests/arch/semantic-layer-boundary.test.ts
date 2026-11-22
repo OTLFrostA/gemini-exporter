@@ -30,21 +30,9 @@ function dependencies(file: string, text = readFileSync(file, 'utf8')): Edge[] {
 const graph = new Map([...sources].map(([name, file]) => [name, dependencies(file)]));
 
 test('L1 cannot add dependencies on Runtime, Application or UI', () => {
-    const existingRuntimeEdges = new Set([
-        'l1/client/gemini/bootstrap.ts → runtime/content/accountContext.ts',
-        'l1/client/gemini/bootstrap.ts → runtime/content/cleanupRegistry.ts',
-        'l1/sniffer/chatgpt/messageBridge.ts → runtime/api/contentDomainIngestion.ts',
-        'l1/sniffer/claude/messageBridge.ts → runtime/api/contentDomainIngestion.ts',
-        'l1/sniffer/gemini/captureReceiver.ts → runtime/api/contentAccountRegistry.ts',
-        'l1/sniffer/gemini/captureReceiver.ts → runtime/api/contentDomainIngestion.ts',
-        'l1/sniffer/gemini/captureReceiver.ts → runtime/content/accountContext.ts',
-        'l1/sniffer/gemini/messageBridge.ts → runtime/content/cleanupRegistry.ts',
-        'l1/sniffer/grok/messageBridge.ts → runtime/api/contentDomainIngestion.ts',
-    ]);
     const violations = [...graph].flatMap(([owner, edges]) => !owner.startsWith('l1/') ? [] : edges
         .filter(({ target }) => /^(runtime|application|ui)\//.test(target))
-        .map(({ target }) => `${owner} → ${target}`)
-        .filter(edge => !existingRuntimeEdges.has(edge)));
+        .map(({ target }) => `${owner} → ${target}`));
     assert.deepEqual(violations, []);
 });
 

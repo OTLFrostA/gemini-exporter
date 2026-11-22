@@ -8,7 +8,11 @@ const path = require('node:path');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const code = require('esbuild').buildSync({ entryPoints: [path.join(__dirname, '..', 'src', 'l1', 'client', 'gemini', 'bootstrap.ts')], bundle: true, write: false, format: 'iife', globalName: 'TestBootstrap', logLevel: 'silent' }).outputFiles[0].text;
+const code = require('esbuild').buildSync({ stdin: { resolveDir: path.join(__dirname, '..'), loader: 'ts', contents: `
+    import { installContentRuntimeHost } from './src/runtime/content/installContentHost.ts';
+    installContentRuntimeHost();
+    export * from './src/l1/client/gemini/bootstrap.ts';
+` }, bundle: true, write: false, format: 'iife', globalName: 'TestBootstrap', logLevel: 'silent' }).outputFiles[0].text;
 const protocolCode = fs.readFileSync(path.join(__dirname, '..', 'src', 'l1', 'protocol', 'gemini', 'protocol.js'), 'utf8');
 
 function makeContext() {

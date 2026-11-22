@@ -4,6 +4,7 @@ import { BadgeView } from '../../ui/badge/badgeView.js';
 import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { registerCleanup, runCleanups } from './cleanupRegistry.js';
 import { hookHistoryEvents } from './pageObserver.js';
+import { installContentRuntimeHost } from './installContentHost.js';
 
 export interface ContentBootstrapOptions {
     readonly label: string;
@@ -14,6 +15,7 @@ export interface ContentBootstrapOptions {
 
 /** Shared isolated-world lifecycle harness across all four AI platform content scripts. */
 export function startContentBootstrap(options: ContentBootstrapOptions): { isActive: () => boolean } {
+    installContentRuntimeHost();
     runCleanups();
     invalidateAccountContext();
     let active = true;

@@ -201,6 +201,8 @@ test('ChatGPT manual and live Detail entrypoints reject invalid source without p
             configurable: true,
             value: { origin: 'https://chatgpt.com', href: 'https://chatgpt.com/c/6acffdc5-c4d0-83e8-8e1b-ba60979a618a' },
         });
+        const { installContentRuntimeHost } = require('../src/runtime/content/installContentHost.js');
+        installContentRuntimeHost();
         initChatGPTMessageBridge({
             isActive: () => true,
             currentAccount: async () => liveAccount,

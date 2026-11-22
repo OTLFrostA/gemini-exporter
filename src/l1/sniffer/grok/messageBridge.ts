@@ -3,7 +3,7 @@ import type { ConversationKey } from '../../../l2/conversationKey.js';
 import { isUuid } from '../../../shared/utils/typeGuards.js';
 import { GROK_SOURCE_EVENT, grokRequest } from './observation.js';
 import { parseGrokList } from '../../parsers/grok/parseList.js';
-import { ingestContentIndexes, ingestContentDeletedConversation } from '../../../runtime/api/contentDomainIngestion.js';
+import { contentRuntimeHost, type ContentIngestionPort } from '../../contentPorts.js';
 import { registerSerializedWindowBridge } from '../shared/streamAndBridge.js';
 
 interface GrokMessageBridgeCallbacks {
@@ -13,9 +13,11 @@ interface GrokMessageBridgeCallbacks {
     isSaveEnabled: () => Promise<boolean>;
     onSaveRequested: (key: ConversationKey, refreshDetail: boolean) => Promise<unknown>;
     registerCleanup: (cleanup: () => void) => void;
+    ingestion?: ContentIngestionPort;
 }
 
 export function initGrokMessageBridge(deps: GrokMessageBridgeCallbacks): { onRouteChanged: () => void } {
+    const ingestion = () => deps.ingestion ?? contentRuntimeHost().ingestion;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let queue = Promise.resolve();
     const enqueue = (work: () => Promise<void>) => {
@@ -56,12 +58,12 @@ export function initGrokMessageBridge(deps: GrokMessageBridgeCallbacks): { onRou
             if (!request || !account || account.providerAccountId !== raw.owner || !deps.isActive()) return;
             if (request.kind === 'list' && 'responseBody' in raw) {
                 const parsed = parseGrokList(raw.responseBody);
-                await ingestContentIndexes(account.id, parsed.conversations.map(row => ({ conversationId: row.id, fields: {
+                await ingestion().ingestIndexes(account.id, parsed.conversations.map(row => ({ conversationId: row.id, fields: {
                     updatedAt: row.updatedAt, ...(row.createdAt !== undefined ? { createdAt: row.createdAt } : {}),
                     ...(row.title ? { title: row.title, titleSource: 'provider' as const } : {}) } })));
             } else if (request.kind === 'delete' && request.conversationId) {
                 pending.delete(request.conversationId);
-                await ingestContentDeletedConversation(account.id, request.conversationId);
+                await ingestion().ingestDeletedConversation(account.id, request.conversationId);
             } else if (request.conversationId) {
                 scheduleSave(request.conversationId, raw.owner);
             }

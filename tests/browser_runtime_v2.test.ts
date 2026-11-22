@@ -46,6 +46,7 @@ function load(file: string, stubs: Record<string, unknown>) {
         },
         'src/runtime/api/applicationHost.js': { installApplicationHost() {} },
         'src/runtime/api/domainStorage.js': { installDomainStorage() {} },
+        'src/l1/contentPorts.js': { provideContentRuntimeHost() {} },
         'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]),
         // Runtime unit mocks L2 decoders; real schema/closure validation is covered by L2 and integration suites.
         'src/l2/runtimeValidation.js': { restoreDomainDetail: (value: unknown) => value },

@@ -1,8 +1,11 @@
 import type { ConversationKey } from '../../../l2/conversationKey.js';
 import type { SourceResourceContext } from '../../resources/sourceResources.js';
-import { getContentAccount } from '../../../runtime/api/contentAccountRegistry.js';
-import { resolveRequestAccount, resolveCurrentAccount } from '../../../runtime/content/accountContext.js';
-import { ingestContentIndexes, ingestContentDetail, ingestContentDeletedConversation } from '../../../runtime/api/contentDomainIngestion.js';
+import {
+    contentRuntimeHost,
+    type ContentAccountPort,
+    type ContentIngestionPort,
+    type RegisterCleanup,
+} from '../../contentPorts.js';
 import { geminiListObservation } from '../../client/gemini/listObservation.js';
 import type { GeminiCapturedSource } from '../../parsers/gemini/capturedSource.js';
 import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
@@ -14,6 +17,9 @@ import { normId } from '../../../shared/utils/pathUtils.js';
 
 export interface GeminiCaptureCallbacks {
     resources?: SourceResourceContext;
+    ingestion?: ContentIngestionPort;
+    account?: ContentAccountPort;
+    registerCleanup?: RegisterCleanup;
     onIndexesCommitted?: (accountId: string) => void;
     onStreamStart?: (cid?: string | null, slot?: string) => void;
     onStreamComplete?: (key: ConversationKey, slot?: string) => void;
@@ -27,10 +33,12 @@ export class GeminiCaptureReceiver {
     constructor(private readonly callbacks: GeminiCaptureCallbacks) {}
     async receive(source: GeminiCapturedSource, earlier: readonly Promise<void>[], isCurrent: () => boolean): Promise<void> {
         const capturedDeps = this.callbacks;
+        const accountPort = capturedDeps.account ?? contentRuntimeHost().account;
+        const ingestionPort = capturedDeps.ingestion ?? contentRuntimeHost().ingestion;
         const { identity: capturedIdentity, slot } = source;
-        const accountContext = await resolveRequestAccount(capturedIdentity, slot);
+        const accountContext = await accountPort.resolveRequestAccount(capturedIdentity, slot);
         if (!accountContext) return;
-        const account = await getContentAccount(accountContext.accountId);
+        const account = await accountPort.getAccount(accountContext.accountId);
         if (!account) return;
         if (source.kind === 'network') {
             const { truncated, requestedAt } = source;
@@ -39,7 +47,7 @@ export class GeminiCaptureReceiver {
                 const page = geminiListObservation(parsed, context, account.id, truncated, requestedAt);
                 const trustedIdentity = capturedIdentity !== null && capturedIdentity.providerAccountId !== 'default'
                     && capturedIdentity.providerAccountId === account.providerAccountId;
-                await ingestContentIndexes(account.id, parsed.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')),
+                await ingestionPort.ingestIndexes(account.id, parsed.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')),
                     trustedIdentity && context ? page : undefined);
                 if (isCurrent()) capturedDeps.onIndexesCommitted?.(account.id);
             }
@@ -69,7 +77,7 @@ export class GeminiCaptureReceiver {
                 } else this.chains.delete(key);
                 const merged = mergeConversationPages(pages, truncated ? 'capture_truncated' : undefined, complete);
                 const index = merged.conversation.index;
-                const admission = await ingestContentDetail(account.id, cid, merged.conversation.detail, index);
+                const admission = await ingestionPort.ingestDetail(account.id, cid, merged.conversation.detail, index);
                 if (isCurrent()) capturedDeps.onIndexesCommitted?.(account.id);
                 if (admission.accepted) capturedDeps.resources?.retainParsed({ accountId: account.id, conversationId: cid }, merged);
                 if (admission.changed && isCurrent()) capturedDeps.onDetailChanged?.({ accountId: account.id, conversationId: cid });
@@ -80,20 +88,20 @@ export class GeminiCaptureReceiver {
         if (source.kind === 'deleted') {
             if (account.providerAccountId === 'default' || capturedIdentity?.providerAccountId !== account.providerAccountId) return;
             await Promise.allSettled(earlier);
-            await ingestContentDeletedConversation(account.id, source.id);
+            await ingestionPort.ingestDeletedConversation(account.id, source.id);
             if (isCurrent()) {
                 capturedDeps.onConversationDeleted?.(source.id, account.id);
                 capturedDeps.onIndexesCommitted?.(account.id);
             }
             return;
         }
-        const current = await resolveCurrentAccount();
+        const current = await accountPort.resolveCurrentAccount();
         if (current?.accountId !== account.id || current.slot !== slot) return;
         const cid = id !== null ? normId(id) : (typeof location !== 'undefined' ? extractConversationIdFromUrl(location.pathname) : null);
         if (cid) {
             const item = parseGeminiDomIndex(typeof document !== 'undefined' ? document : null, cid);
             const { conversationId, fields } = parseGeminiIndexObservation(item, 'dom');
-            await ingestContentIndexes(account.id, [{ conversationId, fields }]);
+            await ingestionPort.ingestIndexes(account.id, [{ conversationId, fields }]);
             if (isCurrent()) capturedDeps.onIndexesCommitted?.(account.id);
         }
         if (source.kind === 'stream-start') {
