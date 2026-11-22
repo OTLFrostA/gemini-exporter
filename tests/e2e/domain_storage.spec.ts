@@ -5,6 +5,8 @@ import * as path from 'node:path';
 let bundle: string;
 test.beforeAll(async () => {
     const output = await build({ stdin: { contents: `
+        import { installDomainStorage } from './src/runtime/api/domainStorage.ts';
+        installDomainStorage();
         import * as admission from './src/l2/ingestion.ts';
         import * as storage from './src/l3a/storageService.ts';
         import { openStorageDB as openDomainDB } from './src/l3a/idb.ts';

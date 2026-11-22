@@ -7,6 +7,8 @@ import type * as AccountAdmission from '../src/l2/accountAdmission.js';
 import type * as Ingestion from '../src/l2/ingestion.js';
 
 const bundle = buildSync({ stdin: { contents: `
+    import { installDomainStorage } from './src/runtime/api/domainStorage.ts';
+    installDomainStorage();
     export * from './src/l3a/storageService.ts';
     export {getOrCreateAccount} from './src/l2/accountAdmission.ts';
     export {ingestIndexes, ingestDetail} from './src/l2/ingestion.ts';

@@ -9,6 +9,8 @@ test('existing profile repairs mixed versions once and admits an older online ti
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     const output = await build({ stdin: { resolveDir: path.resolve(__dirname, '../..'), loader: 'ts', contents: `
+        import { installDomainStorage } from './src/runtime/api/domainStorage.ts';
+        installDomainStorage();
         import * as storage from './src/l3a/storageService.ts';
         import { ingestDetail } from './src/l2/ingestion.ts';
         import { repairSourceVersions } from './src/migration/sourceVersions.ts';

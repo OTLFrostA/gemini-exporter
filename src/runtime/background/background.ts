@@ -1,4 +1,5 @@
 import { installApplicationHost } from '../api/applicationHost.js';
+import { installDomainStorage } from '../api/domainStorage.js';
 
 import { syncAllPlatformContentScripts } from '../capabilities/platformInjection.js';
 import { installProviderHost } from '../api/providerHost.js';
@@ -16,6 +17,7 @@ import { readConversationKey } from '../../l2/conversationKey.js';
 import { runLiveSave } from './liveSaveHandler.js';
 import { updateSettings } from '../../application/settings/index.js';
 
+installDomainStorage();
 installApplicationHost();
 installProviderHost();
 

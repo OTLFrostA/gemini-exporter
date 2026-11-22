@@ -6,6 +6,7 @@ import path from 'node:path';
 // Only the UI is under test. Domain/Application/Runtime ports are deliberate mocks.
 const mock = `
 const h = globalThis.harness;
+export const installDomainStorage = () => {};
 export const OperationError = h.OperationError ??= class extends Error {
  constructor(code, message, httpStatus, options) {
   super(message, options);

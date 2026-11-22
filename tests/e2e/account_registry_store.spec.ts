@@ -4,6 +4,8 @@ import * as path from 'node:path';
 let bundle: string;
 test.beforeAll(async () => {
     const output = await build({ stdin: { contents: `
+        import { installDomainStorage } from './src/runtime/api/domainStorage.ts';
+        installDomainStorage();
         import * as registry from './src/l3a/accountRegistryStore.ts';
         import { readAccountRegistry } from './src/l2/accountRegistry.ts';
         import { getOrCreateAccount } from './src/l2/accountAdmission.ts';

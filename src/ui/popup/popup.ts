@@ -1,4 +1,5 @@
 import { installApplicationHost } from '../../runtime/api/applicationHost.js';
+import { installDomainStorage } from '../../runtime/api/domainStorage.js';
 
 import { OperationError } from '../../shared/errors/operationError.js';
 import { installProviderHost } from '../../runtime/api/providerHost.js';
@@ -23,6 +24,7 @@ import { EXPORT_FORMATS, observeSettings, useSettings, text, errorText, labelPag
 import { createOptimisticThemeToggle } from '../shared/themeToggle.js';
 import { readSettings } from '../shared/readSettings.js';
 
+installDomainStorage();
 installApplicationHost();
 installProviderHost();
 

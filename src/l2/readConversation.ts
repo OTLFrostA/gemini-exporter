@@ -1,10 +1,10 @@
 import type { ConversationKey } from './conversationKey.js';
 import { sameConversationKey } from './conversationKey.js';
 import { restoreDomainSnapshot, type TrustedDomain } from './runtimeValidation.js';
-import { getConversationSnapshot } from '../l3a/batchStorageService.js';
+import { domainStorage } from './ports/storagePort.js';
 /** Persistence does not carry trust. L2 validates restored facts and requested ownership. */
 export async function readConversation(key: ConversationKey): Promise<TrustedDomain | null> {
-    const { index, detail } = await getConversationSnapshot(key);
+    const { index, detail } = await domainStorage().getConversationSnapshot(key);
     if (!index || !detail) return null;
     const conversation = restoreDomainSnapshot({ index, detail });
     if (!sameConversationKey(key, index.key)) throw new TypeError('Stored conversation identity mismatch');
