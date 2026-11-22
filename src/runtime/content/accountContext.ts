@@ -1,14 +1,22 @@
-import { observeGrokAccount } from '../../l1/client/grok/accountObservation.js';
-import { observeClaudeAccount } from '../../l1/client/claude/accountObservation.js';
 import { registerCleanup } from './cleanupRegistry.js';
 import { getOrCreateContentAccount } from '../api/contentAccountRegistry.js';
 import { readAccountParameters, DEFAULT_ACCOUNT_KEY, type Account } from '../../l2/accountRegistry.js';
-import { CrossWorldEvents } from '../../l1/protocol/gemini/protocol.js';
-import { chatgptAccountObservation } from '../../l1/client/chatgpt/accountObservation.js';
-import { detectSlotFromUrl } from '../../l1/protocol/gemini/url.js';
-import { platformForPageUrl } from '../../shared/platformHosts.js';
+import { platformForPageUrl, type SourcePlatform } from '../../shared/platformHosts.js';
 
 export interface AccountContext { readonly providerId: string; readonly accountId: string; readonly slot: string }
+
+export interface PlatformAccountAdapter {
+    readonly providerId: SourcePlatform;
+    currentSlot(): string;
+    observeAccount(slot: string): Promise<Omit<Account, 'id'> | null>;
+}
+
+let adapter: PlatformAccountAdapter | null = null;
+
+export function configureAccountAdapter(value: PlatformAccountAdapter | null): void {
+    adapter = value;
+}
+
 let binding: { context: AccountContext; providerAccountId: string } | null = null;
 let generation = 0;
 let onAccountChanged: (() => void) | undefined;
@@ -20,6 +28,7 @@ export function setAccountChangedHandler(handler: () => void): void {
 let latestSignature: string | null = null;
 let pending: { signature: string; result: Promise<AccountContext | null> } | null = null;
 const providerNow = () => {
+    if (adapter) return adapter.providerId;
     if (typeof location === 'undefined') return 'gemini';
     if (location.href) return platformForPageUrl(location.href) ?? 'gemini';
     const host = location.hostname;
@@ -27,7 +36,13 @@ const providerNow = () => {
         : host === 'chatgpt.com' || host === 'chat.openai.com' ? 'chatgpt'
         : host === 'claude.ai' ? 'claude' : 'gemini';
 };
-const slotNow = () => detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined);
+const fallbackSlotFromLocation = (): string => {
+    if (typeof location === 'undefined') return 'u0';
+    const raw = location.href || location.pathname || '';
+    const match = /\/u\/(\d+)(?:\/|$|\?|#)/.exec(raw);
+    return match ? `u${match[1]}` : 'u0';
+};
+const slotNow = () => adapter ? adapter.currentSlot() : fallbackSlotFromLocation();
 
 export function invalidateAccountContext(): void {
     binding = null;
@@ -49,38 +64,8 @@ export function matchesCurrentAccount(observation: Omit<Account, 'id'>): boolean
 
 /** The isolated world cannot infer the current Gaia from arbitrary DOM emails. */
 function requestObservation(slot: string): Promise<Omit<Account, 'id'> | null> {
-    if (providerNow() === 'grok') return observeGrokAccount();
-    if (providerNow() === 'claude') return observeClaudeAccount();
-    if (providerNow() === 'chatgpt') return fetch('/api/auth/session', { credentials: 'include' })
-        .then(async response => response.ok ? chatgptAccountObservation(await response.json()) : null);
-    return new Promise((resolve, reject) => {
-        const requestId = crypto.randomUUID();
-        let unregister = () => {};
-        const finish = (observation: Omit<Account, 'id'> | null, error?: unknown): void => {
-            clearTimeout(timer);
-            window.removeEventListener('message', receive);
-            unregister();
-            if (error) reject(error); else resolve(observation);
-        };
-        const receive = (event: MessageEvent<unknown>): void => {
-            if (event.source !== window || event.origin !== location.origin) return;
-            const data = event.data;
-            if (!data || typeof data !== 'object' || Array.isArray(data)
-                || !('type' in data) || data.type !== CrossWorldEvents.ACCOUNT_OBSERVED
-                || !('payload' in data)) return;
-            const payload = data.payload;
-            if (!payload || typeof payload !== 'object' || Array.isArray(payload)
-                || !('requestId' in payload) || payload.requestId !== requestId
-                || !('slot' in payload) || payload.slot !== slot
-                || !('observation' in payload)) return;
-            try { finish(payload.observation === null ? null : readAccountParameters(payload.observation)); }
-            catch (error) { finish(null, error); }
-        };
-        const timer = setTimeout(() => finish(null), 2000);
-        window.addEventListener('message', receive);
-        unregister = registerCleanup(() => finish(null));
-        window.postMessage({ type: CrossWorldEvents.ACCOUNT_REQUESTED, payload: { requestId } }, location.origin);
-    });
+    if (adapter) return adapter.observeAccount(slot);
+    return Promise.resolve(null);
 }
 
 /** Resolve stable Provider evidence; email only updates the profile, never the binding identity. */

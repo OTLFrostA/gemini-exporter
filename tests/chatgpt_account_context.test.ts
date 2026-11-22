@@ -1,12 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveCurrentAccount, getAccountContext, invalidateAccountContext } from '../src/runtime/content/accountContext.js';
+import { resolveCurrentAccount, getAccountContext, invalidateAccountContext, configureAccountAdapter } from '../src/runtime/content/accountContext.js';
+import { createChatGPTAccountAdapter } from '../src/runtime/content/adapters/chatgptAccountAdapter.js';
 import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
 
 test('ChatGPT badge binds session subject and workspace, rejects other providers and clears logout', async t => {
+    configureAccountAdapter(createChatGPTAccountAdapter());
     const names = ['window', 'location', 'chrome', 'fetch'];
     const prior = new Map(names.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
     t.after(() => {
+        configureAccountAdapter(null);
         invalidateAccountContext();
         for (const name of names) {
             const descriptor = prior.get(name);

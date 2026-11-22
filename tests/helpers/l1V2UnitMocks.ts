@@ -279,7 +279,7 @@ export function installL1V2Mocks(): void {
     };
     provideProviderHost({
         getAccount: accountRegistry.getAccount,
-        async resolveGeminiRoute(accountId) {
+        async resolveProviderRoute(_providerId, accountId) {
             if (ports.current?.accountId !== accountId) throw new Error('No mocked Gemini account route');
             return ports.current.slot;
         },

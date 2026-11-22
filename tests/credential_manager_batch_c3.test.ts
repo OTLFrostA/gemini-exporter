@@ -603,6 +603,8 @@ test('bootstrap ensureCreds scopes page tokens strictly by (slot, accountId) wit
         bustRequireCache('../src/l1/client/gemini/bootstrap.js');
         require('../src/runtime/content/installContentHost.js').installContentRuntimeHost();
         const acctCtx = require('../src/runtime/content/accountContext.js');
+        const { createGeminiAccountAdapter } = require('../src/runtime/content/adapters/geminiAccountAdapter.js');
+        acctCtx.configureAccountAdapter(createGeminiAccountAdapter());
         await acctCtx.resolveCurrentAccount({ providerId: 'gemini', providerAccountId: 'gaia-u0' }, 'u0');
         const { ensureCreds } = require('../src/l1/client/gemini/bootstrap.js');
         await ensureCreds();

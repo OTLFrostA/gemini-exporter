@@ -31,14 +31,14 @@ const DEFINE_VERSION = {
 };
 
 const BUNDLE_ENTRIES = {
-    'content/content': path.join(SRC, 'runtime', 'content', 'content.ts'),
+    'content/content': path.join(SRC, 'entrypoints', 'content', 'gemini.ts'),
     'content/hook': path.join(SRC, 'l1', 'sniffer', 'gemini', 'hookCredentials.ts'),
     'content/chatgpt-hook': path.join(SRC, 'l1', 'sniffer', 'chatgpt', 'hook.ts'),
-    'content/chatgpt-content': path.join(SRC, 'runtime', 'content', 'chatgptContent.ts'),
+    'content/chatgpt-content': path.join(SRC, 'entrypoints', 'content', 'chatgpt.ts'),
     'content/grok-hook': path.join(SRC, 'l1', 'sniffer', 'grok', 'hook.ts'),
-    'content/grok-content': path.join(SRC, 'runtime', 'content', 'grokContent.ts'),
+    'content/grok-content': path.join(SRC, 'entrypoints', 'content', 'grok.ts'),
     'content/claude-hook': path.join(SRC, 'l1', 'sniffer', 'claude', 'hook.ts'),
-    'content/claude-content': path.join(SRC, 'runtime', 'content', 'claudeContent.ts'),
+    'content/claude-content': path.join(SRC, 'entrypoints', 'content', 'claude.ts'),
     'background/background': path.join(SRC, 'runtime', 'background', 'background.ts'),
     'ui/popup': path.join(SRC, 'ui', 'popup', 'popup.ts'),
     'ui/options': path.join(SRC, 'ui', 'options', 'options.ts'),

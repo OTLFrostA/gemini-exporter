@@ -3,7 +3,6 @@ import type { DomainConversationIndex } from '../../../l2/conversationIndex.js';
 import type { TitleSource } from '../../../l2/titleAuthority.js';
 import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../../shared/utils/titleText.js';
 import { normId } from '../../../shared/utils/pathUtils.js';
-import { isReservedRoute } from '../../protocol/gemini/url.js';
 
 type ConversationIngestionSource = 'detail' | 'takeout' | 'snapshot';
 export function semanticTitleSource(source?: string): TitleSource {
@@ -12,11 +11,12 @@ export function semanticTitleSource(source?: string): TitleSource {
 interface ParsedMetadataInput {
     account?: Account; providerId: string; id: string; title?: string; titleSource?: string;
     createdAt?: number; updatedAt?: number; activityAt?: number; url?: string; messageCount?: number;
+    isReservedId?: (id: string) => boolean;
 }
 /** Source paths become semantics here. Domain never ranks RPC versus DOM. */
 export function parseIndexMetadata(input: ParsedMetadataInput, source: ConversationIngestionSource = 'detail'): Omit<DomainConversationIndex, 'key'> {
     const id = input.providerId === 'gemini' ? normId(input.id) : input.id.trim();
-    if (!id || input.providerId === 'gemini' && (id === 'unknown' || isReservedRoute(id))) throw new TypeError('Invalid conversation identity');
+    if (!id || (input.providerId === 'gemini' && id === 'unknown') || input.isReservedId?.(id)) throw new TypeError('Invalid conversation identity');
     const candidate = cleanTitle(input.title);
     const title = !isBrandPlaceholderTitle(candidate) && (isRealTitle(candidate, id) || (input.providerId !== 'gemini' || source === 'takeout' || input.titleSource === 'takeout') && candidate) ? candidate : undefined;
     return {

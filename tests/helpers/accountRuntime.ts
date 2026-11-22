@@ -1,12 +1,14 @@
 import { beforeEach, afterEach } from 'node:test';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountIds.js';
 export { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountIds.js';
-import { invalidateAccountContext } from '../../src/runtime/content/accountContext.js';
+import { configureAccountAdapter, invalidateAccountContext } from '../../src/runtime/content/accountContext.js';
+import { createGeminiAccountAdapter } from '../../src/runtime/content/adapters/geminiAccountAdapter.js';
 
 export const ACCOUNT_OBSERVATION = { providerId: 'gemini', providerAccountId: '10000000001' };
 
 /** Exercise the actual resolver with a MAIN observation bridge and committed Registry receipt. */
 export function accountRuntime(slot = 'u0') {
+    configureAccountAdapter(createGeminiAccountAdapter());
     const originalLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
     if (!originalLocation) Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: `https://gemini.google.com/u/${slot.slice(1)}/app`, origin: 'https://gemini.google.com' } });
     const original = Object.getOwnPropertyDescriptor(globalThis, 'window');
