@@ -33,6 +33,13 @@ async function resolveGeminiRoute(accountId: string): Promise<string> {
     throw new OperationError('SOURCE_PAGE_UNAVAILABLE', 'No verified Gemini account route');
 }
 
+async function resolveProviderRoute(providerId: string, accountId: string): Promise<string> {
+    if (providerId !== 'gemini') {
+        throw new OperationError('SOURCE_PAGE_UNAVAILABLE', `No route resolver for provider: ${providerId}`);
+    }
+    return resolveGeminiRoute(accountId);
+}
+
 export function installProviderHost(): void {
-    provideProviderHost({ getAccount, resolveGeminiRoute });
+    provideProviderHost({ getAccount, resolveProviderRoute });
 }

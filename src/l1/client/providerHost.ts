@@ -2,7 +2,7 @@ import type { Account } from '../../l2/accountRegistry.js';
 
 interface ProviderHost {
     getAccount(accountId: string): Promise<Account | null>;
-    resolveGeminiRoute(accountId: string): Promise<string>;
+    resolveProviderRoute(providerId: string, accountId: string): Promise<string>;
 }
 
 let host: ProviderHost | undefined;

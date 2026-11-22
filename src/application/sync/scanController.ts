@@ -1,7 +1,7 @@
 import { applicationHost } from '../host.js';
 import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
+import { isSourcePlatform } from '../../shared/platformHosts.js';
 import { DEFAULT_ACCOUNT_KEY, isAccountId } from '../../l2/accountRegistry.js';
-import { defaultGeminiProvider } from '../../l1/client/gemini/geminiProvider.js';
 import { ProviderRegistry } from '../../l1/client/providerRegistry.js';
 import { createTaskProvider } from '../../l1/client/taskProvider.js';
 import { createSourceResourceContext } from '../../l1/resources/sourceResources.js';
@@ -41,11 +41,11 @@ export async function scanAll(request: ScanRequest, options: {
             const account = await applicationHost().getAccount(accountId);
             // Runtime resolves a verified online source; a local/offline default account
             // is not an online identity and must never launch a successful Scan All.
-            if (!account || !['gemini', 'chatgpt', 'claude', 'grok'].includes(account.providerId) || account.providerAccountId === DEFAULT_ACCOUNT_KEY) {
+            if (!account || !isSourcePlatform(account.providerId) || account.providerAccountId === DEFAULT_ACCOUNT_KEY) {
                 return result('error', 'Verified provider account unavailable');
             }
             const provider = ProviderRegistry.get(account.providerId)
-                ?? (account.providerId === 'gemini' ? defaultGeminiProvider : createTaskProvider(account.providerId, taskResources));
+                ?? createTaskProvider(account.providerId, taskResources);
             const previous = await CoverageAdmission.getCoverage(accountId, 'recent');
             const baseline = previous ? structuredClone(previous) : null;
             let scanHead: ScanHead | undefined;

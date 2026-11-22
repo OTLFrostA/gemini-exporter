@@ -1,5 +1,6 @@
 import { contentQuality } from '../../qualityEvidence.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
+import { isReservedRoute } from '../../../protocol/gemini/url.js';
 import { decodeTakeoutHtml, decodeTakeoutHtmlAsync, type TakeoutActivityEvidence } from './decodeHtml.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainMessage } from '../../../../l2/conversationDetail.js';
@@ -135,7 +136,7 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
     const conversation = {
         index: parseIndexMetadata({ providerId: 'gemini', id, title, titleSource: 'takeout',
             ...(activityAt !== null ? { activityAt } : {}), messageCount: resources.messages.length,
-            url: `https://gemini.google.com/app/${id}` }, 'takeout'),
+            url: `https://gemini.google.com/app/${id}`, isReservedId: isReservedRoute }, 'takeout'),
         detail: { quality: contentQuality({ status: 'partial', heuristicDocumentIds: resources.heuristicDocumentIds }), assets: resources.assets, messages: resources.messages },
     };
     const archiveResources: Record<string, { path: string; entry: TakeoutSourceFile }> = {};

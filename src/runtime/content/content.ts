@@ -3,7 +3,10 @@ import { MessageRouter } from './messageRouter.js';
 import { MessageBridge } from '../../l1/sniffer/gemini/messageBridge.js';
 import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { startContentBootstrap } from './contentBootstrap.js';
+import { configureAccountAdapter } from './accountContext.js';
+import { createGeminiAccountAdapter } from './adapters/geminiAccountAdapter.js';
 
+configureAccountAdapter(createGeminiAccountAdapter());
 startContentBootstrap({
     label: 'Gemini',
     beforeRouteHooks: isActive => {

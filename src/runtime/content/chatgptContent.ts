@@ -1,12 +1,14 @@
 import { chatgptAccountObservation } from '../../l1/client/chatgpt/accountObservation.js';
 import { chatGPTConversationIdFromPath } from '../../l1/sniffer/chatgpt/observation.js';
 import { initChatGPTMessageBridge } from '../../l1/sniffer/chatgpt/messageBridge.js';
-import { resolveCurrentAccount } from './accountContext.js';
+import { resolveCurrentAccount, configureAccountAdapter } from './accountContext.js';
+import { createChatGPTAccountAdapter } from './adapters/chatgptAccountAdapter.js';
 import { registerContentControlRouter } from './controlRouter.js';
 import { startContentBootstrap } from './contentBootstrap.js';
 import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { registerCleanup } from './cleanupRegistry.js';
 
+configureAccountAdapter(createChatGPTAccountAdapter());
 const { isActive } = startContentBootstrap({ label: 'ChatGPT' });
 
 async function currentAccount() {

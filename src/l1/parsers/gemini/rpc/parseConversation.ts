@@ -5,6 +5,7 @@ import { closeGeminiCodeCitations } from '../shared/codeCitations.js';
 import { extractSelectedPartialSlots, type GeminiPartialStructuredSlot, type GeminiStructuredNode } from './structuredContent.js';
 import { contentQuality } from '../../qualityEvidence.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
+import { isReservedRoute } from '../../../protocol/gemini/url.js';
 import { normId } from '../../../../shared/utils/pathUtils.js';
 import { decodeGeminiDetail, findTurnsDeep } from './detailDecoder.js';
 import { decodeTurn } from './extractors.js';
@@ -226,7 +227,8 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             id: normId(metadata?.id ?? evidence.id), title: metadata?.title ?? evidence.title,
             titleSource: metadata ? 'rpc' : evidence.titleSource,
             url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
-            ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length }),
+            ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length,
+            isReservedId: isReservedRoute }),
         detail: { ...(updatedAt !== null ? { savedAt: updatedAt } : {}), quality: contentQuality({ status: evidence.turnsRecovered ? 'partial' : 'unknown', rejectedTurns: evidence.turnsRejected,
             ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds, unrepresentedContent }),
             assets: resources.assets, messages: resources.messages },

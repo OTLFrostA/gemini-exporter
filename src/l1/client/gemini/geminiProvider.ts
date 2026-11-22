@@ -29,7 +29,7 @@ export class GeminiProvider implements GeminiProviderContract {
     readonly hostPatterns = ['https://gemini.google.com/*', 'https://bard.google.com/*'];
     private client: GeminiProviderClient | null;
     constructor(client?: GeminiProviderClient,
-        private route = (accountId: string) => providerHost().resolveGeminiRoute(accountId),
+        private route = (accountId: string) => providerHost().resolveProviderRoute('gemini', accountId),
         private readonly resources?: SourceResourceContext) { this.client = client ?? null; }
     private getClient(): GeminiProviderClient { return this.client ??= new GeminiAPIClient(); }
     private async context(accountId: string) {

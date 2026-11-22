@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import { readAccount, readAccountParameters, readAccountRegistry, findAccount } from '../src/l2/accountRegistry.js';
 import { geminiAccountObservation } from '../src/l1/client/gemini/accountObservation.js';
 import { chatgptAccountObservation } from '../src/l1/client/chatgpt/accountObservation.js';
-import { resolveCurrentAccount, resolveRequestAccount, getAccountContext, invalidateAccountContext } from '../src/runtime/content/accountContext.js';
+import { resolveCurrentAccount, resolveRequestAccount, getAccountContext, invalidateAccountContext, configureAccountAdapter } from '../src/runtime/content/accountContext.js';
+import { createGeminiAccountAdapter } from '../src/runtime/content/adapters/geminiAccountAdapter.js';
 import { accountRuntime, ACCOUNT_UUID, OTHER_ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
+
+configureAccountAdapter(createGeminiAccountAdapter());
 const alice = { id: ACCOUNT_UUID, providerId: 'gemini', providerAccountId: '101', email: 'alice@example.com' };
 
 test('matching preserves UUID and missing profile fields; mutable email is not identity', () => {

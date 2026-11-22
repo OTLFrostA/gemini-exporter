@@ -632,11 +632,12 @@ test('Content registers capture, account and message listeners while readiness i
             assert.equal(typeof deps.onDetailChanged, 'function'); initialized.push('bridge');
         } } },
         'src/runtime/content/pageObserver.js': { hookHistoryEvents: (callback: unknown) => { assert.equal(typeof callback, 'function'); initialized.push('routes'); } },
-        'src/ui/badge/badgeView.js': { BadgeView: { ensureBadge: (...args: unknown[]) => {
+        'src/runtime/content/badgePort.js': { contentBadge: () => ({ ensureBadge: (...args: unknown[]) => {
             assert.deepEqual(args, []); initialized.push('badge');
-        } } },
+        }, refreshAccount: async () => {} }) },
         'src/runtime/content/liveSaveCoordinator.js': { LiveSaveCoordinator: { init: () => {}, cleanup: () => {} } },
-        'src/runtime/content/accountContext.js': { setAccountChangedHandler() {}, invalidateAccountContext: () => {} },
+        'src/runtime/content/accountContext.js': { configureAccountAdapter() {}, setAccountChangedHandler() {}, invalidateAccountContext: () => {} },
+        'src/runtime/content/adapters/geminiAccountAdapter.js': { createGeminiAccountAdapter: () => ({ providerId: 'gemini', currentSlot: () => 'u0', observeAccount: async () => null }) },
         'src/runtime/content/cleanupRegistry.js': { runCleanups: () => {}, registerCleanup: () => {} },
     });
     assert.deepEqual(initialized, ['credentials', 'router', 'routes', 'bridge']);
@@ -769,11 +770,12 @@ test('Content wires passive Detail and completed replies to unified Live Save', 
         'src/l1/client/gemini/bootstrap.js': { initBootstrap() {} },
         'src/runtime/content/messageRouter.js': { MessageRouter: { init() {} } },
         'src/l1/sniffer/gemini/messageBridge.js': { MessageBridge: { init: (deps: typeof capture) => { capture = deps; } } },
-        'src/ui/badge/badgeView.js': { BadgeView: { ensureBadge() {}, refreshAccount: async () => {} } },
+        'src/runtime/content/badgePort.js': { contentBadge: () => ({ ensureBadge() {}, refreshAccount: async () => {} }) },
         'src/runtime/content/liveSaveCoordinator.js': { LiveSaveCoordinator: {
             init() {}, cleanup() {}, executeLiveSave: async (observed: unknown, refresh = false) => { triggered.push({ key: observed, refresh }); }
         } },
-        'src/runtime/content/accountContext.js': { setAccountChangedHandler() {}, invalidateAccountContext() {} },
+        'src/runtime/content/accountContext.js': { configureAccountAdapter() {}, setAccountChangedHandler() {}, invalidateAccountContext() {} },
+        'src/runtime/content/adapters/geminiAccountAdapter.js': { createGeminiAccountAdapter: () => ({ providerId: 'gemini', currentSlot: () => 'u0', observeAccount: async () => null }) },
         'src/runtime/content/pageObserver.js': { hookHistoryEvents() {} },
         'src/runtime/content/cleanupRegistry.js': { runCleanups() {}, registerCleanup() {} },
     });

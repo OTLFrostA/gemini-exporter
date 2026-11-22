@@ -1,13 +1,16 @@
 import { claudeConversationIdFromPath } from '../../l1/sniffer/claude/observation.js';
 import { initClaudeMessageBridge } from '../../l1/sniffer/claude/messageBridge.js';
 import { observeClaudeAccount } from '../../l1/client/claude/accountObservation.js';
-import { resolveCurrentAccount } from './accountContext.js';
+import { resolveCurrentAccount, configureAccountAdapter } from './accountContext.js';
+import { createClaudeAccountAdapter } from './adapters/claudeAccountAdapter.js';
 import { registerContentControlRouter } from './controlRouter.js';
 import { startContentBootstrap } from './contentBootstrap.js';
 import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { registerCleanup } from './cleanupRegistry.js';
 import { readContentSettings } from '../api/contentSettings.js';
 import { createClaudeVisitSave } from './claudeVisitSave.js';
+
+configureAccountAdapter(createClaudeAccountAdapter());
 
 async function currentAccount() {
     const observation = await observeClaudeAccount();
