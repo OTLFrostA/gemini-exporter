@@ -1,5 +1,4 @@
 import type { ConversationKey } from '../l2/conversationKey.js';
-import { MIN_SEALED_SESSION_BYTES, toOwnedBytes } from '../shared/crypto/index.js';
 import type { CloudVaultBackendType } from '../shared/types/cloudSync.js';
 import { isDirectoryHandle, type DirectoryHandle } from '../shared/types/directoryHandle.js';
 
@@ -8,6 +7,7 @@ export type { CloudVaultBackendType } from '../shared/types/cloudSync.js';
 const CLOUD_DB_NAME = 'gemini_exporter_cloud_v2';
 const CLOUD_DB_VERSION = 2;
 const KEYRING_METADATA_INDEX = 'byOwnerFingerprintOrigin';
+const MIN_SEALED_SESSION_BYTES = 4 + 12 + 16;
 
 export interface CloudSyncSessionState {
     readonly id: 'active';
@@ -175,7 +175,9 @@ function parseSessionState(raw: unknown): CloudSyncSessionState | null {
         if (!(raw.sealedCredentials instanceof Uint8Array) || raw.sealedCredentials.byteLength < MIN_SEALED_SESSION_BYTES) {
             return null;
         }
-        sealedCredentials = toOwnedBytes(raw.sealedCredentials);
+        const copy = new Uint8Array(raw.sealedCredentials.byteLength);
+        copy.set(raw.sealedCredentials);
+        sealedCredentials = copy;
     }
     return {
         id: 'active',
