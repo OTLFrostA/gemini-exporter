@@ -181,7 +181,8 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
         const heading = `## ${icons[message.role] ? icons[message.role] + ' ' : ''}${escapeText(messageLabel(message, locale))}`;
         const sources = message.sources && [`> 🌐 **${strings.sources}:**`, ...message.sources.map(item => {
             const prefix = sourceNumberPrefix(item);
-            return `> ${!item.label && !item.href ? prefix.trimEnd() : !prefix && !item.href ? item.label : prefix + citation(item)}`;
+            const rendered = !item.label && !item.href ? prefix.trimEnd() : !prefix && !item.href ? escapeText(item.label) : prefix + citation(item);
+            return `> ${rendered.replace(/\r?\n/g, ' ')}`;
         })].filter(Boolean).join('\n');
         return [heading, message.modelLabel && `*${escapeText(message.modelLabel)}*`, blocks(message.blocks), sources].filter(Boolean).join('\n\n');
     });

@@ -1,6 +1,7 @@
 import { OperationError, operationIssue, operationError } from '../../shared/errors/operationError.js';
 import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 import { createSemaphore } from '../../shared/utils/concurrency.js';
+import { sanitizeFileName } from '../../shared/utils/pathUtils.js';
 import { ConfirmedSourceEmptyError } from '../../l1/client/sourceErrors.js';
 import { readConversation } from '../../l2/readConversation.js';
 import { getSettings } from '../settings/index.js';
@@ -347,7 +348,6 @@ export async function executeExportWithSession(
                         if (refreshed) {
                             const refreshedConversation = await readConversation(key);
                             if (!refreshedConversation) throw new OperationError('DETAIL_UNAVAILABLE', 'No usable local Detail after resource refresh');
-                            refreshFailed = false;
                             const refreshedSource = describeExportSource(request, key, account, refreshedConversation, false, record?.folderBaseName);
                             const initial = item.prepared;
                             if (body && plan && linkedPlanner && JSON.stringify(source.conversation) !== JSON.stringify(refreshedConversation)) {
@@ -394,8 +394,11 @@ export async function executeExportWithSession(
                             };
                             const files = [...(correction?.files ?? []), ...buildResourceFiles(availablePlan, prepared)];
                             if (nextRecord.attachmentIssues?.length) {
+                                const reportScope = directory
+                                    ? `${sanitizeFileName(account.providerId.replace(/%/g, '_'))}/${sanitizeFileName(account.id.replace(/%/g, '_'))}`
+                                    : resourceScope;
                                 files.push({
-                                    fileName: `attachment-reports/${resourceScope}/${finalPlan.fileName}/report.json`,
+                                    fileName: `attachment-reports/${reportScope}/${finalPlan.fileName}/report.json`,
                                     mimeType: 'application/json',
                                     content: JSON.stringify({
                                         document: finalPlan.fileName,

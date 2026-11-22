@@ -56,7 +56,8 @@ const jobs = new Map<string, CompileJob>();
 let sandboxFontsInstalled = false;
 
 function postToHost(message: SandboxToHostMessage, transfer?: Transferable[]): void {
-    window.parent.postMessage(message, '*', transfer ?? []);
+    const targetOrigin = sandboxExpectedHostOrigin(window.location.href);
+    window.parent.postMessage(message, targetOrigin, transfer ?? []);
 }
 
 function replyError(jobId: string, error: unknown): void {

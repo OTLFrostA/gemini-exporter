@@ -63,14 +63,19 @@ test('Browser Delivery clicks once, preserves filename/MIME and revokes the URL'
         await startBrowserDownload(file);
         assert.equal(clicks, 1); assert.equal(anchor.download, file.fileName); assert.equal(captured!.type, file.mimeType);
         assert.equal(await captured!.text(), 'hello'); assert.equal(removed, 1);
+        await new Promise(r => setTimeout(r, 5)); assert.equal(revoked, '', 'Blob URL must stay alive past 0ms for large downloads');
+        await startBrowserDownload(file, 0);
         await new Promise(r => setTimeout(r, 5)); assert.equal(revoked, 'blob:probe');
+        revoked = '';
         anchor.dispatchEvent = () => false;
         await assert.rejects(startBrowserDownload(file), error => error instanceof Error
             && 'code' in error && error.code === 'FILE_WRITE_FAILED' && /blocked/.test(error.message));
+        assert.equal(revoked, 'blob:probe', 'blocked download revokes immediately');
+        revoked = '';
         anchor.dispatchEvent = () => { throw new Error('click failed'); };
         await assert.rejects(startBrowserDownload(file), /click failed/);
-        await new Promise(r => setTimeout(r, 5));
-        assert.equal(removed, 3);
+        assert.equal(revoked, 'blob:probe', 'errored download revokes immediately');
+        assert.equal(removed, 4);
     } finally {
         globalThis.document = originalDocument; URL.createObjectURL = originalCreate; URL.revokeObjectURL = originalRevoke;
         if (originalMouseEvent) Object.defineProperty(globalThis, 'MouseEvent', originalMouseEvent);
