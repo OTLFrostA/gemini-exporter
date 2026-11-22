@@ -190,7 +190,6 @@ class TestPlatformDriver(unittest.TestCase):
             "wait_for_gemini_ready",
             "get_current_chat_id",
             "get_current_chat_title",
-            "ensure_model_and_thinking",
             "send_gemini_turn",
             "click_new_chat",
             "delete_conversation_via_web",
