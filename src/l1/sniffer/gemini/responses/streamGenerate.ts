@@ -1,6 +1,6 @@
 import { CrossWorldEvents } from '../../../protocol/gemini/protocol.js';
 import type { GeminiStreamStartPayload, GeminiStreamCompletePayload } from '../../../protocol/gemini/events.js';
-import type { GeminiCaptureContext, GeminiResponseHandler } from './router.js';
+import type { GeminiCaptureContext, GeminiResponseHandler } from './types.js';
 
 // candidate[8][0] == 2 means answered. Require complete JSON frames and EOF.
 // This signals generation completion; Application must acquire actual Detail.

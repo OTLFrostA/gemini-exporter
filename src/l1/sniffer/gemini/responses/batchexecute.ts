@@ -2,7 +2,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../../../protocol/gemini/proto
 import { parseGeminiRequest } from '../../../parsers/gemini/rpc/request.js';
 import { parseConfirmedGeminiDeletion } from '../../../parsers/gemini/rpc/parseDeletion.js';
 import type { GeminiConversationDeletedPayload, GeminiNetworkBatchexecutePayload } from '../../../protocol/gemini/events.js';
-import type { GeminiCaptureContext, GeminiResponseHandler } from './router.js';
+import type { GeminiCaptureContext, GeminiResponseHandler } from './types.js';
 
 /** Own the batchexecute request/response correlation and cross-world delivery.
  * LIST/DETAIL are decoded in ISOLATED; DELETE retains its existing evidence check

@@ -20,8 +20,8 @@ async function readExistingAccount(accountId: Account['id']): Promise<Account | 
     return account;
 }
 
-export interface IndexIngestResult { added: number; updated: number }
-interface IndexAdmissionResult extends IndexIngestResult { accepted: number; rejected: number }
+import type { IndexIngestResult, IndexAdmissionResult, DetailIngestResult } from './contracts/ingestionTypes.js';
+export type { IndexIngestResult, DetailIngestResult } from './contracts/ingestionTypes.js';
 
 type CommittedKeysListener = (keys: readonly ConversationKey[]) => void;
 const committedKeysListeners = new Set<CommittedKeysListener>();
@@ -110,14 +110,6 @@ export async function ingestIndexes(accountId: Account['id'],
             && page.keys.every(key => indexes.some(index => index.key.conversationId === key.id)),
     });
     return changes;
-}
-
-/** Committed admission result; temporary resource ownership is decided by accepted. */
-export interface DetailIngestResult {
-    accepted: boolean;
-    changed: boolean;
-    /** Present only when this committed transaction created the conversation's Index. */
-    indexAdded?: true;
 }
 
 function buildConversationDecision(

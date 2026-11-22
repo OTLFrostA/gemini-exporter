@@ -1,8 +1,8 @@
 import { OperationError, operationError } from '../../../shared/errors/operationError.js';
 import type { DirectoryHandle } from '../../../shared/types/directoryHandle.js';
 
-import type { IExportWriter, WriteFileContent, WriteFileOptions } from './writerInterface.js';
-import { assertExportPath } from '../../packaging/exportPath.js';
+import type { IExportWriter, WriteFileContent, WriteFileOptions } from '../../shared/writerInterface.js';
+import { assertExportPath } from '../../shared/exportPath.js';
 
 /** File System Access accepts ArrayBuffer-backed views; copy shared memory only. */
 function isWritableBytes(value: Uint8Array): value is Uint8Array<ArrayBuffer> {

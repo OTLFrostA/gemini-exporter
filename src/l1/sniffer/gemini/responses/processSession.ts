@@ -1,5 +1,5 @@
 import { CrossWorldEvents } from '../../../protocol/gemini/protocol.js';
-import type { GeminiCaptureContext, GeminiResponseHandler } from './router.js';
+import type { GeminiCaptureContext, GeminiResponseHandler } from './types.js';
 
 // processSession carries length-prefixed WebChannel JSON frames containing base64
 // protobuf messages. A final answered candidate precedes the persistence receipt;

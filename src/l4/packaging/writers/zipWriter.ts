@@ -1,7 +1,7 @@
 import { OperationError } from '../../../shared/errors/operationError.js';
 
-import type { IExportWriter, WriteFileContent, WriteFileOptions } from '../../delivery/writers/writerInterface.js';
-import { assertExportPath } from '../exportPath.js';
+import type { IExportWriter, WriteFileContent, WriteFileOptions } from '../../shared/writerInterface.js';
+import { assertExportPath } from '../../shared/exportPath.js';
 
 /**
  * Identify already-compressed binary media assets where DEFLATE provides 0% gain

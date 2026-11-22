@@ -2,7 +2,7 @@ import type { Account } from '../l2/accountRegistry.js';
 import type { DomainConversationIndex } from '../l2/conversationIndex.js';
 import type { DomainConversationDetail } from '../l2/conversationDetail.js';
 import type { StreamCoverage } from '../l2/streamCoverage.js';
-import type { DetailIngestResult } from '../l2/ingestion.js';
+import type { DetailIngestResult } from '../l2/contracts/ingestionTypes.js';
 import type { ExportRecord } from '../l2/exportRecord.js';
 
 const DATABASE_NAME = 'gemini_exporter_v2';
