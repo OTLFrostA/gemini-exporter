@@ -1,103 +1,40 @@
-import { applicationHost } from '../host.js';
 import { OperationError, operationIssue, operationError } from '../../shared/errors/operationError.js';
 import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 import { createSemaphore } from '../../shared/utils/concurrency.js';
 import { ConfirmedSourceEmptyError } from '../../l1/client/sourceErrors.js';
 import { readConversation } from '../../l2/readConversation.js';
 import { getSettings } from '../settings/index.js';
-import { getIndex, listIndexes, getExportRecord, listExportRecords, putExportRecord, getDirectoryHandle } from '../../l3a/storageService.js';
-import { putExportRecords } from '../../l3a/batchStorageService.js';
+import { getDirectoryHandle } from '../../l3a/storageService.js';
 import type { ConversationKey } from '../../l2/conversationKey.js';
-import type { DomainConversationIndex } from '../../l2/conversationIndex.js';
-import type { Account } from '../../l2/accountRegistry.js';
-import { type ReadonlyDomain } from '../../l2/runtimeValidation.js';
+import type { ReadonlyDomain } from '../../l2/runtimeValidation.js';
 import type { AIProvider } from '../../l1/client/aiProvider.js';
 import { createTaskProvider } from '../../l1/client/taskProvider.js';
-import { createSourceResourceContext, type SourceResourceContext } from '../../l1/resources/sourceResources.js';
-import { composeDomainDocument } from '../../l3b/compose/composeDomainDocument.js';
-import { collectDocumentResources } from '../../l3b/ast/resourceReferences.js';
-import type { DocumentAst } from '../../l3b/ast/ast.js';
-import { resourceIssueKind, type ResourceFailure, type PreparedResources, type ResourceResult } from '../../shared/resources/resourceResult.js';
-import { createExportPathPlanner, planExportPaths, buildExportFiles, buildResourceFiles, packageExportFiles, type ExportPathPlan } from '../../l4/packaging/index.js';
-import type { ResourceBindings } from '../../l4/packaging/resourceBindings.js';
-import type { ExportArtifact } from '../../l4/artifacts.js';
-import { startBrowserDownload, writeToFolder, folderFileExists } from '../../l4/delivery/index.js';
-import { prepareExportResources } from './prepareExportResources.js';
-import type { ExportRequest, ExportRecord, ExportProgress, ExportResult, ExportItemUpdate, ExportDiagnostic } from './types.js';
+import { createSourceResourceContext } from '../../l1/resources/sourceResources.js';
+import type { ResourceFailure } from '../../shared/resources/resourceResult.js';
+import { createExportPathPlanner, planExportPaths, buildExportFiles, buildResourceFiles, type ExportPathPlan } from '../../l4/packaging/index.js';
+import type { ExportRequest, ExportResult, ExportItemUpdate, ExportDiagnostic } from './types.js';
+import {
+    buildExportRecord,
+    emitDetailDiagnostics,
+    keyIdentity,
+    needsResourceRefresh,
+    shouldSkipExport,
+    type ExportFormatRendererSession,
+    type ExportGroup,
+    type ExportRunOptions,
+    type ExportSource,
+    type PendingExport,
+} from './exportPolicy.js';
+import { createDeliveryCoordinator } from './folderCommitQueue.js';
+import {
+    createMetadataLoader,
+    describeExportSource,
+    evaluateRefreshNeed,
+    prepareSourceResources,
+} from './sourceResolver.js';
 
-type ExportPendingContent =
-    | { format: 'json'; document?: never }
-    | { format: Exclude<ExportRequest['format'], 'json'>; document: DocumentAst };
+export { shouldSkipExport, type ExportFormatRendererSession, type ExportRunOptions } from './exportPolicy.js';
 
-type ExportRenderInput = ExportPendingContent & {
-    key: ConversationKey;
-    account: Account;
-    conversation: ReadonlyDomain;
-    prepared: PreparedResources;
-    resources: ResourceBindings;
-    locale: 'zh' | 'en';
-    failures: Record<string, ResourceFailure>;
-    signal: AbortSignal;
-    diagnose: (diagnostic: ExportDiagnostic) => void;
-};
-
-export interface ExportFormatRendererSession {
-    render(input: ExportRenderInput): Promise<{ content: string | Uint8Array; otherContentMissing?: boolean }>;
-    dispose?(): void;
-}
-
-export interface ExportRunOptions {
-    onProgress?: (progress: ExportProgress) => void;
-    /** A usable body is ready for resource preparation; skipped targets do not count. */
-    onConversationPrepared?: (key: ConversationKey) => void;
-    /** The document was written to a folder or included in an initiated browser download. */
-    onBodyDelivered?: (key: ConversationKey) => void;
-    /** downloaded counts distinct successful resource identities across this task, including refreshes. */
-    onResourceProgress?: (progress: { key: ConversationKey; completed: number; total: number; downloaded: number }) => void;
-    /** Settled items and staged browser files; only 'exported' carries a committed record. */
-    onItemUpdate?: (update: ExportItemUpdate) => void;
-    onDiagnostic?: (diagnostic: ExportDiagnostic) => void;
-    signal?: AbortSignal;
-    /** A completed reply requires a new source snapshot even if cached timestamps match. */
-    refreshDetail?: boolean;
-    /** User-selected ZIP readers owned by the open workbench, released by that page. */
-    importedResources?: SourceResourceContext;
-}
-
-// Domain and ExportRecord source versions must be finite, safe epoch-millisecond integers.
-const comparable = (value: number | undefined): value is number => value !== undefined && Number.isSafeInteger(value);
-
-export function shouldSkipExport(record: ExportRecord | null, updatedAt: number | undefined, request: ExportRequest): boolean {
-    if (!request.skipUnchanged || !record || record.format !== request.format) return false;
-    if (request.includeAssets && record.includeAssets !== true) return false;
-    if (record.sourceTurn && record.sourceTurn !== 'finished' && record.sourceTurn !== 'interrupted') return false;
-    const issues = record.attachmentIssues;
-    const expiredOnly = record.status === 'partial' && record.otherContentMissing !== true
-        && issues !== undefined && issues.length > 0
-        && issues.every(issue => resourceIssueKind(issue) === 'expired' && issue.httpStatus === 404);
-    return (record.status === 'ok' || expiredOnly) && comparable(record.chatTime)
-        && comparable(updatedAt) && record.chatTime >= updatedAt;
-}
-
-function isFresh(conversation: ReadonlyDomain): boolean {
-    return conversation.detail.quality.status === 'complete'
-        && (!conversation.detail.quality.sourceTurn || ['finished', 'interrupted'].includes(conversation.detail.quality.sourceTurn))
-        && comparable(conversation.detail.savedAt)
-        && comparable(conversation.index.updatedAt) && conversation.detail.savedAt >= conversation.index.updatedAt;
-}
-
-type ExportSource = ExportPendingContent & {
-    key: ConversationKey;
-    account: Account;
-    conversation: ReadonlyDomain;
-    requiredIds: ReadonlySet<string>;
-    refreshFailed: boolean;
-    fileIds: ReadonlySet<string>;
-    folderBaseName?: string;
-};
-type PendingExport = ExportSource & { prepared: PreparedResources; reused: ReadonlySet<string> };
-interface ExportGroup { key: ConversationKey; record: Omit<ExportRecord, 'exportedAt'>; files: ExportArtifact[] }
-const MAX_FOLDER_WRITES = 3;
 const MAX_PENDING_FOLDER_CONVERSATIONS = 8;
 
 /** Core export workflow engine, decoupled from heavyweight format backends. */
@@ -113,19 +50,17 @@ export async function executeExportWithSession(
     const cancel = (): void => controller.abort(options.signal?.reason);
     if (options.signal?.aborted) cancel();
     else options.signal?.addEventListener('abort', cancel, { once: true });
-    // Attachment work runs across a bounded multi-conversation pool with a shared asset semaphore;
-    // it never gates the next source read while keeping total concurrent transfers bounded.
+
     const downstreamSemaphore = createSemaphore(4);
     const assetAcquireSemaphore = createSemaphore(6);
     const detailPrefetchSemaphore = createSemaphore(3);
     const activeDownstream = new Set<Promise<void>>();
     let retireChain = Promise.resolve();
     const drainDownstream = async (): Promise<void> => {
-        while (activeDownstream.size > 0) {
-            await Promise.all([...activeDownstream]);
-        }
+        while (activeDownstream.size > 0) await Promise.all([...activeDownstream]);
         await retireChain;
     };
+
     interface PrefetchedDetailOutcome {
         readonly before: ReadonlyDomain | null;
         readonly needsSourceReaders: boolean;
@@ -135,21 +70,20 @@ export async function executeExportWithSession(
     const prefetchedDetails = new Map<number, Promise<PrefetchedDetailOutcome | null>>();
     let saveCancelledFiles: (() => Promise<void>) | undefined;
     const queued = new Map<string, Promise<void>>();
-    const folderWrites = new Set<Promise<void>>();
-    const deliveredBodies = new Set<string>();
-    const identity = (key: ConversationKey) => JSON.stringify([key.accountId, key.conversationId]);
     const resources = createSourceResourceContext();
     const providers = new Map<string, AIProvider>();
     const downloadedResources = new Set<string>();
     const rendererSession = createRendererSession();
     let locale: 'zh' | 'en' = 'en';
+
     const stopOnRateLimit = (error: unknown): boolean => {
         if (!(error instanceof OperationError) || error.retryAt === undefined) return false;
         result.rateLimitedUntil = Math.max(result.rateLimitedUntil ?? 0, error.retryAt);
         controller.abort(error);
         return true;
     };
-    const cancelled = (error: unknown): boolean => stopOnRateLimit(error) || signal.aborted || (error instanceof Error && error.name === 'AbortError');
+    const cancelled = (error: unknown): boolean =>
+        stopOnRateLimit(error) || signal.aborted || (error instanceof Error && error.name === 'AbortError');
     const report = (update: ExportItemUpdate): void => {
         try { options.onItemUpdate?.(update); }
         catch (error) { console.warn('[Gemini Exporter] Export progress listener failed', error); }
@@ -158,18 +92,10 @@ export async function executeExportWithSession(
         try { options.onDiagnostic?.(diagnostic); }
         catch (error) { console.warn('[Gemini Exporter] Export diagnostic listener failed', error); }
     };
-    const bodyDelivered = (key: ConversationKey): void => {
-        if (deliveredBodies.has(identity(key))) return;
-        deliveredBodies.add(identity(key));
-        diagnose({ key, stage: 'delivery', code: 'DOCUMENT_DELIVERED', severity: 'info', message: 'Document delivery initiated' });
-        try { options.onBodyDelivered?.(key); }
-        catch (error) { console.warn('[Gemini Exporter] Body delivery listener failed', error); }
-    };
     const fail = (keys: readonly ConversationKey[], _error?: unknown): void => {
         const issue = operationIssue(_error);
         for (const key of keys) {
-            const diagnostic: ExportDiagnostic = { key, stage: 'export', code: 'EXPORT_FAILED', severity: 'error', issue,
-                message: issue.message };
+            const diagnostic: ExportDiagnostic = { key, stage: 'export', code: 'EXPORT_FAILED', severity: 'error', issue, message: issue.message };
             diagnose(diagnostic);
             if (!failed.some(item => item.accountId === key.accountId && item.conversationId === key.conversationId)) {
                 failed.push(key);
@@ -185,122 +111,37 @@ export async function executeExportWithSession(
         }
         return provider;
     };
-    const writeFolder = async (files: readonly ExportArtifact[], directory: FileSystemDirectoryHandle): Promise<void> => {
-        while (folderWrites.size >= MAX_FOLDER_WRITES) {
-            signal.throwIfAborted();
-            await Promise.race(folderWrites);
-        }
-        signal.throwIfAborted();
-        const writing = writeToFolder(files, directory);
-        // Capacity waiters must not inherit another conversation's write failure.
-        const settled = writing.catch(() => {});
-        folderWrites.add(settled);
-        try { await writing; }
-        finally { folderWrites.delete(settled); }
-    };
-    const readLocal = readConversation;
-    const applyCommittedGroupStats = (group: ExportGroup, record: ExportRecord): void => {
-        result.exported++;
-        if (group.record.status === 'partial') { result.partial++; result.otherPartial ??= 0; }
-        if (group.record.attachmentIssues?.length) result.attachmentIssues = [...(result.attachmentIssues ?? []), ...group.record.attachmentIssues];
-        if (group.record.attachmentIssues?.some(issue => resourceIssueKind(issue) === 'expired')) result.expiredConversations = (result.expiredConversations ?? 0) + 1;
-        if (group.record.status === 'partial' && (!group.record.attachmentIssues?.length
-            || group.record.otherContentMissing)) result.otherPartial = (result.otherPartial ?? 0) + 1;
-        report({ key: group.key, status: 'exported', record });
-    };
-    const finalize = async (groups: readonly ExportGroup[]): Promise<void> => {
-        if (groups.length === 0) return;
-        // Once Delivery returned, cancellation cannot suppress records for that group/ZIP.
-        const exportedAt = Date.now();
-        if (groups.length > 1) {
-            for (const group of groups) bodyDelivered(group.key);
-            const entries = groups.map(group => ({ key: group.key, record: { ...group.record, exportedAt } }));
-            try {
-                await putExportRecords(entries);
-                for (const [idx, group] of groups.entries()) {
-                    applyCommittedGroupStats(group, entries[idx].record);
-                }
-                return;
-            } catch {
-                // Fall back to per-item writes so one bad record never drops sibling receipts.
-            }
-        }
-        for (const group of groups) {
-            bodyDelivered(group.key);
-            try {
-                const record: ExportRecord = { ...group.record, exportedAt };
-                await putExportRecord(group.key, record);
-                applyCommittedGroupStats(group, record);
-            } catch (error) {
-                console.warn('[Gemini Exporter] ExportRecord write failed', group.key, error);
-                fail([group.key], operationError(error, 'RECORD_WRITE_FAILED'));
-            }
-        }
-    };
-    const recordFor = (item: PendingExport, plan: ExportPathPlan,
-        failures: Readonly<Record<string, ResourceFailure>>, otherContentMissing: boolean): Omit<ExportRecord, 'exportedAt'> => {
-        const { conversation } = item;
-        const partial = otherContentMissing || Object.keys(failures).length > 0;
-        return { format: request.format, includeAssets: request.includeAssets, status: partial ? 'partial' : 'ok',
-            ...(request.delivery === 'folderWriter'
-                ? { folderBaseName: plan.fileName.replace(/\.[^.]+$/, '') }
-                : item.folderBaseName ? { folderBaseName: item.folderBaseName } : {}),
-            ...(conversation.detail.quality.sourceTurn ? { sourceTurn: conversation.detail.quality.sourceTurn } : {}),
-            ...(partial ? { otherContentMissing } : {}),
-            ...(Object.keys(failures).length ? { attachmentIssues: Object.values(failures).map(failure => {
-                const asset = conversation.detail.assets.find(asset => asset.id === failure.resourceId);
-                const sourceUri = asset?.sourceUri;
-                return { resourceId: failure.resourceId, name: asset?.name || failure.resourceId, code: failure.code,
-                    ...(failure.httpStatus ? { httpStatus: failure.httpStatus } : {}),
-                    ...(sourceUri && /^https:\/\//i.test(sourceUri) ? { sourceUrl: sourceUri } : {}) };
-            }) } : {}),
-            ...(comparable(conversation.detail.savedAt) ? { chatTime: conversation.detail.savedAt } : {}) };
-    };
+
+    const delivery = createDeliveryCoordinator({
+        request, result, signal, report, diagnose, fail, onBodyDelivered: options.onBodyDelivered,
+    });
+
     const renderGroup = async (item: PendingExport, plan: ExportPathPlan): Promise<ExportGroup> => {
         const { conversation, prepared, key } = item;
-        // Index activity may advance without new body bytes. Keep timestamp disagreement
-        // as a freshness diagnostic; it does not establish missing snapshot content.
         let otherContentMissing = item.refreshFailed || conversation.detail.quality.status !== 'complete';
-        const sourceTurn = conversation.detail.quality.sourceTurn;
-        if (sourceTurn && sourceTurn !== 'finished') diagnose({ key, stage: 'detail', severity: 'info',
-            code: 'SOURCE_TURN_' + sourceTurn.toUpperCase(),
-            message: 'Available source content is exported independently of source turn completion',
-            details: { sourceTurn, snapshotCoverage: conversation.detail.quality.status } });
-        if (conversation.detail.quality.status !== 'complete') diagnose({ key, stage: 'detail',
-            severity: 'warning', code: 'DETAIL_NOT_COMPLETE', message: 'Persisted source detail is not complete',
-            details: { quality: conversation.detail.quality.status, messageCount: conversation.detail.messages.length,
-                savedAt: conversation.detail.savedAt ?? null, indexUpdatedAt: conversation.index.updatedAt ?? null,
-                lastMessageId: conversation.detail.messages.at(-1)?.id ?? null,
-                lastMessageRole: conversation.detail.messages.at(-1)?.role ?? null } });
-        if (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
-            && conversation.detail.savedAt < conversation.index.updatedAt) diagnose({ key, stage: 'detail',
-            severity: 'warning', code: 'DETAIL_STALE', message: 'Detail source timestamp is older than Index',
-            details: { savedAt: conversation.detail.savedAt, updatedAt: conversation.index.updatedAt,
-                lagMs: conversation.index.updatedAt - conversation.detail.savedAt } });
+        emitDetailDiagnostics(conversation, key, diagnose);
         const failures = Object.fromEntries([...prepared].filter((entry): entry is [string, ResourceFailure] => !entry[1].ok));
-        for (const failure of Object.values(failures)) diagnose({ key, stage: 'resource', severity: 'warning',
-            code: failure.code, message: failure.reason, issue: failure.issue,
-            details: { resourceId: failure.resourceId, httpStatus: failure.httpStatus ?? null } });
+        for (const failure of Object.values(failures)) {
+            diagnose({
+                key, stage: 'resource', severity: 'warning', code: failure.code, message: failure.reason,
+                issue: failure.issue, details: { resourceId: failure.resourceId, httpStatus: failure.httpStatus ?? null },
+            });
+        }
         const rendered = await rendererSession.render({
             ...(item.format === 'json' ? { format: 'json' } : { format: item.format, document: item.document }),
-            key,
-            account: item.account,
-            conversation,
-            prepared,
-            resources: plan.resources,
-            locale,
-            failures,
-            signal,
-            diagnose,
+            key, account: item.account, conversation, prepared, resources: plan.resources, locale, failures, signal, diagnose,
         });
         if (rendered.otherContentMissing) otherContentMissing = true;
         signal.throwIfAborted();
-        return { key, files: buildExportFiles(request.format, plan, rendered.content, prepared),
-            record: recordFor(item, plan, failures, otherContentMissing) };
+        return {
+            key,
+            files: buildExportFiles(request.format, plan, rendered.content, prepared),
+            record: buildExportRecord(request, item, plan, failures, otherContentMissing),
+        };
     };
+
     try {
         signal.throwIfAborted();
-        // The user setting controls only renderer-owned text, not Domain, JSON, paths or records.
         const language = request.format === 'json' ? undefined : (await getSettings()).language;
         locale = language ?? (navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en');
         const directory = request.delivery === 'folderWriter' ? await getDirectoryHandle() : null;
@@ -311,134 +152,61 @@ export async function executeExportWithSession(
         const linkedPlanner = linked ? createExportPathPlanner(request.format, directory ? undefined : resourceScope) : undefined;
         const bodies: { group: ExportGroup; hasAttachments: boolean }[] = [];
         const settledBodies = new Map<ExportGroup, ExportGroup>();
-        const deliver = async (groups: readonly ExportGroup[], savingCancelled = false): Promise<void> => {
-            if (!groups.length) return;
-            let files: ExportArtifact[];
-            try { files = await packageExportFiles(groups.map(group => group.files), request.delivery); }
-            catch (error) { throw operationError(error, 'PACKAGING_FAILED'); }
-            if (!savingCancelled) signal.throwIfAborted();
-            if (request.delivery === 'browserDownload') {
-                if (files.length !== 1) throw new Error('Browser delivery requires one final file');
-                await startBrowserDownload(files[0]);
-            } else {
-                if (!directory) throw new OperationError('DIRECTORY_UNAVAILABLE', 'Export directory unavailable');
-                await writeToFolder(files, directory);
-            }
-        };
+
         const deliverBrowserBodies = async (savingCancelled = false): Promise<void> => {
-            const staged = bodies.filter(({group}) => !deliveredBodies.has(identity(group.key))
-                && !failed.some(key => identity(key) === identity(group.key)));
-            const groups = staged.map(({group}) => {
+            const staged = bodies.filter(({ group }) => !delivery.isDelivered(group.key)
+                && !failed.some(key => keyIdentity(key) === keyIdentity(group.key)));
+            const groups = staged.map(({ group }) => {
                 const settled = settledBodies.get(group);
-                // Resource refresh can replace the rendered document at its original path.
                 const files = new Map([...group.files, ...(settled?.files ?? [])].map(file => [file.fileName, file]));
                 return { ...group, record: settled?.record ?? group.record, files: [...files.values()] };
             });
             try {
-                await deliver(groups, savingCancelled);
-                for (const group of groups) bodyDelivered(group.key);
-                await finalize(groups.filter((_, index) => !staged[index].hasAttachments || settledBodies.has(staged[index].group)));
+                await delivery.deliver(groups, directory, savingCancelled);
+                for (const group of groups) delivery.bodyDelivered(group.key);
+                await delivery.finalize(groups.filter((_, index) => !staged[index].hasAttachments || settledBodies.has(staged[index].group)));
             } catch (error) {
                 if (cancelled(error) && !savingCancelled) throw error;
                 fail(groups.map(group => group.key), error);
             }
         };
         if (linked && !directory) saveCancelledFiles = async () => {
-            // Acquisition stops first; one ZIP preserves completed attachments and all
-            // rendered bodies. Unfinished items never receive a successful record.
             await drainDownstream();
             await deliverBrowserBodies(true);
         };
-        const accountKeyCounts = new Map<string, number>();
+
         const firstOccurrenceIndex = new Map<string, number>();
         for (const [idx, k] of request.keys.entries()) {
-            accountKeyCounts.set(k.accountId, (accountKeyCounts.get(k.accountId) ?? 0) + 1);
-            const id = identity(k);
+            const id = keyIdentity(k);
             if (!firstOccurrenceIndex.has(id)) firstOccurrenceIndex.set(id, idx);
         }
-        const accountCache = new Map<string, Promise<Account | null>>();
-        const accountMetaCache = new Map<string, Promise<{
-            indexes: ReadonlyMap<string, DomainConversationIndex>;
-            records: Readonly<Record<string, ExportRecord>>;
-        }>>();
+        const { loadLocalMetadata } = createMetadataLoader(request);
         const seenKeyIdentities = new Set<string>();
-        const loadAccountCached = (accountId: string): Promise<Account | null> => {
-            const cached = accountCache.get(accountId);
-            if (cached) return cached;
-            const pendingAccount = applicationHost().getAccount(accountId).catch((error: unknown) => {
-                accountCache.delete(accountId);
-                throw error;
-            });
-            accountCache.set(accountId, pendingAccount);
-            return pendingAccount;
-        };
-        const loadLocalMetadata = async (
-            targetKey: ConversationKey,
-            isRepeatKey: boolean,
-        ): Promise<[Account | null, DomainConversationIndex | null, ExportRecord | null]> => {
-            if (!isRepeatKey && (accountKeyCounts.get(targetKey.accountId) ?? 0) >= 4) {
-                let metaPromise = accountMetaCache.get(targetKey.accountId);
-                if (!metaPromise) {
-                    metaPromise = Promise.all([listIndexes(targetKey.accountId), listExportRecords(targetKey.accountId)])
-                        .then(([rows, recordMap]) => ({
-                            indexes: new Map(rows.map(row => [row.key.conversationId, row])),
-                            records: recordMap,
-                        }))
-                        .catch((error: unknown) => {
-                            accountMetaCache.delete(targetKey.accountId);
-                            throw error;
-                        });
-                    accountMetaCache.set(targetKey.accountId, metaPromise);
-                }
-                const [account, meta] = await Promise.all([loadAccountCached(targetKey.accountId), metaPromise]);
-                return [account, meta.indexes.get(targetKey.conversationId) ?? null, meta.records[targetKey.conversationId] ?? null];
-            }
-            return Promise.all([loadAccountCached(targetKey.accountId), getIndex(targetKey), getExportRecord(targetKey)]);
-        };
-        const evaluateRefreshNeed = (
-            targetKey: ConversationKey,
-            account: Account,
-            conversation: ReadonlyDomain | null,
-        ): { needed: boolean; needsSourceReaders: boolean } => {
-            const needsSourceReaders = Boolean(request.includeAssets && conversation?.detail.assets.some(asset =>
-                !options.importedResources?.has(targetKey, asset.id)
-                && !/^https:\/\//i.test(asset.sourceUri ?? '')
-                && !asset.document?.contentMarkdown
-                && providerFor(account.providerId).canAcquireResourceDirectly?.(asset) !== true));
-            const needed = Boolean(options.refreshDetail || !conversation || !isFresh(conversation) || needsSourceReaders);
-            return { needed, needsSourceReaders };
-        };
         const verifiedRemoteAccounts = new Set<string>();
+
         const scheduleLookaheadDetailPrefetch = (afterIndex: number): void => {
             if (signal.aborted || request.keys.length <= 2) return;
             let scheduled = 0;
             for (let target = afterIndex + 1; target < request.keys.length && scheduled < 4; target++) {
-                if (prefetchedDetails.has(target)) {
-                    scheduled++;
-                    continue;
-                }
+                if (prefetchedDetails.has(target)) { scheduled++; continue; }
                 const candidateKey = request.keys[target];
                 if (!verifiedRemoteAccounts.has(candidateKey.accountId)) continue;
-                const id = identity(candidateKey);
+                const id = keyIdentity(candidateKey);
                 if (firstOccurrenceIndex.get(id) !== target || queued.has(id)) continue;
                 scheduled++;
                 const job = detailPrefetchSemaphore.run(async (): Promise<PrefetchedDetailOutcome | null> => {
                     if (signal.aborted) return null;
                     const [account, localIndex, record] = await loadLocalMetadata(candidateKey, false);
                     if (!account) return null;
-                    if (!options.refreshDetail && localIndex && shouldSkipExport(record, localIndex.updatedAt, request)) {
-                        return null;
-                    }
-                    const before = await readLocal(candidateKey);
+                    if (!options.refreshDetail && localIndex && shouldSkipExport(record, localIndex.updatedAt, request)) return null;
+                    const before = await readConversation(candidateKey);
                     if (signal.aborted) return null;
-                    const refreshNeed = evaluateRefreshNeed(candidateKey, account, before);
+                    const refreshNeed = evaluateRefreshNeed(request, options, providerFor, candidateKey, account, before);
                     if (!refreshNeed.needed) return null;
                     const diagnostics: Diagnostic[] = [];
                     try {
                         await providerFor(account.providerId).fetchConversationDetail(
-                            candidateKey.accountId,
-                            candidateKey.conversationId,
-                            signal,
+                            candidateKey.accountId, candidateKey.conversationId, signal,
                             diagnostic => { diagnostics.push(diagnostic); },
                         );
                         return { before, needsSourceReaders: refreshNeed.needsSourceReaders, diagnostics };
@@ -456,15 +224,13 @@ export async function executeExportWithSession(
 
         const pendingSlots: (PendingExport | undefined)[] = [];
         for (const [index, key] of request.keys.entries()) {
-            // Bound retained snapshots/bytes while unrelated folder commits finish independently.
             while (directory && queued.size >= MAX_PENDING_FOLDER_CONVERSATIONS) {
                 signal.throwIfAborted();
                 await Promise.race(queued.values());
             }
-            const keyId = identity(key);
+            const keyId = keyIdentity(key);
             const isRepeatKey = seenKeyIdentities.has(keyId);
             seenKeyIdentities.add(keyId);
-            // Duplicate keys share task-owned readers; finish their earlier use first.
             const previous = queued.get(keyId);
             if (previous) await previous;
             signal.throwIfAborted();
@@ -472,7 +238,6 @@ export async function executeExportWithSession(
             scheduleLookaheadDetailPrefetch(index);
             let handedOff = false;
             try {
-                // Batch exports prefetch per-account Indexes and ExportRecords in one pass.
                 const [account, localIndex, record] = await loadLocalMetadata(key, isRepeatKey);
                 if (!account) throw new OperationError('ACCOUNT_UNAVAILABLE', 'Account unavailable');
                 if (!options.refreshDetail && localIndex && shouldSkipExport(record, localIndex.updatedAt, request)) {
@@ -482,22 +247,18 @@ export async function executeExportWithSession(
                 }
                 const prefetched = await prefetchedDetails.get(index);
                 prefetchedDetails.delete(index);
-                let conversation = prefetched ? prefetched.before : await readLocal(key);
+                let conversation = prefetched ? prefetched.before : await readConversation(key);
                 let refreshFailed = false;
                 let refreshFailure: { error: unknown } | undefined;
-                // Inline packets and expiring locators are task-owned, never cached bytes.
-                // A fresh Detail alone cannot rehydrate these resources in a later export.
                 const refreshCheck = prefetched
                     ? { needed: true, needsSourceReaders: prefetched.needsSourceReaders }
-                    : evaluateRefreshNeed(key, account, conversation);
+                    : evaluateRefreshNeed(request, options, providerFor, key, account, conversation);
                 const needsSourceReaders = refreshCheck.needsSourceReaders;
                 if (refreshCheck.needed) {
                     const before = conversation;
                     try {
                         if (prefetched) {
-                            for (const diagnostic of prefetched.diagnostics) {
-                                diagnose({ key, stage: 'source_parse', ...diagnostic });
-                            }
+                            for (const diagnostic of prefetched.diagnostics) diagnose({ key, stage: 'source_parse', ...diagnostic });
                             if (prefetched.error !== undefined) throw prefetched.error;
                         } else {
                             await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
@@ -505,10 +266,7 @@ export async function executeExportWithSession(
                         }
                         verifiedRemoteAccounts.add(key.accountId);
                         scheduleLookaheadDetailPrefetch(index);
-                    }
-                    catch (error) {
-                        // L1 has reliably confirmed deletion and L2 has removed the local Key.
-                        // Unlike a transient refresh failure, this must never fall back to old Detail.
+                    } catch (error) {
                         if (cancelled(error) || (error instanceof Error && error.message === 'conversation_not_found')) throw error;
                         if (error instanceof ConfirmedSourceEmptyError) {
                             result.skipped++;
@@ -519,16 +277,18 @@ export async function executeExportWithSession(
                         refreshFailed = true;
                         refreshFailure = { error };
                     }
-                    // Even a failed refresh may have committed useful facts. Never export a response DTO.
-                    conversation = await readLocal(key);
-                    diagnose({ key, stage: 'source_refresh', severity: 'info', code: 'DETAIL_REFRESH_RESULT',
-                        message: 'Persisted detail observed after source refresh', details: {
+                    conversation = await readConversation(key);
+                    diagnose({
+                        key, stage: 'source_refresh', severity: 'info', code: 'DETAIL_REFRESH_RESULT',
+                        message: 'Persisted detail observed after source refresh',
+                        details: {
                             refreshFailed, requestedExplicitly: options.refreshDetail ?? false, needsSourceReaders: needsSourceReaders ?? false,
                             before: { savedAt: before?.detail.savedAt ?? null, indexUpdatedAt: before?.index.updatedAt ?? null,
                                 quality: before?.detail.quality.status ?? null, messageCount: before?.detail.messages.length ?? null },
                             after: { savedAt: conversation?.detail.savedAt ?? null, indexUpdatedAt: conversation?.index.updatedAt ?? null,
                                 quality: conversation?.detail.quality.status ?? null, messageCount: conversation?.detail.messages.length ?? null },
-                        } });
+                        },
+                    });
                     if (conversation && refreshFailure) {
                         const issue = operationIssue(refreshFailure.error);
                         diagnose({ key, stage: 'source_refresh', severity: 'warning', code: 'SOURCE_REFRESH_FAILED', issue, message: issue.message });
@@ -539,77 +299,21 @@ export async function executeExportWithSession(
                     if (refreshFailure) throw refreshFailure.error;
                     throw new OperationError('DETAIL_UNAVAILABLE', 'No usable local Detail');
                 }
-                const describeSource = (snapshot: ReadonlyDomain): ExportSource => {
-                    const view: ExportPendingContent = request.format === 'json' ? { format: 'json' }
-                        : { format: request.format, document: composeDomainDocument(snapshot, account) };
-                    const references = view.format === 'json'
-                        ? { referencedIds: new Set(snapshot.detail.assets.map(asset => asset.id)), fileIds: new Set<string>() }
-                        : collectDocumentResources(view.document);
-                    return { ...view, key, account, conversation: snapshot, refreshFailed,
-                        requiredIds: request.includeAssets ? references.referencedIds : new Set<string>(),
-                        fileIds: references.fileIds,
-                        ...(record?.folderBaseName ? { folderBaseName: record.folderBaseName } : {}) };
-                };
-                const source = describeSource(conversation);
+                const source: ExportSource = describeExportSource(request, key, account, conversation, refreshFailed, record?.folderBaseName);
                 options.onConversationPrepared?.(key);
-                const prepare = async (source: ExportSource, plan: ExportPathPlan | undefined, previous?: PreparedResources): Promise<PendingExport> => {
-                    const reused = new Set<string>();
-                    if (directory && plan) {
-                        const checks = [...source.requiredIds].flatMap(id => {
-                            const path = plan.resources[id];
-                            return path ? [{ id, path }] : [];
-                        });
-                        const remaining = checks.values();
-                        let stopped = false;
-                        const checkExisting = async (): Promise<void> => {
-                            try {
-                                for (const { id, path } of remaining) {
-                                    if (stopped) return;
-                                    signal.throwIfAborted();
-                                    if (await folderFileExists(directory, path)) reused.add(id);
-                                }
-                            } catch (error) {
-                                stopped = true;
-                                throw error;
-                            }
-                        };
-                        // Independent read-only folder probes must not serialize every attachment.
-                        const settled = await Promise.allSettled(Array.from({ length: Math.min(4, checks.length) }, checkExisting));
-                        for (const outcome of settled) if (outcome.status === 'rejected') throw outcome.reason;
-                    }
-                    // A refresh retries failed identities only; successful bytes remain task-owned.
-                    const requiredIds = new Set([...source.requiredIds].filter(id => !reused.has(id) && !previous?.get(id)?.ok));
-                    const acquired = await prepareExportResources(source.conversation.detail.assets, requiredIds,
-                        (asset, abort) => assetAcquireSemaphore.run(() => {
-                            const observe = (diagnostic: Diagnostic) => diagnose({
-                                key, stage: 'resource', ...diagnostic,
-                                details: { resourceId: asset.id, providerId: account.providerId, observation: diagnostic.details ?? null },
-                            });
-                            return options.importedResources?.has(key, asset.id)
-                                ? options.importedResources.acquire(key, asset, abort,
-                                    () => providerFor(account.providerId).acquireResource(key, asset, abort, observe), observe)
-                                : providerFor(account.providerId).acquireResource(key, asset, abort, observe);
-                        }, abort ?? signal), signal, (completed, total, result) => {
-                            if (result?.ok) downloadedResources.add(JSON.stringify([key.accountId, key.conversationId, result.resourceId]));
-                            options.onResourceProgress?.({ key, completed: completed + reused.size, total: total + reused.size, downloaded: downloadedResources.size });
-                            diagnose({ key, stage: 'resource', severity: 'info', code: 'RESOURCE_ACQUISITION_PROGRESS',
-                                message: `Attachments ${completed}/${total}`, details: { completed, total, downloaded: downloadedResources.size } });
-                        });
-                    const prepared = new Map<string, ResourceResult>();
-                    for (const id of source.requiredIds) {
-                        const value = acquired.get(id) ?? previous?.get(id);
-                        if (value && !reused.has(id)) prepared.set(id, value);
-                    }
-                    return { ...source, prepared, reused };
-                };
+
+                const prepare = (targetSource: ExportSource, targetPlan: ExportPathPlan | undefined, prev?: PendingExport['prepared']) =>
+                    prepareSourceResources({
+                        source: targetSource, plan: targetPlan, previous: prev, directory, signal,
+                        options, providerFor, assetAcquireSemaphore, downloadedResources, diagnose,
+                    });
+
                 const plan = linkedPlanner?.(conversation, new Map(), source.fileIds, source.folderBaseName, source.requiredIds, directory ? account : undefined);
-                const body = plan ? await renderGroup({ ...source, prepared: new Map(), reused: new Set() },
-                    { ...plan, externalResourceIds: new Set() }) : undefined;
+                const body = plan ? await renderGroup({ ...source, prepared: new Map(), reused: new Set() }, { ...plan, externalResourceIds: new Set() }) : undefined;
                 let bodyWritten: Promise<void> | undefined;
                 if (body) {
                     if (directory) {
-                        bodyWritten = writeFolder(body.files, directory).then(() => bodyDelivered(key));
-                        // The completion task observes this failure after preparation settles.
+                        bodyWritten = delivery.writeFolder(body.files, directory).then(() => delivery.bodyDelivered(key));
                         void bodyWritten.catch(() => {});
                     } else {
                         bodies.push({ group: body, hasAttachments: source.requiredIds.size > 0 });
@@ -617,6 +321,7 @@ export async function executeExportWithSession(
                     }
                     if (!source.requiredIds.size && !directory) continue;
                 }
+
                 const pendingSlot = !body && !(folderPlanner && directory) ? pendingSlots.push(undefined) - 1 : -1;
                 type AcquiredOutcome =
                     | { readonly ok: true; readonly item: PendingExport; readonly finalPlan: ExportPathPlan | undefined; readonly sourceChanged: boolean }
@@ -626,14 +331,8 @@ export async function executeExportWithSession(
                     let item = await prepare(source, plan);
                     let finalPlan = plan;
                     let sourceChanged = false;
-                    // Body timestamps do not establish whether signed resource URLs remain usable.
-                    // Refresh once on an actual access/expiry response, then rebuild references from
-                    // committed facts: a new source URI may also change the resource's identity.
-                    if ([...item.prepared.values()].some(value => !value.ok
-                        && value.code !== 'RESOURCE_LOCATOR_UNAVAILABLE'
-                        && value.httpStatus !== undefined && [401, 403, 404, 410].includes(value.httpStatus))) {
-                        diagnose({ key, stage: 'resource_refresh', severity: 'info', code: 'RESOURCE_REFRESH_STARTED',
-                            message: 'Refreshing source after attachment access failure' });
+                    if (needsResourceRefresh(item.prepared)) {
+                        diagnose({ key, stage: 'resource_refresh', severity: 'info', code: 'RESOURCE_REFRESH_STARTED', message: 'Refreshing source after attachment access failure' });
                         let refreshed = false;
                         try {
                             await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
@@ -641,27 +340,24 @@ export async function executeExportWithSession(
                             refreshed = true;
                         } catch (error) {
                             if (cancelled(error) || (error instanceof Error && error.message === 'conversation_not_found')) throw error;
-                            diagnose({ key, stage: 'resource_refresh', severity: 'warning', code: 'RESOURCE_REFRESH_FAILED', issue: operationIssue(error),
-                                message: error instanceof Error ? error.message : String(error) });
-                            // Cached body freshness is unchanged; retain the original attachment failures.
+                            diagnose({ key, stage: 'resource_refresh', severity: 'warning', code: 'RESOURCE_REFRESH_FAILED',
+                                issue: operationIssue(error), message: error instanceof Error ? error.message : String(error) });
                         }
                         signal.throwIfAborted();
                         if (refreshed) {
-                            const refreshedConversation = await readLocal(key);
+                            const refreshedConversation = await readConversation(key);
                             if (!refreshedConversation) throw new OperationError('DETAIL_UNAVAILABLE', 'No usable local Detail after resource refresh');
                             refreshFailed = false;
-                            const refreshedSource = describeSource(refreshedConversation);
+                            const refreshedSource = describeExportSource(request, key, account, refreshedConversation, false, record?.folderBaseName);
                             const initial = item.prepared;
-
-                            if (body && plan && linkedPlanner
-                                && JSON.stringify(source.conversation) !== JSON.stringify(refreshedConversation)) {
-                                // A changed source can introduce new resource identities. Replace
-                                // the document at its reserved path in the final ZIP or folder.
+                            if (body && plan && linkedPlanner && JSON.stringify(source.conversation) !== JSON.stringify(refreshedConversation)) {
                                 const revised = linkedPlanner(refreshedConversation, new Map(), refreshedSource.fileIds,
                                     refreshedSource.folderBaseName, refreshedSource.requiredIds, directory ? account : undefined);
-                                finalPlan = { ...revised, fileName: plan.fileName,
-                                    resources: Object.fromEntries(Object.entries(revised.resources).map(([id,path]) =>
-                                        [id, plan.resources[id] ?? path])) };
+                                finalPlan = {
+                                    ...revised,
+                                    fileName: plan.fileName,
+                                    resources: Object.fromEntries(Object.entries(revised.resources).map(([id, path]) => [id, plan.resources[id] ?? path])),
+                                };
                                 sourceChanged = true;
                             }
                             item = await prepare(refreshedSource, finalPlan, initial);
@@ -678,47 +374,53 @@ export async function executeExportWithSession(
 
                 const preparedGroup = body && !source.requiredIds.size ? Promise.resolve(body)
                     : retireChain.then(async (): Promise<ExportGroup | undefined> => {
-                    const outcome = await acquisitionPromise;
-                    if (!outcome.ok) throw outcome.error;
-                    signal.throwIfAborted();
-                    const { item, finalPlan, sourceChanged } = outcome;
-                    const { prepared, fileIds } = item;
-                    if (body && finalPlan) {
-                        const failures = Object.fromEntries([...prepared].filter((entry): entry is [string, ResourceFailure] => !entry[1].ok));
-                        // Replace staged body links with known failure placeholders before
-                        // browser delivery, or update the already written folder document.
-                        const correction = sourceChanged || Object.keys(failures).length
-                            ? await renderGroup(item, { ...finalPlan,
-                                resources: Object.fromEntries(Object.entries(finalPlan.resources).filter(([id]) => prepared.get(id)?.ok || item.reused.has(id))),
-                                externalResourceIds: new Set() }) : undefined;
-                        const record = correction?.record ?? recordFor(item, finalPlan, failures, body.record.otherContentMissing ?? false);
-                        const availablePlan = { ...finalPlan, externalResourceIds: new Set([...finalPlan.externalResourceIds]
-                            .filter(id => prepared.get(id)?.ok)) };
-                        const files = [...(correction?.files ?? []), ...buildResourceFiles(availablePlan, prepared)];
-                        if (record.attachmentIssues?.length) files.push({
-                            fileName: `attachment-reports/${resourceScope}/${finalPlan.fileName}/report.json`, mimeType: 'application/json',
-                            content: JSON.stringify({ document: finalPlan.fileName, conversationId: key.conversationId,
-                                failures: record.attachmentIssues.map(issue => ({ ...issue, path: finalPlan.resources[issue.resourceId] })) }, null, 2),
-                        });
-                        const group: ExportGroup = { key, record, files };
-                        if (directory) return group;
-                        settledBodies.set(body, group);
-                    } else if (folderPlanner && directory) {
-                        return renderGroup(item, folderPlanner(item.conversation, prepared, fileIds, item.folderBaseName));
-                    } else if (pendingSlot >= 0) {
-                        pendingSlots[pendingSlot] = item;
-                    }
-                });
+                        const outcome = await acquisitionPromise;
+                        if (!outcome.ok) throw outcome.error;
+                        signal.throwIfAborted();
+                        const { item, finalPlan, sourceChanged } = outcome;
+                        const { prepared, fileIds } = item;
+                        if (body && finalPlan) {
+                            const failures = Object.fromEntries([...prepared].filter((entry): entry is [string, ResourceFailure] => !entry[1].ok));
+                            const correction = sourceChanged || Object.keys(failures).length
+                                ? await renderGroup(item, {
+                                    ...finalPlan,
+                                    resources: Object.fromEntries(Object.entries(finalPlan.resources).filter(([id]) => prepared.get(id)?.ok || item.reused.has(id))),
+                                    externalResourceIds: new Set(),
+                                }) : undefined;
+                            const nextRecord = correction?.record ?? buildExportRecord(request, item, finalPlan, failures, body.record.otherContentMissing ?? false);
+                            const availablePlan = {
+                                ...finalPlan,
+                                externalResourceIds: new Set([...finalPlan.externalResourceIds].filter(id => prepared.get(id)?.ok)),
+                            };
+                            const files = [...(correction?.files ?? []), ...buildResourceFiles(availablePlan, prepared)];
+                            if (nextRecord.attachmentIssues?.length) {
+                                files.push({
+                                    fileName: `attachment-reports/${resourceScope}/${finalPlan.fileName}/report.json`,
+                                    mimeType: 'application/json',
+                                    content: JSON.stringify({
+                                        document: finalPlan.fileName,
+                                        conversationId: key.conversationId,
+                                        failures: nextRecord.attachmentIssues.map(issue => ({ ...issue, path: finalPlan.resources[issue.resourceId] })),
+                                    }, null, 2),
+                                });
+                            }
+                            const group: ExportGroup = { key, record: nextRecord, files };
+                            if (directory) return group;
+                            settledBodies.set(body, group);
+                        } else if (folderPlanner && directory) {
+                            return renderGroup(item, folderPlanner(item.conversation, prepared, fileIds, item.folderBaseName));
+                        } else if (pendingSlot >= 0) {
+                            pendingSlots[pendingSlot] = item;
+                        }
+                    });
                 const taskPromise: Promise<void> = preparedGroup.then(async group => {
-                    // A correction follows its own body, without gating other conversations.
                     await bodyWritten;
                     if (group && directory) {
                         if (group !== body) {
                             signal.throwIfAborted();
-                            if (group.files.length) await writeFolder(group.files, directory);
+                            if (group.files.length) await delivery.writeFolder(group.files, directory);
                         }
-                        // Keep receipts for successful in-flight commits after cancellation.
-                        await finalize([group]);
+                        await delivery.finalize([group]);
                     }
                 }).catch(error => {
                     if (cancelled(error)) controller.abort(error);
@@ -732,10 +434,7 @@ export async function executeExportWithSession(
                     if (queued.get(keyId) === taskPromise) queued.delete(keyId);
                     activeDownstream.delete(taskPromise);
                 });
-                // Preserve input-order preparation while physical commits run independently.
-                retireChain = preparedGroup.then(() => {}, error => {
-                    if (cancelled(error)) controller.abort(error);
-                });
+                retireChain = preparedGroup.then(() => {}, error => { if (cancelled(error)) controller.abort(error); });
                 handedOff = true;
                 activeDownstream.add(taskPromise);
                 queued.set(keyId, taskPromise);
@@ -770,7 +469,6 @@ export async function executeExportWithSession(
             try {
                 const group = await renderGroup(item, plans[index]);
                 groups.push(group);
-                // Browser batches are staged only. Do not mark success until the final download is initiated.
                 report({ key: group.key, status: 'prepared' });
             } catch (error) {
                 if (cancelled(error)) throw error;
@@ -781,8 +479,8 @@ export async function executeExportWithSession(
         signal.throwIfAborted();
         if (groups.length) {
             try {
-                await deliver(groups);
-                await finalize(groups);
+                await delivery.deliver(groups, directory);
+                await delivery.finalize(groups);
             } catch (error) {
                 if (cancelled(error)) throw error;
                 console.warn('[Gemini Exporter] Batch delivery failed', error);
@@ -792,9 +490,13 @@ export async function executeExportWithSession(
         result.aborted = signal.aborted;
         return result;
     } catch (error) {
-        diagnose({ stage: 'run', code: cancelled(error) ? 'EXPORT_CANCELLED' : 'EXPORT_RUN_FAILED',
-            severity: cancelled(error) ? 'info' : 'error', issue: operationIssue(error),
-            message: error instanceof Error ? error.message : String(error) });
+        diagnose({
+            stage: 'run',
+            code: cancelled(error) ? 'EXPORT_CANCELLED' : 'EXPORT_RUN_FAILED',
+            severity: cancelled(error) ? 'info' : 'error',
+            issue: operationIssue(error),
+            message: error instanceof Error ? error.message : String(error),
+        });
         if (!cancelled(error)) throw error;
         controller.abort(error);
         await saveCancelledFiles?.();
