@@ -1,4 +1,5 @@
-import type { Citation } from './extractors.js';
+import type { Citation, GeminiSourceAttribution } from './types.js';
+export type { GeminiSourceAttribution } from './types.js';
 import { isHttpUrl } from './cardNodes.js';
 import { validGeminiTextRange } from '../shared/sourceRanges.js';
 
@@ -8,14 +9,6 @@ export function isGeminiSourceId(value: unknown): value is string {
 }
 
 function wireArray(value: unknown): value is unknown[] { return Array.isArray(value); }
-
-/** Candidate-local source IDs; never search other candidates or turns for a match. */
-export interface GeminiSourceAttribution {
-    sourceId: string;
-    sources: Citation[];
-    /** Present only after both wire byte/UTF-16 ranges verify the selected Markdown. */
-    quote?: { text: string; start: number; end: number };
-}
 
 function verifiedQuote(header: unknown, markdown: string | undefined): GeminiSourceAttribution['quote'] {
     if (markdown === undefined || !wireArray(header) || header.length !== 4 || typeof header[0] !== 'string'
