@@ -1,56 +1,47 @@
 import { installApplicationHost } from '../../runtime/api/applicationHost.js';
 import { installDomainStorage } from '../../runtime/api/domainStorage.js';
-
-import { listIndexes } from '../../application/conversations/catalogQueries.js';
 import { installProviderHost } from '../../runtime/api/providerHost.js';
-import { OperationError } from '../../shared/errors/operationError.js';
-import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
-import { createBackoffNotice } from '../shared/backoffNotice.js';
-import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
-import { SOURCE_PLATFORMS, isSourcePlatform, platformDisplayName } from '../../shared/platformHosts.js';
-import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorization.js';
-import { ScanConnectionError } from '../../runtime/capabilities/scanConnection.js';
-import { elementById as el, requiredElement as control } from '../shared/elements.js';
 import { observeDomainChanges } from '../../runtime/api/domainChanges.js';
-import { exportSummary } from '../shared/exportSummary.js';
-import { conversationSourceSummary, type ConversationSourceSummary } from '../shared/conversationSourceSummary.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
-import { updateSettings, isLiveSaveEffective, type GlobalSettings } from '../../application/settings/index.js';
-import * as Cleanup from '../../application/localCleanup.js';
-import { warmLocalFontCache } from '../../application/export/fonts.js';
-import { ConversationViewState } from './state/conversationsStore.js';
-import type { UIExportRequest } from './controllers/exportController.js';
-import { runExportSession, type ExportRunDiagnostic } from './controllers/exportSession.js';
-import { startSync } from './controllers/syncController.js';
-import type { ScanResult } from '../../application/sync/scanController.js';
-import { createSourceResourceContext } from '../../application/resources.js';
-import { handlePlatformArchiveImport } from './controllers/takeoutController.js';
-import { createOptimisticThemeToggle } from '../shared/themeToggle.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
-import { renderList, unmountList } from './views/listView.js';
-import { ExportIssueCollector } from './state/exportIssues.js';
-import { copyExportFailures } from './views/exportFailures.js';
-import { EXPORT_FORMATS, observeSettings, useSettings, labelPage, labelThemeToggle, text, errorText } from '../shared/settings.js';
-import { readSettings } from '../shared/readSettings.js';
-import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
-import { getLatestEligibleFeature } from '../guidance/featureReleases.js';
+import { OperationError } from '../../shared/errors/operationError.js';
 import { DIRECT_WRITE_THRESHOLD, FEEDBACK_URL } from '../../shared/utils/constants.js';
-import { showDirectWritePrompt } from './views/directWritePrompt.js';
-import { confirmCleanup } from './views/cleanupPrompt.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
-import type { ForegroundTask, ScanEvidence, TaskFeedback, UiMessage } from './state/foregroundTask.js';
-import { mountTaskPanel } from './views/taskPanelView.js';
+import { warmLocalFontCache } from '../../application/export/fonts.js';
+import * as Cleanup from '../../application/localCleanup.js';
+import { createSourceResourceContext } from '../../application/resources.js';
+import { updateSettings, type GlobalSettings } from '../../application/settings/index.js';
+import { getLatestEligibleFeature } from '../guidance/featureReleases.js';
+import { TourGuide, consumeTourIntent } from '../guidance/tourGuide.js';
+import { conversationSourceSummary, type ConversationSourceSummary } from '../shared/conversationSourceSummary.js';
+import { elementById as el, requiredElement as control } from '../shared/elements.js';
+import { exportSummary } from '../shared/exportSummary.js';
+import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
+import { readSettings } from '../shared/readSettings.js';
+import { errorText, observeSettings, text } from '../shared/settings.js';
 import { mountCloudVaultPanel, type CloudVaultControllerHandle } from './controllers/cloudVaultController.js';
+import { createDiagnosticLogController, type LogLevel } from './controllers/diagnosticLogController.js';
+import type { UIExportRequest } from './controllers/exportController.js';
+import { runExportSession, type ExportRunDiagnostic } from './controllers/exportSession.js';
+import { bindSettingsAndDeliveryControls } from './controllers/settingsAndDeliveryController.js';
+import { handlePlatformArchiveImport } from './controllers/takeoutController.js';
+import { createWorkbenchScanController } from './controllers/workbenchScanController.js';
+import { ConversationViewState } from './state/conversationsStore.js';
+import { ExportIssueCollector } from './state/exportIssues.js';
+import type { ForegroundTask, ScanEvidence, TaskFeedback, UiMessage } from './state/foregroundTask.js';
+import { confirmCleanup } from './views/cleanupPrompt.js';
+import { showDirectWritePrompt } from './views/directWritePrompt.js';
+import { copyExportFailures } from './views/exportFailures.js';
+import { renderList, unmountList } from './views/listView.js';
+import { mountTaskPanel } from './views/taskPanelView.js';
+import { renderWorkbench, resolveSourceMessage, resolveUiMessage } from './views/workbenchView.js';
 
 installDomainStorage();
 installApplicationHost();
 installProviderHost();
 
-type Level = 'info' | 'warn' | 'error';
 type Action = 'export' | 'takeout' | 'cleanup';
-interface LogEntry { at: number; level: Level; message: string; takeoutCount?: number }
-const resolveUiMessage = (message: UiMessage): string => typeof message === 'function' ? message() : message;
 
 export async function initWorkbench(): Promise<void> {
     const installationTour = consumeTourIntent();
@@ -62,88 +53,99 @@ export async function initWorkbench(): Promise<void> {
     const isBusy = () => foreground.kind !== 'idle';
     const taskPanel = mountTaskPanel();
     let cloudPanel: CloudVaultControllerHandle | undefined;
-    let scanController: AbortController | null = null;
     let advanceTutorialScan: (() => void) | undefined;
     let currentScanStatus: UiMessage | ConversationSourceSummary | null = null;
     let scanEvidence: ScanEvidence | undefined;
     let scanTakeoutCount: number | undefined;
     let presentationSaving = false;
-    let themeToggle: ReturnType<typeof createOptimisticThemeToggle> | undefined;
     let lastRequest: UIExportRequest | null = null;
     let failed: UIExportRequest['keys'] = [];
     let dismissedFailures = false;
     let currentIssues = new ExportIssueCollector();
     let folderSuggestionPending = false;
     let connectionError: string | null = null;
-    // Browser batches are only staged until their final download is initiated.
     const preparedExportKeys = new Set<string>();
-    const log: LogEntry[] = [];
     let feedback: TaskFeedback = { kind: 'empty' };
     let percent = 0;
     let scanSlow = false;
-    const exportRuns: ExportRunDiagnostic[] = [];
-    let droppedExportRuns = 0;
-    const scanRuns: { startedAt: number; finishedAt: number; accountId: string | null; forceFull: boolean; result: ScanResult; diagnostics: Diagnostic[] }[] = [];
+    let settingsControls: ReturnType<typeof bindSettingsAndDeliveryControls> | undefined;
 
-    const renderLog = () => {
-        const level = control('select', 'logLevel').value;
-        const query = control('input', 'logFilter').value.trim().toLowerCase();
-        const rows = log.filter(entry => {
-            if (level === 'error' && entry.level !== 'error') return false;
-            if (level === 'warn' && entry.level === 'info') return false;
-            const matched = (entry.message + ' ' + entry.level).toLowerCase();
-            return query.startsWith('-') ? !matched.includes(query.slice(1)) : matched.includes(query);
-        });
-        el('log').replaceChildren();
-        for (const entry of rows) {
-            el('log').append(document.createTextNode(`[${new Date(entry.at).toLocaleTimeString()}] [${entry.level}] `));
-            if (entry.takeoutCount !== undefined && entry.message.includes('Takeout')) {
-                const count = entry.takeoutCount;
-                const link = document.createElement('a');
-                link.href = '#takeout';
-                link.textContent = 'Takeout';
-                link.addEventListener('click', event => { event.preventDefault(); showTakeout(count); });
-                const split = entry.message.indexOf('Takeout');
-                el('log').append(entry.message.slice(0, split), link, entry.message.slice(split + 7));
-            } else el('log').append(document.createTextNode(entry.message));
-            el('log').append('\n');
-        }
-        if (!rows.length) el('log').textContent = text('Ready', '就绪');
-        el('log').scrollTop = el('log').scrollHeight;
+    const fileInput = control('input', 'takeoutFileInput');
+    const importButton = control('button', 'btnImportTakeout');
+
+    const showTakeout = (count: number) => TourGuide.showTakeoutPrompt(
+        count,
+        () => {},
+        () => { fileInput.click(); },
+        () => { window.open('https://takeout.google.com/settings/takeout/custom/gemini', '_blank', 'noopener,noreferrer'); },
+        () => {
+            settings = { ...settings, takeoutPromptCompleted: true };
+            void updateSettings({ takeoutPromptCompleted: true }).catch(e => statusError(e));
+        },
+    );
+
+    const logController = createDiagnosticLogController({
+        state,
+        onShowTakeout: showTakeout,
+        onError: error => statusError(error),
+    });
+
+    const cancel = () => {
+        if (foreground.kind !== 'export' || foreground.phase !== 'running') return;
+        foreground = { ...foreground, phase: 'cancelling' };
+        foreground.controller.abort();
+        status(() => text('Cancelling…', '正在取消…'), 'warn');
     };
-    const status = (message: UiMessage, level: Level = 'info', rawLogMessage?: string) => {
+    const retryFailed = () => {
+        if (isBusy() || !lastRequest || !failed.length) return;
+        const fonts = lastRequest.format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
+        void exportRequest({ ...lastRequest, keys: [...failed], skipUnchanged: false }, fonts);
+    };
+    const dismissFailures = () => { dismissedFailures = true; paintTaskPanel(); };
+    const copyFailures = () => {
+        void navigator.clipboard.writeText(copyExportFailures(currentIssues.groups())).catch(e => statusError(e));
+    };
+
+    const paintTaskPanel = () => taskPanel.render({
+        task: foreground,
+        feedback,
+        percent,
+        scanning: scanRunner.isScanning(),
+        scanMessage: currentScanStatus === null || (typeof currentScanStatus === 'object' && currentScanStatus.method !== 'sync')
+            ? null : resolveSourceMessage(currentScanStatus, state, scanEvidence),
+        scanEvidence,
+        scanSlow,
+        onTakeout: scanTakeoutCount === undefined ? undefined : showTakeout.bind(undefined, scanTakeoutCount),
+        sourceSummary: currentScanStatus !== null && typeof currentScanStatus === 'object'
+            ? { ...currentScanStatus, accountId: state.accountId, total: state.indexes.length } : undefined,
+        groups: currentIssues.groups(),
+        failedCount: failed.length,
+        dismissed: dismissedFailures,
+        developerMode: settings?.developerMode ?? false,
+        ready: !!settings,
+        onCancel: cancel,
+        onRetry: retryFailed,
+        onDismiss: dismissFailures,
+        onCopy: copyFailures,
+    });
+
+    const status = (message: UiMessage, level: LogLevel = 'info', rawLogMessage?: string) => {
         connectionError = null;
         feedback = { kind: 'status', message, level };
         paintTaskPanel();
-        // Log entries keep their event-time text; display messages localize on render.
-        log.push({ at: Date.now(), level, message: rawLogMessage ?? resolveUiMessage(message) });
-        if (log.length > 400) log.shift();
-        renderLog();
+        logController.appendLog({ at: Date.now(), level, message: rawLogMessage ?? resolveUiMessage(message) });
     };
-    const statusError = (error: unknown, level: Level = 'error') =>
+    const statusError = (error: unknown, level: LogLevel = 'error') =>
         status(() => errorText(error), level, error instanceof Error ? error.message : String(error));
-    const resolveSourceMessage = (message: UiMessage | ConversationSourceSummary): string => {
-        if (typeof message !== 'object') return resolveUiMessage(message);
-        const summary = conversationSourceSummary(message, state.indexes.length);
-        const result = message.method === 'sync' ? scanEvidence?.result : undefined;
-        if (!result || result.status === 'complete' || result.status === 'up_to_date') return summary;
-        const reasons = new Map(Object.entries({
-            provider_limit: () => text('The online API limit has been reached. Import earlier history with Takeout.', '已达到在线接口上限，更早的历史可以通过 Takeout 导入。'),
-            max_pages: () => state.accounts.find(a => a.id === state.accountId)?.providerId === 'claude'
-                ? text('Claude list coverage cannot yet be verified', 'Claude 列表完整性尚无法验证')
-                : text('Local page budget reached', '已达到本地页数预算'),
-            invalid_response: () => text('Scan failed: invalid Gemini response', '扫描失败：Gemini 返回无效响应'),
-            aborted: () => text('Scan cancelled', '扫描已取消'), error: () => text('Scan failed', '扫描失败'),
-        }));
-        return summary + text('. ', '。') + (reasons.get(result.diagnostics?.failure ?? result.reason ?? result.status)?.()
-            ?? (result.status === 'error' ? text('Scan failed', '扫描失败') : text('Scan finished', '扫描已结束')));
-    };
-    const reportScan = (message: UiMessage | ConversationSourceSummary, level: Level = 'info', rawLogMessage?: string) => {
+    const reportScan = (message: UiMessage | ConversationSourceSummary, level: LogLevel = 'info', rawLogMessage?: string) => {
         currentScanStatus = message;
         paintTaskPanel();
-        log.push({ at: Date.now(), level, message: rawLogMessage ?? resolveSourceMessage(message), takeoutCount: scanTakeoutCount });
-        if (log.length > 400) log.shift();
-        renderLog();
+        logController.appendLog({
+            at: Date.now(),
+            level,
+            message: rawLogMessage ?? resolveSourceMessage(message, state, scanEvidence),
+            takeoutCount: scanTakeoutCount,
+        });
     };
     const progress = (message: UiMessage, nextPercent?: number) => {
         if (foreground.kind === 'idle' || foreground.phase !== 'running' || foreground.controller.signal.aborted) return;
@@ -151,157 +153,51 @@ export async function initWorkbench(): Promise<void> {
         if (nextPercent !== undefined && Number.isFinite(nextPercent)) percent = Math.max(0, Math.min(100, nextPercent));
         paintTaskPanel();
     };
-    const failureGroups = () => currentIssues.groups();
-    const paintTaskPanel = () => taskPanel.render({
-        task: foreground, feedback, percent, scanning: scanController !== null,
-        scanMessage: currentScanStatus === null || typeof currentScanStatus === 'object' && currentScanStatus.method !== 'sync'
-            ? null : resolveSourceMessage(currentScanStatus), scanEvidence, scanSlow,
-        onTakeout: scanTakeoutCount === undefined ? undefined : showTakeout.bind(undefined, scanTakeoutCount),
-        sourceSummary: currentScanStatus !== null && typeof currentScanStatus === 'object'
-            ? { ...currentScanStatus, accountId: state.accountId, total: state.indexes.length } : undefined,
-        groups: failureGroups(), failedCount: failed.length, dismissed: dismissedFailures,
-        developerMode: settings?.developerMode ?? false, ready: !!settings,
-        onCancel: cancel, onRetry: retryFailed, onDismiss: dismissFailures, onCopy: copyFailures,
-    });
-    const renderConversations = () => renderList(state, isBusy(),
+    const renderConversations = () => renderList(
+        state,
+        isBusy(),
         foreground.kind === 'export' ? preparedExportKeys : undefined,
-        new Set(failed.filter(key => key.accountId === state.accountId).map(key => key.conversationId)));
-    const render = () => {
-        labelPage();
-        el('btnPlatformPermissions').textContent = text('Site access', '网站授权');
-        const moreButton = control('button', 'btnMoreActions');
-        moreButton.setAttribute('aria-label', text('More actions', '更多操作'));
-        moreButton.title = text('More actions', '更多操作');
-        moreButton.disabled = isBusy() || !settings;
-        if (moreButton.disabled) {
-            el('moreActionsMenu').hidden = true;
-            moreButton.setAttribute('aria-expanded', 'false');
-        }
-        labelThemeToggle(control('button', 'btnThemeToggle'), settings);
-        control('button', 'btnThemeToggle').disabled = !settings || (themeToggle?.isSaving() ?? false);
-        document.body.dataset.busy = String(isBusy() || scanController !== null);
-        document.body.dataset.foregroundBusy = String(isBusy());
-        document.body.dataset.scanning = String(scanController !== null);
-        cloudPanel?.setBusy(isBusy() || scanController !== null || !settings);
-        document.body.classList.toggle('dev-mode', settings?.developerMode ?? false);
-        const controls = [
-            ['select', ['accountIdSelect', 'format', 'chatFilterSelect']],
-            ['input', ['skipExported', 'includeAssets', 'liveSaveDiskToggle', 'chatSearchInput', 'btnSelectAll']],
-            ['button', ['btnSetDir', 'btnExport', 'btnClearExported', 'btnClearScan',
-                'btnSyncAll', 'btnForceFullScan', 'btnImportTakeout', 'btnTourGuide', 'btnPlatformPermissions']],
-        ] as const;
-        for (const [tag, ids] of controls) for (const id of ids) control(tag, id).disabled = isBusy() || !settings;
-        control('select', 'accountIdSelect').disabled ||= scanController !== null;
-        control('button', 'btnPlatformPermissions').disabled ||= scanController !== null;
-        control('button', 'btnTourGuide').disabled ||= scanController !== null;
-        for (const id of ['devToggle', 'langToggle'])
-            control('input', id).disabled = !settings || presentationSaving;
-        el('delivery').setAttribute('aria-label', text('Export to', '导出到'));
-        const folderSelected = settings?.exportDelivery === 'folderWriter';
-        for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="delivery"]')) {
-            radio.checked = radio.value === (settings?.exportDelivery ?? 'browserDownload');
-            radio.disabled = isBusy() || !settings;
-        }
-        el('localFolderControls').classList.toggle('is-disabled', !folderSelected);
-        el('localFolderControls').dataset.authorized = String(folderSelected && directoryAvailable);
-        const selector = control('select', 'accountIdSelect');
-        selector.setAttribute('aria-label', text('Account', '账户'));
-        el('chatSearchInput').setAttribute('aria-label', text('Search title or ID', '搜索标题或 ID'));
-        selector.replaceChildren();
-        for (const account of state.accounts) {
-            const option = document.createElement('option');
-            option.value = account.id;
-            const provider = platformDisplayName(isSourcePlatform(account.providerId) ? account.providerId : 'gemini');
-            option.textContent = `${provider} · ${account.displayName || account.email || account.providerAccountId}`;
-            selector.append(option);
-        }
-        selector.value = state.accountId ?? '';
-        selector.style.display = state.accounts.length ? 'inline-flex' : 'none';
-        const account = state.accounts.find(a => a.id === state.accountId);
-        const name = account?.displayName || account?.email || account?.providerAccountId || text('No local account', '暂无本地账户');
-        el('accountName').textContent = state.accounts.length ? '' : text('Connect a platform', '请先连接平台');
-        el('accountName').style.display = state.accounts.length ? 'none' : 'inline-flex';
-        el('btnImportTakeout').title = text('Import a ZIP archive for the selected platform', '导入当前所选平台的 ZIP 压缩包');
-        const zipSupported = !state.accountId || account?.providerId === 'gemini' || account?.providerId === 'chatgpt';
-        el('takeoutAccountName').textContent = state.accountId
-            ? zipSupported ? `→ ${name}` : text('ZIP import is unavailable for this platform.', '此平台暂不支持 ZIP 导入。')
-            : text('First import', '首次导入');
-        el('takeoutAccountName').title = state.accountId ? name : text('Creates a default Gemini account after choosing a ZIP', '选定 ZIP 后创建 Gemini 默认账户');
-        selector.title = name;
-        el('ver').textContent = chrome.runtime.getManifest().version;
-        if (settings) {
-            control('select', 'format').value = settings.defaultFormat;
-            control('input', 'skipExported').checked = settings.skipExported;
-            control('input', 'includeAssets').checked = settings.includeAssets;
-            control('input', 'devToggle').checked = settings.developerMode;
-            const en = !document.documentElement.lang.startsWith('zh');
-            control('input', 'langToggle').checked = en;
-            el('labelLangEn').style.color = en ? 'var(--text)' : 'var(--muted)';
-            el('labelLangZh').style.color = en ? 'var(--muted)' : 'var(--text)';
-            // Changing the export destination or format pauses Live Save without forgetting intent.
-            control('input', 'liveSaveDiskToggle').checked = settings.enabledDisk;
-            control('input', 'liveSaveDiskToggle').disabled =
-                isBusy() || !folderSelected || settings.defaultFormat !== 'markdown' || !directoryAvailable;
-            const liveStatus = el('liveSaveStatus');
-            liveStatus.hidden = !settings.enabledDisk;
-            liveStatus.textContent = isLiveSaveEffective(settings, directoryAvailable)
-                ? text('Live Save active', '实时保存已开启')
-                : !folderSelected
-                    ? text('Paused: select local folder to resume', '已暂停 · 选择本地文件夹后恢复')
-                    : settings.defaultFormat !== 'markdown'
-                        ? text('Paused: Markdown only; switch back to resume', '已暂停 · 仅支持 Markdown，切回后恢复')
-                        : text('Paused: authorize a folder to resume', '已暂停 · 请选择或重新授权文件夹');
-        }
-        // The folder picker and Live Save share a handle and depend on folder delivery.
-        control('button', 'btnSetDir').disabled = isBusy() || !folderSelected;
-        const handle = Directory.getDirHandle();
-        const pending = Directory.getPendingPermissionHandle();
-        const folderName = handle?.name || pending?.name;
-        el('dirLabel').textContent = folderName || text('No folder selected', '未选择文件夹');
-        el('dirLabel').title = folderName || text('No folder selected', '尚未选择文件夹');
-        el('dirPermissionLabel').textContent = handle && directoryAvailable
-            ? text('Authorized', '已授权')
-            : pending ? text('Permission needs renewal', '需要重新授权')
-                : text('Not authorized', '尚未授权');
-        control('button', 'btnSetDir').textContent = pending
-            ? text('Reauthorize', '重新授权')
-            : handle ? text('Change', '更换') : text('Choose folder', '选择文件夹');
-        control('button', 'btnImportTakeout').disabled = isBusy() || scanController !== null || !settings ||
-            !zipSupported;
-        for (const id of ['btnClearExported', 'btnClearScan']) control('button', id).disabled = isBusy() || scanController !== null || !state.accountId;
-        control('button', 'btnForceFullScan').disabled = isBusy() || scanController !== null || !settings?.developerMode;
-        const syncButton = control('button', 'btnSyncAll');
-        syncButton.disabled = scanController ? scanController.signal.aborted : isBusy() || !settings;
-        syncButton.textContent = scanController
-            ? scanController.signal.aborted ? text('Stopping sync…', '正在停止同步…') : text('Stop sync', '停止同步')
-            : text('Sync All', '同步会话');
-        syncButton.title = scanController
-            ? text('Stop syncing; already saved conversations are kept', '停止同步，已保存的对话会保留')
-            : text('Scan and sync conversations for the current account', '扫描并同步当前账号的会话');
-        renderConversations();
-        control('button', 'btnExport').disabled ||= !settings || folderSuggestionPending;
-        paintTaskPanel();
-    };
+        new Set(failed.filter(key => key.accountId === state.accountId).map(key => key.conversationId)),
+    );
+    const render = () => renderWorkbench({
+        state,
+        settings,
+        busy: isBusy(),
+        scanning: scanRunner.isScanning(),
+        scanAborted: scanRunner.isScanAborted(),
+        presentationSaving,
+        themeSaving: settingsControls?.isThemeSaving() ?? false,
+        directoryAvailable,
+        folderSuggestionPending,
+        onCloudBusy: busy => cloudPanel?.setBusy(busy),
+        onRenderConversations: renderConversations,
+        onPaintTaskPanel: paintTaskPanel,
+    });
+
     const refresh = async (changedAccountId?: string) => {
         if (await state.refresh(changedAccountId)) render();
         advanceTutorialScan?.();
         const previousError = connectionError;
         const accountId = state.accountId;
-        if (!previousError || isBusy() || scanController || !accountId) return;
+        if (!previousError || isBusy() || scanRunner.isScanning() || !accountId) return;
         try {
             const connected = await resolveScanTarget(accountId);
-            // An intervening operation/account switch must keep its own status.
-            if (connected === accountId && state.accountId === accountId && !isBusy() && !scanController && connectionError === previousError)
+            if (connected === accountId && state.accountId === accountId && !isBusy() && !scanRunner.isScanning() && connectionError === previousError) {
                 reportScan(() => text('Account connected. Sync conversations to refresh history.', '账号已连接，可同步会话更新历史。'));
+            }
         } catch { /* Keep actionable guidance until a verified Content source is available. */ }
     };
+
     const select = async (id: string) => {
         if (id !== state.accountId) {
             lastRequest = null; failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false;
             currentScanStatus = null; scanEvidence = undefined; scanTakeoutCount = undefined; feedback = { kind: 'empty' };
         }
-        state.selectAccount(id); render(); await refresh();
+        state.selectAccount(id);
+        render();
+        await refresh();
     };
+
     const perform = async (kind: Action, task: (signal: AbortSignal) => Promise<void>) => {
         if (isBusy()) return;
         const taskController = new AbortController();
@@ -311,47 +207,76 @@ export async function initWorkbench(): Promise<void> {
         try { await task(taskController.signal); }
         catch (error) { statusError(error); }
         finally {
-            // Keep conflicting operations locked until the final persisted facts are read.
             foreground = { kind, phase: 'refreshing', controller: taskController };
             paintTaskPanel();
             try { await refresh(); } catch (error) { statusError(error); }
             foreground = { kind: 'idle' }; render();
         }
     };
+
+    const scanRunner = createWorkbenchScanController({
+        state,
+        isBusy,
+        setSettings: next => { settings = next; },
+        clearFeedback: () => { feedback = { kind: 'empty' }; },
+        setScanEvidence: next => { scanEvidence = next; },
+        setScanTakeoutCount: next => { scanTakeoutCount = next; },
+        setScanSlow: next => { scanSlow = next; },
+        setConnectionError: next => { connectionError = next; },
+        setAdvanceTutorialScan: next => { advanceTutorialScan = next; },
+        getAdvanceTutorialScan: () => advanceTutorialScan,
+        recordScanRun: logController.recordScanRun,
+        reportScan,
+        showTakeout,
+        select,
+        refresh,
+        render,
+        paintTaskPanel,
+        statusError,
+    });
+
     const exportRequest = async (request: UIExportRequest, fonts: Promise<void>) => {
         if (isBusy()) return;
         const finishTutorialExport = TourGuide.beginExport();
         let tutorialExportSucceeded = false;
         let successfulExports = 0;
-        await perform('export', async (signal) => {
+        await perform('export', async signal => {
             lastRequest = { ...request, keys: request.keys.map(key => ({ ...key })) };
-            const run: ExportRunDiagnostic = { startedAt: Date.now(), request: lastRequest,
-                items: [], diagnostics: [], issues: new ExportIssueCollector(), droppedDiagnostics: 0 };
+            const run: ExportRunDiagnostic = {
+                startedAt: Date.now(), request: lastRequest,
+                items: [], diagnostics: [], issues: new ExportIssueCollector(), droppedDiagnostics: 0,
+            };
             currentIssues = run.issues;
-            exportRuns.push(run);
-            if (exportRuns.length > 10) { exportRuns.shift(); droppedExportRuns++; }
+            logController.recordExportRun(run);
             const titleFor = (key: UIExportRequest['keys'][number] | undefined) => key
                 && state.indexes.find(index => index.key.accountId === key.accountId
                     && index.key.conversationId === key.conversationId)?.title;
             failed = []; dismissedFailures = false; preparedExportKeys.clear(); render();
             const { result, deliveredCount } = await runExportSession(run, {
-                signal, importedResources, titleFor,
+                signal,
+                importedResources,
+                titleFor,
                 prepare: async () => {
                     await fonts;
-                    if (request.delivery === 'folderWriter' && !await Directory.verifyDirPermission(Directory.getDirHandle()))
+                    if (request.delivery === 'folderWriter' && !await Directory.verifyDirPermission(Directory.getDirHandle())) {
                         throw new OperationError('DIRECTORY_PERMISSION_REQUIRED', 'Authorize a folder first');
+                    }
                 },
-                onStart: status, onProgress: progress, onIssuesChanged: paintTaskPanel,
+                onStart: status,
+                onProgress: progress,
+                onIssuesChanged: paintTaskPanel,
                 onBodyDelivered: key => {
                     if (key.accountId === state.accountId) preparedExportKeys.delete(key.conversationId);
                     renderConversations();
                 },
                 onItemUpdate: update => {
                     if (update.status === 'failed' && !failed.some(key =>
-                        key.accountId === update.key.accountId && key.conversationId === update.key.conversationId))
+                        key.accountId === update.key.accountId && key.conversationId === update.key.conversationId)) {
                         failed = [...failed, update.key];
-                    if (update.status === 'exported')
+                    }
+                    if (update.status === 'exported') {
                         failed = failed.filter(key => key.accountId !== update.key.accountId || key.conversationId !== update.key.conversationId);
+                    }
                     if (update.key.accountId === state.accountId) {
                         if (update.status === 'prepared') preparedExportKeys.add(update.key.conversationId);
                         else preparedExportKeys.delete(update.key.conversationId);
@@ -370,172 +295,23 @@ export async function initWorkbench(): Promise<void> {
                 : ''), failed.length || result.aborted || result.partial ? 'warn' : 'info');
         });
         finishTutorialExport?.(tutorialExportSucceeded);
-        if (successfulExports > 0 && tutorialExportSucceeded) void showRatingPromptIfEligible().catch(error => console.warn('[Rating prompt]', error));
-    };
-    const showTakeout = (count: number) => TourGuide.showTakeoutPrompt(count,
-        () => {}, () => { fileInput.click(); },
-        () => { window.open('https://takeout.google.com/settings/takeout/custom/gemini', '_blank', 'noopener,noreferrer'); },
-        () => {
-            settings = { ...settings, takeoutPromptCompleted: true };
-            void updateSettings({ takeoutPromptCompleted: true }).catch(e => statusError(e));
-        });
-    const scan = async (forceFull = false) => {
-        if (isBusy() || scanController) return;
-        feedback = { kind: 'empty' };
-        scanTakeoutCount = undefined;
-        const taskController = new AbortController();
-        scanController = taskController;
-        const signal = taskController.signal;
-        render();
-        let connectionFailure: ScanConnectionError | undefined;
-        const finishTutorialScan = TourGuide.beginScan();
-        let scanHasResults = false;
-        advanceTutorialScan = finishTutorialScan ? () => {
-            if (!scanHasResults || !state.indexes.length) return;
-            advanceTutorialScan = undefined;
-            finishTutorialScan(true);
-        } : undefined;
-        try {
-            const selected = state.accounts.find(a => a.id === state.accountId);
-            const platform = SOURCE_PLATFORMS.find(platform => platform === selected?.providerId);
-            const access = platform ? await hasPlatformAccess(platform) : true;
-            signal.throwIfAborted();
-            if (selected && platform && !access) {
-                TourGuide.showAccountConnection(platform, selected.id, selected.email || selected.displayName || platform,
-                    () => { void scan(forceFull); });
-                return;
-            }
-            const startedAt = Date.now();
-            scanEvidence = undefined;
-            reportScan(() => text('Resolving conversation source…', '正在确认会话来源…'));
-            const backoff = createBackoffNotice();
-            const diagnostics: Diagnostic[] = [];
-            let scanProgressMessage = () => text('Resolving conversation source…', '正在确认会话来源…');
-            const paintScanProgress = () => reportScan(() => scanProgressMessage() + (backoff.message() ? ` · ${backoff.message()}` : ''));
-            const stopBackoffTicker = backoff.startTicker(paintScanProgress);
-            let baselineIds = new Set<string>();
-            const result = await startSync(state.accountId ?? undefined, { signal, forceFull,
-                onDiagnostic: diagnostic => {
-                    if (diagnostics.length < 1000) diagnostics.push(diagnostic);
-                    if (backoff.observe(diagnostic)) paintScanProgress();
-                },
-                onTarget: async id => {
-                    baselineIds = new Set((await listIndexes(id)).map(row => row.key.conversationId));
-                    await select(id);
-                }, onProgress: p => {
-                    if (signal.aborted) return;
-                    scanEvidence = { accountId: state.accountId, progress: p };
-                    scanProgressMessage = () => text(`Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
-                        `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`);
-                    paintScanProgress();
-                    if (advanceTutorialScan && p.conversationsFetched > 0) {
-                        scanHasResults = true;
-                        // A concurrent domain refresh may supersede this read. Every
-                        // completed refresh checks the committed list before advancing.
-                        void refresh().catch(statusError);
-                    }
-                    scanSlow = p.conversationsFetched > 200 && state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini';
-                    paintTaskPanel();
-                } }).finally(stopBackoffTicker);
-            scanHasResults ||= result.conversationsFetched > 0;
-            scanRuns.push({ startedAt, finishedAt: Date.now(), accountId: state.accountId, forceFull, result, diagnostics });
-            if (scanRuns.length > 10) scanRuns.shift();
-            const reason = result.diagnostics?.failure ?? result.reason ?? result.status;
-            const succeeded = result.status === 'complete' || result.status === 'up_to_date';
-            const committedProgress = { pagesFetched: result.pagesFetched, conversationsFetched: result.conversationsFetched };
-            scanEvidence = { accountId: state.accountId, progress: committedProgress,
-                result: { ...committedProgress, status: result.status, reason: result.reason, diagnostics: result.diagnostics } };
-            await refresh();
-            const added = result.indexChanges?.added ?? state.indexes.filter(row => !baselineIds.has(row.key.conversationId)).length;
-            if (reason === 'provider_limit' && state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini')
-                scanTakeoutCount = result.conversationsFetched;
-            reportScan({ method: 'sync',
-                status: succeeded ? 'complete' : result.status === 'partial_limit' ? 'partial'
-                    : result.status === 'aborted' ? 'aborted' : 'error',
-                read: result.conversationsFetched, added, updated: result.indexChanges?.updated,
-            },
-                result.status === 'error' ? 'error' : result.status === 'aborted' || result.status === 'partial_limit' ? 'warn' : 'info',
-                result.status === 'error' ? `Sync ${result.status} (${reason}) · ${result.pagesFetched} pages · ${result.conversationsFetched} source entries` : undefined);
-            settings = await readSettings();
-            if (state.accounts.find(a => a.id === state.accountId)?.providerId === 'gemini'
-                && result.conversationsFetched > 150 && !settings.takeoutPromptCompleted) {
-                showTakeout(result.conversationsFetched);
-            }
-        } catch (error) {
-            if (signal.aborted) reportScan(() => text('Sync stopped', '同步已停止'));
-            else {
-                reportScan(() => errorText(error), 'error', error instanceof Error ? error.message : String(error));
-                if (error instanceof ScanConnectionError) {
-                    connectionFailure = error;
-                    if (error.platform === 'gemini') connectionError = error.message;
-                } else if (error instanceof OperationError && error.code === 'NO_CONNECTED_ACCOUNT') {
-                    connectionError = error.message;
-                }
-            }
-        } finally {
-            try { await refresh(); } catch (error) { reportScan(() => errorText(error), 'error'); }
-            scanController = null;
-            scanSlow = false;
-            render();
-            advanceTutorialScan?.();
-            finishTutorialScan?.(false);
-        }
-        const account = state.accounts.find(a => a.id === state.accountId);
-        if (connectionFailure && account) {
-            TourGuide.showAccountConnection(connectionFailure.platform, account.id, account.email || account.displayName || connectionFailure.platform,
-                () => { void scan(forceFull); });
+        if (successfulExports > 0 && tutorialExportSucceeded) {
+            void showRatingPromptIfEligible().catch(error => console.warn('[Rating prompt]', error));
         }
     };
-    const moreActionsButton = control('button', 'btnMoreActions');
-    const moreActionsMenu = el('moreActionsMenu');
-    const closeMoreActions = () => {
-        moreActionsMenu.hidden = true;
-        moreActionsButton.setAttribute('aria-expanded', 'false');
-    };
-    moreActionsButton.addEventListener('click', () => {
-        if (isBusy() || !settings) return;
-        moreActionsMenu.hidden = !moreActionsMenu.hidden;
-        moreActionsButton.setAttribute('aria-expanded', String(!moreActionsMenu.hidden));
-    });
-    moreActionsMenu.addEventListener('click', event => {
-        if (event.target instanceof Element && event.target.closest('button')) {
-            closeMoreActions();
-            moreActionsButton.focus();
-        }
-    });
-    control('dialog', 'cleanupModal').addEventListener('close', () => {
-        if (moreActionsMenu.hidden) moreActionsButton.focus();
-    });
-    document.addEventListener('pointerdown', event => {
-        if (event.target instanceof Node && !moreActionsButton.parentElement?.contains(event.target))
-            closeMoreActions();
-    });
-    document.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && !moreActionsMenu.hidden) {
-            closeMoreActions();
-            moreActionsButton.focus();
-        }
-    });
+
     el('btnSyncAll').addEventListener('click', () => {
-        if (scanController) {
-            scanController.abort();
-            reportScan(() => text('Stopping sync…', '正在停止同步…'), 'warn');
-            render();
-        } else void scan();
+        if (scanRunner.isScanning()) scanRunner.stopScan();
+        else void scanRunner.scan();
     });
-    el('btnForceFullScan').addEventListener('click', () => { if (settings.developerMode) void scan(true); });
-    const cancel = () => {
-        if (foreground.kind !== 'export' || foreground.phase !== 'running') return;
-        foreground = { ...foreground, phase: 'cancelling' };
-        foreground.controller.abort();
-        status(() => text('Cancelling…', '正在取消…'), 'warn');
-    };
+    el('btnForceFullScan').addEventListener('click', () => { if (settings.developerMode) void scanRunner.scan(true); });
     el('btnExport').addEventListener('click', () => {
         const keys = document.body.dataset.guidedSelection === 'true' ? state.keys().slice(0, 1) : state.keys();
         if (isBusy() || folderSuggestionPending || !keys.length || !settings) return;
-        const request: UIExportRequest = { keys, format: settings.defaultFormat,
-            delivery: settings.exportDelivery ?? 'browserDownload',
-            includeAssets: settings.includeAssets, skipUnchanged: settings.skipExported };
+        const request: UIExportRequest = {
+            keys, format: settings.defaultFormat, delivery: settings.exportDelivery ?? 'browserDownload',
+            includeAssets: settings.includeAssets, skipUnchanged: settings.skipExported,
+        };
         const start = (delivery: UIExportRequest['delivery']) => {
             const fonts = request.format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
             void exportRequest({ ...request, delivery }, fonts);
@@ -543,14 +319,14 @@ export async function initWorkbench(): Promise<void> {
         if (request.delivery === 'browserDownload' && keys.length > DIRECT_WRITE_THRESHOLD
             && !settings.directWritePromptCompleted && !TourGuide.isActive()) {
             const shown = showDirectWritePrompt(keys.length, () => {
-                // The picker/reauthorization must start in the modal button's user gesture.
                 const permission = Directory.getPendingPermissionHandle()
                     ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle();
                 folderSuggestionPending = true; render();
                 void (async () => {
                     try {
-                        if (!await permission || !await Directory.verifyDirPermission(Directory.getDirHandle()))
+                        if (!await permission || !await Directory.verifyDirPermission(Directory.getDirHandle())) {
                             throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
+                        }
                         directoryAvailable = true;
                         await updateSettings({ exportDelivery: 'folderWriter' });
                         settings = await readSettings(); render();
@@ -560,67 +336,14 @@ export async function initWorkbench(): Promise<void> {
                 })();
             }, () => start('browserDownload'));
             if (shown) {
-                // Mark at first display, not on which option the user picks (or whether they close).
                 settings = { ...settings, directWritePromptCompleted: true };
-                void updateSettings({ directWritePromptCompleted: true })
-                    .catch(error => statusError(error));
+                void updateSettings({ directWritePromptCompleted: true }).catch(error => statusError(error));
                 return;
             }
         }
         start(request.delivery);
     });
-    const retryFailed = () => {
-        if (isBusy() || !lastRequest || !failed.length) return;
-        const fonts = lastRequest.format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
-        void exportRequest({ ...lastRequest, keys: [...failed], skipUnchanged: false }, fonts);
-    };
-    const dismissFailures = () => { dismissedFailures = true; paintTaskPanel(); };
-    const copyFailures = () => {
-        void navigator.clipboard.writeText(copyExportFailures(failureGroups()))
-            .catch(e => statusError(e));
-    };
-    el('btnSetDir').addEventListener('click', () => {
-        if (isBusy() || settings?.exportDelivery !== 'folderWriter') return;
-        const permission = Directory.getPendingPermissionHandle() ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle();
-        void perform('cleanup', async () => {
-            if (!await permission) throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
-            directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
-            status(() => text('Folder authorized', '目录已授权'));
-        });
-    });
-    el('delivery').addEventListener('change', event => {
-        const input = event.target;
-        if (!(input instanceof HTMLInputElement) || input.name !== 'delivery') return;
-        if (isBusy() || !settings || input.disabled) { render(); return; }
-        if (!input.checked) return;
-        const exportDelivery: UIExportRequest['delivery'] =
-            input.value === 'folderWriter' ? 'folderWriter' : 'browserDownload';
-        if (settings.exportDelivery === exportDelivery) return;
-        // Start the native picker directly in the radio's user gesture.
-        const permission = exportDelivery === 'folderWriter' && !directoryAvailable && TourGuide.isLiveSaveStep()
-            ? Directory.getPendingPermissionHandle() ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle()
-            : undefined;
-        const previous = settings;
-        settings = { ...settings, exportDelivery };
-        void perform('cleanup', async () => {
-            try {
-                if (permission) {
-                    try {
-                        if (!await permission) throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
-                        directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
-                        if (!directoryAvailable) throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
-                        status(() => text('Folder authorized. Enable Live Save to continue.', '目录已授权，开启实时保存即可继续。'));
-                    } catch (error) {
-                        if (!(error instanceof DOMException && error.name === 'AbortError')) throw error;
-                        status(() => text('Folder selection cancelled. Choose a folder to continue.', '已取消选择目录，请点击「选择文件夹」重试。'));
-                    }
-                }
-                await updateSettings({ exportDelivery }); settings = await readSettings();
-            } catch (error) { settings = previous; throw error; }
-        });
-    });
-    const fileInput = control('input', 'takeoutFileInput');
-    const importButton = control('button', 'btnImportTakeout');
+
     const importFile = (file: File) => {
         if (isBusy() || importButton.disabled) return;
         const accountId = state.accountId;
@@ -628,21 +351,20 @@ export async function initWorkbench(): Promise<void> {
         return perform('takeout', async () => {
             currentScanStatus = null;
             scanTakeoutCount = undefined;
-            if (!scanController) scanEvidence = undefined;
+            if (!scanRunner.isScanning()) scanEvidence = undefined;
             try {
                 const outcome = await handlePlatformArchiveImport(file, account, accountId, {
                     onStartKind: kind => status(() => kind === 'openai'
                         ? text('Importing OpenAI ZIP…', '正在导入 OpenAI ZIP…')
                         : text('Importing Takeout ZIP…', '正在导入 Takeout ZIP…')),
                     onTarget: select,
-                    onProgress: percent => progress(() => text(`Importing ${percent}%`, `正在导入 ${percent}%`), percent),
+                    onProgress: pct => progress(() => text(`Importing ${pct}%`, `正在导入 ${pct}%`), pct),
                     resources: importedResources,
                 });
                 await refresh();
                 if (outcome.kind === 'openai') {
                     const { result } = outcome;
-                    currentScanStatus = { method: 'openai',
-                        status: result.status === 'partial' ? 'partial' : 'complete', read: result.read, added: result.added };
+                    currentScanStatus = { method: 'openai', status: result.status === 'partial' ? 'partial' : 'complete', read: result.read, added: result.added };
                     const summary = currentScanStatus;
                     if (result.status === 'empty') status(() => text(
                         'This OpenAI ZIP contains no conversation bodies. No conversations were imported.',
@@ -652,8 +374,7 @@ export async function initWorkbench(): Promise<void> {
                         `。跳过 ${result.skipped} 条；${result.missingAssets} 个附件不可用。`), result.status === 'partial' ? 'warn' : 'info');
                 } else {
                     const { result } = outcome;
-                    currentScanStatus = { method: 'takeout',
-                        status: result.status === 'ok' ? 'complete' : 'partial', read: result.imported, added: result.added };
+                    currentScanStatus = { method: 'takeout', status: result.status === 'ok' ? 'complete' : 'partial', read: result.imported, added: result.added };
                     const summary = currentScanStatus;
                     status(() => conversationSourceSummary(summary, state.indexes.length) + (result.status === 'partial'
                         ? text('. Some content or attachments are incomplete.', '。部分内容或附件不完整。') : ''), result.status === 'partial' ? 'warn' : 'info');
@@ -664,31 +385,31 @@ export async function initWorkbench(): Promise<void> {
     importButton.addEventListener('click', () => { if (!isBusy() && !importButton.disabled) fileInput.click(); });
     fileInput.addEventListener('change', () => { const file = fileInput.files?.[0]; if (file) void importFile(file); });
     importButton.addEventListener('dragover', event => event.preventDefault());
-    importButton.addEventListener('drop', event => {
-        event.preventDefault();
-        const file = event.dataTransfer?.files[0];
-        if (file) void importFile(file);
-    });
-    for (const [id, scanRecords] of [['btnClearExported', false], ['btnClearScan', true]] as const)
+    importButton.addEventListener('drop', event => { event.preventDefault(); const file = event.dataTransfer?.files[0]; if (file) void importFile(file); });
+
+    for (const [id, scanRecords] of [['btnClearExported', false], ['btnClearScan', true]] as const) {
         el(id).addEventListener('click', async () => {
             const accountId = state.accountId;
-            if (!accountId || isBusy() || scanController) return;
+            if (!accountId || isBusy() || scanRunner.isScanning()) return;
             const account = state.accounts.find(a => a.id === accountId);
             const name = account?.displayName || account?.email || account?.providerAccountId || accountId;
-            if (!await confirmCleanup(scanRecords, name) || isBusy() || scanController || state.accountId !== accountId) return;
+            if (!await confirmCleanup(scanRecords, name) || isBusy() || scanRunner.isScanning() || state.accountId !== accountId) return;
             void perform('cleanup', async () => {
                 if (scanRecords) {
                     const keys = state.indexes.map(index => index.key);
                     await Cleanup.clearLocalScanRecords(accountId);
                     for (const key of keys) importedResources.releaseConversation(key);
+                } else {
+                    await Cleanup.clearLocalExportRecords(accountId);
                 }
-                else await Cleanup.clearLocalExportRecords(accountId);
                 failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false;
                 status(() => text('Records cleared', '记录已清除'));
             });
         });
+    }
+
     control('select', 'accountIdSelect').addEventListener('change', () => {
-        if (isBusy() || scanController) { render(); return; }
+        if (isBusy() || scanRunner.isScanning()) { render(); return; }
         void select(control('select', 'accountIdSelect').value).catch(e => statusError(e));
     });
     control('input', 'chatSearchInput').addEventListener('input', () => {
@@ -701,12 +422,8 @@ export async function initWorkbench(): Promise<void> {
         if (isBusy()) return;
         const search = control('input', 'chatSearchInput');
         const filter = control('select', 'chatFilterSelect');
-        state.search = '';
-        state.filter = 'all';
-        search.value = state.search;
-        filter.value = state.filter;
-        renderConversations();
-        search.focus();
+        state.search = ''; state.filter = 'all'; search.value = ''; filter.value = 'all';
+        renderConversations(); search.focus();
     });
     control('button', 'btnDeselectHidden').addEventListener('click', () => {
         if (isBusy()) return;
@@ -719,86 +436,25 @@ export async function initWorkbench(): Promise<void> {
         else state.selected.clear();
         renderConversations();
     });
-    const changeControlSetting = (input: HTMLInputElement | HTMLSelectElement, patch: Partial<GlobalSettings>) => {
-        // A disabled Live Save switch must never mutate persisted intent.
-        if (isBusy() || input.disabled) { render(); return; }
-        const finishTutorialSetting = patch.defaultFormat ? TourGuide.beginFormatSelection()
-            : patch.enabledDisk === true ? TourGuide.beginLiveSave() : undefined;
-        const prior = settings; settings = { ...settings, ...patch };
-        let saved = false;
-        void perform('cleanup', async () => {
-            try {
-                await updateSettings(patch); settings = await readSettings();
-                saved = patch.defaultFormat ? settings.defaultFormat === patch.defaultFormat
-                    : settings.enabledDisk && settings.exportDelivery === 'folderWriter'
-                        && settings.defaultFormat === 'markdown' && directoryAvailable;
-            }
-            catch (error) { settings = prior; throw error; }
-        }).then(() => finishTutorialSetting?.(saved));
-    };
-    const formatControl = control('select', 'format');
-    formatControl.addEventListener('change', () => {
-        const format = EXPORT_FORMATS.find(value => value === formatControl.value);
-        if (format) changeControlSetting(formatControl, { defaultFormat: format });
-    });
-    const checkboxSettings: readonly (readonly [HTMLInputElement, 'skipExported' | 'includeAssets' | 'enabledDisk'])[] = [
-        [control('input', 'skipExported'), 'skipExported'],
-        [control('input', 'includeAssets'), 'includeAssets'],
-        [control('input', 'liveSaveDiskToggle'), 'enabledDisk'],
-    ];
-    for (const [input, field] of checkboxSettings) input.addEventListener('change', () => {
-        changeControlSetting(input, { [field]: input.checked });
-    });
-    themeToggle = createOptimisticThemeToggle({
+
+    settingsControls = bindSettingsAndDeliveryControls({
+        isBusy,
         getSettings: () => settings,
         setSettings: next => { settings = next; },
-        syncCommitted: async () => { settings = await readSettings(); },
+        isDirectoryAvailable: () => directoryAvailable,
+        setDirectoryAvailable: next => { directoryAvailable = next; },
+        setPresentationSaving: next => { presentationSaving = next; },
+        isPresentationSaving: () => presentationSaving,
+        performCleanup: task => perform('cleanup', task),
         render,
-        onError: statusError,
+        status,
+        statusError,
     });
-    control('button', 'btnThemeToggle').addEventListener('click', themeToggle.toggle);
-    const savePresentation = async (patch: Pick<GlobalSettings, 'developerMode'> | Pick<GlobalSettings, 'language'>) => {
-        if (!settings || presentationSaving) { render(); return; }
-        const prior = settings;
-        presentationSaving = true;
-        settings = { ...settings, ...patch }; useSettings(settings); render();
-        // Display preferences must not acquire or reset the running foreground task.
-        try { await updateSettings(patch); settings = await readSettings(); }
-        catch (error) { settings = prior; useSettings(prior); statusError(error); }
-        finally { presentationSaving = false; render(); }
-    };
-    control('input', 'devToggle').addEventListener('change', () => {
-        void savePresentation({ developerMode: control('input', 'devToggle').checked });
+    logController.bindControls();
+
+    el('btnPlatformPermissions').addEventListener('click', () => {
+        if (!isBusy() && !scanRunner.isScanning()) TourGuide.showPlatformAuthorization(select);
     });
-    control('input', 'langToggle').addEventListener('change', () => {
-        void savePresentation({ language: control('input', 'langToggle').checked ? 'en' : 'zh' });
-    });
-    el('logFilter').addEventListener('input', renderLog);
-    el('logLevel').addEventListener('change', renderLog);
-    el('btnCopyLog').addEventListener('click', () => {
-        void navigator.clipboard.writeText(el('log').textContent ?? '').catch(e => statusError(e));
-    });
-    el('btnClearLog').addEventListener('click', () => { log.length = 0; renderLog(); });
-    el('btnExportDiag').addEventListener('click', () => {
-        void (async () => {
-            let grantedPermissions: chrome.permissions.Permissions | null = null;
-            try { grantedPermissions = await chrome.permissions.getAll(); } catch { /* Diagnostic export still works without permission inspection. */ }
-            const currentExportIssues = state.indexes.flatMap(index => {
-                const record = state.records[index.key.conversationId];
-                return record?.status === 'partial' ? [{ key: index.key, title: index.title, record,
-                    reasonAvailability: 'Stored outcome only; exact causes require a captured export run' }] : [];
-            });
-            const payload = JSON.stringify({ schemaVersion: 2, diagnosticRevision: 2, generatedAt: Date.now(),
-                environment: { online: navigator.onLine, grantedPermissions },
-                extensionVersion: chrome.runtime.getManifest().version, userAgent: navigator.userAgent,
-                accountId: state.accountId, scanRuns, exportRuns, droppedExportRuns,
-                currentExportIssues, logs: log }, null, 2);
-            const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
-            const link = document.createElement('a'); link.href = url; link.download = 'gemini-exporter-ui-diagnostics.json';
-            link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-        })().catch(statusError);
-    });
-    el('btnPlatformPermissions').addEventListener('click', () => { if (!isBusy() && !scanController) TourGuide.showPlatformAuthorization(select); });
     const prepareTourLiveSave = async () => {
         if (settings?.defaultFormat === 'markdown') return;
         try {
@@ -814,18 +470,19 @@ export async function initWorkbench(): Promise<void> {
         renderConversations();
         await TourGuide.startTour(select, prepareTourLiveSave);
     };
-    el('btnTourGuide').addEventListener('click', () => { if (!isBusy() && !scanController) void startWorkbenchTour(); });
+    el('btnTourGuide').addEventListener('click', () => { if (!isBusy() && !scanRunner.isScanning()) void startWorkbenchTour(); });
+
     const applyOpenedAccount = async (value: unknown) => {
         if (!isAccountId(value)) return;
-        // Consume once: directly opening Options later must not reuse a previous source.
         await chrome.storage.session.remove('openOptionsAccountId');
-        if (isBusy() || scanController) return;
+        if (isBusy() || scanRunner.isScanning()) return;
         if (!state.accounts.some(account => account.id === value)) await refresh();
-        if (!isBusy() && !scanController && state.accounts.some(account => account.id === value)) await select(value);
+        if (!isBusy() && !scanRunner.isScanning() && state.accounts.some(account => account.id === value)) await select(value);
     };
     const onOpenedAccountChange = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
-        if (area === 'session' && changes.openOptionsAccountId)
+        if (area === 'session' && changes.openOptionsAccountId) {
             void applyOpenedAccount(changes.openOptionsAccountId.newValue).catch(error => statusError(error));
+        }
     };
     const stopSettings = observeSettings(() => {
         void readSettings().then(next => {
@@ -859,7 +516,6 @@ export async function initWorkbench(): Promise<void> {
             domainRefreshTimer = undefined;
             domainRefreshing = true;
             void (async () => {
-                // Notifications during a read request one trailing read, never parallel reads.
                 while (pendingDomainAccounts.size) {
                     const accounts = [...pendingDomainAccounts]; pendingDomainAccounts.clear();
                     await refresh(accounts.includes(state.accountId ?? '') ? undefined : accounts[0]);
@@ -875,6 +531,7 @@ export async function initWorkbench(): Promise<void> {
         scheduleDomainRefresh();
         cloudPanel?.onDomainChanged(accountId);
     });
+
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
         cloudPanel?.unmount();
@@ -885,15 +542,15 @@ export async function initWorkbench(): Promise<void> {
         clearTimeout(domainRefreshTimer); pendingDomainAccounts.clear();
         window.removeEventListener('focus', onFocus); TourGuide.destroy();
     }, { once: true });
-    renderLog(); render();
+
+    logController.renderLog(); render();
     await ensureV2Ready();
     settings = await readSettings();
     cloudPanel = mountCloudVaultPanel({
         onStatus: (msg, level) => status(msg, level),
         onRestored: async () => { await refresh(); },
     });
-    renderLog(); // Localize initial 'Ready' once; subsequent toggles never retranslate the log.
-    // First paint must unlock Settings even when the account registry is empty.
+    logController.renderLog();
     await state.refresh(); render();
     chrome.storage.onChanged.addListener(onOpenedAccountChange);
     await applyOpenedAccount((await chrome.storage.session.get('openOptionsAccountId')).openOptionsAccountId);
@@ -915,12 +572,11 @@ export async function initWorkbench(): Promise<void> {
             : feature.kind === 'platforms' ? TourGuide.showPlatformHighlights()
             : TourGuide.showV2UpgradeSpotlight(() => { void chrome.tabs.create({ url: FEEDBACK_URL }); }));
         if (shown) {
-            // Persist on display, not dismissal; each announced feature is shown at most once.
-            void updateSettings({ lastSeenFeatureVersion: feature.version })
-                .catch(error => statusError(error));
+            void updateSettings({ lastSeenFeatureVersion: feature.version }).catch(error => statusError(error));
         }
     }
 }
+
 if (typeof document !== 'undefined') {
     const start = () => {
         void initWorkbench().catch(error => {
