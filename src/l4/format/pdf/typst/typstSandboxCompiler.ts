@@ -25,7 +25,7 @@ import {
 
 const PDF_MAGIC = '%PDF-';
 
-export interface TypstSandboxCompilerOptions {
+interface TypstSandboxCompilerOptions {
     host?: SandboxHost;
     wasmPath?: string;
     fontPaths?: readonly string[];
