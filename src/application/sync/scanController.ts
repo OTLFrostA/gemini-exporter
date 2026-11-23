@@ -9,7 +9,7 @@ import { ProviderListError, type ListFailureDiagnostics } from '../../l1/client/
 import CoverageAdmission, { type ScanHead } from '../../l2/coverageAdmission.js';
 
 interface ScanRequest { accountId: string; forceFull?: boolean }
-export type ScanStatus = 'up_to_date' | 'complete' | 'partial_limit' | 'aborted' | 'error';
+type ScanStatus = 'up_to_date' | 'complete' | 'partial_limit' | 'aborted' | 'error';
 export interface ScanResult {
     status: ScanStatus;
     pagesFetched: number;
