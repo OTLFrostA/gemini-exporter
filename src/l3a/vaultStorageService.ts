@@ -19,7 +19,6 @@ export {
     type CloudOutboxEntry,
     type CloudSyncSessionState,
     type CloudSyncedRecordState,
-    type CloudVaultBackendType,
 } from './cloudSyncStore.js';
 export {
     activateVaultKeyring,
