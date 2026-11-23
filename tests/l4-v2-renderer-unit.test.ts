@@ -6,7 +6,7 @@ import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
 import { renderDocumentTypst } from './helpers/renderTypstFixture.js';
 import type { DocumentAst } from '../src/l3b/ast/ast.js';
-import type { ResourceBindings } from '../src/l4/packaging/resourceBindings.js';
+import type { ResourceBindings } from '../src/l4/shared/resourceBindings.js';
 
 const bindings: ResourceBindings = { image: 'assets/Chosen name.png', file: 'files/report.txt' };
 const document: DocumentAst = v2Document([

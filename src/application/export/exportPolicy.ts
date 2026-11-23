@@ -5,7 +5,7 @@ import type { SourceResourceContext } from '../../l1/resources/sourceResources.j
 import type { DocumentAst } from '../../l3b/ast/ast.js';
 import type { ExportArtifact } from '../../l4/artifacts.js';
 import type { ExportPathPlan } from '../../l4/packaging/index.js';
-import type { ResourceBindings } from '../../l4/packaging/resourceBindings.js';
+import type { ResourceBindings } from '../../l4/shared/resourceBindings.js';
 import {
     resourceIssueKind,
     type PreparedResources,

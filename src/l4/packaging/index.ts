@@ -1,6 +1,6 @@
 import type { Account } from '../../l2/accountRegistry.js';
 import type { ReadonlyDomain } from '../../l2/runtimeValidation.js';
-import type { ResourceBindings } from './resourceBindings.js';
+import type { ResourceBindings } from '../shared/resourceBindings.js';
 import type { PreparedResources } from '../../shared/resources/resourceResult.js';
 import type { ExportArtifact } from '../artifacts.js';
 import { buildExportFileName, sanitizeFileName, shortScope } from '../../shared/utils/pathUtils.js';

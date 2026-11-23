@@ -8,7 +8,7 @@ import { GEM_HTML_CSS, GEM_HTML_SCRIPT } from './htmlTemplate.js';
 import { renderMathHtml } from './htmlMath.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { DisplayBlock, DisplayCell, DisplayInline, DisplayMessage, DocumentAst, SourceItem } from '../../../l3b/ast/ast.js';
-import type { ResourceBindings } from '../../packaging/resourceBindings.js';
+import type { ResourceBindings } from '../../shared/resourceBindings.js';
 
 const CANONICAL_EXTRA_CSS = `
 .gem-unknown-block {

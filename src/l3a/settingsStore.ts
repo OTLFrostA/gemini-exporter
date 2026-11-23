@@ -1,17 +1,18 @@
+import { SETTINGS_KEY, LEGACY_DIRECT_WRITE_PROMPT_KEY } from '../shared/types/settings.js';
 import type { GlobalSettings } from '../l2/settings.js';
 
-export const SETTINGS_KEY = 'gemini_exporter_v2_settings';
+export { SETTINGS_KEY };
 
 export async function getStoredSettings(): Promise<Partial<GlobalSettings>> {
     // Keep the canonical single-key Settings read: the first-paint theme bootstrap
     // and UI must observe the same awaited read before applying the stored theme.
     const [data, legacy] = await Promise.all([
         chrome.storage.local.get<{ [SETTINGS_KEY]?: Partial<GlobalSettings> }>(SETTINGS_KEY),
-        chrome.storage.local.get<{ gemini_suppress_direct_write_prompt?: boolean }>('gemini_suppress_direct_write_prompt'),
+        chrome.storage.local.get<{ [LEGACY_DIRECT_WRITE_PROMPT_KEY]?: boolean }>(LEGACY_DIRECT_WRITE_PROMPT_KEY),
     ]);
     // Honor the v1 one-time acknowledgement without replaying the tip after upgrading.
     return { ...(data[SETTINGS_KEY] ?? {}),
-        ...(legacy.gemini_suppress_direct_write_prompt ? { directWritePromptCompleted: true } : {}) };
+        ...(legacy[LEGACY_DIRECT_WRITE_PROMPT_KEY] ? { directWritePromptCompleted: true } : {}) };
 }
 export async function patchStoredSettings(patch: Partial<GlobalSettings>): Promise<void> {
     await navigator.locks.request(SETTINGS_KEY, async () => {

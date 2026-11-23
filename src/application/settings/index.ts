@@ -1,6 +1,7 @@
 import { getStoredSettings, patchStoredSettings } from '../../l3a/storageService.js';
-export type { GlobalSettings } from '../../l2/settings.js';
+import { isLiveSaveEffective } from '../../shared/types/settings.js';
 import type { GlobalSettings } from '../../l2/settings.js';
+export { isLiveSaveEffective, type GlobalSettings };
 
 export async function getSettings(): Promise<GlobalSettings> {
     const stored = await getStoredSettings();
@@ -12,8 +13,4 @@ export async function getSettings(): Promise<GlobalSettings> {
 }
 export function updateSettings(patch: Partial<GlobalSettings>): Promise<void> {
     return patchStoredSettings(patch);
-}
-export function isLiveSaveEffective(settings: GlobalSettings, directoryAvailable: boolean): boolean {
-    return settings.enabledDisk && settings.exportDelivery === 'folderWriter'
-        && settings.defaultFormat === 'markdown' && directoryAvailable;
 }
