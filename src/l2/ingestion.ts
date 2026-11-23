@@ -62,16 +62,17 @@ async function mergeIndexes(indexes: readonly DomainConversationIndex[]): Promis
         const changed: DomainConversationIndex[] = [];
         entries.forEach((group, i) => {
             const stored = previous[i];
-            let merged = stored ? restoreConversationIndex(stored) : undefined;
+            const existing = stored ? restoreConversationIndex(stored) : undefined;
+            let merged = existing;
             for (const incoming of group) merged = mergeConversationIndex(merged, incoming);
             if (!merged) return;
             for (const incoming of group) {
-                if (acceptsIndexFacts(incoming, merged, stored)) changes.accepted++;
+                if (acceptsIndexFacts(incoming, merged, existing ?? null)) changes.accepted++;
                 else changes.rejected++;
             }
-            if (!sameStoredFacts.index(merged, stored)) {
+            if (!sameStoredFacts.index(merged, existing)) {
                 changed.push(merged);
-                if (stored) changes.updated++;
+                if (existing) changes.updated++;
                 else changes.added++;
             }
         });
@@ -89,11 +90,14 @@ export async function ingestIndexes(accountId: Account['id'],
     if (!account) throw new TypeError('Index account does not exist');
     const indexes = items.map(item => restoreConversationIndex({ ...item.fields, key: { accountId, conversationId: item.conversationId } }));
     const changes = await mergeIndexes(indexes);
-    if (page && account.providerAccountId !== DEFAULT_ACCOUNT_KEY) await CoverageAdmission.recordPageCoverage(accountId, {
-        ...page, providerId: account.providerId, accountId,
-        valid: page.valid && page.keys.length === indexes.length
-            && page.keys.every(key => indexes.some(index => index.key.conversationId === key.id)),
-    });
+    if (page && account.providerAccountId !== DEFAULT_ACCOUNT_KEY) {
+        const indexIds = new Set(indexes.map(index => index.key.conversationId));
+        await CoverageAdmission.recordPageCoverage(accountId, {
+            ...page, providerId: account.providerId, accountId,
+            valid: page.valid && page.keys.length === indexes.length
+                && page.keys.every(key => indexIds.has(key.id)),
+        });
+    }
     return changes;
 }
 
@@ -107,7 +111,7 @@ function buildConversationDecision(
     return (oldIndex: DomainConversationIndex | null, oldDetail: DomainConversationDetail | null) => {
         const existingIndex = oldIndex ? restoreConversationIndex(oldIndex) : undefined;
         const acceptedIndex = mergeConversationIndex(existingIndex, index);
-        const existing = oldDetail ? restoreDomainDetail(oldDetail) : null;
+        const existing = oldDetail ? acceptDetailFacts(key, oldDetail) : null;
         const selected = selectConversationDetail(existing, incoming);
         const sameFacts = sameStoredFacts.material;
         const accepted = selected === incoming || (existing !== null && sameFacts(existing, incoming));

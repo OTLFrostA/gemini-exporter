@@ -45,7 +45,8 @@ export function composeDomainDocument(conversation: ReadonlyDomain, account: Rea
         });
         const blocks: DisplayBlock[] = [];
         if (message.reasoning?.length) blocks.push({ type: 'disclosure', kind: 'reasoning', title: readingLabels.reasoning, blocks: compose(message.reasoning) });
-        blocks.push(...compose([...message.content, ...attachments]));
+        blocks.push(...compose(message.content));
+        if (attachments.length) blocks.push(...compose(attachments));
         const sources: SourceItem[] = citations.map(({ citation, number, href, label }) => ({
             id: citation.id,
             label,

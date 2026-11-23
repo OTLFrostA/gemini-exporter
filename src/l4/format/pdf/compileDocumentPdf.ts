@@ -12,12 +12,16 @@ import { initMitexWasm, convertMathWithMitex } from '../typst/mathConverter.js';
 import { checkImageContent, MAX_ASSET_BYTES } from '../resources/imageContent.js';
 import type { IPdfCompiler, PdfCompileContext, PdfCompileResult } from './pdfCompiler.js';
 
-/** Only actual AST Image uses enter the Typst virtual filesystem. */
+/** Only actual AST Image uses enter the Typst virtual filesystem (kept local so L4 unit isolation imports types only from L3b). */
 function collectPdfImageIds(document: DocumentAst): ReadonlySet<string> {
     const ids = new Set<string>();
     const inline = (node: DisplayInline): void => {
-        if (node.type === 'image') ids.add(node.resourceId);
-        if ('children' in node) node.children.forEach(inline);
+        switch (node.type) {
+            case 'image': ids.add(node.resourceId); break;
+            case 'strong': case 'emphasis': case 'strikethrough': case 'link': node.children.forEach(inline); break;
+            case 'text': case 'inlineCode': case 'inlineMath': case 'citation': case 'lineBreak': break;
+            default: { const exhaustive: never = node; return exhaustive; }
+        }
     };
     const block = (node: DisplayBlock): void => {
         switch (node.type) {
@@ -27,10 +31,12 @@ function collectPdfImageIds(document: DocumentAst): ReadonlySet<string> {
             case 'list': node.items.forEach(item => item.blocks.forEach(block)); break;
             case 'table':
                 node.caption?.forEach(inline);
-                [...node.headerRows, ...node.rows].forEach(row => row.forEach(cell => cell.children.forEach(inline)));
+                for (const row of node.headerRows) for (const cell of row) cell.children.forEach(inline);
+                for (const row of node.rows) for (const cell of row) cell.children.forEach(inline);
                 break;
             case 'file': node.description?.forEach(inline); break;
-            default: break;
+            case 'code': case 'math': case 'thematicBreak': case 'unsupported': break;
+            default: { const exhaustive: never = node; return exhaustive; }
         }
     };
     document.messages.forEach(message => message.blocks.forEach(block));

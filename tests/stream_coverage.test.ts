@@ -118,3 +118,16 @@ test('Coverage early-stop matching accepts evidence without source items', () =>
     s.observe(prior, page([105, 85], 'bridge', 'more'));
     assert.equal(s.connects(prior, head), true);
 });
+
+test('Coverage page cap eviction never deletes the null anchor page', () => {
+    const s = new CoverageSession();
+    const head = page([10_000], null, 'p1');
+    s.observe(emptyStream(), head);
+    for (let i = 1; i <= 2005; i++) {
+        s.observe(emptyStream(), page([10_000 - i], `p${i}`, `p${i + 1}`));
+    }
+    const pages: unknown = Reflect.get(s, 'pages');
+    assert.ok(pages instanceof Map);
+    assert.equal(pages.size, 2000);
+    assert.ok(pages.has(null), 'null anchor page must survive cap eviction');
+});

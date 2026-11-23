@@ -38,7 +38,11 @@ export class CoverageSession {
         if (this.conflicts.has(page.requestCursor)) return previous;
         const { providerId, accountId, streamId, requestCursor, nextCursor, requestedAt, requestKnown, valid, ordered, terminal, keys } = page;
         this.pages.set(page.requestCursor, { providerId, accountId, streamId, requestCursor, nextCursor, requestedAt, requestKnown, valid, ordered, ...(terminal !== undefined ? { terminal } : {}), keys });
-        if (this.pages.size > 2000) this.pages.delete(this.pages.keys().next().value ?? null);
+        if (this.pages.size > 2000) {
+            for (const key of this.pages.keys()) {
+                if (key !== null) { this.pages.delete(key); break; }
+            }
+        }
         const chain = this.chain();
         return chain.terminal ? { range: chain.range } : previous;
     }
