@@ -34,7 +34,7 @@ export function resolveSourceMessage(
         ?? (result.status === 'error' ? text('Scan failed', '扫描失败') : text('Scan finished', '扫描已结束')));
 }
 
-export interface WorkbenchRenderInput {
+interface WorkbenchRenderInput {
     readonly state: ConversationViewState;
     readonly settings: GlobalSettings | undefined;
     readonly busy: boolean;
