@@ -11,20 +11,20 @@ export function initCloudSyncBackground(): void {
 }
 
 /** Trigger background outbox reconciliation when an extension context broadcasts `domainChanged`. */
-export function handleCloudSyncMessage(message: unknown, sender?: chrome.runtime.MessageSender): boolean {
+export function handleCloudSyncMessage(message: unknown, sender?: chrome.runtime.MessageSender): void {
     if (!sender || sender.id !== chrome.runtime.id) {
-        return false;
+        return;
     }
     const extOrigin = typeof chrome.runtime?.getURL === 'function' ? chrome.runtime.getURL('') : `chrome-extension://${chrome.runtime.id}/`;
     const fromExtensionOrigin = typeof sender.url === 'string' && sender.url.startsWith(extOrigin);
     if (!fromExtensionOrigin && sender.tab) {
-        return false;
+        return;
     }
     if (sender.url && !fromExtensionOrigin) {
-        return false;
+        return;
     }
     if (!message || typeof message !== 'object' || !('action' in message)) {
-        return false;
+        return;
     }
     if (message.action === 'domainChanged' && 'accountId' in message && isAccountId(message.accountId)) {
         const accountId = message.accountId;
@@ -32,5 +32,4 @@ export function handleCloudSyncMessage(message: unknown, sender?: chrome.runtime
             console.warn('[CloudSync] Post-toggle reconciliation failed:', error);
         });
     }
-    return false;
 }
