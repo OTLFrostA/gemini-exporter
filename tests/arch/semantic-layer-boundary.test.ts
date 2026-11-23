@@ -335,6 +335,8 @@ test('Content scripts and MAIN hooks never bundle IndexedDB, Migration, Backgrou
                 const nextChain = [...chain, edge.target].join(' -> ');
                 assert.ok(!/^(?:l3a|migration|l3b|l4|application|runtime\/background|shared\/crypto|l1\/cloud)\//.test(edge.target),
                     `${entry} bundles forbidden runtime module: ${nextChain}`);
+                assert.ok(!/^ui\/shared\/(?:errorMessages|legacyLabels)\.ts$/.test(edge.target),
+                    `${entry} bundles workbench error copy into content script: ${nextChain}`);
                 assert.ok(!/^l2\/(?:ingestion|accountAdmission|coverageAdmission|readConversation|sourceCooldown|cloudPayload)\.ts$/.test(edge.target),
                     `${entry} bundles extension-origin L2 persistence module: ${nextChain}`);
                 walkRuntime(edge.target, [...chain, edge.target]);

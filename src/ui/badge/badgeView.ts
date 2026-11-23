@@ -4,7 +4,7 @@ import { readContentSettings } from '../../runtime/api/contentSettings.js';
 import type { ExportResult } from '../../application/export/types.js';
 import { getAccountContext, resolveCurrentAccount } from '../../runtime/content/accountContext.js';
 import { registerCleanup } from '../../runtime/content/cleanupRegistry.js';
-import { text, useSettings, observeSettings, isDeveloperMode } from '../shared/settings.js';
+import { text, useSettings, observeSettings, isDeveloperMode } from '../shared/i18n.js';
 
 let badge: HTMLElement | null = null;
 let accountId: string | null = null;
