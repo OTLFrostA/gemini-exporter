@@ -6,9 +6,9 @@ import type { Account } from '../../../l2/accountRegistry.js';
 import type { DomainAsset } from '../../../l2/conversationDetail.js';
 import type { ConversationKey } from '../../../l2/conversationKey.js';
 import type { ResourceBytes } from '../../../shared/resources/resourceResult.js';
-import { ingestIndexes } from '../../../l2/ingestion.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
 import type { AIProvider, ListEnd, ProviderListOptions, ProviderReadiness } from '../aiProvider.js';
+import { providerHost } from '../providerHost.js';
 import {
     assertValidResourceKey,
     commitProviderDetail,
@@ -85,7 +85,7 @@ export class ClaudeProvider implements AIProvider {
             const evidence = { streamId: options.streamId, requestCursor: page === 1 ? null : String(offset),
                 nextCursor: sourceEnd ? null : String(offset + 100), requestedAt,
                 requestKnown: true, valid, ordered, keys: times };
-            const indexChanges = await ingestIndexes(account.id, toIndexIngestItems(parsed.conversations),
+            const indexChanges = await providerHost().ingestion.ingestIndexes(account.id, toIndexIngestItems(parsed.conversations),
                 identified ? evidence : undefined);
             options.signal?.throwIfAborted();
             if (!valid || !ordered || !identified) throw new OperationError('SOURCE_RESPONSE_INVALID', 'Unverified Claude list page');

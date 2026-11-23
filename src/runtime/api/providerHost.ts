@@ -3,6 +3,8 @@ import { contentRuntimeHost } from '../../l1/contentPorts.js';
 import { OperationError } from '../../shared/errors/operationError.js';
 import { readAccountContextReply } from '../../shared/types/accountContextReply.js';
 import { getAccount } from './accountRegistry.js';
+import { ingestDeletedConversation, ingestDetail, ingestIndexes } from '../../l2/ingestion.js';
+import { extendSourceCooldown, getSourceCooldown } from '../../l2/sourceCooldown.js';
 
 /** Runtime routing is frozen before acquisition, never inferred from SID or Slot. */
 async function resolveGeminiRoute(accountId: string): Promise<string> {
@@ -43,6 +45,18 @@ async function resolveProviderRoute(providerId: string, accountId: string): Prom
 }
 
 export function installProviderHost(): void {
-    provideProviderHost({ getAccount, resolveProviderRoute });
+    provideProviderHost({
+        getAccount,
+        resolveProviderRoute,
+        ingestion: {
+            ingestIndexes,
+            ingestDetail,
+            ingestDeletedConversation,
+        },
+        cooldown: {
+            getSourceCooldown,
+            extendSourceCooldown,
+        },
+    });
 }
 

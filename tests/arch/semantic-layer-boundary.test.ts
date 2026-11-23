@@ -118,7 +118,8 @@ function forbidden(owner: string, target: string): boolean {
         return /^(l1\/(?:client|sniffer)\/|l2\/(?:ingestion|accountAdmission|coverageAdmission|readConversation|sourceCooldown)\.ts$|l3a\/|l3b\/|l4\/|runtime\/|application\/|ui\/|migration\/)/.test(target);
     }
     if (owner.startsWith('l1/')) {
-        return /^(l3a\/|l3b\/|l4\/|application\/|ui\/|migration\/)/.test(target);
+        if ((owner === 'l1/contentPorts.ts' || owner === 'l1/client/providerHost.ts' || owner === 'l1/client/aiProvider.ts') && target === 'l2/ingestion.ts') return false;
+        return /^(l2\/(?:ingestion|accountAdmission|coverageAdmission|readConversation|sourceCooldown)\.ts$|l3a\/|l3b\/|l4\/|application\/|ui\/|migration\/)/.test(target);
     }
     if (owner.startsWith('ui/')) {
         if (owner.startsWith('ui/popup/') && target.startsWith('ui/options/')) return true;
@@ -134,6 +135,7 @@ test('semantic layers own their files and obey dependency direction, including t
     for (const [owner, edges] of graph) for (const edge of edges) {
         assert.ok(!forbidden(owner, edge.target), `${owner} must not depend on ${edge.target}`);
         if (owner.startsWith('l3b/ast/') && edge.target === 'l2/conversationDetail.ts') assert.equal(edge.runtime, false, 'AST reuses L2 role/asset types without a runtime dependency');
+        if (owner.startsWith('l1/') && edge.target === 'l2/ingestion.ts') assert.equal(edge.runtime, false, `${owner} must import L2 ingestion contracts as a type only`);
         if (renderer(owner) && edge.target === 'l4/shared/resourceBindings.ts') assert.equal(edge.runtime, false, `${owner} must import bindings as a type`);
     }
     for (const old of ['core/api/parser/', 'core/content/', 'core/export/document/', 'core/engine/takeout/', 'core/engine/template/', 'core/provider/record/']) {
