@@ -33,7 +33,7 @@ export interface ContentAccountPort {
 
 export type RegisterCleanup = (fn: () => void) => () => void;
 
-export interface ContentRuntimeHost {
+interface ContentRuntimeHost {
     readonly ingestion: ContentIngestionPort;
     readonly account: ContentAccountPort;
     readonly registerCleanup: RegisterCleanup;
