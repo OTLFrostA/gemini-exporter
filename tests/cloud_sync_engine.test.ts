@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createCloudVaultClient, normalizeCloudServerUrl } from '../src/l1/cloud/vaultClient.js';
-import { createCloudSyncEngine } from '../src/application/cloud/cloudSyncEngine.js';
+import { createCloudVaultClient, normalizeCloudServerUrl } from '../src/application/vault/transport/vaultClient.js';
+import { createCloudSyncEngine } from '../src/application/vault/cloudSyncEngine.js';
 import { updateSettings } from '../src/application/settings/index.js';
 import { ingestDetail, ingestIndexes } from '../src/l2/ingestion.js';
 import { readConversation } from '../src/l2/readConversation.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
 import { indexStorage } from './helpers/indexStorage.js';
 import { createMockCloudVaultHttp } from './helpers/mockCloudVaultHttp.js';
-import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/cloud/vaultKeySetup.js';
+import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/vault/vaultKeySetup.js';
 import { enqueueCloudOutboxKeys, listDueCloudOutbox, putCloudSyncSession, getCloudSyncSession, getSyncedCloudRecord, putSyncedCloudRecord } from '../src/l3a/cloudSyncStore.js';
 import { getInitializedVaultKeyring } from '../src/l3a/cloudKeyringStore.js';
 import { deleteStoredConversation, getIndex } from '../src/l3a/storageService.js';

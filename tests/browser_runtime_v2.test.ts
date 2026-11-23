@@ -28,7 +28,7 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/runtime/capabilities/chatgptDiscovery.js': { discoverChatGPTAccounts: async () => [] },
         'src/runtime/capabilities/grokDiscovery.js': { discoverGrokAccounts: async () => [] },
         'src/runtime/capabilities/claudeDiscovery.js': { discoverClaudeAccounts: async () => [] },
-        'src/application/cloud/cloudSyncEngine.js': {
+        'src/application/vault/cloudSyncEngine.js': {
             defaultCloudSyncEngine: {
                 installAutoEnqueueListener: () => () => {},
                 reconcilePostToggleAccount: async () => {},

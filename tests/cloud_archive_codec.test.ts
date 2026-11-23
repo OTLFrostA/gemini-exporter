@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { restoreCloudConversationsToLocal } from '../src/application/cloud/cloudArchiveCodec.js';
+import { restoreCloudConversationsToLocal } from '../src/application/vault/cloudArchiveCodec.js';
 import { ingestIndexes } from '../src/l2/ingestion.js';
 import { getIndex } from '../src/l3a/storageService.js';
 import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';

@@ -2,8 +2,8 @@ import {
     defaultCloudSyncEngine,
     type CloudSyncStatusSnapshot,
     type CloudVaultBackendType,
-} from '../../../application/cloud/cloudSyncEngine.js';
-import { commitOneTimeVaultKey, prepareOneTimeVaultKey } from '../../../application/cloud/vaultKeySetup.js';
+} from '../../../application/vault/cloudSyncEngine.js';
+import { commitOneTimeVaultKey, prepareOneTimeVaultKey } from '../../../application/vault/vaultKeySetup.js';
 import { getSettings } from '../../../application/settings/index.js';
 import { pickVaultDirectoryHandle, reauthorizeVaultDirectoryHandle } from '../../../runtime/capabilities/vaultFolderAuth.js';
 import { OperationError } from '../../../shared/errors/operationError.js';

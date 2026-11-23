@@ -1,4 +1,4 @@
-import { defaultCloudSyncEngine } from '../../application/cloud/cloudSyncEngine.js';
+import { defaultCloudSyncEngine } from '../../application/vault/cloudSyncEngine.js';
 
 let initialized = false;
 

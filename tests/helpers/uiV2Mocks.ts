@@ -107,7 +107,7 @@ export function installUiV2Mocks(): void {
     stub('../../src/application/resources.js', {
         createSourceResourceContext: () => unconfigured('Application.createSourceResourceContext'),
     });
-    stub('../../src/application/cloud/cloudSyncEngine.js', {
+    stub('../../src/application/vault/cloudSyncEngine.js', {
         defaultCloudSyncEngine: {
             getStatusSnapshot: async () => ({
                 enabled: false, includeDetail: false, connected: false, pulledSeq: 0,
@@ -131,7 +131,7 @@ export function installUiV2Mocks(): void {
             waitForIdle: async () => {},
         },
     });
-    stub('../../src/application/cloud/vaultKeySetup.js', {
+    stub('../../src/application/vault/vaultKeySetup.js', {
         prepareOneTimeVaultKey: () => unconfigured('Application.vaultKeySetup.prepareOneTimeVaultKey'),
         commitOneTimeVaultKey: () => unconfigured('Application.vaultKeySetup.commitOneTimeVaultKey'),
     });

@@ -1,12 +1,12 @@
-import { OperationError } from '../../shared/errors/operationError.js';
-import { bytesToHex } from '../../shared/crypto/index.js';
-import type { DirectoryHandle } from '../../shared/types/directoryHandle.js';
+import { OperationError } from '../../../shared/errors/operationError.js';
+import { bytesToHex } from '../../../shared/crypto/index.js';
+import type { DirectoryHandle } from '../../../shared/types/directoryHandle.js';
 import {
     CLOUD_MAX_RECORD_BYTES,
     CLOUD_WIRE_MAGIC,
     type CloudRecordMeta,
-} from '../../shared/types/cloudSync.js';
-import { isRecord } from '../../shared/utils/typeGuards.js';
+} from '../../../shared/types/cloudSync.js';
+import { isRecord } from '../../../shared/utils/typeGuards.js';
 import type { VaultRecordClient } from './vaultClient.js';
 
 export const LOCAL_VAULT_OWNER_SUBJECT = 'local:vault';
@@ -257,8 +257,8 @@ export function createLocalFolderVaultClient(
                 const backupFilename = `${input.blindRecordId}.prev.gee1`;
                 if (existing) {
                     const current = await readRecordFile(recordsDir, filename);
-                    if (await matchesRecord(current, existing)) {
-                        await writeBytesToFile(recordsDir, backupFilename, current!);
+                    if (current !== null && await matchesRecord(current, existing)) {
+                        await writeBytesToFile(recordsDir, backupFilename, current);
                     }
                 }
 

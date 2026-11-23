@@ -19,7 +19,7 @@ function load(file: string, stubs: Record<string, unknown> = {}) {
         'src/runtime/api/providerHost.js': { installProviderHost() {} },
         'src/l1/client/platformAccess.js': { hasPlatformAccess: async () => true },
         'src/runtime/capabilities/platformInjection.js': { syncAllPlatformContentScripts: async () => [] },
-        'src/application/cloud/cloudSyncEngine.js': {
+        'src/application/vault/cloudSyncEngine.js': {
             defaultCloudSyncEngine: {
                 installAutoEnqueueListener: () => () => {},
                 reconcilePostToggleAccount: async () => {},
