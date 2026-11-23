@@ -1,5 +1,5 @@
 import { chatgptAccountObservation } from '../../../l1/client/chatgpt/accountObservation.js';
-import type { PlatformAccountAdapter } from '../accountContext.js';
+import type { PlatformAccountAdapter } from './platformAccountAdapter.js';
 
 export function createChatGPTAccountAdapter(): PlatformAccountAdapter {
     return {

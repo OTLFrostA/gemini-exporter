@@ -1,14 +1,15 @@
 import { readAccountParameters, type Account } from '../../../l2/accountRegistry.js';
 import { CrossWorldEvents } from '../../../l1/protocol/gemini/protocol.js';
 import { detectSlotFromUrl } from '../../../l1/protocol/gemini/url.js';
-import type { PlatformAccountAdapter } from '../accountContext.js';
-import { registerCleanup } from '../cleanupRegistry.js';
+import type { PlatformAccountAdapter } from './platformAccountAdapter.js';
 
-export function createGeminiAccountAdapter(): PlatformAccountAdapter {
+export function createGeminiAccountAdapter(
+    defaultRegisterCleanup?: (fn: () => void) => () => void,
+): PlatformAccountAdapter {
     return {
         providerId: 'gemini',
         currentSlot: () => detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined),
-        observeAccount: (slot: string): Promise<Omit<Account, 'id'> | null> => new Promise((resolve, reject) => {
+        observeAccount: (slot: string, registerCleanup = defaultRegisterCleanup): Promise<Omit<Account, 'id'> | null> => new Promise((resolve, reject) => {
             const requestId = crypto.randomUUID();
             let unregister = () => {};
             const finish = (observation: Omit<Account, 'id'> | null, error?: unknown): void => {
@@ -33,7 +34,7 @@ export function createGeminiAccountAdapter(): PlatformAccountAdapter {
             };
             const timer = setTimeout(() => finish(null), 2000);
             window.addEventListener('message', receive);
-            unregister = registerCleanup(() => finish(null));
+            if (registerCleanup) unregister = registerCleanup(() => finish(null));
             window.postMessage({ type: CrossWorldEvents.ACCOUNT_REQUESTED, payload: { requestId } }, location.origin);
         }),
     };

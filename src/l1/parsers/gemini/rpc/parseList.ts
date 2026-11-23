@@ -2,7 +2,7 @@ import { geminiResponse, type GeminiResponseEnvelope } from './responseEnvelope.
 import { normId } from '../../../../shared/utils/pathUtils.js';
 import { isReservedRoute } from '../../../protocol/gemini/url.js';
 import type { GeminiProtocolModule } from "../../../protocol/gemini/protocol.js";
-import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
+import type { GeminiIndexObservationInput } from '../shared/structuredTypes.js';
 export type ConversationListItem = GeminiIndexObservationInput & { id: string };
 
 /** Validated LIST row facts. The official ordering timestamp is separate

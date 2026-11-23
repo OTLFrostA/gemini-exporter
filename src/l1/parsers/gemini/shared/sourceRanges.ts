@@ -1,11 +1,11 @@
 import type { PhrasingContent } from 'mdast';
-import { GEMINI_NODE_TYPES } from '../rpc/jspbSchema.js';
-import type {
-    GeminiSourceAttribution,
-    GeminiStructuredDocument,
-    GeminiStructuredNode,
-    GeminiTextNode,
-} from '../rpc/types.js';
+import {
+    GEMINI_NODE_TYPES,
+    type GeminiSourceAttribution,
+    type GeminiStructuredDocument,
+    type GeminiStructuredNode,
+    type GeminiTextNode,
+} from './structuredTypes.js';
 import { parseMarkdownAst } from '../../shared/markdown/index.js';
 import { projectCandidateParagraphs, type CandidateMarkdownIndex } from './candidateMarkdown.js';
 

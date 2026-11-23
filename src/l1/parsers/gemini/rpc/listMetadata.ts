@@ -2,7 +2,7 @@ import type { GeminiResponseEnvelope } from './responseEnvelope.js';
 import { GeminiProtocol } from '../../../protocol/gemini/protocol.js';
 import { normId, cleanTitle, isRealTitle } from './extractors.js';
 import { decodeGeminiListRow } from './parseList.js';
-import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
+import type { GeminiIndexObservationInput } from '../shared/structuredTypes.js';
 
 /** Metadata returned beside detail belongs to the requested conversation, never a nearby row. */
 export function findListConversationMetadata(response: GeminiResponseEnvelope, targetId: string): (GeminiIndexObservationInput & { id: string }) | undefined {

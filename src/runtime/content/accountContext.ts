@@ -1,15 +1,11 @@
 import { registerCleanup } from './cleanupRegistry.js';
 import { getOrCreateContentAccount } from '../api/contentAccountRegistry.js';
 import { readAccountParameters, DEFAULT_ACCOUNT_KEY, type Account } from '../../l2/accountRegistry.js';
-import { platformForPageUrl, type SourcePlatform } from '../../shared/platformHosts.js';
+import { platformForPageUrl } from '../../shared/platformHosts.js';
+import type { PlatformAccountAdapter } from './adapters/platformAccountAdapter.js';
+export type { PlatformAccountAdapter } from './adapters/platformAccountAdapter.js';
 
 export interface AccountContext { readonly providerId: string; readonly accountId: string; readonly slot: string }
-
-export interface PlatformAccountAdapter {
-    readonly providerId: SourcePlatform;
-    currentSlot(): string;
-    observeAccount(slot: string): Promise<Omit<Account, 'id'> | null>;
-}
 
 let adapter: PlatformAccountAdapter | null = null;
 
@@ -64,7 +60,7 @@ export function matchesCurrentAccount(observation: Omit<Account, 'id'>): boolean
 
 /** The isolated world cannot infer the current Gaia from arbitrary DOM emails. */
 function requestObservation(slot: string): Promise<Omit<Account, 'id'> | null> {
-    if (adapter) return adapter.observeAccount(slot);
+    if (adapter) return adapter.observeAccount(slot, registerCleanup);
     return Promise.resolve(null);
 }
 

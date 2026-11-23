@@ -1,5 +1,5 @@
 import { observeGrokAccount } from '../../../l1/client/grok/accountObservation.js';
-import type { PlatformAccountAdapter } from '../accountContext.js';
+import type { PlatformAccountAdapter } from './platformAccountAdapter.js';
 
 export function createGrokAccountAdapter(): PlatformAccountAdapter {
     return {

@@ -3,49 +3,7 @@
  * primitives and named Gemini structured-content protocol constants.
  */
 
-export const GEMINI_NODE_TYPES: {
-    readonly ATTACHMENT: 0;
-    readonly CODE_BLOCK: 1;
-    readonly MATH_BLOCK: 12;
-    readonly LINE_BREAK: 13;
-    readonly ORDERED_LIST: 14;
-    readonly BLOCKQUOTE: 15;
-    readonly TABLE: 17;
-    readonly TEXT_BLOCK: 18;
-    readonly THEMATIC_BREAK: 19;
-    readonly UNORDERED_LIST: 20;
-    readonly GENERATED_FILE: 24;
-} = {
-    ATTACHMENT: 0,
-    CODE_BLOCK: 1,
-    MATH_BLOCK: 12,
-    LINE_BREAK: 13,
-    ORDERED_LIST: 14,
-    BLOCKQUOTE: 15,
-    TABLE: 17,
-    TEXT_BLOCK: 18,
-    THEMATIC_BREAK: 19,
-    UNORDERED_LIST: 20,
-    GENERATED_FILE: 24,
-};
-
-export const GEMINI_ANNOTATION_TYPES: {
-    readonly STRONG: 0;
-    readonly EMPHASIS: 2;
-    readonly INLINE_MATH: 4;
-    readonly SUBTLE_EMPHASIS: 5;
-    readonly LINK: 6;
-    readonly INLINE_CODE: 7;
-    readonly STRIKETHROUGH: 12;
-} = {
-    STRONG: 0,
-    EMPHASIS: 2,
-    INLINE_MATH: 4,
-    SUBTLE_EMPHASIS: 5,
-    LINK: 6,
-    INLINE_CODE: 7,
-    STRIKETHROUGH: 12,
-};
+export { GEMINI_ANNOTATION_TYPES, GEMINI_NODE_TYPES } from '../shared/structuredTypes.js';
 
 export const GEMINI_WIRE_STYLE_FLAGS: {
     readonly EMPHASIS: 1;
