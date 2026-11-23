@@ -355,3 +355,16 @@ test('Table layout carries a header rowspan into body rows and retains unused de
     assert.equal(block.rows[0][0].column, 1); assert.deepEqual(block.rows[1], []);
     assert.ok(!('align' in block.rows[0][0]));
 });
+
+test('Composition rejects unresolved image assetIds symmetrically with file blocks', () => {
+    const rawBlock = input();
+    rawBlock.detail.messages = [{ role: 'assistant', content: [{ type: 'image', assetId: 'missing-block-img' }] }];
+    assert.throws(() => composeDomainDocument(givenReadonlyDomain(rawBlock), account), /Unresolved Domain asset: missing-block-img/);
+
+    const rawInline = input();
+    rawInline.detail.messages = [{
+        role: 'assistant',
+        content: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'missing-inline-img' }] }],
+    }];
+    assert.throws(() => composeDomainDocument(givenReadonlyDomain(rawInline), account), /Unresolved Domain asset: missing-inline-img/);
+});

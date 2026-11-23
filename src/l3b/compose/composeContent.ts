@@ -8,7 +8,12 @@ import type { DisplayBlock, DisplayCell, DisplayInline } from '../ast/ast.js';
 
 /** Shared logical content composition; callers provide resolved semantic relationships. */
 export function contentComposer(assets: ReadonlyMap<string, DeepReadonly<DomainAsset>>, source: (id: string, explicit?: string) => { id: string; label: string; href?: string }): (nodes: DeepReadonly<BlockNode[]>) => DisplayBlock[] {
-    const label = (id: string, explicit?: string, kind: 'image' | 'file' = 'image'): string => resourceLabel(explicit, assets.get(id)?.name, kind);
+    const requireAsset = (id: string): DeepReadonly<DomainAsset> => {
+        const asset = assets.get(id);
+        if (!asset) throw new TypeError(`Unresolved Domain asset: ${id}`);
+        return asset;
+    };
+    const label = (asset: DeepReadonly<DomainAsset>, explicit?: string, kind: 'image' | 'file' = 'image'): string => resourceLabel(explicit, asset.name, kind);
     const inlines = (nodes: DeepReadonly<InlineNode[]>): DisplayInline[] => nodes.map(node => {
         switch (node.type) {
             case 'text': return { type: 'text', text: node.text };
@@ -18,17 +23,21 @@ export function contentComposer(assets: ReadonlyMap<string, DeepReadonly<DomainA
             case 'inlineMath': return { type: 'inlineMath', source: node.source };
             case 'lineBreak': return { type: 'lineBreak', kind: node.kind };
             case 'citationRef': return { type: 'citation', ...source(node.citationId, node.label) };
-            case 'image': return { type: 'image', resourceId: node.assetId, alt: label(node.assetId, node.alt), ...(node.title !== undefined ? { title: node.title } : {}) };
+            case 'image': {
+                const asset = requireAsset(node.assetId);
+                return { type: 'image', resourceId: node.assetId, alt: label(asset, node.alt), ...(node.title !== undefined ? { title: node.title } : {}) };
+            }
         }
     });
     const table = (node: DeepReadonly<TableBlock>): DisplayBlock => {
-        const rows: DisplayCell[][] = [...(node.headerRows ?? []), ...node.rows].map(() => []);
+        const headerCount = node.headerRows?.length ?? 0;
+        const rows: DisplayCell[][] = Array.from({ length: headerCount + node.rows.length }, () => []);
         let width = node.columns?.length ?? 0;
         for (const { cell, rowIndex, column, colSpan, rowSpan } of tableCellPlacements(node)) {
             rows[rowIndex].push({ column, colSpan, rowSpan, children: inlines(cell.children) });
             width = Math.max(width, column + colSpan);
         }
-        return { type: 'table', columnAlignments: Array.from({ length: width }, (_, column) => node.columns?.[column]?.align ?? 'default'), ...(node.caption ? { caption: inlines(node.caption) } : {}), headerRows: rows.slice(0, node.headerRows?.length ?? 0), rows: rows.slice(node.headerRows?.length ?? 0) };
+        return { type: 'table', columnAlignments: Array.from({ length: width }, (_, column) => node.columns?.[column]?.align ?? 'default'), ...(node.caption ? { caption: inlines(node.caption) } : {}), headerRows: rows.slice(0, headerCount), rows: rows.slice(headerCount) };
     };
     const blocks = (nodes: DeepReadonly<BlockNode[]>): DisplayBlock[] => nodes.map(node => {
         switch (node.type) {
@@ -39,15 +48,16 @@ export function contentComposer(assets: ReadonlyMap<string, DeepReadonly<DomainA
             case 'code': return { type: 'code', code: node.code, ...(node.language !== undefined ? { language: node.language } : {}), ...(node.meta !== undefined ? { meta: node.meta } : {}) };
             case 'math': return { type: 'math', source: node.source };
             case 'table': return table(node);
-            case 'image':
+            case 'image': {
+                const asset = requireAsset(node.assetId);
                 return {
-                    type: 'image', resourceId: node.assetId, alt: label(node.assetId, node.alt),
+                    type: 'image', resourceId: node.assetId, alt: label(asset, node.alt),
                     ...(node.caption !== undefined ? { caption: inlines(node.caption) } : {}),
                 };
+            }
             case 'file': {
-                const asset = assets.get(node.assetId);
-                if (!asset) throw new TypeError(`Unresolved Domain asset: ${node.assetId}`);
-                const name = label(node.assetId, node.label, 'file');
+                const asset = requireAsset(node.assetId);
+                const name = label(asset, node.label, 'file');
                 const description = node.description ? inlines(node.description) : undefined;
                 return { type: 'file', resourceId: node.assetId, label: name, kind: asset.kind, ...(asset.mediaType !== undefined ? { mediaType: asset.mediaType } : {}), ...(asset.byteLength !== undefined ? { byteLength: asset.byteLength } : {}), ...(description ? { description } : {}) };
             }

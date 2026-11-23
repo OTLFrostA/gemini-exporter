@@ -83,6 +83,7 @@ export function selectConversationDetail(
     if (!existing) return incoming;
     if (!sameConversationKey(existing.key, incoming.key)) throw new TypeError('Detail identity mismatch');
     if (existing.quality.status === 'complete' && incoming.quality.status !== 'complete') return existing;
+    if (existing.quality.status !== 'complete' && incoming.quality.status === 'complete') return incoming;
     // An unversioned archive cannot supersede a snapshot with an online version.
     if (existing.savedAt !== undefined && incoming.savedAt === undefined) return existing;
     if (existing.savedAt !== undefined && incoming.savedAt !== undefined && incoming.savedAt < existing.savedAt) return existing;

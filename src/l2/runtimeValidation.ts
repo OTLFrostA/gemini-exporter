@@ -41,50 +41,88 @@ const document = shape<DomainDocumentMetadata>({ id: optional(text), contentMark
 const asset = shape<DomainAsset>({ id: text, kind: enumeration('image', 'file', 'audio', 'video', 'other'), name: optional(text), mediaType: optional(text), byteLength: optional(byteLength), sourceUri: optional(isDurableSourceUri), generation: optional(generation), document: optional(document) });
 const citation = shape<DomainCitation>({ id: text, url: optional(text), title: optional(text) });
 
+const inlineChildren: Check<InlineNode[]> = array(inline);
+const optionalText = optional(text);
+const optionalInlineChildren = optional(inlineChildren);
+const inlineValidators = {
+    text: shape<Extract<InlineNode, { type: 'text' }>>({ type: enumeration('text'), text }),
+    strong: shape<Extract<InlineNode, { type: 'strong' }>>({ type: enumeration('strong'), children: inlineChildren }),
+    emphasis: shape<Extract<InlineNode, { type: 'emphasis' }>>({ type: enumeration('emphasis'), children: inlineChildren }),
+    strikethrough: shape<Extract<InlineNode, { type: 'strikethrough' }>>({ type: enumeration('strikethrough'), children: inlineChildren }),
+    inlineCode: shape<Extract<InlineNode, { type: 'inlineCode' }>>({ type: enumeration('inlineCode'), code: text }),
+    inlineMath: shape<Extract<InlineNode, { type: 'inlineMath' }>>({ type: enumeration('inlineMath'), source: text }),
+    link: shape<Extract<InlineNode, { type: 'link' }>>({ type: enumeration('link'), href: text, title: optionalText, children: inlineChildren }),
+    image: shape<Extract<InlineNode, { type: 'image' }>>({ type: enumeration('image'), assetId: text, alt: optionalText, title: optionalText }),
+    citationRef: shape<Extract<InlineNode, { type: 'citationRef' }>>({ type: enumeration('citationRef'), citationId: text, label: optionalText }),
+    lineBreak: shape<Extract<InlineNode, { type: 'lineBreak' }>>({ type: enumeration('lineBreak'), kind: enumeration('soft', 'hard') }),
+};
+
 function inline(v: unknown): v is InlineNode {
     if (!object(v)) return false;
-    const t = v.type;
-    const children = array(inline);
-    switch (t) {
-        case 'text': return shape<Extract<InlineNode, { type: 'text' }>>({ type: enumeration(t), text })(v);
-        case 'strong': return shape<Extract<InlineNode, { type: 'strong' }>>({ type: enumeration(t), children })(v);
-        case 'emphasis': return shape<Extract<InlineNode, { type: 'emphasis' }>>({ type: enumeration(t), children })(v);
-        case 'strikethrough': return shape<Extract<InlineNode, { type: 'strikethrough' }>>({ type: enumeration(t), children })(v);
-        case 'inlineCode': return shape<Extract<InlineNode, { type: 'inlineCode' }>>({ type: enumeration(t), code: text })(v);
-        case 'inlineMath': return shape<Extract<InlineNode, { type: 'inlineMath' }>>({ type: enumeration(t), source: text })(v);
-        case 'link': return shape<Extract<InlineNode, { type: 'link' }>>({ type: enumeration(t), href: text, title: optional(text), children })(v);
-        case 'image': return shape<Extract<InlineNode, { type: 'image' }>>({ type: enumeration(t), assetId: text, alt: optional(text), title: optional(text) })(v);
-        case 'citationRef': return shape<Extract<InlineNode, { type: 'citationRef' }>>({ type: enumeration(t), citationId: text, label: optional(text) })(v);
-        case 'lineBreak': return shape<Extract<InlineNode, { type: 'lineBreak' }>>({ type: enumeration(t), kind: enumeration('soft', 'hard') })(v);
+    switch (v.type) {
+        case 'text': return inlineValidators.text(v);
+        case 'strong': return inlineValidators.strong(v);
+        case 'emphasis': return inlineValidators.emphasis(v);
+        case 'strikethrough': return inlineValidators.strikethrough(v);
+        case 'inlineCode': return inlineValidators.inlineCode(v);
+        case 'inlineMath': return inlineValidators.inlineMath(v);
+        case 'link': return inlineValidators.link(v);
+        case 'image': return inlineValidators.image(v);
+        case 'citationRef': return inlineValidators.citationRef(v);
+        case 'lineBreak': return inlineValidators.lineBreak(v);
         default: return false;
     }
 }
-function tableShape(v: unknown): v is TableBlock {
-    const span = (max: number): Check<number> => (v): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 1 && v <= max;
-    const row = shape<TableRow>({ cells: array(shape<TableCell>({ children: array(inline), colSpan: optional(span(MAX_TABLE_COLUMNS)), rowSpan: optional(span(MAX_TABLE_ROW_SPAN)) })) });
-    return shape<TableBlock>({ type: enumeration('table'), caption: optional(array(inline)), columns: optional(array(shape<TableColumn>({ align: optional(enumeration('left', 'center', 'right')) }))), headerRows: optional(array(row)), rows: array(row) })(v);
-}
+
+const tableSpan = (max: number): Check<number> => (v): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 1 && v <= max;
+const tableRowShape = shape<TableRow>({
+    cells: array(shape<TableCell>({
+        children: inlineChildren,
+        colSpan: optional(tableSpan(MAX_TABLE_COLUMNS)),
+        rowSpan: optional(tableSpan(MAX_TABLE_ROW_SPAN)),
+    })),
+});
+const tableBlockShape = shape<TableBlock>({
+    type: enumeration('table'),
+    caption: optionalInlineChildren,
+    columns: optional(array(shape<TableColumn>({ align: optional(enumeration('left', 'center', 'right')) }))),
+    headerRows: optional(array(tableRowShape)),
+    rows: array(tableRowShape),
+});
 function table(v: unknown): v is TableBlock {
-    if (!tableShape(v) || (v.columns?.length ?? 0) > MAX_TABLE_COLUMNS) return false;
+    if (!tableBlockShape(v) || (v.columns?.length ?? 0) > MAX_TABLE_COLUMNS) return false;
     for (const cell of tableCellPlacements(v)) if (cell.column + cell.colSpan > MAX_TABLE_COLUMNS) return false;
     return true;
 }
+
+const blockArray: Check<BlockNode[]> = array(block);
+const blockValidators = {
+    paragraph: shape<Extract<BlockNode, { type: 'paragraph' }>>({ type: enumeration('paragraph'), children: inlineChildren }),
+    heading: shape<Extract<BlockNode, { type: 'heading' }>>({ type: enumeration('heading'), level: enumeration(1, 2, 3, 4, 5, 6), children: inlineChildren }),
+    list: shape<Extract<BlockNode, { type: 'list' }>>({ type: enumeration('list'), ordered: boolean, start: optional(number), items: array(shape<ListItem>({ blocks: blockArray })) }),
+    quote: shape<Extract<BlockNode, { type: 'quote' }>>({ type: enumeration('quote'), blocks: blockArray }),
+    code: shape<Extract<BlockNode, { type: 'code' }>>({ type: enumeration('code'), code: text, language: optionalText, meta: optionalText }),
+    math: shape<Extract<BlockNode, { type: 'math' }>>({ type: enumeration('math'), source: text }),
+    image: shape<Extract<BlockNode, { type: 'image' }>>({ type: enumeration('image'), assetId: text, alt: optionalText, caption: optionalInlineChildren }),
+    file: shape<Extract<BlockNode, { type: 'file' }>>({ type: enumeration('file'), assetId: text, label: optionalText, description: optionalInlineChildren }),
+    thematicBreak: shape<Extract<BlockNode, { type: 'thematicBreak' }>>({ type: enumeration('thematicBreak') }),
+    unknown: shape<Extract<BlockNode, { type: 'unknown' }>>({ type: enumeration('unknown'), sourceType: text, text }),
+};
+
 function block(v: unknown): v is BlockNode {
     if (!object(v)) return false;
-    const t = v.type;
-    const children = array(inline);
-    switch (t) {
-        case 'paragraph': return shape<Extract<BlockNode, { type: 'paragraph' }>>({ type: enumeration(t), children })(v);
-        case 'heading': return shape<Extract<BlockNode, { type: 'heading' }>>({ type: enumeration(t), level: enumeration(1, 2, 3, 4, 5, 6), children })(v);
-        case 'list': return shape<Extract<BlockNode, { type: 'list' }>>({ type: enumeration(t), ordered: boolean, start: optional(number), items: array(shape<ListItem>({ blocks: array(block) })) })(v);
-        case 'quote': return shape<Extract<BlockNode, { type: 'quote' }>>({ type: enumeration(t), blocks: array(block) })(v);
-        case 'code': return shape<Extract<BlockNode, { type: 'code' }>>({ type: enumeration(t), code: text, language: optional(text), meta: optional(text) })(v);
-        case 'math': return shape<Extract<BlockNode, { type: 'math' }>>({ type: enumeration(t), source: text })(v);
-        case 'image': return shape<Extract<BlockNode, { type: 'image' }>>({ type: enumeration(t), assetId: text, alt: optional(text), caption: optional(children) })(v);
-        case 'file': return shape<Extract<BlockNode, { type: 'file' }>>({ type: enumeration(t), assetId: text, label: optional(text), description: optional(children) })(v);
+    switch (v.type) {
+        case 'paragraph': return blockValidators.paragraph(v);
+        case 'heading': return blockValidators.heading(v);
+        case 'list': return blockValidators.list(v);
+        case 'quote': return blockValidators.quote(v);
+        case 'code': return blockValidators.code(v);
+        case 'math': return blockValidators.math(v);
+        case 'image': return blockValidators.image(v);
+        case 'file': return blockValidators.file(v);
         case 'table': return table(v);
-        case 'thematicBreak': return shape<Extract<BlockNode, { type: 'thematicBreak' }>>({ type: enumeration(t) })(v);
-        case 'unknown': return shape<Extract<BlockNode, { type: 'unknown' }>>({ type: enumeration(t), sourceType: text, text })(v);
+        case 'thematicBreak': return blockValidators.thematicBreak(v);
+        case 'unknown': return blockValidators.unknown(v);
         default: return false;
     }
 }
@@ -165,8 +203,15 @@ export function acceptDetailFacts(key: DomainConversationDetail['key'], facts: O
         if (!sameConversationKey(key, facts.key)) throw new TypeError('Detail identity mismatch');
         return facts;
     }
-    if ('key' in facts && !sameConversationKey(key, readConversationKey(facts.key))) throw new TypeError('Detail identity mismatch');
+    if ('key' in facts && facts.key !== undefined && !sameConversationKey(key, readConversationKey(facts.key))) {
+        throw new TypeError('Detail identity mismatch');
+    }
     return restoreDomainDetail({ ...facts, key });
+}
+
+/** Validate a detached portable detail without registering a throwaway probe key in trustedBodies. */
+export function validatePortableDetail(value: unknown): DomainConversationDetail {
+    return readDetail(value);
 }
 
 /** Persistence/IPC values are already detached by the transport; no JSON clone. */

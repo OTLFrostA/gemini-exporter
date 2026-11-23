@@ -2,7 +2,7 @@ import { DEFAULT_ACCOUNT_KEY, readAccount, readAccountParameters, type Account }
 import { sameConversationKey, type ConversationKey } from './conversationKey.js';
 import { restoreConversationIndex, type ConversationIndex, type DomainConversationIndex } from './conversationIndex.js';
 import type { ConversationDetail, DomainConversationDetail } from './conversationDetail.js';
-import { restoreDomainDetail } from './runtimeValidation.js';
+import { acceptDetailFacts, validatePortableDetail } from './runtimeValidation.js';
 
 export const CLOUD_CONVERSATION_SCHEMA = 'gemini-exporter-cloud-conversation';
 export const CLOUD_CONVERSATION_VERSION = 1;
@@ -64,7 +64,7 @@ export function encodePortableCloudConversation(
         return JSON.stringify(indexOnlyPayload);
     }
 
-    const verifiedDetail = restoreDomainDetail(conversation.detail);
+    const verifiedDetail = acceptDetailFacts(verifiedIndex.key, conversation.detail);
     const { key: _detailKey, ...portableDetail } = verifiedDetail;
     const fullPayload: PortableCloudConversation = {
         schema: CLOUD_CONVERSATION_SCHEMA,
@@ -134,7 +134,7 @@ export function decodePortableCloudConversation(jsonText: string): PortableCloud
     if (!isPlainRecord(parsed.detail) || 'key' in parsed.detail) {
         throw new TypeError('Invalid portable Detail object');
     }
-    const verifiedDetail = restoreDomainDetail({ ...parsed.detail, key: probeKey });
+    const verifiedDetail = validatePortableDetail({ ...parsed.detail, key: probeKey });
     const { key: _dk, ...cleanDetail } = verifiedDetail;
 
     return {
