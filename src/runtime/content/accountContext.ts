@@ -3,7 +3,6 @@ import { getOrCreateContentAccount } from '../api/contentAccountRegistry.js';
 import { readAccountParameters, DEFAULT_ACCOUNT_KEY, type Account } from '../../l2/accountRegistry.js';
 import { platformForPageUrl } from '../../shared/platformHosts.js';
 import type { PlatformAccountAdapter } from './adapters/platformAccountAdapter.js';
-export type { PlatformAccountAdapter } from './adapters/platformAccountAdapter.js';
 
 export interface AccountContext { readonly providerId: string; readonly accountId: string; readonly slot: string }
 
@@ -124,4 +123,3 @@ export function isCurrentAccount(context: AccountContext): boolean {
     const current = getAccountContext();
     return current?.accountId === context.accountId && current.providerId === context.providerId && current.slot === context.slot;
 }
-
