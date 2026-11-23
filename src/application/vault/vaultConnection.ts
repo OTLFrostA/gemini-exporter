@@ -264,7 +264,7 @@ export function createVaultConnection(deps: {
                 await setStoredLocalVaultHandle(null);
             }
             await updateSettings({ cloudSyncEnabled: false });
-            await clearCloudSyncSession(true);
+            await clearCloudSyncSession();
         }),
 
         async getStatusSnapshot(): Promise<CloudSyncStatusSnapshot> {

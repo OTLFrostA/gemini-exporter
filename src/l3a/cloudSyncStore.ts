@@ -261,11 +261,10 @@ export function putCloudSyncSession(session: CloudSyncSessionState): Promise<voi
     });
 }
 
-export function clearCloudSyncSession(clearOutbox = true): Promise<void> {
-    const stores: CloudStoreName[] = clearOutbox ? ['session', 'outbox'] : ['session'];
-    return inCloudStores(stores, 'readwrite', (tx, done) => {
+export function clearCloudSyncSession(): Promise<void> {
+    return inCloudStores(['session', 'outbox'], 'readwrite', (tx, done) => {
         tx.objectStore('session').delete('active');
-        if (clearOutbox) tx.objectStore('outbox').clear();
+        tx.objectStore('outbox').clear();
         done(undefined);
     });
 }
