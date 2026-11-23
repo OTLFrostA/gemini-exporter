@@ -1,7 +1,7 @@
 import type { Account } from '../../l2/accountRegistry.js';
 import type * as domain from '../../l2/ingestion.js';
 
-export interface ProviderIngestionPort {
+interface ProviderIngestionPort {
     ingestIndexes(
         accountId: Parameters<typeof domain.ingestIndexes>[0],
         items: Parameters<typeof domain.ingestIndexes>[1],
@@ -11,7 +11,7 @@ export interface ProviderIngestionPort {
     ingestDeletedConversation: typeof domain.ingestDeletedConversation;
 }
 
-export interface ProviderCooldownPort {
+interface ProviderCooldownPort {
     getSourceCooldown(accountId: string): Promise<number>;
     extendSourceCooldown(accountId: string, until: number): Promise<number>;
 }
