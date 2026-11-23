@@ -58,15 +58,17 @@ function verifiedRepair(native: TableBlock, markdown: TableBlock): TableBlock | 
         const joined = header.filter(joinedParentheses);
         if (joined.length !== 1) return null;
         const [left, , right] = joined[0].children;
-        const splitHeader = header.flatMap(cell => cell === joined[0] ? [{ children: [left] }, { children: [right] }] : [cell]);
-        if (!splitHeader.every((cell, index) => same(cell.children, candidateHeader[index].children))) return null;
+        const comparisonHeader = header.flatMap(cell => cell === joined[0] ? [[left], [right]] : [cell.children]);
+        if (!comparisonHeader.every((children, index) => same(children, candidateHeader[index].children))) return null;
         // Every surviving body cell must agree at its original coordinate.
         // Admit only the captured missing tail shape: empty or one inline formula.
         const tail = markdown.rows.map(row => row.cells[width]);
         if (!native.rows.every((row, i) => row.cells.every((cell, j) => same(cell.children, markdown.rows[i].cells[j].children)))
             || !tail.some(cell => cell.children.length)
             || tail.some(cell => cell.children.length > 1 || cell.children.some(node => node.type !== 'inlineMath'))) return null;
-        return { ...native, headerRows: [{ cells: splitHeader }],
+        // The split identifies the corresponding Markdown columns. Keep the
+        // native cell, including its separator, across both output columns.
+        return { ...native, headerRows: [{ cells: header.map(cell => cell === joined[0] ? { ...cell, colSpan: 2 } : cell) }],
             rows: native.rows.map((row, i) => ({ cells: [...row.cells, tail[i]] })) };
     }
 

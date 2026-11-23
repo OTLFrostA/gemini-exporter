@@ -7,6 +7,17 @@ import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown
 import { detailGen } from './fixtures/providers/geminiDetail.js';
 import { parseGeminiRpcConversation } from '../src/l1/parsers/gemini/rpc/parseConversation.js';
 
+function markdownFrom(capture: Parameters<typeof detailGen>[0]) {
+    const account = fixtureAccount('gemini');
+    const parsed = parseGeminiRpcConversation(detailGen(capture), { providerId: 'gemini' });
+    const key = fixtureKey(parsed.conversationId, 'gemini');
+    const domain = validateParserDomain({
+        index: { ...parsed.conversation.index, key },
+        detail: { ...parsed.conversation.detail, key },
+    });
+    return renderDocumentMarkdown(composeDomainDocument(domain, account), {});
+}
+
 function tableFrom(key: Parameters<typeof detailGen>[0]) {
     const parsed = parseGeminiRpcConversation(detailGen(key), { providerId: 'gemini' });
     const answer = parsed.conversation.detail.messages.find(message => message.role === 'assistant');
@@ -16,17 +27,26 @@ function tableFrom(key: Parameters<typeof detailGen>[0]) {
 }
 
 for (const key of ['G_TABLE_RESTORE_LL1_20', 'G_TABLE_RESTORE_LL1_23'] as const) {
-    test(`${key}: restores two header cells and each missing last-column production`, () => {
+    test(`${key}: preserves native header content and restores each missing last-column production`, () => {
         const table = tableFrom(key);
         const headers = table.headerRows?.[0].cells;
-        assert.equal(headers?.length, 11);
-        assert.deepEqual(headers?.slice(7, 9).map(cell => cell.children), [
-            [{ type: 'inlineMath', source: '(' }], [{ type: 'inlineMath', source: ')' }],
+        assert.equal(headers?.length, 10);
+        assert.equal(headers?.[7].colSpan, 2);
+        assert.deepEqual(headers?.[7].children, [
+            { type: 'inlineMath', source: '(' },
+            { type: 'text', text: '\\vert{}' },
+            { type: 'inlineMath', source: ')' },
         ]);
         assert.deepEqual(table.rows.map(row => row.cells.length), [11, 11, 11]);
-        assert.deepEqual(table.rows.map(row => row.cells.at(-1)?.children), (
-            key === 'G_TABLE_RESTORE_LL1_20' ? ["E' \\to \\epsilon", "T' \\to \\epsilon", 'F_{\\text{tail}} \\to \\epsilon'] : Array(3).fill('\\epsilon')
-        ).map(source => [{ type: 'inlineMath', source }]));
+        const expectedTails = key === 'G_TABLE_RESTORE_LL1_20'
+            ? ["E' \\to \\epsilon", "T' \\to \\epsilon", 'F_{\\text{tail}} \\to \\epsilon']
+            : Array(3).fill('\\epsilon');
+        assert.deepEqual(table.rows.map(row => row.cells.at(-1)?.children),
+            expectedTails.map(source => [{ type: 'inlineMath', source }]));
+        const markdown = markdownFrom(key);
+        assert.ok(markdown.includes('<th colspan="2"><code>(</code>\\vert{}<code>)</code></th>'));
+        const rows = [...markdown.matchAll(/<tr><td>.*?<td><code>([^<]+)<\/code><\/td><\/tr>/g)];
+        assert.deepEqual(rows.map(row => row[1]), expectedTails.map(source => source.replaceAll("'", "&#39;")));
     });
 }
 
@@ -41,14 +61,7 @@ test('preserves existing cell math and recovers the independently marked suffix'
 });
 
 test('recovered superscript stays math in emitted Markdown', () => {
-    const account = fixtureAccount('gemini');
-    const parsed = parseGeminiRpcConversation(detailGen('G_TABLE_RESTORE_SUPERSCRIPT_46'), { providerId: 'gemini' });
-    const key = fixtureKey(parsed.conversationId, 'gemini');
-    const domain = validateParserDomain({
-        index: { ...parsed.conversation.index, key },
-        detail: { ...parsed.conversation.detail, key },
-    });
-    const markdown = renderDocumentMarkdown(composeDomainDocument(domain, account), {});
+    const markdown = markdownFrom('G_TABLE_RESTORE_SUPERSCRIPT_46');
     assert.ok(markdown.includes('$0.0210$ (SE$^2$)'));
 });
 
