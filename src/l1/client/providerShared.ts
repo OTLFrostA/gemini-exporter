@@ -3,7 +3,6 @@ import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 import type { Account } from '../../l2/accountRegistry.js';
 import { DEFAULT_ACCOUNT_KEY } from '../../l2/accountRegistry.js';
 import { readConversationKey, type ConversationKey } from '../../l2/conversationKey.js';
-import { ingestDetail } from '../../l2/ingestion.js';
 import type { ProviderConversationItem } from '../parsers/contracts.js';
 import type { SourceConversationParseResult } from '../parsers/parsingResult.js';
 import type { SourceResourceContext } from '../resources/sourceResources.js';
@@ -72,7 +71,7 @@ export function forwardSourceDiagnostics(
     }
 }
 
-/** Forward parser diagnostics, commit Detail + Index to L2, and retain task-scoped inline resource hints. */
+/** Forward parser diagnostics, commit Detail + Index via ProviderHost, and retain task-scoped inline resource hints. */
 export async function commitProviderDetail(options: {
     accountId: string;
     conversationId: string;
@@ -81,7 +80,7 @@ export async function commitProviderDetail(options: {
     onDiagnostic?: (diagnostic: Diagnostic) => void;
 }): Promise<{ accepted: boolean; changed: boolean }> {
     forwardSourceDiagnostics(options.parsed.diagnostics, options.onDiagnostic);
-    const admission = await ingestDetail(
+    const admission = await providerHost().ingestion.ingestDetail(
         options.accountId,
         options.conversationId,
         options.parsed.conversation.detail,

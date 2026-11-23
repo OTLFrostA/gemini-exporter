@@ -3,6 +3,7 @@ import { OperationError, operationError } from '../../../shared/errors/operation
 import { mapWithConcurrency } from '../../../shared/utils/concurrency.js';
 import { PLATFORM_HOSTS, matchesPlatformPageUrl } from '../../../shared/platformHosts.js';
 import type { AIProvider, ProviderListOptions, ProviderReadiness, ListEnd } from '../aiProvider.js';
+import { providerHost } from '../providerHost.js';
 import {
     assertValidResourceKey,
     commitProviderDetail,
@@ -13,7 +14,6 @@ import {
 } from '../providerShared.js';
 import type { DomainAsset } from '../../../l2/conversationDetail.js';
 import type { ConversationKey } from '../../../l2/conversationKey.js';
-import { ingestIndexes } from '../../../l2/ingestion.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
 import { parseGrokList } from '../../parsers/grok/parseList.js';
 import { parseGrokConversation } from '../../parsers/grok/parseConversation.js';
@@ -61,7 +61,7 @@ export class GrokProvider implements AIProvider {
             }
             const evidence = { streamId: options.streamId, requestCursor: cursor, nextCursor: parsed.nextCursor,
                 requestedAt, requestKnown: true, valid: true, ordered: true, keys: parsed.keys };
-            const indexChanges = await ingestIndexes(account.id, toIndexIngestItems(parsed.conversations), evidence);
+            const indexChanges = await providerHost().ingestion.ingestIndexes(account.id, toIndexIngestItems(parsed.conversations), evidence);
             totalObserved += parsed.keys.length;
             const stop = await options.onPageCommitted?.({ page, totalObserved, indexChanges, ...(page === 1 ? { scanHead: evidence } : {}) });
             if (!parsed.nextCursor) return 'source_end';

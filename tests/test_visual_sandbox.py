@@ -129,7 +129,7 @@ class TestVisualSandbox(unittest.TestCase):
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
-        with tempfile.TemporaryDirectory() as profile:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as profile:
             browser = subprocess.Popen([
                 executables[-1], "--headless=new", "--no-sandbox", "--disable-gpu",
                 "--no-first-run", "--remote-allow-origins=*",

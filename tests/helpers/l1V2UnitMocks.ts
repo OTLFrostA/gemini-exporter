@@ -283,6 +283,15 @@ export function installL1V2Mocks(): void {
             if (ports.current?.accountId !== accountId) throw new Error('No mocked Gemini account route');
             return ports.current.slot;
         },
+        ingestion: {
+            ingestIndexes: ingestion.ingestIndexes,
+            ingestDetail: ingestion.ingestDetail,
+            ingestDeletedConversation: ingestion.ingestDeletedConversation,
+        },
+        cooldown: {
+            getSourceCooldown: cooldownStorage.getSourceCooldown,
+            extendSourceCooldown: cooldownStorage.extendSourceCooldown,
+        },
     });
     provideContentRuntimeHost({
         ingestion: {

@@ -9,7 +9,6 @@ import {
     isIdentifiedProviderAccount,
     requireProviderAccount,
 } from '../providerShared.js';
-import { ingestIndexes, ingestDetail, ingestDeletedConversation } from '../../../l2/ingestion.js';
 import type { GeminiProviderClient, GeminiProviderContract } from './geminiContracts.js';
 import type { ProviderListOptions, ListEnd, ProviderReadiness } from '../aiProvider.js';
 import { ProviderListError } from '../aiProvider.js';
@@ -78,7 +77,7 @@ export class GeminiProvider implements GeminiProviderContract {
                 }
             }
             const pageEvidence = isIdentifiedProviderAccount(account) ? observation : undefined;
-            const indexChanges = await ingestIndexes(account.id, result.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')), pageEvidence);
+            const indexChanges = await providerHost().ingestion.ingestIndexes(account.id, result.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')), pageEvidence);
             options.signal?.throwIfAborted();
             totalObserved += result.conversations.length;
             const { providerId: _provider, accountId: _account, ...head } = observation;
@@ -116,7 +115,7 @@ export class GeminiProvider implements GeminiProviderContract {
             signal?.throwIfAborted();
             if (error.sourceConversationId !== `c_${conversationId.replace(/^c_/, '')}`) throw error;
             if (await this.route(accountId) !== slot) throw new OperationError('ACCOUNT_CHANGED', 'Gemini account route changed');
-            await ingestDeletedConversation(accountId, conversationId.replace(/^c_/, ''));
+            await providerHost().ingestion.ingestDeletedConversation(accountId, conversationId.replace(/^c_/, ''));
             throw new OperationError('CONVERSATION_NOT_FOUND', 'conversation_not_found');
         }
         signal?.throwIfAborted();
@@ -134,7 +133,7 @@ export class GeminiProvider implements GeminiProviderContract {
                 truncation: parsed.evidence?.truncation ?? null,
                 heuristicDocumentIds: parsed.evidence?.heuristicDocumentIds ?? [],
                 diagnosticCodes: parsed.diagnostics.map(diagnostic => diagnostic.code) } });
-        const admission = await ingestDetail(accountId, parsed.conversationId, detail, index);
+        const admission = await providerHost().ingestion.ingestDetail(accountId, parsed.conversationId, detail, index);
         report({ severity: 'info', code: 'GEMINI_DETAIL_ADMISSION', message: 'Source Detail admission completed',
             details: { accepted: admission.accepted, changed: admission.changed } });
         if (admission.accepted) this.resources?.retainParsed({ accountId, conversationId: parsed.conversationId }, parsed);

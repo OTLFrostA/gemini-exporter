@@ -1,7 +1,6 @@
 import { readChatGPTSandboxLocator } from '../../resources/chatgptSandbox.js';
 import { diagnosticOrigin, diagnosticUrlShape, emitDiagnostic, type Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { OperationError, operationError } from '../../../shared/errors/operationError.js';
-import { getSourceCooldown, extendSourceCooldown } from '../../../l2/sourceCooldown.js';
 import { ResourceHttpError, ResourceProcessingError } from '../../../shared/resources/resourceResult.js';
 import { acquireSourceResource, type SourceResourceContext } from '../../resources/sourceResources.js';
 import { parseChatGPTWorkspaceId, readChatGPTSession } from './accountObservation.js';
@@ -10,6 +9,7 @@ import type { Account } from '../../../l2/accountRegistry.js';
 import type { DomainAsset } from '../../../l2/conversationDetail.js';
 import type { ResourceBytes } from '../../../shared/resources/resourceResult.js';
 import type { ListEnd, PageEvidence } from '../aiProvider.js';
+import { providerHost } from '../providerHost.js';
 import {
     assertValidResourceKey,
     commitProviderDetail,
@@ -19,7 +19,6 @@ import {
     toIndexIngestItems,
 } from '../providerShared.js';
 import { PLATFORM_HOSTS, matchesPlatformPageUrl } from '../../../shared/platformHosts.js';
-import { ingestIndexes } from '../../../l2/ingestion.js';
 /**
  * ChatGPT provider: acquisition only (session/list/detail/downloads).
  * Mapping parsing and Domain branding live in parsers/chatgpt, mirroring the
@@ -122,7 +121,7 @@ export class ChatGPTProvider implements AIProvider {
         }
     }
     private async checkCooldown(accountId: string, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<void> {
-        const retryAt = await getSourceCooldown(accountId);
+        const retryAt = await providerHost().cooldown.getSourceCooldown(accountId);
         if (retryAt <= Date.now()) return;
         emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_COOLDOWN_ACTIVE',
             message: 'ChatGPT account is cooling down; no request sent',
@@ -135,7 +134,7 @@ export class ChatGPTProvider implements AIProvider {
         const date = header && /^[A-Za-z]/.test(header.trim()) ? Date.parse(header) - Date.now() : NaN;
         const retryAfterMs = Number.isFinite(seconds) ? seconds : Number.isFinite(date) ? Math.max(0, date) : undefined;
         const delayMs = Math.max(60 * 60 * 1000, retryAfterMs ?? 0);
-        const retryAt = await extendSourceCooldown(accountId, Date.now() + delayMs);
+        const retryAt = await providerHost().cooldown.extendSourceCooldown(accountId, Date.now() + delayMs);
         emitDiagnostic(onDiagnostic, { severity: 'info', code: 'CHATGPT_RATE_LIMITED',
             message: 'ChatGPT returned HTTP 429; stop this export and cool down for one hour',
             details: { httpStatus: 429, retryAfterMs: retryAfterMs ?? null, delayMs, retryAt, willRetry: false } });
@@ -205,7 +204,7 @@ export class ChatGPTProvider implements AIProvider {
                 requestedAt, requestKnown: true, valid, ordered, keys,
             };
             const identified = isIdentifiedProviderAccount(account);
-            const indexChanges = await ingestIndexes(account.id, toIndexIngestItems(result.conversations),
+            const indexChanges = await providerHost().ingestion.ingestIndexes(account.id, toIndexIngestItems(result.conversations),
                 identified ? evidence : undefined);
             options.signal?.throwIfAborted();
             totalObserved += count;
