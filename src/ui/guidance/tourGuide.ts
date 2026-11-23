@@ -681,5 +681,6 @@ function showTakeoutPrompt(
     shown?.();
     return true;
 }
+const isGuidedSelection = (): boolean => mode === 'tour';
 export const TourGuide = { beginScan, beginExport, beginFormatSelection, beginLiveSave, showAccountConnection, showPlatformAuthorization, startTour, goToStep, nextStep, prevStep, finishTour, skipTour,
-    startFeatureSpotlight, showPlatformHighlights, showV2UpgradeSpotlight, dismissFeatureSpotlight, showTakeoutPrompt, isActive, isLiveSaveStep, destroy };
+    startFeatureSpotlight, showPlatformHighlights, showV2UpgradeSpotlight, dismissFeatureSpotlight, showTakeoutPrompt, isActive, isLiveSaveStep, isGuidedSelection, destroy };

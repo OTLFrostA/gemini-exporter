@@ -16,7 +16,13 @@ export function unmountList(): void {
     roots.delete(list);
 }
 
-export function renderList(state: ConversationViewState, disabled: boolean, preparedKeys?: ReadonlySet<string>, failedKeys?: ReadonlySet<string>): void {
+export function renderList(
+    state: ConversationViewState,
+    disabled: boolean,
+    preparedKeys?: ReadonlySet<string>,
+    failedKeys?: ReadonlySet<string>,
+    guidedSelection = false,
+): void {
     const list = elementById('list');
     let root = roots.get(list);
     if (!root) { root = createRoot(list); roots.set(list, root); }
@@ -35,24 +41,24 @@ export function renderList(state: ConversationViewState, disabled: boolean, prep
         onSelect: (id: string, selected: boolean) => {
             if (disabled) return;
             if (selected) {
-                if (document.body.dataset.guidedSelection === 'true') state.selected.clear();
+                if (guidedSelection) state.selected.clear();
                 state.selected.add(id);
             } else state.selected.delete(id);
-            renderList(state, disabled, preparedKeys, failedKeys);
+            renderList(state, disabled, preparedKeys, failedKeys, guidedSelection);
             // The legacy tour observes selection intent, including row-title clicks.
             list.dispatchEvent(new Event('conversation-selection-change'));
         },
     })));
-    updateStat(state);
+    updateStat(state, disabled);
 }
 
-function updateStat(state: ConversationViewState): void {
+function updateStat(state: ConversationViewState, disabled: boolean): void {
     const visible = state.visible();
     const selectedVisible = visible.filter(row => state.selected.has(row.key.conversationId)).length;
     const selectAll = requiredElement('input', 'btnSelectAll');
     selectAll.checked = visible.length > 0 && selectedVisible === visible.length;
     selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visible.length;
-    selectAll.disabled = visible.length === 0 || document.body.dataset.foregroundBusy === 'true';
+    selectAll.disabled = visible.length === 0 || disabled;
     const label = selectAll.checked
         ? text('Clear selection', '清空选择')
         : text('Select all visible conversations', '全选当前可见会话');
@@ -66,10 +72,10 @@ function updateStat(state: ConversationViewState): void {
     elementById('hiddenSelectionNotice').hidden = hiddenCount === 0;
     elementById('hiddenSelectionText').textContent = hiddenCount
         ? text(`${hiddenCount} selected ${hiddenCount === 1 ? 'conversation' : 'conversations'} hidden ${hiddenReason}`, `已选 ${hiddenCount} 个会话${hiddenReason}`) : '';
-    requiredElement('button', 'btnShowHiddenSelection').disabled = document.body.dataset.foregroundBusy === 'true';
-    requiredElement('button', 'btnDeselectHidden').disabled = document.body.dataset.foregroundBusy === 'true';
+    requiredElement('button', 'btnShowHiddenSelection').disabled = disabled;
+    requiredElement('button', 'btnDeselectHidden').disabled = disabled;
     elementById('selectedStat').textContent =
         text(`${state.selected.size} of ${total} selected`, `已选 ${state.selected.size} / ${total}`);
     const button = requiredElement('button', 'btnExport');
-    button.disabled = !state.selected.size || document.body.dataset.foregroundBusy === 'true';
+    button.disabled = !state.selected.size || disabled;
 }

@@ -8,6 +8,7 @@ import type { DomainAsset, DomainMessage } from '../../../l2/conversationDetail.
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { SourceConversationParseResult } from '../parsingResult.js';
 import { parseMarkdownToBlocks } from '../shared/markdown/index.js';
+import { contentQuality } from '../qualityEvidence.js';
 import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 import { grokObject, grokTimestamp, grokUuid } from './source.js';
 
@@ -117,10 +118,14 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
             ...(model ? { model } : {}) });
     }
     const updatedAt = grokTimestamp(meta.modifyTime), createdAt = grokTimestamp(meta.createTime);
+    const quality = messages.length
+        ? contentQuality({ status: 'complete', unrepresentedContent: partial })
+        : { status: 'unknown' as const };
     return { conversationId: requestedId, ...(updatedAt !== undefined ? { sourceVersion: updatedAt } : {}),
         conversation: { index: parseIndexMetadata({ providerId: 'grok', id: requestedId,
-            title: typeof meta.title === 'string' ? meta.title : undefined, titleSource: 'provider', createdAt, updatedAt }),
+            title: typeof meta.title === 'string' ? meta.title : undefined, titleSource: 'provider', createdAt, updatedAt,
+            url: 'https://grok.com/c/' + requestedId }),
             detail: { ...(updatedAt !== undefined ? { savedAt: updatedAt } : {}),
-                quality: { status: messages.length ? partial ? 'partial' : 'complete' : 'unknown' }, assets, messages } },
+                quality, assets, messages } },
         diagnostics, acquisitionHints };
 }

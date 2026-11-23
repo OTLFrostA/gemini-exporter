@@ -29,7 +29,7 @@ import { handlePlatformArchiveImport } from './controllers/takeoutController.js'
 import { createWorkbenchScanController } from './controllers/workbenchScanController.js';
 import { ConversationViewState } from './state/conversationsStore.js';
 import { ExportIssueCollector } from './state/exportIssues.js';
-import type { ForegroundTask, ScanEvidence, TaskFeedback, UiMessage } from './state/foregroundTask.js';
+import type { ForegroundTask, TaskFeedback, UiMessage } from './state/foregroundTask.js';
 import { confirmCleanup } from './views/cleanupPrompt.js';
 import { showDirectWritePrompt } from './views/directWritePrompt.js';
 import { copyExportFailures } from './views/exportFailures.js';
@@ -53,21 +53,16 @@ export async function initWorkbench(): Promise<void> {
     const isBusy = () => foreground.kind !== 'idle';
     const taskPanel = mountTaskPanel();
     let cloudPanel: CloudVaultControllerHandle | undefined;
-    let advanceTutorialScan: (() => void) | undefined;
     let currentScanStatus: UiMessage | ConversationSourceSummary | null = null;
-    let scanEvidence: ScanEvidence | undefined;
-    let scanTakeoutCount: number | undefined;
     let presentationSaving = false;
     let lastRequest: UIExportRequest | null = null;
     let failed: UIExportRequest['keys'] = [];
     let dismissedFailures = false;
     let currentIssues = new ExportIssueCollector();
     let folderSuggestionPending = false;
-    let connectionError: string | null = null;
     const preparedExportKeys = new Set<string>();
     let feedback: TaskFeedback = { kind: 'empty' };
     let percent = 0;
-    let scanSlow = false;
     let settingsControls: ReturnType<typeof bindSettingsAndDeliveryControls> | undefined;
 
     const fileInput = control('input', 'takeoutFileInput');
@@ -106,31 +101,34 @@ export async function initWorkbench(): Promise<void> {
         void navigator.clipboard.writeText(copyExportFailures(currentIssues.groups())).catch(e => statusError(e));
     };
 
-    const paintTaskPanel = () => taskPanel.render({
-        task: foreground,
-        feedback,
-        percent,
-        scanning: scanRunner.isScanning(),
-        scanMessage: currentScanStatus === null || (typeof currentScanStatus === 'object' && currentScanStatus.method !== 'sync')
-            ? null : resolveSourceMessage(currentScanStatus, state, scanEvidence),
-        scanEvidence,
-        scanSlow,
-        onTakeout: scanTakeoutCount === undefined ? undefined : showTakeout.bind(undefined, scanTakeoutCount),
-        sourceSummary: currentScanStatus !== null && typeof currentScanStatus === 'object'
-            ? { ...currentScanStatus, accountId: state.accountId, total: state.indexes.length } : undefined,
-        groups: currentIssues.groups(),
-        failedCount: failed.length,
-        dismissed: dismissedFailures,
-        developerMode: settings?.developerMode ?? false,
-        ready: !!settings,
-        onCancel: cancel,
-        onRetry: retryFailed,
-        onDismiss: dismissFailures,
-        onCopy: copyFailures,
-    });
+    const paintTaskPanel = () => {
+        const scanState = scanRunner.getState();
+        taskPanel.render({
+            task: foreground,
+            feedback,
+            percent,
+            scanning: scanRunner.isScanning(),
+            scanMessage: currentScanStatus === null || (typeof currentScanStatus === 'object' && currentScanStatus.method !== 'sync')
+                ? null : resolveSourceMessage(currentScanStatus, state, scanState.evidence),
+            scanEvidence: scanState.evidence,
+            scanSlow: scanState.slow,
+            onTakeout: scanState.takeoutCount === undefined ? undefined : showTakeout.bind(undefined, scanState.takeoutCount),
+            sourceSummary: currentScanStatus !== null && typeof currentScanStatus === 'object'
+                ? { ...currentScanStatus, accountId: state.accountId, total: state.indexes.length } : undefined,
+            groups: currentIssues.groups(),
+            failedCount: failed.length,
+            dismissed: dismissedFailures,
+            developerMode: settings?.developerMode ?? false,
+            ready: !!settings,
+            onCancel: cancel,
+            onRetry: retryFailed,
+            onDismiss: dismissFailures,
+            onCopy: copyFailures,
+        });
+    };
 
     const status = (message: UiMessage, level: LogLevel = 'info', rawLogMessage?: string) => {
-        connectionError = null;
+        scanRunner.clearConnectionError();
         feedback = { kind: 'status', message, level };
         paintTaskPanel();
         logController.appendLog({ at: Date.now(), level, message: rawLogMessage ?? resolveUiMessage(message) });
@@ -138,14 +136,15 @@ export async function initWorkbench(): Promise<void> {
     const statusError = (error: unknown, level: LogLevel = 'error') =>
         status(() => errorText(error), level, error instanceof Error ? error.message : String(error));
     const reportScan = (message: UiMessage | ConversationSourceSummary, level: LogLevel = 'info', rawLogMessage?: string) => {
-        if (level !== 'error') connectionError = null;
+        if (level !== 'error') scanRunner.clearConnectionError();
+        const scanState = scanRunner.getState();
         currentScanStatus = message;
         paintTaskPanel();
         logController.appendLog({
             at: Date.now(),
             level,
-            message: rawLogMessage ?? resolveSourceMessage(message, state, scanEvidence),
-            takeoutCount: scanTakeoutCount,
+            message: rawLogMessage ?? resolveSourceMessage(message, state, scanState.evidence),
+            takeoutCount: scanState.takeoutCount,
         });
     };
     const progress = (message: UiMessage, nextPercent?: number) => {
@@ -159,6 +158,7 @@ export async function initWorkbench(): Promise<void> {
         isBusy(),
         foreground.kind === 'export' ? preparedExportKeys : undefined,
         new Set(failed.filter(key => key.accountId === state.accountId).map(key => key.conversationId)),
+        TourGuide.isGuidedSelection(),
     );
     const render = () => renderWorkbench({
         state,
@@ -181,10 +181,8 @@ export async function initWorkbench(): Promise<void> {
         currentIssues = new ExportIssueCollector();
         dismissedFailures = false;
         currentScanStatus = null;
-        scanEvidence = undefined;
-        scanTakeoutCount = undefined;
+        scanRunner.resetAccountState();
         feedback = { kind: 'empty' };
-        connectionError = null;
     };
 
     const refresh = async (changedAccountId?: string) => {
@@ -193,13 +191,13 @@ export async function initWorkbench(): Promise<void> {
         const implicitSwitch = priorAccountId !== null && state.accountId !== priorAccountId;
         if (implicitSwitch) resetAccountEphemeralState();
         if (changed || implicitSwitch) render();
-        advanceTutorialScan?.();
-        const previousError = connectionError;
+        scanRunner.runAdvanceTutorialScan();
+        const previousError = scanRunner.getState().connectionError;
         const accountId = state.accountId;
         if (!previousError || isBusy() || scanRunner.isScanning() || !accountId) return;
         try {
             const connected = await resolveScanTarget(accountId);
-            if (connected === accountId && state.accountId === accountId && !isBusy() && !scanRunner.isScanning() && connectionError === previousError) {
+            if (connected === accountId && state.accountId === accountId && !isBusy() && !scanRunner.isScanning() && scanRunner.getState().connectionError === previousError) {
                 reportScan(() => text('Account connected. Sync conversations to refresh history.', '账号已连接，可同步会话更新历史。'));
             }
         } catch { /* Keep actionable guidance until a verified Content source is available. */ }
@@ -233,12 +231,6 @@ export async function initWorkbench(): Promise<void> {
         isBusy,
         setSettings: next => { settings = next; },
         clearFeedback: () => { feedback = { kind: 'empty' }; },
-        setScanEvidence: next => { scanEvidence = next; },
-        setScanTakeoutCount: next => { scanTakeoutCount = next; },
-        setScanSlow: next => { scanSlow = next; },
-        setConnectionError: next => { connectionError = next; },
-        setAdvanceTutorialScan: next => { advanceTutorialScan = next; },
-        getAdvanceTutorialScan: () => advanceTutorialScan,
         recordScanRun: logController.recordScanRun,
         reportScan,
         showTakeout,
@@ -320,7 +312,7 @@ export async function initWorkbench(): Promise<void> {
     });
     el('btnForceFullScan').addEventListener('click', () => { if (settings.developerMode) void scanRunner.scan(true); });
     el('btnExport').addEventListener('click', () => {
-        const keys = document.body.dataset.guidedSelection === 'true' ? state.keys().slice(0, 1) : state.keys();
+        const keys = TourGuide.isGuidedSelection() ? state.keys().slice(0, 1) : state.keys();
         if (isBusy() || folderSuggestionPending || !keys.length || !settings) return;
         const request: UIExportRequest = {
             keys, format: settings.defaultFormat, delivery: settings.exportDelivery ?? 'browserDownload',
@@ -364,8 +356,7 @@ export async function initWorkbench(): Promise<void> {
         const account = state.accounts.find(a => a.id === accountId);
         return perform('takeout', async () => {
             currentScanStatus = null;
-            scanTakeoutCount = undefined;
-            if (!scanRunner.isScanning()) scanEvidence = undefined;
+            scanRunner.clearImportBannerState();
             try {
                 const outcome = await handlePlatformArchiveImport(file, account, accountId, {
                     onStartKind: kind => status(() => kind === 'openai'
@@ -445,7 +436,7 @@ export async function initWorkbench(): Promise<void> {
         renderConversations();
     });
     control('input', 'btnSelectAll').addEventListener('change', () => {
-        if (isBusy() || document.body.dataset.guidedSelection === 'true') return;
+        if (isBusy() || TourGuide.isGuidedSelection()) return;
         if (control('input', 'btnSelectAll').checked) state.selectVisible();
         else state.selected.clear();
         renderConversations();
