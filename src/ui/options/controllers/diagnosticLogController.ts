@@ -7,7 +7,7 @@ import { text } from '../../shared/settings.js';
 
 export type LogLevel = 'info' | 'warn' | 'error';
 
-export interface LogEntry {
+interface LogEntry {
     at: number;
     level: LogLevel;
     message: string;
