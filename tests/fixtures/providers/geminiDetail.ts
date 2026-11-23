@@ -5,6 +5,8 @@ import { resourcesCases } from './gemini/detail/resourcesCases.js';
 import { integrationCases } from './gemini/detail/integrationCases.js';
 import { p0CapturedCases } from './gemini/detail/p0CapturedCases.js';
 
+import { tableRecoveryCases } from './gemini/detail/tableRecoveryCases.js';
+
 const fixtureMap = {
     ...versionCases,
     ...protocolCases,
@@ -12,6 +14,7 @@ const fixtureMap = {
     ...resourcesCases,
     ...integrationCases,
     ...p0CapturedCases,
+    ...tableRecoveryCases,
 };
 
 export function detailGen(key: keyof typeof fixtureMap): string {

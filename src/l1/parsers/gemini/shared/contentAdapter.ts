@@ -11,6 +11,7 @@ import { preprocessGeminiMarkdown, normalizeGeminiTexAliases } from './markdownC
 import { geminiStructuredToContent, type GeminiSourceCitations, type GeminiSourceFailure } from './structuredContentAdapter.js';
 import type { InlineNode } from '../../../../l2/content/inline.js';
 import { normalizeTextUnderscores } from '../../../../shared/utils/latexCompatibility.js';
+import { hasRecoverableTableContent, recoverTableContent } from './tableContentRecovery.js';
 import { hasLiteralMathText, recoverLiteralMath } from './literalMathRecovery.js';
 import { recoverGeminiSourceRanges } from './sourceRanges.js';
 import { cleanGeminiBodyText, createCandidateMarkdownIndex } from './candidateMarkdown.js';
@@ -62,12 +63,21 @@ export function parseGeminiPrompt(content: string): BlockNode[] {
     return [{ type: 'paragraph', children }];
 }
 
-function applyLiteralMathRecovery(
+function applyCandidateContentRecovery(
     blocks: BlockNode[],
     markdownIndex: ReturnType<typeof createCandidateMarkdownIndex>,
     context: GeminiBodyParseContext,
 ): void {
-    if (context.recoverLiteralMath !== false && markdownIndex.cleaned().includes('$') && hasLiteralMathText(blocks)) {
+    if (context.recoverLiteralMath === false || !markdownIndex.cleaned().includes('$')) return;
+    if (blocks.some(hasRecoverableTableContent)) {
+        const recovered = recoverTableContent(blocks, markdownIndex.referenceBlocks(context));
+        if (recovered) context.diagnostics.push({
+            severity: 'info', code: 'GEMINI_TABLE_CONTENT_RECOVERED',
+            message: 'Recovered table cells or inline math verified against the selected Markdown',
+            sourceRef: context.sourceRef, details: { recovered },
+        });
+    }
+    if (hasLiteralMathText(blocks)) {
         const recovered = recoverLiteralMath(blocks, markdownIndex.referenceBlocks(context));
         if (recovered) {
             context.diagnostics.push({
@@ -124,7 +134,7 @@ export function parseGeminiBody(
                     },
                 });
             }
-            applyLiteralMathRecovery(structured, markdownIndex, context);
+            applyCandidateContentRecovery(structured, markdownIndex, context);
             return normalizeGeminiMath(structured);
         }
         context.onStructuredFallback?.('body');
@@ -149,7 +159,7 @@ export function parseGeminiBody(
             context,
         });
         if (partial) {
-            applyLiteralMathRecovery(partial.blocks, markdownIndex, context);
+            applyCandidateContentRecovery(partial.blocks, markdownIndex, context);
             return normalizeGeminiMath(partial.blocks);
         }
     } else if (context.partialSlots?.length) {
@@ -162,7 +172,7 @@ export function parseGeminiBody(
             context,
         });
         if (partial) {
-            applyLiteralMathRecovery(partial.blocks, markdownIndex, context);
+            applyCandidateContentRecovery(partial.blocks, markdownIndex, context);
             return normalizeGeminiMath(partial.blocks);
         }
     }
