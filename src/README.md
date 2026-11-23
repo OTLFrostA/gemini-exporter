@@ -5,8 +5,8 @@ defines the module boundaries used by this directory tree:
 
 | Directory | Design module and responsibility |
 | --- | --- |
-| `l1/client` | [L1](https://app.notion.com/p/3fb5d4d759e1812f9962cf24dcf9116a): provider requests, pagination and credentials |
-| `l1/sniffer` | L1: passive Gemini request/response capture and source message bridge |
+| `l1/client` | [L1](https://app.notion.com/p/3fb5d4d759e1812f9962cf24dcf9116a): provider requests, pagination and credentials (decoupled from L2 writes via `ProviderHost`) |
+| `l1/sniffer` | L1: passive provider request/response capture and serialized source message bridges (DOM observers live in `runtime/content`) |
 | `l1/parsers`, `l1/protocol` | L1: source decoding, provider wire schemas and unbound parse results |
 | `l1/imports`, `l1/resources` | L1: offline archive decoding/binding and temporary resource acquisition |
 | `l2` | [L2](https://app.notion.com/p/3fb5d4d759e1814aaa92ee02a21419a7): Domain schemas, account identity, Index/Detail admission and Coverage |
@@ -98,12 +98,10 @@ alone cannot reconstruct an earlier run's source responses or failure causes.
 `dist/background` and `dist/ui` bundle names. Manifest paths and sandbox resource
 URLs point to their owning module's source directory.
 
-`npm test` runs zero-any, whole-project TypeScript checking, all active Node and
-offline Python unit tests, production build and fixture-based Playwright tests.
-`node scripts/test-ui.cjs` limits behavioral tests to UI (type checking still checks
-the complete project). No command above uses a live Google account.
+`npm test` runs zero-any, `scripts/check-architecture.cjs` (layer DAG and 0-cycle gate), whole-project TypeScript checking, all active Node and
+offline Python unit tests, production build, bundled font checks, and fixture-based Playwright tests.
+No command above uses a live Google account.
 
-See [Domain type boundaries](../docs/domain-type-boundaries.md),
-[Storage](l3a/README.md) and [Document AST](../docs/architecture/document-ast.md)
-for the current contracts. Test ownership and execution rules are described in
+See [Architecture Specification](../docs/architecture/architecture.md) and
+[Storage](l3a/README.md) for the current contracts. Test ownership and execution rules are described in
 [module-unit isolation](../docs/v2-unit-isolation.md).
