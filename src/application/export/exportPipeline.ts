@@ -323,6 +323,27 @@ export async function executeExportWithSession(
                     if (!source.requiredIds.size && !directory) continue;
                 }
 
+                if (body && !source.requiredIds.size && directory) {
+                    const taskPromise: Promise<void> = Promise.resolve(bodyWritten).then(async () => {
+                        await delivery.finalize([body]);
+                    }).catch(error => {
+                        if (cancelled(error)) controller.abort(error);
+                        else {
+                            console.warn('[Gemini Exporter] Export item failed', key, error);
+                            fail([key], error);
+                        }
+                    }).finally(async () => {
+                        await bodyWritten?.catch(() => {});
+                        resources.releaseConversation(key);
+                        if (queued.get(keyId) === taskPromise) queued.delete(keyId);
+                        activeDownstream.delete(taskPromise);
+                    });
+                    handedOff = true;
+                    activeDownstream.add(taskPromise);
+                    queued.set(keyId, taskPromise);
+                    continue;
+                }
+
                 const pendingSlot = !body && !(folderPlanner && directory) ? pendingSlots.push(undefined) - 1 : -1;
                 type AcquiredOutcome =
                     | { readonly ok: true; readonly item: PendingExport; readonly finalPlan: ExportPathPlan | undefined; readonly sourceChanged: boolean }
@@ -336,8 +357,11 @@ export async function executeExportWithSession(
                         diagnose({ key, stage: 'resource_refresh', severity: 'info', code: 'RESOURCE_REFRESH_STARTED', message: 'Refreshing source after attachment access failure' });
                         let refreshed = false;
                         try {
-                            await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
-                                diagnostic => diagnose({ key, stage: 'source_parse', ...diagnostic }));
+                            await detailPrefetchSemaphore.run(
+                                () => providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
+                                    diagnostic => diagnose({ key, stage: 'source_parse', ...diagnostic })),
+                                signal,
+                            );
                             refreshed = true;
                         } catch (error) {
                             if (cancelled(error) || (error instanceof Error && error.message === 'conversation_not_found')) throw error;
@@ -372,8 +396,7 @@ export async function executeExportWithSession(
                 activeDownstream.add(acquireDone);
                 void acquireDone.finally(() => { activeDownstream.delete(acquireDone); });
 
-                const preparedGroup = body && !source.requiredIds.size ? Promise.resolve(body)
-                    : retireChain.then(async (): Promise<ExportGroup | undefined> => {
+                const preparedGroup = retireChain.then(async (): Promise<ExportGroup | undefined> => {
                         const outcome = await acquisitionPromise;
                         if (!outcome.ok) throw outcome.error;
                         signal.throwIfAborted();

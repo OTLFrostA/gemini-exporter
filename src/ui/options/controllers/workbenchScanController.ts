@@ -40,6 +40,7 @@ export function createWorkbenchScanController(deps: {
     const scan = async (forceFull = false): Promise<void> => {
         if (deps.isBusy() || scanController) return;
         deps.clearFeedback();
+        deps.setConnectionError(null);
         deps.setScanTakeoutCount(undefined);
         const taskController = new AbortController();
         scanController = taskController;

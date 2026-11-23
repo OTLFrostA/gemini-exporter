@@ -6,6 +6,31 @@ import { getAccount } from './accountRegistry.js';
 import { ingestDeletedConversation, ingestDetail, ingestIndexes } from '../../l2/ingestion.js';
 import { extendSourceCooldown, getSourceCooldown } from '../../l2/sourceCooldown.js';
 
+function queryTabAccountContext(tabId: number, timeoutMs = 3000): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            reject(new Error(`tab ${tabId} timed out`));
+        }, timeoutMs);
+        void Promise.resolve(chrome.tabs.sendMessage(tabId, { action: 'getAccountContext' })).then(
+            reply => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                resolve(reply);
+            },
+            error => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                reject(error);
+            },
+        );
+    });
+}
+
 /** Runtime routing is frozen before acquisition, never inferred from SID or Slot. */
 async function resolveGeminiRoute(accountId: string): Promise<string> {
     if (typeof document !== 'undefined' && location.hostname === 'gemini.google.com') {
@@ -20,7 +45,7 @@ async function resolveGeminiRoute(accountId: string): Promise<string> {
         for (const tab of tabs) {
             if (tab.id === undefined) continue;
             try {
-                const parsed = readAccountContextReply(await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' }));
+                const parsed = readAccountContextReply(await queryTabAccountContext(tab.id));
                 if (!parsed.ok) {
                     failures.push(`tab ${tab.id}: ${parsed.error ?? 'invalid reply'}`);
                     continue;

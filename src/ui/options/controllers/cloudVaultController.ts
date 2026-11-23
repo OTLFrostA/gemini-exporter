@@ -104,13 +104,16 @@ export function mountCloudVaultPanel(callbacks: {
     const unsubscribeAutoEnqueue = defaultCloudSyncEngine.installAutoEnqueueListener();
 
     const silentAutoSync = async (): Promise<void> => {
+        if (!mounted || externalBusy || internalBusy) return;
         const snap = await defaultCloudSyncEngine.getStatusSnapshot();
+        if (!mounted || externalBusy || internalBusy) return;
         if (!snap.enabled || !snap.connected || !snap.hasRecoveryKey || snap.folderPermissionRequired || snap.keyMismatch) return;
         const outcome = await defaultCloudSyncEngine.syncNow();
+        if (!mounted) return;
         if (outcome.pull.changed > 0) {
             await callbacks.onRestored();
         }
-        await refresh();
+        if (mounted) await refresh();
     };
 
     const onOnline = (): void => { void silentAutoSync().catch(() => {}); };

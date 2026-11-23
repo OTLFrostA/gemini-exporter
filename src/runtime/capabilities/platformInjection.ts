@@ -1,5 +1,31 @@
 import { hasPlatformAccess } from '../../l1/client/platformAccess.js';
 import { PLATFORM_HOSTS, SOURCE_PLATFORMS, matchesPlatformPageUrl, type SourcePlatform } from '../../shared/platformHosts.js';
+import { readAccountContextReply } from '../../shared/types/accountContextReply.js';
+
+function probeTabAccountContext(tabId: number, timeoutMs = 3000): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            reject(new Error(`Tab ${tabId} account context probe timed out`));
+        }, timeoutMs);
+        void Promise.resolve(chrome.tabs.sendMessage(tabId, { action: 'getAccountContext' })).then(
+            reply => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                resolve(reply);
+            },
+            error => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                reject(error);
+            },
+        );
+    });
+}
 
 const files = {
     gemini: ['dist/content/hook.js', 'dist/content/content.js'],
@@ -62,7 +88,7 @@ export async function preparePlatformTab(platform: SourcePlatform, tabId: number
         throw new Error('Provider tab does not match the selected platform');
     await syncPlatformContentScripts(platform);
     try {
-        if (await chrome.tabs.sendMessage(tabId, { action: 'getAccountContext' })) return;
+        if (readAccountContextReply(await probeTabAccountContext(tabId)).ok) return;
     } catch { /* A tab opened before its grant has no Content receiver yet. */ }
     await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', files: [files[platform][0]] });
     await chrome.scripting.executeScript({ target: { tabId }, world: 'ISOLATED', files: [files[platform][1]] });

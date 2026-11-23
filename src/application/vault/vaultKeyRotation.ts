@@ -1,5 +1,5 @@
 import { OperationError } from '../../shared/errors/operationError.js';
-import { sealSessionSecrets, type VaultKeyring } from '../../shared/crypto/index.js';
+import { deriveBlindRecordId, sealSessionSecrets, type VaultKeyring } from '../../shared/crypto/index.js';
 import type { CloudVaultStatusResponse } from '../../shared/types/cloudSync.js';
 import { DEFAULT_ACCOUNT_KEY } from '../../l2/accountRegistry.js';
 import { encodePortableCloudConversation } from '../../l2/cloudPayload.js';
@@ -45,37 +45,60 @@ export function createVaultKeyRotation(ctx: {
     ): Promise<CloudSyncedRecordState[]> => {
         const target = { serverUrl: session.serverUrl, sessionToken: session.sessionToken };
         const written = new Map<string, { state: CloudSyncedRecordState; ciphertextSha256: string }>();
+        const oversizedRecords: CloudSyncedRecordState[] = [];
         for (const account of await listAccounts()) {
             if (account.providerAccountId === DEFAULT_ACCOUNT_KEY) continue;
             for (const { key } of await listIndexes(account.id)) {
                 const source = await readLocalSyncSource(key, includeDetail);
                 if (!source) throw unverifiedBackup();
-                const { blindRecordId, envelope } = await sealCloudConversation({
-                    keyring, revision: 1, account, conversation: source,
-                });
-                const ciphertextSha256 = await sha256BytesHex(envelope);
-                const put = await rotationRequest(() => connection.remoteClient.putEncryptedRecord({
-                    ...target, blindRecordId, envelope, expectedRevision: 0,
-                    keyFingerprint: keyring.keyFingerprint, sha256: ciphertextSha256,
-                }));
-                if (put.status !== 'committed' || put.meta.revision !== 1 || put.meta.blindRecordId !== blindRecordId) {
+                const portableJson = encodePortableCloudConversation(account, source);
+                const payloadSha256 = await sha256Utf8Hex(portableJson);
+                let sealed: Awaited<ReturnType<typeof sealCloudConversation>>;
+                let ciphertextSha256: string;
+                let put: Awaited<ReturnType<typeof connection.remoteClient.putEncryptedRecord>>;
+                try {
+                    sealed = await sealCloudConversation({
+                        keyring, revision: 1, account, conversation: source,
+                    });
+                    ciphertextSha256 = await sha256BytesHex(sealed.envelope);
+                    put = await rotationRequest(() => connection.remoteClient.putEncryptedRecord({
+                        ...target, blindRecordId: sealed.blindRecordId, envelope: sealed.envelope, expectedRevision: 0,
+                        keyFingerprint: keyring.keyFingerprint, sha256: ciphertextSha256,
+                    }));
+                } catch (error) {
+                    if (!(error instanceof OperationError) || error.code !== 'CLOUD_RECORD_TOO_LARGE') throw error;
+                    const blindRecordId = await deriveBlindRecordId(
+                        keyring, account.providerId, account.providerAccountId, key.conversationId,
+                    );
+                    oversizedRecords.push({
+                        ...key,
+                        ownerSubject: session.ownerSubject,
+                        blindRecordId,
+                        remoteRevision: 0,
+                        syncedAt: now(),
+                        payloadSha256,
+                        oversizedBytes: portableJson.length,
+                    });
+                    continue;
+                }
+                if (put.status !== 'committed' || put.meta.revision !== 1 || put.meta.blindRecordId !== sealed.blindRecordId) {
                     throw unverifiedBackup();
                 }
-                written.set(blindRecordId, {
+                written.set(sealed.blindRecordId, {
                     ciphertextSha256,
                     state: {
                         ...key,
                         ownerSubject: session.ownerSubject,
-                        blindRecordId,
+                        blindRecordId: sealed.blindRecordId,
                         remoteRevision: 1,
                         syncedAt: now(),
-                        payloadSha256: await sha256Utf8Hex(encodePortableCloudConversation(account, source)),
+                        payloadSha256,
                     },
                 });
             }
         }
 
-        const verified: CloudSyncedRecordState[] = [];
+        const verified: CloudSyncedRecordState[] = [...oversizedRecords];
         let cursor = 0;
         for (;;) {
             const feed = await rotationRequest(() => connection.remoteClient.listChanges({
