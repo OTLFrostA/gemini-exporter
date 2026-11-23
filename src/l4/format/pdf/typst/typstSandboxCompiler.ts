@@ -113,7 +113,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
     async compile(payload: TypstRenderPayload, context: PdfCompileContext): Promise<PdfCompileResult> {
         const run = this.compileQueue.then(async () => {
             context.signal.throwIfAborted();
-            if (this.completedCompiles >= 16) this.resetSandbox();
+            if (this.completedCompiles >= 32) this.resetSandbox();
             for (let attempt = 0; ; attempt++) {
                 try {
                     const result = await this.compileOne(payload, context);
