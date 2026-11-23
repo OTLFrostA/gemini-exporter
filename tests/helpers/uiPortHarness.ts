@@ -104,7 +104,6 @@ export const getSettings = async () => ({...h.settings});
 export const readContentSettings = getSettings;
 export const updateSettings = async patch => { h.patches.push(patch); if(h.holdSettingWrite)await new Promise(resolve=>h.finishSettingWrite=resolve); if(h.rejectSettingWrite)throw new Error('Settings write rejected'); Object.assign(h.settings,patch); };
 export const isLiveSaveEffective = (s,d) => s.enabledDisk && s.exportDelivery==='folderWriter' && s.defaultFormat==='markdown' && d;
-export const isContentLiveSaveEffective = isLiveSaveEffective;
 export const ensureV2Ready = async () => {if(h.failReady)throw new Error('Injected readiness failure');};
 export const warmLocalFontCache = () => {h.events.push('fonts');return Promise.resolve();};
 export const listAccounts = async () => h.accounts;
