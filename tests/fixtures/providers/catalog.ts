@@ -16,6 +16,7 @@ import { fixtureOrigins as geminiDetailIntegrationCasesOrigins } from './gemini/
 import { fixtureOrigins as geminiDetailProtocolCasesOrigins } from './gemini/detail/protocolCases.js';
 import { fixtureOrigins as geminiDetailP0CapturedCasesOrigins } from './gemini/detail/p0CapturedCases.js';
 import { fixtureOrigins as geminiDetailResourcesCasesOrigins } from './gemini/detail/resourcesCases.js';
+import { fixtureOrigins as geminiTableRecoveryOrigins } from './gemini/detail/tableRecoveryCases.js';
 import { fixtureOrigins as geminiDetailVersionCasesOrigins } from './gemini/detail/versionCases.js';
 import { fixtureOrigins as geminiListCasesOrigins } from './gemini/list/cases.js';
 import { fixtureOrigins as geminiDeleteOrigins } from './geminiDelete.js';
@@ -51,6 +52,7 @@ export const fixtureCatalog = [
     ...geminiDetailP0CapturedCasesOrigins,
     ...geminiDetailResourcesCasesOrigins,
     ...geminiDetailVersionCasesOrigins,
+    ...geminiTableRecoveryOrigins,
     ...geminiListCasesOrigins,
     ...geminiDeleteOrigins,
     ...geminiDeleteRequestOrigins,
