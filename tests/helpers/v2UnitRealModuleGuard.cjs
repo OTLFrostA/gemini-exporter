@@ -12,7 +12,7 @@
 const Module = require('node:module');
 const path = require('node:path');
 
-const owners = new Set(['l1', 'l2', 'l3a', 'l3b', 'l4', 'application', 'runtime', 'ui', 'migration', 'shared']);
+const owners = new Set(['l1', 'l2', 'l3a', 'l3b', 'l4', 'application', 'runtime', 'ui', 'migration', 'shared', 'entrypoints']);
 const owner = process.env.V2_UNIT_OWNER;
 if (!owner || !owners.has(owner)) {
     throw new Error('Set V2_UNIT_OWNER to an explicit v2 module when enabling the strict unit guard');

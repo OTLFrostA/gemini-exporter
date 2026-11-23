@@ -90,8 +90,6 @@ function forbidden(owner: string, target: string): boolean {
     if (owner === 'shared/diagnostics/diagnostic.ts') return target !== 'shared/utils/jsonTypes.ts';
     if (owner.startsWith('shared/')) return !target.startsWith('shared/');
     if (owner.startsWith('l2/')) {
-        const admission = new Set(['l2/accountAdmission.ts', 'l2/ingestion.ts', 'l2/coverageAdmission.ts', 'l2/readConversation.ts', 'l2/sourceCooldown.ts']);
-        if (admission.has(owner)) return !/^(l2\/|l3a\/)/.test(target);
         return !target.startsWith('l2/') && target !== 'shared/utils/jsonTypes.ts' && target !== 'shared/types/export.ts' && target !== 'shared/types/readonly.ts' && target !== 'shared/types/settings.ts';
     }
     if (owner.startsWith('l3a/')) return !/^(l3a\/|l2\/|shared\/)/.test(target);

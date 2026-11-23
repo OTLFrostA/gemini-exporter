@@ -729,7 +729,10 @@ def run_all():
     parser.add_argument("--filter", default=None, help="按关键字或文件名过滤单元测试 (如 --filter storage)")
     parser.add_argument("--files", nargs="*", default=None, help="显式指定目标测试文件或变更文件")
     parser.add_argument("--base", default=None, help="Git 差异基准分支 (默认 origin/main 或 main)")
+    parser.add_argument("--skip-typecheck", action="store_true", help="跳过重复的 tsc --noEmit 检查")
     args, _ = parser.parse_known_args()
+    if args.skip_typecheck:
+        os.environ["GEMINI_SKIP_REDUNDANT_TSC"] = "1"
 
     if args.filter:
         run_filtered_unit_tests(args.filter)

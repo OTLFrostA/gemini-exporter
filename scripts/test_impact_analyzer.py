@@ -53,7 +53,27 @@ COMPONENT_E2E_MAP = {
     "scripts/framework": ["tests/e2e/tier2_v2_probes.spec.ts"],
     "src/runtime/content": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts", "tests/e2e/ui_v2.spec.ts"],
     "src/runtime/background": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts"],
+    "src/application/vault/": ["tests/e2e/cloud_e2ee_sync.spec.ts", "tests/e2e/cloud_deletion_isolation.spec.ts", "tests/e2e/cloud_rotation_verify.spec.ts"],
+    "src/shared/crypto/": ["tests/e2e/cloud_e2ee_sync.spec.ts", "tests/e2e/cloud_rotation_verify.spec.ts"],
+    "src/l4/format/pdf/": ["tests/e2e/mitex_pdf_export.spec.ts", "tests/e2e/pdf_batch_lifecycle.spec.ts", "tests/e2e/typst_sandbox_smoke.spec.ts"],
+    "src/l4/format/html/": ["tests/e2e/html_export.spec.ts"],
+    "src/l4/format/json/": ["tests/e2e/json_export.spec.ts"],
+    "src/l1/client/claude/": ["tests/e2e/claude_scan.spec.ts"],
+    "src/l1/client/grok/": ["tests/e2e/grok_scan.spec.ts"],
+    "src/l1/client/chatgpt/": ["tests/e2e/chatgpt_scan.spec.ts", "tests/e2e/chatgpt_hook_session_gate.spec.ts"],
+    "src/l1/imports/openai/": ["tests/e2e/openai_import.spec.ts"],
 }
+_SCOPED_E2E_PREFIXES = (
+    "src/application/vault/",
+    "src/shared/crypto/",
+    "src/l4/format/pdf/",
+    "src/l4/format/html/",
+    "src/l4/format/json/",
+    "src/l1/client/claude/",
+    "src/l1/client/grok/",
+    "src/l1/client/chatgpt/",
+    "src/l1/imports/openai/",
+)
 # Browser/Runtime tests deliberately load production entries as bundles or VM scripts.
 COMPONENT_UNIT_MAP = {
     "src/ui": ["tests/ui_v2.test.ts"],
@@ -254,8 +274,8 @@ class ImpactAnalysisResult:
                 if f.startswith("tests/e2e/") and f.endswith(".spec.ts"):
                     e2e_set.add(f)
 
-            # 如果影响到 core 模块，则所有 E2E 均可能受影响
-            if any(f.startswith(_CORE_PREFIXES) and not f.startswith((*_CONTENT_PREFIXES, "src/l4/format/pdf/sandbox/")) for f in self.affected_files):
+            # 如果影响到 core 模块（排除已精准映射的功能子树），则所有 E2E 均可能受影响
+            if any(f.startswith(_CORE_PREFIXES) and not f.startswith((*_CONTENT_PREFIXES, *_SCOPED_E2E_PREFIXES)) for f in self.affected_files):
                 e2e_set.update(self.all_e2e_specs)
             else:
                 for prefix, specs in COMPONENT_E2E_MAP.items():

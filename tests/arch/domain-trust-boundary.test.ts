@@ -7,7 +7,7 @@ import { trustBoundaryViolations } from '../helpers/domainTrustBoundary.js';
 
 const root = resolve(__dirname, '../..');
 function files(dir: string): string[] { return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
-    const path = resolve(dir, entry.name); return entry.isDirectory() ? files(path) : /\.[cm]?[jt]s$/.test(entry.name) ? [path] : [];
+    const path = resolve(dir, entry.name); return entry.isDirectory() ? files(path) : /\.[cm]?[jt]sx?$/.test(entry.name) ? [path] : [];
 }); }
 test('Domain schema, closure, trust assertions and authenticated entrypoints stay at their owners', () => {
     const api = new API({ cwd: root });
