@@ -6,7 +6,7 @@ import {
     type ContentIngestionPort,
     type RegisterCleanup,
 } from '../../contentPorts.js';
-import { geminiListObservation } from '../../client/gemini/listObservation.js';
+import { geminiListObservation } from '../../parsers/gemini/listObservation.js';
 import type { GeminiCapturedSource } from '../../parsers/gemini/capturedSource.js';
 import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
 import type { GeminiRpcParseResult } from '../../parsers/gemini/rpc/parseConversation.js';

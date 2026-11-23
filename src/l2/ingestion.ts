@@ -6,7 +6,7 @@ import { acceptDetailFacts, restoreDomainDetail } from './runtimeValidation.js';
 import CoverageAdmission from './coverageAdmission.js';
 import type { PageObservationHead } from './pageObservation.js';
 import { restoreConversationIndex, type DomainConversationIndex, type ConversationIndex, mergeConversationIndex } from './conversationIndex.js';
-import { domainStorage } from './ports/storagePort.js';
+import { domainStorage } from './storagePort.js';
 import { conversationKey } from './conversationKey.js';
 import * as sameStoredFacts from './domainEquality.js';
 

@@ -595,6 +595,7 @@ test('Worker API readiness shares the background upgrade promise and never messa
         'src/migration/upgradeV1.js': { ensureUpgraded: () => { upgrades++; return pending; } },
     });
     const api = load('src/runtime/api/runtimeReady.ts', { 'src/runtime/background/readiness.js': worker });
+    api.provideWorkerReadiness(worker.ensureV2Ready);
     let done = false;
     const calls = Promise.all([worker.ensureV2Ready(), api.ensureV2Ready(), api.ensureV2Ready()]).then(() => { done = true; });
     await Promise.resolve();

@@ -1,14 +1,16 @@
 import { provideProviderHost } from '../../l1/client/providerHost.js';
+import { contentRuntimeHost } from '../../l1/contentPorts.js';
 import { OperationError } from '../../shared/errors/operationError.js';
 import { readAccountContextReply } from '../../shared/types/accountContextReply.js';
-import { resolveCurrentAccount } from '../content/accountContext.js';
 import { getAccount } from './accountRegistry.js';
 
 /** Runtime routing is frozen before acquisition, never inferred from SID or Slot. */
 async function resolveGeminiRoute(accountId: string): Promise<string> {
     if (typeof document !== 'undefined' && location.hostname === 'gemini.google.com') {
-        const context = await resolveCurrentAccount();
-        if (context?.accountId === accountId) return context.slot;
+        try {
+            const context = await contentRuntimeHost().account.resolveCurrentAccount();
+            if (context?.accountId === accountId) return context.slot;
+        } catch { /* Content runtime host not installed in this context; fall through. */ }
     } else if (typeof chrome !== 'undefined' && chrome.tabs) {
         const failures: string[] = [];
         const tabs = [...await chrome.tabs.query({ url: ['https://gemini.google.com/*'] })]
@@ -43,3 +45,4 @@ async function resolveProviderRoute(providerId: string, accountId: string): Prom
 export function installProviderHost(): void {
     provideProviderHost({ getAccount, resolveProviderRoute });
 }
+

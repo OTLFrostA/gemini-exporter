@@ -1,4 +1,4 @@
-import { activeClaudeOrganization, claudeUuid } from '../../sniffer/claude/observation.js';
+import { activeClaudeOrganization, claudeUuid } from '../../protocol/claude/observation.js';
 import type { Account } from '../../../l2/accountRegistry.js';
 
 interface ClaudeOrganization { uuid: string; name?: string }

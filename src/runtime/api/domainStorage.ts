@@ -1,5 +1,5 @@
 import type { ConversationKey } from '../../l2/conversationKey.js';
-import { provideDomainStorage } from '../../l2/ports/storagePort.js';
+import { provideDomainStorage } from '../../l2/storagePort.js';
 import {
     getAccount,
     admitAccountAtomically,

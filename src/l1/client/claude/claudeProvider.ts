@@ -20,7 +20,7 @@ import {
 import { parseClaudeList } from '../../parsers/claude/parseList.js';
 import { parseClaudeConversation } from '../../parsers/claude/parseConversation.js';
 import { readClaudeSource } from './claudeSource.js';
-import { claudeUuid } from '../../sniffer/claude/observation.js';
+import { claudeUuid } from '../../protocol/claude/observation.js';
 
 interface ClaudeProviderDeps {
     apiGet?: (path: string, organizationId?: string) => Promise<unknown>;

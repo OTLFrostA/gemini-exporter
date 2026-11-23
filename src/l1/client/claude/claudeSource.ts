@@ -2,7 +2,7 @@ import type { OperationErrorCode } from '../../../shared/errors/operationError.j
 import type { SourceExecutionResult } from '../sourceExecution.js';
 import { executeSourceReadInPlatformTabs } from '../tabSourceRunner.js';
 import { hasPlatformAccess } from '../platformAccess.js';
-import { claudeUuid } from '../../sniffer/claude/observation.js';
+import { claudeUuid } from '../../protocol/claude/observation.js';
 
 export function hasClaudeAccess(): Promise<boolean> { return hasPlatformAccess('claude'); }
 const allowedPath = /^\/api\/organizations(?:\/([\da-f-]{36})\/chat_conversations(?:\/([\da-f-]{36}))?(?:\?tree=true&rendering_mode=messages&render_all_tools=true)?)?$/i;

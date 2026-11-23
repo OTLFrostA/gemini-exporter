@@ -1,5 +1,5 @@
 import { isUuid } from '../../../shared/utils/typeGuards.js';
-import { chatgptAccountObservation } from '../../client/chatgpt/accountObservation.js';
+import { chatgptAccountObservation } from '../../protocol/chatgpt/accountObservation.js';
 
 export const CHATGPT_SOURCE_EVENT = 'gemini-exporter:chatgpt-source-v1';
 export const chatGPTConversationId = isUuid;
