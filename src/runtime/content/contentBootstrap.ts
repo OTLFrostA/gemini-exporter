@@ -1,6 +1,6 @@
 import { ensureContentReady } from '../api/contentReady.js';
 import { invalidateAccountContext, setAccountChangedHandler } from './accountContext.js';
-import { contentBadge, type ContentBadgePort } from './badgePort.js';
+import { contentBadge } from './badgePort.js';
 import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { registerCleanup, runCleanups } from './cleanupRegistry.js';
 import { hookHistoryEvents } from './pageObserver.js';
@@ -8,7 +8,6 @@ import { installContentRuntimeHost } from './installContentHost.js';
 
 export interface ContentBootstrapOptions {
     readonly label: string;
-    readonly badge?: ContentBadgePort;
     readonly beforeRouteHooks?: (isActive: () => boolean) => void;
     readonly onRouteOrAccountChanged?: () => void;
     readonly onMounted?: () => void;
@@ -22,7 +21,7 @@ export function startContentBootstrap(options: ContentBootstrapOptions): { isAct
     let active = true;
     const isActive = () => active;
     registerCleanup(() => { active = false; invalidateAccountContext(); });
-    const badge = options.badge ?? contentBadge();
+    const badge = contentBadge();
     LiveSaveCoordinator.init({ badge });
     registerCleanup(LiveSaveCoordinator.cleanup);
 
