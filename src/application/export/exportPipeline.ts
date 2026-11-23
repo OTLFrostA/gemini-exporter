@@ -479,18 +479,22 @@ export async function executeExportWithSession(
             result.aborted = signal.aborted;
             return result;
         }
-        const pending = pendingSlots.filter((item): item is PendingExport => item !== undefined);
+        const pending: Array<PendingExport | undefined> = pendingSlots.filter((item): item is PendingExport => item !== undefined);
+        pendingSlots.length = 0;
         let plans: readonly ExportPathPlan[];
         try {
-            plans = folderPlanner ? [] : planExportPaths(pending, request.format);
+            const itemsForPlanning = pending.filter((item): item is PendingExport => item !== undefined);
+            plans = folderPlanner ? [] : planExportPaths(itemsForPlanning, request.format);
         } catch (error) {
             if (cancelled(error)) throw error;
             console.warn('[Gemini Exporter] Export path planning failed', error);
-            fail(pending.map(item => item.key), operationError(error, 'PACKAGING_FAILED'));
+            fail(pending.filter((item): item is PendingExport => item !== undefined).map(item => item.key), operationError(error, 'PACKAGING_FAILED'));
             return result;
         }
         const groups: ExportGroup[] = [];
-        for (const [index, item] of pending.entries()) {
+        for (let index = 0; index < pending.length; index++) {
+            const item = pending[index];
+            if (!item) continue;
             signal.throwIfAborted();
             try {
                 const group = await renderGroup(item, plans[index]);
@@ -500,6 +504,9 @@ export async function executeExportWithSession(
                 if (cancelled(error)) throw error;
                 console.warn('[Gemini Exporter] Export format or delivery failed', item.key, error);
                 fail([item.key], error);
+            } finally {
+                // Release raw attachment buffers once rendered into output groups.
+                pending[index] = undefined;
             }
         }
         signal.throwIfAborted();

@@ -91,6 +91,8 @@ export async function admitArchivedConversations<Item>(options: {
             await new Promise<void>(resolve => setTimeout(resolve, 0));
         }
     }
-    applicationHost().notifyDomainChanged(options.accountId);
+    if (total > 0 && total % sliceSize !== 0) {
+        applicationHost().notifyDomainChanged(options.accountId);
+    }
     return { acceptedIds, addedCount, rejectedCount, incompleteQuality };
 }

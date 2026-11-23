@@ -88,74 +88,78 @@ export function createVaultPullSync(ctx: {
                         toDownload.push(meta);
                     }
 
-                    const openedBatch = await mapWithConcurrency(toDownload, 4, async (meta): Promise<{
-                        meta: typeof meta;
-                        portable: PortableCloudConversation;
-                        payloadSha256: string;
-                        indexPayloadSha256?: string;
-                    } | null> => {
-                        const blob = await request(() => activeClient.getEncryptedRecord({
-                            serverUrl: session.serverUrl,
-                            sessionToken: session.sessionToken,
-                            blindRecordId: meta.blindRecordId,
-                            signal,
-                        }));
-                        if (rotationSource && (!blob || blob.revision !== meta.revision)) throw unverifiedBackup();
-                        if (!blob) {
-                            throw new OperationError('CLOUD_SERVER_ERROR', 'Listed remote record disappeared during download');
-                        }
-                        if (blob.revision < meta.revision) {
-                            throw new OperationError('CLOUD_SERVER_ERROR', 'Downloaded remote record revision regressed');
-                        }
-                        const portable = await openCloudConversation({
-                            keyring, blindRecordId: meta.blindRecordId, revision: blob.revision, envelope: blob.envelope,
-                        });
-                        downloaded++;
-                        const tempAccountId = '00000000-0000-4000-8000-000000000000';
-                        const tempKey = { accountId: tempAccountId, conversationId: portable.conversationId };
-                        const portableAccount = { id: tempAccountId, ...portable.account };
-                        const index = { ...portable.index, key: tempKey };
-                        const canonicalJson = encodePortableCloudConversation(
-                            portableAccount,
-                            {
-                                index,
-                                ...(portable.detail !== undefined ? { detail: { ...portable.detail, key: tempKey } } : {}),
-                            },
-                        );
-                        const payloadSha256 = await sha256Utf8Hex(canonicalJson);
-                        return {
-                            meta: { ...meta, revision: blob.revision },
-                            portable,
-                            payloadSha256,
-                            indexPayloadSha256: session.backend === 'local-folder' && portable.detail
-                                ? await sha256Utf8Hex(encodePortableCloudConversation(portableAccount, { index })) : undefined,
-                        };
-                    }, signal);
-
-                    const validOpened = openedBatch.filter((x): x is NonNullable<typeof x> => x !== null);
-                    if (validOpened.length > 0) {
-                        const summary = await suppression.withSuppressed(() =>
-                            restoreCloudConversationsToLocal(validOpened.map(x => x.portable)));
-                        accepted += summary.accepted;
-                        changed += summary.changed;
-
-                        const allAccounts = await listAccounts();
-                        for (const item of validOpened) {
-                            const localAcc = allAccounts.find(
-                                a => a.providerId === item.portable.account.providerId
-                                    && a.providerAccountId === item.portable.account.providerAccountId,
-                            );
-                            if (!localAcc) continue;
-                            await putSyncedCloudRecord({
-                                ownerSubject: session.ownerSubject,
-                                accountId: localAcc.id,
-                                conversationId: item.portable.conversationId,
-                                blindRecordId: item.meta.blindRecordId,
-                                remoteRevision: item.meta.revision,
-                                payloadSha256: item.payloadSha256,
-                                indexPayloadSha256: item.indexPayloadSha256,
-                                syncedAt: now(),
+                    const PULL_COMMIT_SLICE = 10;
+                    for (let sliceOffset = 0; sliceOffset < toDownload.length; sliceOffset += PULL_COMMIT_SLICE) {
+                        const downloadSlice = toDownload.slice(sliceOffset, sliceOffset + PULL_COMMIT_SLICE);
+                        const openedBatch = await mapWithConcurrency(downloadSlice, 4, async (meta): Promise<{
+                            meta: typeof meta;
+                            portable: PortableCloudConversation;
+                            payloadSha256: string;
+                            indexPayloadSha256?: string;
+                        } | null> => {
+                            const blob = await request(() => activeClient.getEncryptedRecord({
+                                serverUrl: session.serverUrl,
+                                sessionToken: session.sessionToken,
+                                blindRecordId: meta.blindRecordId,
+                                signal,
+                            }));
+                            if (rotationSource && (!blob || blob.revision !== meta.revision)) throw unverifiedBackup();
+                            if (!blob) {
+                                throw new OperationError('CLOUD_SERVER_ERROR', 'Listed remote record disappeared during download');
+                            }
+                            if (blob.revision < meta.revision) {
+                                throw new OperationError('CLOUD_SERVER_ERROR', 'Downloaded remote record revision regressed');
+                            }
+                            const portable = await openCloudConversation({
+                                keyring, blindRecordId: meta.blindRecordId, revision: blob.revision, envelope: blob.envelope,
                             });
+                            downloaded++;
+                            const tempAccountId = '00000000-0000-4000-8000-000000000000';
+                            const tempKey = { accountId: tempAccountId, conversationId: portable.conversationId };
+                            const portableAccount = { id: tempAccountId, ...portable.account };
+                            const index = { ...portable.index, key: tempKey };
+                            const canonicalJson = encodePortableCloudConversation(
+                                portableAccount,
+                                {
+                                    index,
+                                    ...(portable.detail !== undefined ? { detail: { ...portable.detail, key: tempKey } } : {}),
+                                },
+                            );
+                            const payloadSha256 = await sha256Utf8Hex(canonicalJson);
+                            return {
+                                meta: { ...meta, revision: blob.revision },
+                                portable,
+                                payloadSha256,
+                                indexPayloadSha256: session.backend === 'local-folder' && portable.detail
+                                    ? await sha256Utf8Hex(encodePortableCloudConversation(portableAccount, { index })) : undefined,
+                            };
+                        }, signal);
+
+                        const validOpened = openedBatch.filter((x): x is NonNullable<typeof x> => x !== null);
+                        if (validOpened.length > 0) {
+                            const summary = await suppression.withSuppressed(() =>
+                                restoreCloudConversationsToLocal(validOpened.map(x => x.portable)));
+                            accepted += summary.accepted;
+                            changed += summary.changed;
+
+                            const allAccounts = await listAccounts();
+                            for (const item of validOpened) {
+                                const localAcc = allAccounts.find(
+                                    a => a.providerId === item.portable.account.providerId
+                                        && a.providerAccountId === item.portable.account.providerAccountId,
+                                );
+                                if (!localAcc) continue;
+                                await putSyncedCloudRecord({
+                                    ownerSubject: session.ownerSubject,
+                                    accountId: localAcc.id,
+                                    conversationId: item.portable.conversationId,
+                                    blindRecordId: item.meta.blindRecordId,
+                                    remoteRevision: item.meta.revision,
+                                    payloadSha256: item.payloadSha256,
+                                    indexPayloadSha256: item.indexPayloadSha256,
+                                    syncedAt: now(),
+                                });
+                            }
                         }
                     }
 

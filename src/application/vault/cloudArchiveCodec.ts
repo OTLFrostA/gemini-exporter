@@ -38,13 +38,18 @@ export async function sealCloudConversation(options: {
     readonly revision: number;
     readonly account: Readonly<Account>;
     readonly conversation: PortableConversationSource;
+    readonly encodedJson?: string;
     readonly sealOptions?: SealOptions;
 }): Promise<SealedCloudConversation> {
     let jsonText: string;
-    try {
-        jsonText = encodePortableCloudConversation(options.account, options.conversation);
-    } catch (error) {
-        throw operationError(error, 'CLOUD_PAYLOAD_INVALID');
+    if (options.encodedJson !== undefined) {
+        jsonText = options.encodedJson;
+    } else {
+        try {
+            jsonText = encodePortableCloudConversation(options.account, options.conversation);
+        } catch (error) {
+            throw operationError(error, 'CLOUD_PAYLOAD_INVALID');
+        }
     }
     const blindRecordId = await deriveBlindRecordId(
         options.keyring,
