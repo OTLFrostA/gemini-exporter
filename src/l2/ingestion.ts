@@ -19,7 +19,7 @@ async function readExistingAccount(accountId: Account['id']): Promise<Account | 
     return account;
 }
 
-import type { IndexIngestResult, IndexAdmissionResult, DetailIngestResult } from './contracts/ingestionTypes.js';
+import type { IndexAdmissionResult, DetailIngestResult } from './contracts/ingestionTypes.js';
 export type { IndexIngestResult, DetailIngestResult } from './contracts/ingestionTypes.js';
 
 function emitCommittedKeys(keys: readonly ConversationKey[]): void {
