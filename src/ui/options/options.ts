@@ -43,7 +43,7 @@ installProviderHost();
 
 type Action = 'export' | 'takeout' | 'cleanup';
 
-export async function initWorkbench(): Promise<void> {
+async function initWorkbench(): Promise<void> {
     const installationTour = consumeTourIntent();
     const state = new ConversationViewState();
     const importedResources = createSourceResourceContext();
