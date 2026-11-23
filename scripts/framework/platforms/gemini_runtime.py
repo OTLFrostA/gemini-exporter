@@ -114,8 +114,7 @@ class GeminiRuntime:
             output_dir=self.output_dir,
             dataset=self.dataset,
             delay=self.delay,
-            takeout_zip=self.takeout_zip,
-            pop_scenarios=False
+            takeout_zip=self.takeout_zip
         )
 
         # 向上兼容字段映射
