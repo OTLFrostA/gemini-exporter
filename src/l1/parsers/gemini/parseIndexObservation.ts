@@ -4,8 +4,6 @@ import { normalizeTimestamp } from '../shared/time.js';
 import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../../shared/utils/titleText.js';
 import { normId } from '../../../shared/utils/pathUtils.js';
 import { isReservedRoute } from '../../protocol/gemini/url.js';
-import type { GeminiIndexObservationInput } from './shared/structuredTypes.js';
-export type { GeminiIndexObservationInput } from './shared/structuredTypes.js';
 type GeminiIndexObservationSource = 'rpc-list' | 'detail' | 'dom';
 export function parseGeminiIndexObservation(value: unknown, source: GeminiIndexObservationSource): { conversationId: string; fields: Omit<DomainConversationIndex, 'key'> } {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid Gemini index observation');
