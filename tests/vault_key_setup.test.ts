@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/cloud/vaultKeySetup.js';
+import { createVaultKeySetup, prepareOneTimeVaultKey } from '../src/application/vault/vaultKeySetup.js';
 import { MASTER_KEY_BYTES, formatRecoveryKey } from '../src/shared/crypto/index.js';
 
 test('Vault key setup clears owned recovery buffers on success and failure', async t => {

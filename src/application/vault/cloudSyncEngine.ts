@@ -1,4 +1,4 @@
-import type { CloudVaultClient, VaultRecordClient } from '../../l1/cloud/vaultClient.js';
+import type { CloudVaultClient, VaultRecordClient } from './transport/vaultClient.js';
 import { getInitializedVaultKeyMetadata, putCloudSyncSession } from '../../l3a/vaultStorageService.js';
 import { getSettings, updateSettings } from '../settings/index.js';
 import { createVaultConnection } from './vaultConnection.js';

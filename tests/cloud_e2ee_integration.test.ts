@@ -19,7 +19,7 @@ import {
     portableVaultSubject,
     restoreCloudConversationsToLocal,
     sealCloudConversation,
-} from '../src/application/cloud/cloudArchiveCodec.js';
+} from '../src/application/vault/cloudArchiveCodec.js';
 import { runExport } from '../src/application/export/runExport.js';
 import { __getZipConstructor, __setZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
 import { indexStorage } from './helpers/indexStorage.js';

@@ -181,7 +181,7 @@ test('bundle entries reaching the Application host install the Runtime adapter',
 
 test('plaintext Vault key setup is only reachable from the Options Vault controller', () => {
     const callers = [...graph]
-        .filter(([, edges]) => edges.some(edge => edge.target === 'application/cloud/vaultKeySetup.ts'))
+        .filter(([, edges]) => edges.some(edge => edge.target === 'application/vault/vaultKeySetup.ts'))
         .map(([owner]) => owner);
     assert.deepEqual(callers, ['ui/options/controllers/cloudVaultController.ts']);
 });

@@ -1,4 +1,4 @@
-import { OperationError } from '../../shared/errors/operationError.js';
+import { OperationError } from '../../../shared/errors/operationError.js';
 import {
     CLOUD_MAX_RECORD_BYTES,
     type CloudAuthKeyMode,
@@ -6,8 +6,8 @@ import {
     type CloudChangesResponse,
     type CloudRecordMeta,
     type CloudVaultStatusResponse,
-} from '../../shared/types/cloudSync.js';
-import { isRecord } from '../../shared/utils/typeGuards.js';
+} from '../../../shared/types/cloudSync.js';
+import { isRecord } from '../../../shared/utils/typeGuards.js';
 
 export type CloudFetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 

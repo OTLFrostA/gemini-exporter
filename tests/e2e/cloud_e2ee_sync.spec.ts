@@ -63,8 +63,8 @@ test('Local vault reports Restored 0 when an older index-only record loses to lo
     const seed = await build({
         stdin: { resolveDir: process.cwd(), loader: 'ts', contents: `
             import { deriveVaultKeyring, parseRecoveryKey } from './src/shared/crypto/index.ts';
-            import { sealCloudConversation } from './src/application/cloud/cloudArchiveCodec.ts';
-            import { createLocalFolderVaultClient } from './src/l1/cloud/localFolderVaultClient.ts';
+            import { sealCloudConversation } from './src/application/vault/cloudArchiveCodec.ts';
+            import { createLocalFolderVaultClient } from './src/application/vault/transport/localFolderVaultClient.ts';
             import { getAccount } from './src/l3a/storageService.ts';
             globalThis.seedStaleVault = async (accountId, recoveryKey) => {
                 const proto = FileSystemDirectoryHandle.prototype;

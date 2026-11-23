@@ -27,12 +27,12 @@ import {
     normalizeCloudServerUrl,
     type CloudVaultClient,
     type VaultRecordClient,
-} from '../../l1/cloud/vaultClient.js';
+} from './transport/vaultClient.js';
 import {
     LOCAL_VAULT_OWNER_SUBJECT,
     LOCAL_VAULT_SERVER_URL,
     createLocalFolderVaultClient,
-} from '../../l1/cloud/localFolderVaultClient.js';
+} from './transport/localFolderVaultClient.js';
 import { getSettings, updateSettings } from '../settings/index.js';
 import { portableVaultSubject } from './cloudArchiveCodec.js';
 import {
