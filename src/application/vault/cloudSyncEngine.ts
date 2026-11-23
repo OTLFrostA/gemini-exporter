@@ -118,8 +118,10 @@ export function createCloudSyncEngine(deps: {
                 const settings = await getSettings();
                 if (settings.cloudSyncEnabled) {
                     trackBackground(
-                        pushSync.enqueueUnsyncedLocalConversations()
-                            .then(() => withVaultOperation(() => pushSync.flushOutbox()))
+                        withVaultOperation(async () => {
+                            await pushSync.enqueueUnsyncedLocalConversations();
+                            await pushSync.flushOutbox();
+                        })
                             .then(() => undefined)
                             .catch(err => console.warn('[CloudSync] Detail upgrade sync failed:', err)),
                     );

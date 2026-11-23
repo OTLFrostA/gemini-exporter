@@ -174,11 +174,21 @@ async function removeRecordFile(dir: FileSystemDirectoryHandle, filename: string
     }
 }
 
+let localLockChain: Promise<void> = Promise.resolve();
+
 async function withVaultLock<T>(work: () => Promise<T>): Promise<T> {
     if (typeof navigator !== 'undefined' && navigator.locks?.request) {
         return navigator.locks.request(LOCAL_VAULT_LOCK, () => work());
     }
-    return work();
+    const previous = localLockChain;
+    let release: () => void = () => {};
+    localLockChain = new Promise<void>(resolve => { release = resolve; });
+    await previous;
+    try {
+        return await work();
+    } finally {
+        release();
+    }
 }
 
 /**

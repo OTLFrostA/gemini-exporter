@@ -65,7 +65,8 @@ export function createVaultPushSync(ctx: {
         let currentSource: PortableConversationSource = initialSource;
         for (let conflictAttempt = 0; conflictAttempt < 3; conflictAttempt++) {
             signal?.throwIfAborted();
-            const localPayloadSha256 = await sha256Utf8Hex(encodePortableCloudConversation(account, currentSource));
+            const localPortableJson = encodePortableCloudConversation(account, currentSource);
+            const localPayloadSha256 = await sha256Utf8Hex(localPortableJson);
             const synced = await getSyncedCloudRecord(session.ownerSubject, key);
             const localFolder = session.backend === 'local-folder';
             if (synced?.oversizedBytes === undefined
@@ -92,7 +93,9 @@ export function createVaultPushSync(ctx: {
                     const { detail } = await openCloudConversation({ keyring, blindRecordId: synced.blindRecordId, ...backedUp });
                     if (detail) sourceForWrite = { ...currentSource, detail: { ...detail, key } };
                 }
-                const portableJson = encodePortableCloudConversation(account, sourceForWrite);
+                const portableJson = sourceForWrite === currentSource
+                    ? localPortableJson
+                    : encodePortableCloudConversation(account, sourceForWrite);
                 const payloadSha256 = sourceForWrite === currentSource ? localPayloadSha256 : await sha256Utf8Hex(portableJson);
                 const indexPayloadSha256 = localFolder && sourceForWrite.detail
                     ? await sha256Utf8Hex(encodePortableCloudConversation(account, { index: sourceForWrite.index })) : undefined;
@@ -106,7 +109,7 @@ export function createVaultPushSync(ctx: {
                 let putOutcome: Awaited<ReturnType<typeof activeClient.putEncryptedRecord>>;
                 try {
                     sealed = await sealCloudConversation({
-                        keyring, revision: nextRevision, account, conversation: sourceForWrite,
+                        keyring, revision: nextRevision, account, conversation: sourceForWrite, encodedJson: portableJson,
                     });
                     putOutcome = await activeClient.putEncryptedRecord({
                         serverUrl: session.serverUrl,

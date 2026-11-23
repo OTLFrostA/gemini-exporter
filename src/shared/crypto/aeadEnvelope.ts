@@ -119,9 +119,14 @@ export async function openUtf8Record(
     }
     const iv = new Uint8Array(IV_BYTES);
     iv.set(envelope.subarray(ENVELOPE_MAGIC.byteLength, ENVELOPE_MAGIC.byteLength + IV_BYTES));
-    const ciphertextLen = envelope.byteLength - ENVELOPE_MAGIC.byteLength - IV_BYTES;
-    const ciphertext = new Uint8Array(ciphertextLen);
-    ciphertext.set(envelope.subarray(ENVELOPE_MAGIC.byteLength + IV_BYTES));
+    const ciphertextOffset = ENVELOPE_MAGIC.byteLength + IV_BYTES;
+    let ciphertext: Uint8Array<ArrayBuffer>;
+    if (envelope.buffer instanceof ArrayBuffer) {
+        ciphertext = new Uint8Array(envelope.buffer, envelope.byteOffset + ciphertextOffset, envelope.byteLength - ciphertextOffset);
+    } else {
+        ciphertext = new Uint8Array(envelope.byteLength - ciphertextOffset);
+        ciphertext.set(envelope.subarray(ciphertextOffset));
+    }
 
     let compressedPlaintext: Uint8Array;
     try {

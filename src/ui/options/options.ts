@@ -526,6 +526,7 @@ export async function initWorkbench(): Promise<void> {
     let domainRefreshing = false;
     const scheduleDomainRefresh = () => {
         if (!pendingDomainAccounts.size || domainRefreshTimer !== undefined || domainRefreshing) return;
+        const delayMs = isBusy() || scanRunner.isScanning() ? 150 : 16;
         domainRefreshTimer = setTimeout(() => {
             domainRefreshTimer = undefined;
             domainRefreshing = true;
@@ -533,17 +534,17 @@ export async function initWorkbench(): Promise<void> {
                 while (pendingDomainAccounts.size) {
                     const accounts = [...pendingDomainAccounts]; pendingDomainAccounts.clear();
                     await refresh(accounts.includes(state.accountId ?? '') ? undefined : accounts[0]);
+                    for (const accountId of accounts) cloudPanel?.onDomainChanged(accountId);
                 }
             })().catch(e => statusError(e)).finally(() => {
                 domainRefreshing = false;
                 scheduleDomainRefresh();
             });
-        }, 16);
+        }, delayMs);
     };
     const stopDomainChanges = observeDomainChanges(accountId => {
         pendingDomainAccounts.add(accountId);
         scheduleDomainRefresh();
-        cloudPanel?.onDomainChanged(accountId);
     });
 
     window.addEventListener('focus', onFocus);
