@@ -62,7 +62,17 @@ def main():
         print(f"📁 变更文件: {len(impact.changed_files)} 个 | 传递闭包影响: {len(impact.affected_files)} 个模块")
         print(f"🧪 受影响单元测试: {len(impact.target_unit_tests)} 个 | 🎭 受影响 E2E 规格: {len(impact.target_e2e_specs)} 个")
 
-    # 2. TypeScript 类型检查
+    # 2. 架构边界与类型检查
+    touches_src = impact.is_all_affected or any(f.startswith("src/") for f in impact.changed_files) or any(f.startswith("src/") for f in impact.affected_files)
+    if touches_src:
+        print("\n🏛️ [步骤 0/4] 架构边界与零-any 门禁 (check-architecture + check-zero-any)...")
+        for gate_script in ("scripts/check-architecture.cjs", "scripts/check-zero-any.cjs"):
+            res = subprocess.run(["node", gate_script], cwd=REPO_DIR)
+            if res.returncode != 0:
+                print(f"❌ 架构门禁未通过: {gate_script}")
+                sys.exit(res.returncode)
+        print("  ✓ Architecture & zero-any gates passed")
+
     if not args.skip_typecheck:
         print("\n📘 [步骤 1/4] TypeScript 全局严格类型检查 (tsc --noEmit)...")
         res = subprocess.run(["npm", "run", "type-check"], cwd=REPO_DIR)

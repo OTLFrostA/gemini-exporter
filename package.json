@@ -8,7 +8,7 @@
     "package": "node build.js --pack",
     "lint": "oxlint -A all -W typescript/no-explicit-any -W typescript/no-unsafe-assignment -W typescript/no-unsafe-argument -W typescript/no-unsafe-call -W typescript/no-unsafe-member-access -W typescript/no-unsafe-return -W typescript/no-unsafe-type-assertion -D typescript/no-floating-promises --type-aware src/",
     "type-check": "tsc --noEmit",
-    "test": "node scripts/check-zero-any.cjs && node scripts/check-architecture.cjs && npm run type-check && npm run test:unit && node build.js && npm run test:release-fonts && playwright test",
+    "test": "node scripts/check-zero-any.cjs && node scripts/check-architecture.cjs && npm run type-check && npm run test:unit -- --skip-typecheck && node build.js && npm run test:release-fonts && playwright test",
     "test:unit": "python3 tests/run_tests.py",
     "test:changed": "python3 scripts/run_changed_tests.py",
     "test:gemini-dual": "node -r ./tests/ts_register.js scripts/check_gemini_dual_parse.ts",
