@@ -1,7 +1,7 @@
 import type { Account } from '../../../l2/accountRegistry.js';
 import type { ConversationKey } from '../../../l2/conversationKey.js';
 import { isRecord } from '../../../shared/utils/typeGuards.js';
-import { CLAUDE_SOURCE_EVENT, claudeRequest, claudeUuid } from './observation.js';
+import { CLAUDE_SOURCE_EVENT, claudeRequest } from './observation.js';
 import { parseClaudeConversation } from '../../parsers/claude/parseConversation.js';
 import { parseClaudeList } from '../../parsers/claude/parseList.js';
 import { contentRuntimeHost, type ContentIngestionPort } from '../../contentPorts.js';
@@ -52,29 +52,4 @@ export function initClaudeMessageBridge(deps: ClaudeMessageBridgeCallbacks): voi
             await deps.onSaveRequested({ accountId: account.id, conversationId: cid }, request.kind === 'stream');
         },
     });
-
-    // Initial history can be server-rendered, without a list request. Visible links
-    // prove only these index rows; they do not establish time ordering or Coverage.
-    let sidebarTimer: ReturnType<typeof setTimeout> | undefined;
-    let sidebarSignature = '';
-    const captureSidebar = async () => {
-        const rows = [...document.querySelectorAll<HTMLAnchorElement>('a[data-row-main-button][href*="/chat/"],nav a[href*="/chat/"],aside a[href*="/chat/"]')]
-            .map(a => ({ id: new URL(a.href).pathname.split('/chat/')[1], title: a.textContent?.trim() }))
-            .filter((row): row is { id: string; title: string } => claudeUuid(row.id) && !!row.title);
-        const signature = JSON.stringify(rows);
-        if (!rows.length || signature === sidebarSignature) return;
-        const account = await deps.currentAccount();
-        if (!account || !deps.isActive()) return;
-        await ingestion().ingestIndexes(account.id, [...new Map(rows.map(row => [row.id, row])).values()].map(row => ({
-            conversationId: row.id, fields: { title: row.title, titleSource: 'provider' as const },
-        })));
-        sidebarSignature = signature;
-    };
-    const observer = new MutationObserver(() => {
-        clearTimeout(sidebarTimer);
-        sidebarTimer = setTimeout(() => { void captureSidebar().catch(console.warn); }, 500);
-    });
-    observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true });
-    void captureSidebar().catch(console.warn);
-    deps.registerCleanup(() => { observer.disconnect(); clearTimeout(sidebarTimer); });
 }

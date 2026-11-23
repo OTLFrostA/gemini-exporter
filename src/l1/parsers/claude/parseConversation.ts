@@ -3,6 +3,7 @@ import type { DomainAsset, DomainMessage } from '../../../l2/conversationDetail.
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { SourceConversationParseResult } from '../parsingResult.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../shared/markdown/index.js';
+import { contentQuality } from '../qualityEvidence.js';
 import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 import { decodeClaudeDetail, type ClaudeDetailEvidence, type ClaudeSourceMessage, type ClaudeSourceFile } from './decodeDetail.js';
 import { createToolState, isCapturedArtifactFile, parseToolUse, parseToolResult, type ToolState } from './parseTools.js';
@@ -129,7 +130,9 @@ export function parseClaudeConversation(raw: unknown, requestedId: string): Sour
     }
     const sourceVersion = data.updatedAt;
     const createdAt = data.createdAt;
-    const quality = branch.quality === 'complete' && partial ? 'partial' : branch.quality;
+    const quality = messages.length
+        ? contentQuality({ status: branch.quality, unrepresentedContent: partial })
+        : { status: 'unknown' as const };
     return {
         conversationId: requestedId,
         ...(sourceVersion !== undefined ? { sourceVersion } : {}),
@@ -139,7 +142,7 @@ export function parseClaudeConversation(raw: unknown, requestedId: string): Sour
                 titleSource: 'provider', createdAt, updatedAt: sourceVersion,
                 url: 'https://claude.ai/chat/' + requestedId }),
             detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}),
-                quality: { status: messages.length ? quality : 'unknown' }, assets, messages },
+                quality, assets, messages },
         },
         diagnostics, acquisitionHints: {},
     };

@@ -67,11 +67,26 @@ export function bindSettingsAndDeliveryControls(deps: {
         });
     });
 
+    let settingsSaving = false;
+    const runSettingsWrite = async (work: () => Promise<void>): Promise<void> => {
+        if (settingsSaving || deps.isBusy()) { deps.render(); return; }
+        settingsSaving = true;
+        deps.render();
+        try {
+            await work();
+        } catch (error) {
+            deps.statusError(error);
+        } finally {
+            settingsSaving = false;
+            deps.render();
+        }
+    };
+
     el('delivery').addEventListener('change', event => {
         const input = event.target;
         if (!(input instanceof HTMLInputElement) || input.name !== 'delivery') return;
         const settings = deps.getSettings();
-        if (deps.isBusy() || !settings || input.disabled) { deps.render(); return; }
+        if (deps.isBusy() || settingsSaving || !settings || input.disabled) { deps.render(); return; }
         if (!input.checked) return;
         const exportDelivery: UIExportRequest['delivery'] =
             input.value === 'folderWriter' ? 'folderWriter' : 'browserDownload';
@@ -79,9 +94,9 @@ export function bindSettingsAndDeliveryControls(deps: {
         const permission = exportDelivery === 'folderWriter' && !deps.isDirectoryAvailable() && TourGuide.isLiveSaveStep()
             ? Directory.getPendingPermissionHandle() ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle()
             : undefined;
-        const previous = settings;
+        const priorDelivery = settings.exportDelivery;
         deps.setSettings({ ...settings, exportDelivery });
-        void deps.performCleanup(async () => {
+        void runSettingsWrite(async () => {
             try {
                 if (permission) {
                     try {
@@ -97,18 +112,27 @@ export function bindSettingsAndDeliveryControls(deps: {
                 }
                 await updateSettings({ exportDelivery });
                 deps.setSettings(await readSettings());
-            } catch (error) { deps.setSettings(previous); throw error; }
+            } catch (error) {
+                deps.setSettings({ ...deps.getSettings(), exportDelivery: priorDelivery });
+                throw error;
+            }
         });
     });
 
     const changeControlSetting = (input: HTMLInputElement | HTMLSelectElement, patch: Partial<GlobalSettings>) => {
-        if (deps.isBusy() || input.disabled) { deps.render(); return; }
+        if (deps.isBusy() || settingsSaving || input.disabled) { deps.render(); return; }
         const finishTutorialSetting = patch.defaultFormat ? TourGuide.beginFormatSelection()
             : patch.enabledDisk === true ? TourGuide.beginLiveSave() : undefined;
         const prior = deps.getSettings();
+        const rollback: Partial<GlobalSettings> = {
+            ...(patch.defaultFormat !== undefined ? { defaultFormat: prior.defaultFormat } : {}),
+            ...(patch.skipExported !== undefined ? { skipExported: prior.skipExported } : {}),
+            ...(patch.includeAssets !== undefined ? { includeAssets: prior.includeAssets } : {}),
+            ...(patch.enabledDisk !== undefined ? { enabledDisk: prior.enabledDisk } : {}),
+        };
         deps.setSettings({ ...prior, ...patch });
         let saved = false;
-        void deps.performCleanup(async () => {
+        void runSettingsWrite(async () => {
             try {
                 await updateSettings(patch);
                 const next = await readSettings();
@@ -116,7 +140,10 @@ export function bindSettingsAndDeliveryControls(deps: {
                 saved = patch.defaultFormat ? next.defaultFormat === patch.defaultFormat
                     : next.enabledDisk && next.exportDelivery === 'folderWriter'
                         && next.defaultFormat === 'markdown' && deps.isDirectoryAvailable();
-            } catch (error) { deps.setSettings(prior); throw error; }
+            } catch (error) {
+                deps.setSettings({ ...deps.getSettings(), ...rollback });
+                throw error;
+            }
         }).then(() => finishTutorialSetting?.(saved));
     };
 

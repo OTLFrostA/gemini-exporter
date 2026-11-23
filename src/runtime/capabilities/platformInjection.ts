@@ -27,12 +27,6 @@ function probeTabAccountContext(tabId: number, timeoutMs = 3000): Promise<unknow
     });
 }
 
-const files = {
-    gemini: ['dist/content/hook.js', 'dist/content/content.js'],
-    chatgpt: ['dist/content/chatgpt-hook.js', 'dist/content/chatgpt-content.js'],
-    grok: ['dist/content/grok-hook.js', 'dist/content/grok-content.js'],
-    claude: ['dist/content/claude-hook.js', 'dist/content/claude-content.js'],
-} as const;
 const pending = new Map<SourcePlatform, Promise<void>>();
 /** Serialize permission events so simultaneous startup/grant checks cannot double-register. */
 export function syncPlatformContentScripts(platform: SourcePlatform): Promise<void> {
@@ -50,11 +44,12 @@ export function syncPlatformContentScripts(platform: SourcePlatform): Promise<vo
             return;
         }
         const missing = ids.filter(id => !registered.some(item => item.id === id));
+        const scripts = PLATFORM_HOSTS[platform].contentScripts;
         const descriptors: chrome.scripting.RegisteredContentScript[] = missing.map(id => ({
             id, matches: [...PLATFORM_HOSTS[platform].pages], runAt: 'document_start',
             allFrames: false, persistAcrossSessions: true,
             ...(id === ids[1] ? { css: ['src/ui/badge/content.css'] } : {}),
-            js: [files[platform][id === ids[0] ? 0 : 1]],
+            js: [scripts[id === ids[0] ? 0 : 1]],
             world: id === ids[0] ? 'MAIN' : 'ISOLATED',
         }));
         if (descriptors.length) {
@@ -90,7 +85,8 @@ export async function preparePlatformTab(platform: SourcePlatform, tabId: number
     try {
         if (readAccountContextReply(await probeTabAccountContext(tabId)).ok) return;
     } catch { /* A tab opened before its grant has no Content receiver yet. */ }
-    await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', files: [files[platform][0]] });
-    await chrome.scripting.executeScript({ target: { tabId }, world: 'ISOLATED', files: [files[platform][1]] });
+    const scripts = PLATFORM_HOSTS[platform].contentScripts;
+    await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', files: [scripts[0]] });
+    await chrome.scripting.executeScript({ target: { tabId }, world: 'ISOLATED', files: [scripts[1]] });
     await chrome.scripting.insertCSS({ target: { tabId }, files: ['src/ui/badge/content.css'] });
 }

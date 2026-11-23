@@ -19,12 +19,14 @@ export function resolveSourceMessage(
     const summary = conversationSourceSummary(message, state.indexes.length);
     const result = message.method === 'sync' ? scanEvidence?.result : undefined;
     if (!result || result.status === 'complete' || result.status === 'up_to_date') return summary;
+    const selectedProvider = state.accounts.find(a => a.id === state.accountId)?.providerId;
+    const platformLabel = isSourcePlatform(selectedProvider) ? platformDisplayName(selectedProvider) : text('source', '来源');
     const reasons = new Map(Object.entries({
         provider_limit: () => text('The online API limit has been reached. Import earlier history with Takeout.', '已达到在线接口上限，更早的历史可以通过 Takeout 导入。'),
-        max_pages: () => state.accounts.find(a => a.id === state.accountId)?.providerId === 'claude'
+        max_pages: () => selectedProvider === 'claude'
             ? text('Claude list coverage cannot yet be verified', 'Claude 列表完整性尚无法验证')
             : text('Local page budget reached', '已达到本地页数预算'),
-        invalid_response: () => text('Scan failed: invalid Gemini response', '扫描失败：Gemini 返回无效响应'),
+        invalid_response: () => text(`Scan failed: invalid ${platformLabel} response`, `扫描失败：${platformLabel} 返回无效响应`),
         aborted: () => text('Scan cancelled', '扫描已取消'),
         error: () => text('Scan failed', '扫描失败'),
     }));

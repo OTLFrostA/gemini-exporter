@@ -15,17 +15,18 @@ import type { ScanEvidence, UiMessage } from '../state/foregroundTask.js';
 import type { LogLevel, ScanRunDiagnostic } from './diagnosticLogController.js';
 import { startSync } from './syncController.js';
 
+export interface WorkbenchScanState {
+    readonly evidence: ScanEvidence | undefined;
+    readonly takeoutCount: number | undefined;
+    readonly slow: boolean;
+    readonly connectionError: string | null;
+}
+
 export function createWorkbenchScanController(deps: {
     readonly state: ConversationViewState;
     readonly isBusy: () => boolean;
     readonly setSettings: (next: GlobalSettings) => void;
     readonly clearFeedback: () => void;
-    readonly setScanEvidence: (evidence: ScanEvidence | undefined) => void;
-    readonly setScanTakeoutCount: (count: number | undefined) => void;
-    readonly setScanSlow: (slow: boolean) => void;
-    readonly setConnectionError: (error: string | null) => void;
-    readonly setAdvanceTutorialScan: (fn: (() => void) | undefined) => void;
-    readonly getAdvanceTutorialScan: () => (() => void) | undefined;
     readonly recordScanRun: (run: ScanRunDiagnostic) => void;
     readonly reportScan: (message: UiMessage | ConversationSourceSummary, level?: LogLevel, rawLogMessage?: string) => void;
     readonly showTakeout: (count: number) => void;
@@ -36,12 +37,17 @@ export function createWorkbenchScanController(deps: {
     readonly statusError: (error: unknown, level?: LogLevel) => void;
 }) {
     let scanController: AbortController | null = null;
+    let evidence: ScanEvidence | undefined;
+    let takeoutCount: number | undefined;
+    let slow = false;
+    let connectionError: string | null = null;
+    let advanceTutorialScan: (() => void) | undefined;
 
     const scan = async (forceFull = false): Promise<void> => {
         if (deps.isBusy() || scanController) return;
         deps.clearFeedback();
-        deps.setConnectionError(null);
-        deps.setScanTakeoutCount(undefined);
+        connectionError = null;
+        takeoutCount = undefined;
         const taskController = new AbortController();
         scanController = taskController;
         const signal = taskController.signal;
@@ -49,11 +55,11 @@ export function createWorkbenchScanController(deps: {
         let connectionFailure: ScanConnectionError | undefined;
         const finishTutorialScan = TourGuide.beginScan();
         let scanHasResults = false;
-        deps.setAdvanceTutorialScan(finishTutorialScan ? () => {
+        advanceTutorialScan = finishTutorialScan ? () => {
             if (!scanHasResults || !deps.state.indexes.length) return;
-            deps.setAdvanceTutorialScan(undefined);
+            advanceTutorialScan = undefined;
             finishTutorialScan(true);
-        } : undefined);
+        } : undefined;
         try {
             const selected = deps.state.accounts.find(a => a.id === deps.state.accountId);
             const platform = SOURCE_PLATFORMS.find(p => p === selected?.providerId);
@@ -67,7 +73,7 @@ export function createWorkbenchScanController(deps: {
                 return;
             }
             const startedAt = Date.now();
-            deps.setScanEvidence(undefined);
+            evidence = undefined;
             deps.reportScan(() => text('Resolving conversation source…', '正在确认会话来源…'));
             const backoff = createBackoffNotice();
             const diagnostics: Diagnostic[] = [];
@@ -88,17 +94,17 @@ export function createWorkbenchScanController(deps: {
                 },
                 onProgress: p => {
                     if (signal.aborted) return;
-                    deps.setScanEvidence({ accountId: deps.state.accountId, progress: p });
+                    evidence = { accountId: deps.state.accountId, progress: p };
                     scanProgressMessage = () => text(
                         `Committed ${p.pagesFetched} pages, ${p.conversationsFetched} source entries`,
                         `已接纳 ${p.pagesFetched} 页、${p.conversationsFetched} 条来源记录`,
                     );
                     paintScanProgress();
-                    if (deps.getAdvanceTutorialScan() && p.conversationsFetched > 0) {
+                    if (advanceTutorialScan && p.conversationsFetched > 0) {
                         scanHasResults = true;
                         void deps.refresh().catch(deps.statusError);
                     }
-                    deps.setScanSlow(p.conversationsFetched > 200 && deps.state.accounts.find(a => a.id === deps.state.accountId)?.providerId === 'gemini');
+                    slow = p.conversationsFetched > 200 && deps.state.accounts.find(a => a.id === deps.state.accountId)?.providerId === 'gemini';
                     deps.paintTaskPanel();
                 },
             }).finally(stopBackoffTicker);
@@ -107,15 +113,15 @@ export function createWorkbenchScanController(deps: {
             const reason = result.diagnostics?.failure ?? result.reason ?? result.status;
             const succeeded = result.status === 'complete' || result.status === 'up_to_date';
             const committedProgress = { pagesFetched: result.pagesFetched, conversationsFetched: result.conversationsFetched };
-            deps.setScanEvidence({
+            evidence = {
                 accountId: deps.state.accountId,
                 progress: committedProgress,
                 result: { ...committedProgress, status: result.status, reason: result.reason, diagnostics: result.diagnostics },
-            });
+            };
             await deps.refresh();
             const added = result.indexChanges?.added ?? deps.state.indexes.filter(row => !baselineIds.has(row.key.conversationId)).length;
             if (reason === 'provider_limit' && deps.state.accounts.find(a => a.id === deps.state.accountId)?.providerId === 'gemini') {
-                deps.setScanTakeoutCount(result.conversationsFetched);
+                takeoutCount = result.conversationsFetched;
             }
             deps.reportScan(
                 {
@@ -141,17 +147,17 @@ export function createWorkbenchScanController(deps: {
                 deps.reportScan(() => errorText(error), 'error', error instanceof Error ? error.message : String(error));
                 if (error instanceof ScanConnectionError) {
                     connectionFailure = error;
-                    if (error.platform === 'gemini') deps.setConnectionError(error.message);
+                    if (error.platform === 'gemini') connectionError = error.message;
                 } else if (error instanceof OperationError && error.code === 'NO_CONNECTED_ACCOUNT') {
-                    deps.setConnectionError(error.message);
+                    connectionError = error.message;
                 }
             }
         } finally {
             try { await deps.refresh(); } catch (error) { deps.reportScan(() => errorText(error), 'error'); }
             scanController = null;
-            deps.setScanSlow(false);
+            slow = false;
             deps.render();
-            deps.getAdvanceTutorialScan()?.();
+            advanceTutorialScan?.();
             finishTutorialScan?.(false);
         }
         const account = deps.state.accounts.find(a => a.id === deps.state.accountId);
@@ -175,5 +181,17 @@ export function createWorkbenchScanController(deps: {
         stopScan,
         isScanning: () => scanController !== null,
         isScanAborted: () => scanController?.signal.aborted ?? false,
+        getState: (): WorkbenchScanState => ({ evidence, takeoutCount, slow, connectionError }),
+        clearConnectionError: () => { connectionError = null; },
+        clearImportBannerState: () => {
+            takeoutCount = undefined;
+            if (!scanController) evidence = undefined;
+        },
+        resetAccountState: () => {
+            evidence = undefined;
+            takeoutCount = undefined;
+            connectionError = null;
+        },
+        runAdvanceTutorialScan: () => { advanceTutorialScan?.(); },
     };
 }

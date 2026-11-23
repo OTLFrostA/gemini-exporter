@@ -4,7 +4,7 @@ import { restoreDomainDetail } from '../../l2/runtimeValidation.js';
 import { sameConversationKey } from '../../l2/conversationKey.js';
 import { restoreConversationIndex } from '../../l2/conversationIndex.js';
 import type { PageObservationHead } from '../../l2/pageObservation.js';
-import { isUuid } from '../../shared/utils/typeGuards.js';
+import { isSourcePlatform, isValidPlatformConversationId } from '../../shared/platformHosts.js';
 import { ensureV2Ready } from './readiness.js';
 import { object, requireContentContext, assertContentSender } from './contentSender.js';
 
@@ -68,10 +68,10 @@ export function handleDomainIngestionMessage(message: unknown, sender: chrome.ru
                 return;
             } else if (request.operation === 'deleted') {
                 if (account.providerAccountId === 'default') throw new TypeError('Deletion requires an identified Account');
-                const validConversationId = ['chatgpt', 'claude', 'grok'].includes(account.providerId)
-                    ? isUuid(request.conversationId)
-                    : typeof request.conversationId === 'string' && /^[a-f0-9]{8,64}$/.test(request.conversationId);
-                if (!validConversationId || typeof request.conversationId !== 'string') throw new TypeError('Expected Provider conversation ID');
+                if (!isSourcePlatform(account.providerId)
+                    || !isValidPlatformConversationId(account.providerId, request.conversationId)) {
+                    throw new TypeError('Expected Provider conversation ID');
+                }
                 await ingestDeletedConversation(account.id, request.conversationId);
             } else throw new TypeError('Unknown ingestion operation');
             notifyDomainChanged(account.id);

@@ -16,7 +16,10 @@ interface GrokMessageBridgeCallbacks {
     ingestion?: ContentIngestionPort;
 }
 
-export function initGrokMessageBridge(deps: GrokMessageBridgeCallbacks): { onRouteChanged: () => void } {
+export function initGrokMessageBridge(deps: GrokMessageBridgeCallbacks): {
+    onRouteChanged: () => void;
+    scheduleSave: (id: string, owner: string) => void;
+} {
     const ingestion = () => deps.ingestion ?? contentRuntimeHost().ingestion;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let queue = Promise.resolve();
@@ -70,30 +73,8 @@ export function initGrokMessageBridge(deps: GrokMessageBridgeCallbacks): { onRou
         },
     });
 
-    let mutationTimer: ReturnType<typeof setTimeout> | undefined;
-    let signature = '';
-    const observer = new MutationObserver(records => {
-        if (!records.some(record => {
-            const target = record.target instanceof Element ? record.target : record.target.parentElement;
-            return target && !target.closest('#geminiExportBadge,[contenteditable="true"],textarea');
-        })) return;
-        clearTimeout(mutationTimer);
-        mutationTimer = setTimeout(() => {
-            if (!deps.isActive()) return;
-            const id = deps.currentConversationId();
-            const next = id + ':' + [...document.querySelectorAll('[id^="response-"]')]
-                .map(element => [element.textContent, [...element.querySelectorAll('img')].map(img => img.src).join(',')].join(':')).join('\n');
-            if (!id || next === signature) return;
-            signature = next;
-            void deps.currentAccount().then(account => {
-                if (deps.isActive() && account && deps.currentConversationId() === id) scheduleSave(id, account.providerAccountId);
-            }).catch(console.warn);
-        }, 1500);
-    });
-    observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true });
-    deps.registerCleanup(() => { observer.disconnect(); clearTimeout(mutationTimer); });
-
     return {
+        scheduleSave,
         onRouteChanged: () => {
             const id = deps.currentConversationId();
             if (id) void deps.currentAccount().then(account => {

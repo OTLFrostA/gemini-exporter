@@ -1,3 +1,5 @@
+import { isUuid } from './utils/typeGuards.js';
+
 export const SOURCE_PLATFORMS = ['gemini', 'chatgpt', 'grok', 'claude'] as const;
 export type SourcePlatform = typeof SOURCE_PLATFORMS[number];
 
@@ -15,6 +17,9 @@ export interface PlatformHostConfig {
     readonly conversationUrlPrefix: string;
     readonly pages: readonly string[];
     readonly attachments: readonly string[];
+    readonly contentScripts: readonly [main: string, isolated: string];
+    readonly conversationIdFormat: 'uuid' | 'hex';
+    readonly supportsZipImport: boolean;
 }
 
 /** Site access and canonical platform metadata live in one table per source platform. */
@@ -26,6 +31,9 @@ export const PLATFORM_HOSTS = {
         pages: ['https://gemini.google.com/*'],
         attachments: ['https://*.googleusercontent.com/*', 'https://*.usercontent.google.com/*',
             'https://drive.google.com/*', 'https://lh3.google.com/*', 'https://*.gstatic.com/*'],
+        contentScripts: ['dist/content/hook.js', 'dist/content/content.js'],
+        conversationIdFormat: 'hex',
+        supportsZipImport: true,
     },
     chatgpt: {
         name: 'ChatGPT',
@@ -33,6 +41,9 @@ export const PLATFORM_HOSTS = {
         conversationUrlPrefix: 'https://chatgpt.com/c/',
         pages: ['https://chatgpt.com/*', 'https://chat.openai.com/*'],
         attachments: ['https://images.openai.com/*'],
+        contentScripts: ['dist/content/chatgpt-hook.js', 'dist/content/chatgpt-content.js'],
+        conversationIdFormat: 'uuid',
+        supportsZipImport: true,
     },
     grok: {
         name: 'Grok',
@@ -40,6 +51,9 @@ export const PLATFORM_HOSTS = {
         conversationUrlPrefix: 'https://grok.com/c/',
         pages: ['https://grok.com/*'],
         attachments: ['https://assets.grok.com/*'],
+        contentScripts: ['dist/content/grok-hook.js', 'dist/content/grok-content.js'],
+        conversationIdFormat: 'uuid',
+        supportsZipImport: false,
     },
     claude: {
         name: 'Claude',
@@ -47,8 +61,16 @@ export const PLATFORM_HOSTS = {
         conversationUrlPrefix: 'https://claude.ai/chat/',
         pages: ['https://claude.ai/*'],
         attachments: [],
+        contentScripts: ['dist/content/claude-hook.js', 'dist/content/claude-content.js'],
+        conversationIdFormat: 'uuid',
+        supportsZipImport: false,
     },
 } as const satisfies Record<SourcePlatform, PlatformHostConfig>;
+
+export function isValidPlatformConversationId(platform: SourcePlatform, value: unknown): value is string {
+    if (PLATFORM_HOSTS[platform].conversationIdFormat === 'uuid') return isUuid(value);
+    return typeof value === 'string' && /^[a-f0-9]{8,64}$/.test(value);
+}
 
 export function platformDisplayName(platform: SourcePlatform): string {
     return PLATFORM_HOSTS[platform].name;

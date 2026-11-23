@@ -35,6 +35,29 @@ const bridge = initGrokMessageBridge({
 });
 notifyRouteChanged = bridge.onRouteChanged;
 
+let mutationTimer: ReturnType<typeof setTimeout> | undefined;
+let responseSignature = '';
+const responseObserver = new MutationObserver(records => {
+    if (!records.some(record => {
+        const target = record.target instanceof Element ? record.target : record.target.parentElement;
+        return target && !target.closest('#geminiExportBadge,[contenteditable="true"],textarea');
+    })) return;
+    clearTimeout(mutationTimer);
+    mutationTimer = setTimeout(() => {
+        if (!isActive()) return;
+        const id = conversationId();
+        const next = id + ':' + [...document.querySelectorAll('[id^="response-"]')]
+            .map(element => [element.textContent, [...element.querySelectorAll('img')].map(img => img.src).join(',')].join(':')).join('\n');
+        if (!id || next === responseSignature) return;
+        responseSignature = next;
+        void currentAccount().then(account => {
+            if (isActive() && account && conversationId() === id) bridge.scheduleSave(id, account.providerAccountId);
+        }).catch(console.warn);
+    }, 1500);
+});
+responseObserver.observe(document.documentElement, { subtree: true, childList: true, characterData: true });
+registerCleanup(() => { responseObserver.disconnect(); clearTimeout(mutationTimer); });
+
 registerContentControlRouter({
     providerId: 'grok',
     isActive,
