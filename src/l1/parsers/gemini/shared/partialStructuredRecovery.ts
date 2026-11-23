@@ -1,11 +1,11 @@
 import type { BlockNode } from '../../../../l2/content/blocks.js';
 import type { InlineNode } from '../../../../l2/content/inline.js';
-import { GEMINI_NODE_TYPES } from '../rpc/jspbSchema.js';
-import type {
-    GeminiPartialStructuredSlot,
-    GeminiStructuredNode,
-} from '../rpc/structuredContent.js';
-import type { GeminiSourceAttribution } from '../rpc/sourceAttributions.js';
+import {
+    GEMINI_NODE_TYPES,
+    type GeminiPartialStructuredSlot,
+    type GeminiSourceAttribution,
+    type GeminiStructuredNode,
+} from './structuredTypes.js';
 import {
     geminiStructuredToContent,
     type GeminiSourceCitations,

@@ -1,4 +1,4 @@
-import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
+import type { GeminiIndexObservationInput } from '../shared/structuredTypes.js';
 import { cleanTitle, isRealTitle } from '../../../../shared/utils/titleText.js';
 
 function activeTitle(document: Document, activeId: string): { title: string; source: string } | null {

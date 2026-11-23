@@ -1,14 +1,17 @@
 import type { BlockNode } from '../../../../l2/content/blocks.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../shared/markdown/index.js';
 import type { ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
-import type { GeminiPartialStructuredSlot, GeminiStructuredDocument } from '../rpc/structuredContent.js';
-import type { ImageAttachment } from '../rpc/sourceAttachments.js';
+import type {
+    GeminiPartialStructuredSlot,
+    GeminiSourceAttribution,
+    GeminiStructuredDocument,
+    ImageAttachment,
+} from './structuredTypes.js';
 import { preprocessGeminiMarkdown, normalizeGeminiTexAliases } from './markdownCompatibility.js';
 import { geminiStructuredToContent, type GeminiSourceCitations, type GeminiSourceFailure } from './structuredContentAdapter.js';
 import type { InlineNode } from '../../../../l2/content/inline.js';
 import { normalizeTextUnderscores } from '../../../../shared/utils/latexCompatibility.js';
 import { hasLiteralMathText, recoverLiteralMath } from './literalMathRecovery.js';
-import type { GeminiSourceAttribution } from '../rpc/sourceAttributions.js';
 import { recoverGeminiSourceRanges } from './sourceRanges.js';
 import { cleanGeminiBodyText, createCandidateMarkdownIndex } from './candidateMarkdown.js';
 import { recoverPartialStructuredBlocks } from './partialStructuredRecovery.js';

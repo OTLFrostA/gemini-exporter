@@ -1,5 +1,5 @@
 import { observeClaudeAccount } from '../../../l1/client/claude/accountObservation.js';
-import type { PlatformAccountAdapter } from '../accountContext.js';
+import type { PlatformAccountAdapter } from './platformAccountAdapter.js';
 
 export function createClaudeAccountAdapter(): PlatformAccountAdapter {
     return {

@@ -4,8 +4,9 @@ import type { InlineNode } from '../../../../l2/content/inline.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../shared/markdown/index.js';
 import { convertHtmlToMarkdown } from '../../shared/html/htmlToMarkdown.js';
 import { validGeminiTextRange } from './sourceRanges.js';
-import { GEMINI_ANNOTATION_TYPES, GEMINI_NODE_TYPES } from '../rpc/jspbSchema.js';
 import {
+    GEMINI_ANNOTATION_TYPES,
+    GEMINI_NODE_TYPES,
     headingLevelOf,
     mathSourceOf,
     orderedListStartOf,
@@ -13,7 +14,7 @@ import {
     type GeminiStructuredDocument,
     type GeminiStructuredNode,
     type GeminiTextNode,
-} from '../rpc/structuredContent.js';
+} from './structuredTypes.js';
 
 function textWithSoftBreaks(text: string): InlineNode[] {
     if (!text.includes('\n')) {
