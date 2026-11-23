@@ -94,6 +94,7 @@ function migratedRuntime(initial: Record<string, unknown>, beforeWrite: (patch: 
         'src/runtime/background/liveSaveHandler.js': { runLiveSave: () => assert.fail('No export requested') },
     });
     const readyApi = load('src/runtime/api/runtimeReady.ts', { 'src/runtime/background/readiness.js': readiness });
+    readyApi.provideWorkerReadiness(readiness.ensureV2Ready);
     const accounts = load('src/runtime/api/accountRegistry.ts', { 'src/runtime/api/runtimeReady.js': readyApi });
     return { data, writes, readiness, readyApi, accounts, settings, opened: () => opened,
         install: (reason: string, previousVersion?: string) => installed({ reason, previousVersion }),

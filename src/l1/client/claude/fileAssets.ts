@@ -3,7 +3,7 @@ import type { ResourceBytes } from '../../../shared/resources/resourceResult.js'
 import { ResourceHttpError, ResourceProcessingError } from '../../../shared/resources/resourceResult.js';
 import { isRecord } from '../../../shared/utils/typeGuards.js';
 import { executeInFirstPlatformTab } from '../tabSourceRunner.js';
-import { claudeUuid } from '../../sniffer/claude/observation.js';
+import { claudeUuid } from '../../protocol/claude/observation.js';
 
 export function claudeFileId(uri?: string): string | null {
     const id = uri?.startsWith('claude-file:') ? uri.slice(12) : undefined;

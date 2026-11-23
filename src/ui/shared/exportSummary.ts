@@ -1,6 +1,6 @@
 import type { ExportResult, ExportAttachmentIssue } from '../../application/export/types.js';
 import { resourceFailureText, resourceIssueKind, type ResourceFailure } from '../../shared/resources/resourceResult.js';
-import { englishCount, text, isDeveloperMode } from './settings.js';
+import { englishCount, text, isDeveloperMode } from './i18n.js';
 
 export function attachmentFailure(issue: ExportAttachmentIssue): ResourceFailure {
     return { ok: false, reason: '', ...issue };

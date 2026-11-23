@@ -1,6 +1,6 @@
 import type { Account } from '../../../l2/accountRegistry.js';
 import { sniffUserProfileFromDom } from '../../parsers/gemini/dom/accountSniffer.js';
-import { geminiAccountObservation } from '../../client/gemini/accountObservation.js';
+import { geminiAccountObservation } from '../../protocol/gemini/accountObservation.js';
 import { CrossWorldEvents, parseRpcRequestId } from '../../protocol/gemini/protocol.js';
 import { createGeminiResponseRouter } from './responses/router.js';
 

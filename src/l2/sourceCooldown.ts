@@ -1,4 +1,4 @@
-import { domainStorage } from './ports/storagePort.js';
+import { domainStorage } from './storagePort.js';
 
 export function getSourceCooldown(accountId: string): Promise<number> {
     return domainStorage().getSourceCooldown(accountId);

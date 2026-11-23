@@ -335,6 +335,8 @@ test('Content scripts and MAIN hooks never bundle IndexedDB, Migration, Backgrou
                 const nextChain = [...chain, edge.target].join(' -> ');
                 assert.ok(!/^(?:l3a|migration|l3b|l4|application|runtime\/background|shared\/crypto|l1\/cloud)\//.test(edge.target),
                     `${entry} bundles forbidden runtime module: ${nextChain}`);
+                assert.ok(!/^ui\/shared\/(?:errorMessages|legacyLabels)\.ts$/.test(edge.target),
+                    `${entry} bundles workbench error copy into content script: ${nextChain}`);
                 assert.ok(!/^l2\/(?:ingestion|accountAdmission|coverageAdmission|readConversation|sourceCooldown|cloudPayload)\.ts$/.test(edge.target),
                     `${entry} bundles extension-origin L2 persistence module: ${nextChain}`);
                 walkRuntime(edge.target, [...chain, edge.target]);
@@ -367,3 +369,23 @@ test('Background Service Worker excludes heavyweight DOCX, HTML, Typst/PDF and U
     }
     walkWorker(entry, [entry]);
 });
+
+test('Popup and Options UI bundles never include v1 Migration, Background Worker handlers, or Content Script modules', () => {
+    for (const entry of ['ui/popup/popup.ts', 'ui/options/options.ts']) {
+        assert.ok(sources.has(entry), `missing UI entry: ${entry}`);
+        const seen = new Set<string>();
+        function walkUi(current: string, chain: string[]): void {
+            if (seen.has(current)) return;
+            seen.add(current);
+            for (const edge of graph.get(current) ?? []) {
+                if (!edge.runtime) continue;
+                const nextChain = [...chain, edge.target].join(' -> ');
+                assert.ok(!/^(?:migration\/|runtime\/background\/|runtime\/content\/)/.test(edge.target),
+                    `${entry} bundles forbidden worker/migration/content module: ${nextChain}`);
+                walkUi(edge.target, [...chain, edge.target]);
+            }
+        }
+        walkUi(entry, [entry]);
+    }
+});
+

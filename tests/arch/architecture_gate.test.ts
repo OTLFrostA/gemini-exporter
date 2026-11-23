@@ -11,6 +11,7 @@ const { analyzeArchitecture } = require('../../scripts/check-architecture.cjs') 
         platformViolations: string[];
         fileCycles: string[][];
         layerCycles: string[][];
+        subModuleCycles: string[][];
     };
 };
 
@@ -33,6 +34,7 @@ test('arch-gate: current src/ satisfies zero layer violations and zero cycles', 
     assert.deepEqual(report.layerViolations, []);
     assert.deepEqual(report.platformViolations, []);
     assert.deepEqual(report.layerCycles, []);
+    assert.deepEqual(report.subModuleCycles, []);
     assert.deepEqual(report.fileCycles, []);
     assert.ok(report.fileCount > 300);
 });
@@ -68,3 +70,17 @@ test('arch-gate: detects file-level cycles including type-only imports', () => {
         assert.deepEqual(report.fileCycles[0], ['l2/a.ts', 'l2/b.ts']);
     });
 });
+
+test('arch-gate: detects sub-module directory cycles even without file-level cycles', () => {
+    withTempSrc({
+        'l1/client/a.ts': 'export const a = 1;',
+        'l1/sniffer/b.ts': "import { a } from '../client/a.js'; export const b = a;",
+        'l1/client/c.ts': "import { b } from '../sniffer/b.js'; export const c = b;",
+    }, dir => {
+        const report = analyzeArchitecture(dir);
+        assert.equal(report.fileCycles.length, 0);
+        assert.equal(report.subModuleCycles.length, 1);
+        assert.deepEqual(report.subModuleCycles[0], ['l1/client', 'l1/sniffer']);
+    });
+});
+

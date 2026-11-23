@@ -2,7 +2,7 @@ import { isAccountId } from './accountRegistry.js';
 import type { PageObservation, PageObservationEvidence, PageObservationHead } from './pageObservation.js';
 import { CoverageSession, emptyStream, type StreamCoverage } from './streamCoverage.js';
 import { indexCoverageSession, commitIndexCoverageSession, resetAccountCoverageSessions } from './indexCoverage.js';
-import { domainStorage } from './ports/storagePort.js';
+import { domainStorage } from './storagePort.js';
 export type ScanHead = PageObservationHead;
 
 export function getCoverage(accountId: string, streamId: string): Promise<StreamCoverage | null> {

@@ -126,14 +126,23 @@ function analyzeArchitecture(srcRoot) {
     const files = walkSourceFiles(srcRoot).sort();
     const fileGraph = new Map();
     const layerGraph = new Map();
+    const subModuleGraph = new Map();
     const layerViolations = [];
     const platformViolations = [];
+
+    function subModuleUnit(relPath) {
+        const parts = relPath.split('/');
+        const dirParts = parts.slice(0, -1);
+        return dirParts.slice(0, 2).join('/') || parts[0];
+    }
 
     for (const file of files) {
         const rel = path.relative(srcRoot, file).replace(/\\/g, '/');
         const srcLayer = rel.split('/')[0];
+        const srcSubModule = subModuleUnit(rel);
         if (!fileGraph.has(rel)) fileGraph.set(rel, new Set());
         if (!layerGraph.has(srcLayer)) layerGraph.set(srcLayer, new Set());
+        if (!subModuleGraph.has(srcSubModule)) subModuleGraph.set(srcSubModule, new Set());
 
         const text = stripComments(fs.readFileSync(file, 'utf8'));
         IMPORT_RE.lastIndex = 0;
@@ -146,6 +155,10 @@ function analyzeArchitecture(srcRoot) {
             fileGraph.get(rel).add(target);
 
             const dstLayer = target.split('/')[0];
+            const dstSubModule = subModuleUnit(target);
+            if (srcSubModule !== dstSubModule) {
+                subModuleGraph.get(srcSubModule).add(dstSubModule);
+            }
             if (srcLayer !== dstLayer) {
                 layerGraph.get(srcLayer).add(dstLayer);
                 const allowed = ALLOWED_LAYER_DEPS[srcLayer];
@@ -161,6 +174,7 @@ function analyzeArchitecture(srcRoot) {
 
     const fileCycles = tarjanScc(fileGraph);
     const layerCycles = tarjanScc(layerGraph);
+    const subModuleCycles = tarjanScc(subModuleGraph);
 
     return {
         fileCount: files.length,
@@ -168,6 +182,7 @@ function analyzeArchitecture(srcRoot) {
         platformViolations: [...new Set(platformViolations)].sort(),
         fileCycles,
         layerCycles,
+        subModuleCycles,
     };
 }
 
@@ -179,19 +194,21 @@ if (require.main === module) {
         report.layerViolations.length > 0 ||
         report.platformViolations.length > 0 ||
         report.fileCycles.length > 0 ||
-        report.layerCycles.length > 0;
+        report.layerCycles.length > 0 ||
+        report.subModuleCycles.length > 0;
 
     if (failed) {
         console.error('[arch-gate] FAILED:');
         for (const v of report.layerViolations) console.error('  [layer] ' + v);
         for (const v of report.platformViolations) console.error('  [platform] ' + v);
         for (const c of report.layerCycles) console.error('  [layer-cycle] ' + c.join(' <-> '));
+        for (const c of report.subModuleCycles) console.error('  [submodule-cycle] ' + c.join(' <-> '));
         for (const c of report.fileCycles) console.error('  [file-cycle] ' + c.join(' <-> '));
         process.exit(1);
     }
 
     console.log(
-        `[arch-gate] PASS: ${report.fileCount} files, 0 layer violations, 0 platform leaks, 0 file cycles, 0 layer cycles (${Date.now() - t0}ms)`,
+        `[arch-gate] PASS: ${report.fileCount} files, 0 layer violations, 0 platform leaks, 0 file cycles, 0 layer cycles, 0 submodule cycles (${Date.now() - t0}ms)`,
     );
 }
 

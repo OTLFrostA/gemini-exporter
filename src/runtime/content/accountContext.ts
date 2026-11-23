@@ -128,3 +128,4 @@ export function isCurrentAccount(context: AccountContext): boolean {
     const current = getAccountContext();
     return current?.accountId === context.accountId && current.providerId === context.providerId && current.slot === context.slot;
 }
+

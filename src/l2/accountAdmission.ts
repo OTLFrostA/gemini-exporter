@@ -1,5 +1,5 @@
 import { readAccountParameters, readAccountRegistry, findAccount, readAccount, DEFAULT_ACCOUNT_KEY, isLegacyGeminiIdentityUpgrade, type Account } from './accountRegistry.js';
-import { domainStorage } from './ports/storagePort.js';
+import { domainStorage } from './storagePort.js';
 
 /** L2 decides ownership; Storage serializes the decision with the account write. */
 export async function getOrCreateAccount(providerId: Account['providerId'], providerAccountId: Account['providerAccountId'],
