@@ -6,7 +6,7 @@ import { buildExportFiles, packageExportFiles } from '../src/l4/packaging/index.
 import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
 import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
 import { __setZipConstructor, __getZipConstructor } from '../src/l4/packaging/writers/zipWriter.js';
-import type { WriteFileContent, WriteFileOptions } from '../src/l4/delivery/writers/writerInterface.js';
+import type { WriteFileContent, WriteFileOptions } from '../src/l4/shared/writerInterface.js';
 
 const captured = new Map<string, { content: WriteFileContent; options: WriteFileOptions }>();
 class MockJSZip {

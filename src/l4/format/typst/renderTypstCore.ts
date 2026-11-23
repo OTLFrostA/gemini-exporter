@@ -1,5 +1,5 @@
 import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst } from '../../../l3b/ast/ast.js';
-import type { ResourceBindings } from '../../packaging/resourceBindings.js';
+import type { ResourceBindings } from '../../shared/resourceBindings.js';
 import { visual } from '../shared/visualContract.js';
 import { blockText, inlineText, codeHeader, fileBadge, humanBytes, headerMetadata, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';

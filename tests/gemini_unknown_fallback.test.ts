@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatUnknownPayload } from '../src/l1/parsers/gemini/shared/unknownFallback.js';
+import { formatUnknownPayload } from './helpers/recordFixture/unknownFallback.js';
 
 test('Gemini unknown-content fallback is deterministic and does not mutate source evidence', () => {
     const raw = { z: [1, null, { b: true, a: 'x' }], a: 'hi' };

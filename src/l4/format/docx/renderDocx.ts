@@ -3,7 +3,7 @@ import {
     type FileChild, type ParagraphChild, type NumberingDefinition,
 } from 'docx';
 import type { DisplayBlock, DisplayInline, DocumentAst } from '../../../l3b/ast/ast.js';
-import type { ResourceBindings } from '../../packaging/resourceBindings.js';
+import type { ResourceBindings } from '../../shared/resourceBindings.js';
 import type { PreparedResources } from '../../../shared/resources/resourceResult.js';
 import type { RendererOptions } from '../shared/renderOptions.js';
 import { headerMetadata, messageLabel, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';

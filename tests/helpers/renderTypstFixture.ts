@@ -1,6 +1,6 @@
 import type { Diagnostic } from '../../src/shared/diagnostics/diagnostic.js';
 import type { DocumentAst } from '../../src/l3b/ast/ast.js';
-import type { ResourceBindings } from '../../src/l4/packaging/resourceBindings.js';
+import type { ResourceBindings } from '../../src/l4/shared/resourceBindings.js';
 import type { RendererOptions } from '../../src/l4/format/shared/renderOptions.js';
 import { renderDocumentTypstCore } from '../../src/l4/format/typst/renderTypstCore.js';
 // Test compatibility exports point at the actual production Typst lowerer.

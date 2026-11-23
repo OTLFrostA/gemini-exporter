@@ -5,7 +5,7 @@ import type { TrustedDomainBody, ReadonlyDomain } from '../../src/l2/runtimeVali
 import type { Diagnostic } from '../../src/shared/diagnostics/diagnostic.js';
 import type { PreparedResources } from '../../src/shared/resources/resourceResult.js';
 import type { DocumentAst } from '../../src/l3b/ast/ast.js';
-import type { ResourceBindings } from '../../src/l4/packaging/resourceBindings.js';
+import type { ResourceBindings } from '../../src/l4/shared/resourceBindings.js';
 import type { ExportPathPlan, ExportFormat, ExportDelivery } from '../../src/l4/packaging/index.js';
 import type { ExportRecord, ExportRequest } from '../../src/application/export/types.js';
 import type { GlobalSettings } from '../../src/application/settings/index.js';

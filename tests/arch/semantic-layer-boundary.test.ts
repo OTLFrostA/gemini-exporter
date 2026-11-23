@@ -92,7 +92,7 @@ function forbidden(owner: string, target: string): boolean {
     if (owner.startsWith('l2/')) {
         const admission = new Set(['l2/accountAdmission.ts', 'l2/ingestion.ts', 'l2/coverageAdmission.ts', 'l2/readConversation.ts', 'l2/sourceCooldown.ts']);
         if (admission.has(owner)) return !/^(l2\/|l3a\/)/.test(target);
-        return !target.startsWith('l2/') && target !== 'shared/utils/jsonTypes.ts' && target !== 'shared/types/export.ts';
+        return !target.startsWith('l2/') && target !== 'shared/utils/jsonTypes.ts' && target !== 'shared/types/export.ts' && target !== 'shared/types/readonly.ts' && target !== 'shared/types/settings.ts';
     }
     if (owner.startsWith('l3a/')) return !/^(l3a\/|l2\/|shared\/)/.test(target);
     if (owner.startsWith('l3b/ast/')) return !target.startsWith('l3b/ast/') && target !== 'l2/conversationDetail.ts';
@@ -102,8 +102,8 @@ function forbidden(owner: string, target: string): boolean {
         if (target.startsWith(formatDirectory)) return false;
         // PDF compilation validates embedded image bytes before rendering.
         if (owner.startsWith('l4/format/pdf/') && target.startsWith('l4/format/resources/')) return false;
-        // Packaging owns the type-only binding; JSON intentionally reads trusted Domain.
-        if (target === 'l4/packaging/resourceBindings.ts') return false;
+        // Shared owns the type-only binding; JSON intentionally reads trusted Domain.
+        if (target === 'l4/shared/resourceBindings.ts') return false;
         if (owner === 'l4/format/json/serializeDomainJson.ts' && /^l2\//.test(target)) {
             return /(?:Admission|ingestion|indexCoverage|pageObservation)/.test(target);
         }
@@ -134,7 +134,7 @@ test('semantic layers own their files and obey dependency direction, including t
     for (const [owner, edges] of graph) for (const edge of edges) {
         assert.ok(!forbidden(owner, edge.target), `${owner} must not depend on ${edge.target}`);
         if (owner.startsWith('l3b/ast/') && edge.target === 'l2/conversationDetail.ts') assert.equal(edge.runtime, false, 'AST reuses L2 role/asset types without a runtime dependency');
-        if (renderer(owner) && edge.target === 'l4/packaging/resourceBindings.ts') assert.equal(edge.runtime, false, `${owner} must import bindings as a type`);
+        if (renderer(owner) && edge.target === 'l4/shared/resourceBindings.ts') assert.equal(edge.runtime, false, `${owner} must import bindings as a type`);
     }
     for (const old of ['core/api/parser/', 'core/content/', 'core/export/document/', 'core/engine/takeout/', 'core/engine/template/', 'core/provider/record/']) {
         assert.ok(![...sources.keys()].some(name => name.startsWith(old)), `obsolete directory still owns code: ${old}`);

@@ -26,7 +26,7 @@ import type { DomainConversationWithDetail } from '../../src/l2/conversation.js'
 import { normalizeArchiveResourceName } from '../../src/shared/utils/archivePath.js';
 import { extractAttachmentInlineBytes } from '../../src/l1/resources/attachmentBytes.js';
 import { createHash } from 'node:crypto';
-import type { ResourceBindings } from '../../src/l4/packaging/resourceBindings.js';
+import type { ResourceBindings } from '../../src/l4/shared/resourceBindings.js';
 
 /** Resource preparation is a side channel; never replace Domain identities with export identities. */
 async function fixtureBindings(conversation: DomainConversationWithDetail, hints: LegacyResourceHints = {}, acquisitionHints: ResourceAcquisitionHints = {}): Promise<ResourceBindings> {

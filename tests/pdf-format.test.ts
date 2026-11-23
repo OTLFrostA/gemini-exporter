@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { DocumentAst } from '../src/l3b/ast/ast.js';
-import type { ResourceBindings } from '../src/l4/packaging/resourceBindings.js';
+import type { ResourceBindings } from '../src/l4/shared/resourceBindings.js';
 import type { PreparedResources } from '../src/shared/resources/resourceResult.js';
 import type { IPdfCompiler } from '../src/l4/format/pdf/pdfCompiler.js';
 import { compileDocumentPdf } from '../src/l4/format/pdf/compileDocumentPdf.js';

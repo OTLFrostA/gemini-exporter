@@ -1,4 +1,4 @@
-import { formatUnknownPayload } from '../../../src/l1/parsers/gemini/shared/unknownFallback.js';
+import { formatUnknownPayload } from './unknownFallback.js';
 import { decodeGeminiStructuredPayload } from '../../../src/l1/parsers/gemini/rpc/structuredContent.js';
 import { semanticTitleSource } from '../../../src/l1/parsers/shared/parseIndexMetadata.js';
 import { contentQuality, type ContentQuality } from '../../../src/l1/parsers/qualityEvidence.js';

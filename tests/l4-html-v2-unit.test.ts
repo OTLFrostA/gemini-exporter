@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { v2Document } from './helpers/l4V2Fixtures.js';
-import type { ResourceBindings } from '../src/l4/packaging/resourceBindings.js';
+import type { ResourceBindings } from '../src/l4/shared/resourceBindings.js';
 import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
 
 test('HTML uses the supplied v2 AST and prepared offline file destination unchanged', () => {

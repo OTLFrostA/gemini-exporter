@@ -4,7 +4,7 @@ import { isResourcePath } from '../shared/resourcePath.js';
 import { safeExternalHref, encodeResourceHref, encodeMarkdownHref } from '../shared/safeLinks.js';
 import type { RendererOptions } from '../shared/renderOptions.js';
 import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst } from '../../../l3b/ast/ast.js';
-import type { ResourceBindings } from '../../packaging/resourceBindings.js';
+import type { ResourceBindings } from '../../shared/resourceBindings.js';
 import { inlineMathMarkdown } from '../../../shared/utils/markdownMath.js';
 
 const htmlEntities: Readonly<Record<string, string>> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };

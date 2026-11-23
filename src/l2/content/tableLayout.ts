@@ -1,4 +1,4 @@
-import type { DeepReadonly } from '../readonly.js';
+import type { DeepReadonly } from '../../shared/types/readonly.js';
 import type { TableBlock, TableCell } from './blocks.js';
 
 /** Domain table limits follow HTML's colspan/rowspan bounds. The whole logical

@@ -1,6 +1,6 @@
 import { OperationError } from '../../../shared/errors/operationError.js';
 import type { DocumentAst, DisplayBlock, DisplayInline } from '../../../l3b/ast/ast.js';
-import type { ResourceBindings } from '../../packaging/resourceBindings.js';
+import type { ResourceBindings } from '../../shared/resourceBindings.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import { missingResource } from '../../../shared/resources/resourceResult.js';
 import type { PreparedResources } from '../../../shared/resources/resourceResult.js';
