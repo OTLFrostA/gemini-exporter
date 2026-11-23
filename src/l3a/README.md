@@ -45,6 +45,6 @@ owns its completion marker; normal Storage never reads or writes upgrade state.
 `python3 tests/run_tests.py --filter storage_v2` runs the storage contract suite.
 The complete `npm test` additionally covers Application cleanup retention,
 cross-context Registry behavior and real browser storage/directory-handle export.
-See [Domain type boundaries](../../docs/domain-type-boundaries.md) for
+See [Architecture Specification](../../docs/architecture/architecture.md) for
 persistence validation and [module-unit isolation](../../docs/v2-unit-isolation.md)
 for the distinction between isolated unit tests and integration coverage.

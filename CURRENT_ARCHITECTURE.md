@@ -1,55 +1,46 @@
-# Current architecture
+# Current Architecture
 
-This file describes **the implementation on main**, not a roadmap or a record of past refactors. The source tree and [module map](src/README.md) are authoritative for file/module ownership. Do not classify an adapter as dead merely because it is experimental or absent from the Chrome Web Store release.
+This file summarizes **the active implementation on `main`**. For the complete architectural specification (layer DAG, trust boundaries, export/vault internals, IPC/concurrency contracts, and CI gates), see [docs/architecture/architecture.md](docs/architecture/architecture.md). For the directory-to-owner map, see [src/README.md](src/README.md).
 
-## Platform status
+## Platform Status
 
-| Platform | Current source integration | Release/acceptance scope |
-| --- | --- | --- |
-| Gemini | Native request/sniffer parsing, account-aware sync, Takeout import, Live Save, local export | Primary Chrome extension product |
-| ChatGPT | Opt-in account/workspace-aware source adapters and official export-ZIP import | Experimental source integration; requires separate authenticated validation |
-| Claude | Opt-in organization-aware source adapters, selected-branch/tool/attachment handling | Experimental; [known limitations](docs/claude-support.md) |
-| Grok | Opt-in source adapters and source-resource handling | Experimental; [known limitations](docs/grok-support.md) |
+| Platform | Current Source Integration | Release / Acceptance Scope & Known Limits |
+| :--- | :--- | :--- |
+| **Gemini** | Native RPC/sniffer parsing, account-aware sync, Takeout ZIP import, Live Save, 5-format local export | Primary Chrome Web Store product. |
+| **ChatGPT** | Opt-in account/workspace-aware source adapters and official export-ZIP import | Experimental; requires separate authenticated validation. |
+| **Claude** | Opt-in organization-aware source adapters, selected-branch/tool/attachment handling | Experimental; exports selected branch only, sidebar observation does not establish full list coverage, and incomplete/unrecognized tools remain `partial`/`unknown`. |
+| **Grok** | Opt-in source adapters, Loominary-adapted response/citation normalizer, generated-image & file handling | Experimental; DOM images enrich their exact response container only, multi-branch without authoritative selection reports `partial`. |
 
-All platforms have separate optional site access in [manifest.json](manifest.json). `src/l1/client/`, `src/l1/sniffer/` and `src/l1/parsers/` contain concrete provider implementations; runtime/UI access is permission- and account-scoped. Test declarations and source code do not alone establish live full-platform parity.
+All four platforms use separate optional host permissions in [manifest.json](manifest.json) and share one declarative metadata table in [src/shared/platformHosts.ts](src/shared/platformHosts.ts). `src/l1/client/`, `src/l1/sniffer/`, and `src/l1/parsers/` contain concrete provider implementations; runtime and UI access is strictly permission- and account-scoped.
 
-## Core boundaries
+## Core Data Flow & Boundaries
 
 ```text
-provider page, native RPC or imported archive
-   -> L1 capture / transport / parser / resource acquisition
-   -> L2 Account + ConversationKey + Index/Detail Domain admission
-   -> L3a passive IndexedDB / directory-handle persistence
-   -> Application export/sync workflows
+provider page, native RPC, or imported archive
+   -> L1 capture / transport / parser / resource acquisition (via ProviderHost port)
+   -> L2 Account + ConversationKey + Index/Detail Domain admission (zero-cast trust boundary)
+   -> L3a passive IndexedDB / directory-handle persistence (via DomainStoragePort)
+   -> Application sync / import / export / Encrypted Vault workflows
    -> L3b format-neutral DocumentAst
-   -> L4 HTML / Markdown / Typst-PDF / DOCX rendering and delivery
+   -> L4 Markdown / HTML / Typst-PDF / DOCX rendering, packaging & delivery (JSON serializes L2 directly)
 ```
 
-JSON is a Domain serialization rather than a Document AST renderer.
+- **L1 (`src/l1/`)**: Validates external wire input, decodes provider payloads, and acquires temporary resource bytes. Purely upstream of Domain — never writes directly to `L2` persistence and never holds page DOM `MutationObserver`s (which live in `src/runtime/content/`).
+- **L2 (`src/l2/`)**: Owns `Account` UUID identity, `ConversationKey`, zero-cast runtime validation, reference closure, Index/Detail merging, quality rules, and Coverage admission. Never imports `L3a`.
+- **L3a (`src/l3a/`)**: Passive typed IndexedDB and directory-handle persistence only. Never decides freshness or reads v1 migration markers.
+- **L3b (`src/l3b/`)**: Composes format-neutral `DocumentAst` from trusted `L2` Domain.
+- **L4 (`src/l4/`)**: Plans output paths from metadata first, renders Markdown/HTML/JSON/Typst-PDF/DOCX, packages ZIPs, and delivers files to browser downloads or local folders.
+- **Application (`src/application/`)**: Orchestrates sync, batch import, 5-format export, local cleanup, settings normalization, and the optional Encrypted Vault (`src/application/vault/`). Never imports concrete `l1/client/<platform>/` modules.
+- **Runtime & UI (`src/runtime/`, `src/ui/`)**: Own extension-origin Chrome IPC, sender validation, permissions, content script bootstrapping, Options/Popup/Badge views, and guided onboarding.
+- **Migration (`src/migration/upgradeV1.ts`)**: Independent one-time, nondestructive v1/v1.7 profile upgrade called solely by `src/runtime/background/readiness.ts`.
 
-- **L1:** Validates external input and source ownership. Provider-specific transport and decoding stay upstream of Domain.
-- **L2:** Defines account and conversation identity, admission, quality, reference closure, source versions and coverage. An Index/Detail is scoped to the Registry UUID, not Gemini slot labels or email.
-- **L3a:** Implements typed passive storage only. It does not choose fresh data or reinterpret source payloads.
-- **L3b:** Composes a format-neutral reading structure from trusted Domain; it owns structure but not physical layout, acquired bytes or destinations.
-- **L4:** Prepares format resources, renders, packages and delivers files. Bytes and output paths never become Domain identity.
-- **Runtime, Application and UI:** Own Chrome IPC, source permissions, task lifecycle, user actions, selection and reporting.
-- **Migration:** `src/migration/upgradeV1.ts` retains the one-time, nondestructive released-v1/v1.7 profile upgrade. Normal production parsing does not import legacy record fixtures.
+## Privacy & Encrypted Vault
 
-The precise contracts are in [Account Registry](docs/account-registry.md), [Domain type boundaries](docs/domain-type-boundaries.md), and [Document AST](docs/architecture/document-ast.md). Renderer-specific DOCX behavior is [documented separately](docs/architecture/docx-export.md). [Source architecture](src/README.md) lists the current module paths.
+Exports run entirely on the user's device with zero developer telemetry. Optional Encrypted Vault (`src/application/vault/`) syncs client-side `AES-256-GCM` (`GEE1`) encrypted conversation records via `src/application/vault/transport/` to an authorized local folder or a user-configured v2 Cloud Vault server. Catalog metadata syncs by default; local Detail bodies are opt-in and original binary attachments are excluded.
 
-## Privacy and validation
+## Verification & Governance
 
-The extension processes exports on the user device without developer telemetry. Optional source websites are contacted through the authenticated browser session; local file and attachment handling remain user-initiated or enabled through Live Save.
-
-The optional Encrypted Vault is a separate Application workflow, not an L4 export
-format. `src/application/vault/` syncs encrypted conversation records through
-`src/application/vault/transport/` to an authorized local folder or a user-configured v2 Cloud Vault
-server. Catalog records are synced by default; locally stored Detail is opt-in
-and original attachment bytes are not included. The GEK1 master key is generated
-or entered locally; L3a retains non-extractable derived keys, not the recovery
-text. Background listens for committed conversation changes and processes the
-durable outbox; restored records go through L2 admission.
-
-`npm test` is the offline TypeScript/unit/build/Playwright gate. [Tier 2](docs/tier2-platform-plugins.md) uses a separately authenticated browser and real exported files. A green previous run or a subset of features is not a current complete Tier 2 pass. The [module unit-test isolation rules](docs/v2-unit-isolation.md) distinguish isolated module tests from cross-layer integration suites.
-
-Update this page whenever a **current contract** changes; do not append dated task logs, PR chronologies, benchmarks or archived acceptance reports here.
+- **`npm test`**: Offline release gate covering zero-any lint, `scripts/check-architecture.cjs` (0 layer violations, 0 file/layer/submodule cycles), `tsc --noEmit`, full unit & `tests/arch/*` suites, production bundle build, bundled font checks, and Playwright E2E.
+- **`npm run test:changed`**: Dependency-aware incremental gate running architecture/zero-any checks, type-check, affected unit tests, build, and feature-mapped Playwright E2E specs.
+- **`npm run test:v2:unit-isolation`**: Enforces per-module isolation across all 10 owners ([docs/v2-unit-isolation.md](docs/v2-unit-isolation.md)).
+- **Tier 2 & Tier 3**: Live authenticated browser validation ([docs/tier2-platform-plugins.md](docs/tier2-platform-plugins.md)) and pure-visual autonomous QA ([docs/tier3-exploration-checklist.md](docs/tier3-exploration-checklist.md)).

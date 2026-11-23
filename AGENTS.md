@@ -35,7 +35,7 @@
 
 ### 第一层：CI 自动化门禁测试 (Tier 1: Fast & Headless)
 * **执行命令**：
-  - **全量门禁**：`npm test`（对应 `node scripts/check-zero-any.cjs && npm run type-check && npm run test:unit && node build.js && npm run test:release-fonts && playwright test`）。
+  - **全量门禁**：`npm test`（对应 `node scripts/check-zero-any.cjs && node scripts/check-architecture.cjs && npm run type-check && npm run test:unit -- --skip-typecheck && node build.js && npm run test:release-fonts && playwright test`）。
   - **增量极速（推荐日常开发使用）**：`npm run test:changed`（基于 Git 差异进行**模块级反向依赖分析与传递闭包推导 (Transitive Impact Analysis)**，若修改底层依赖则自动递归追溯并运行所有直接与间接关联模块及对应 Playwright 规格，耗时仅 5~15 秒）。
   - **影响分析报告**：`python3 scripts/test_impact_analyzer.py --summary`（打印当前改动对全仓模块与测试的传递影响拓扑）。
   - **单点定向单元测试**：`python3 tests/run_tests.py --filter <keyword>`（如 `python3 tests/run_tests.py --filter storage`，秒级验证指定模块）。
