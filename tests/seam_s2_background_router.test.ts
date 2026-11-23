@@ -219,10 +219,13 @@ test('Badge location IPC accepts only finite left/top and commits through Applic
 
 test('Explicit user navigation never starts Sync/Export or reloads unrelated pages', async t => {
     const { dispatch, effects } = setup(t);
+    const popup = { id: 'ext', url: 'chrome-extension://ext/src/ui/popup/popup.html' };
     assert.deepEqual((await dispatch({ action: 'openOptions' })).result, { ok: true });
-    assert.deepEqual((await dispatch({ action: 'openGeminiPage' })).result, { ok: true, tabId: 80 });
-    assert.match((await dispatch({ action: 'reloadGeminiTab', tabId: 7 })).result.error, /Not a Gemini Tab/);
-    assert.deepEqual((await dispatch({ action: 'reloadGeminiTab', tabId: 80 })).result, { ok: true });
+    assert.equal((await dispatch({ action: 'openGeminiPage' })).result.ok, false, 'content script cannot open Gemini tabs');
+    assert.equal((await dispatch({ action: 'reloadGeminiTab', tabId: 80 })).result.ok, false, 'content script cannot reload Gemini tabs');
+    assert.deepEqual((await dispatch({ action: 'openGeminiPage' }, popup)).result, { ok: true, tabId: 80 });
+    assert.match((await dispatch({ action: 'reloadGeminiTab', tabId: 7 }, popup)).result.error, /Not a Gemini Tab/);
+    assert.deepEqual((await dispatch({ action: 'reloadGeminiTab', tabId: 80 }, popup)).result, { ok: true });
     assert.deepEqual(effects.slice(4), ['handoff:none', 'openOptions', 'openGemini', 'reload:80']);
 });
 

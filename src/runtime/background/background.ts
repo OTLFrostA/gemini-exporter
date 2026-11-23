@@ -35,7 +35,7 @@ chrome.permissions?.onRemoved?.addListener(syncSourceAccess);
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
     if (handleDomainIngestionMessage(message, sender, respond)) return true;
     if (handleAccountRegistryMessage(message, sender, respond)) return true;
-    if (handleCloudSyncMessage(message)) return true;
+    if (handleCloudSyncMessage(message, sender)) return true;
     if (!message || typeof message !== 'object' || !('action' in message)
         || !['ensureV2Ready', 'getLocalIndexCount', 'updateBadgePosition', 'runLiveSave', 'openOptions', 'openGeminiPage', 'reloadGeminiTab'].includes(String(message.action))) return false;
     void (async () => {
@@ -61,10 +61,14 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
                 respond({ ok: true }); return;
             }
             if (request.action === 'openGeminiPage') {
+                const extOrigin = typeof chrome.runtime?.getURL === 'function' ? chrome.runtime.getURL('') : `chrome-extension://${chrome.runtime.id}/`;
+                if (sender.tab && !(typeof sender.url === 'string' && sender.url.startsWith(extOrigin))) throw new Error('Extension page required');
                 const tab = await chrome.tabs.create({ url: 'https://gemini.google.com/app' });
                 respond({ ok: true, tabId: tab.id }); return;
             }
             if (request.action === 'reloadGeminiTab') {
+                const extOrigin = typeof chrome.runtime?.getURL === 'function' ? chrome.runtime.getURL('') : `chrome-extension://${chrome.runtime.id}/`;
+                if (sender.tab && !(typeof sender.url === 'string' && sender.url.startsWith(extOrigin))) throw new Error('Extension page required');
                 if (typeof request.tabId !== 'number') throw new TypeError('Expected target Tab ID');
                 const tab = await chrome.tabs.get(request.tabId);
                 if (!tab.url || new URL(tab.url).origin !== 'https://gemini.google.com') throw new Error('Not a Gemini Tab');

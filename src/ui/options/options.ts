@@ -138,6 +138,7 @@ export async function initWorkbench(): Promise<void> {
     const statusError = (error: unknown, level: LogLevel = 'error') =>
         status(() => errorText(error), level, error instanceof Error ? error.message : String(error));
     const reportScan = (message: UiMessage | ConversationSourceSummary, level: LogLevel = 'info', rawLogMessage?: string) => {
+        if (level !== 'error') connectionError = null;
         currentScanStatus = message;
         paintTaskPanel();
         logController.appendLog({
@@ -174,8 +175,24 @@ export async function initWorkbench(): Promise<void> {
         onPaintTaskPanel: paintTaskPanel,
     });
 
+    const resetAccountEphemeralState = () => {
+        lastRequest = null;
+        failed = [];
+        currentIssues = new ExportIssueCollector();
+        dismissedFailures = false;
+        currentScanStatus = null;
+        scanEvidence = undefined;
+        scanTakeoutCount = undefined;
+        feedback = { kind: 'empty' };
+        connectionError = null;
+    };
+
     const refresh = async (changedAccountId?: string) => {
-        if (await state.refresh(changedAccountId)) render();
+        const priorAccountId = state.accountId;
+        const changed = await state.refresh(changedAccountId);
+        const implicitSwitch = priorAccountId !== null && state.accountId !== priorAccountId;
+        if (implicitSwitch) resetAccountEphemeralState();
+        if (changed || implicitSwitch) render();
         advanceTutorialScan?.();
         const previousError = connectionError;
         const accountId = state.accountId;
@@ -189,10 +206,7 @@ export async function initWorkbench(): Promise<void> {
     };
 
     const select = async (id: string) => {
-        if (id !== state.accountId) {
-            lastRequest = null; failed = []; currentIssues = new ExportIssueCollector(); dismissedFailures = false;
-            currentScanStatus = null; scanEvidence = undefined; scanTakeoutCount = undefined; feedback = { kind: 'empty' };
-        }
+        if (id !== state.accountId) resetAccountEphemeralState();
         state.selectAccount(id);
         render();
         await refresh();

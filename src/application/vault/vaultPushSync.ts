@@ -103,9 +103,20 @@ export function createVaultPushSync(ctx: {
                 }
 
                 let sealed: Awaited<ReturnType<typeof sealCloudConversation>>;
+                let putOutcome: Awaited<ReturnType<typeof activeClient.putEncryptedRecord>>;
                 try {
                     sealed = await sealCloudConversation({
                         keyring, revision: nextRevision, account, conversation: sourceForWrite,
+                    });
+                    putOutcome = await activeClient.putEncryptedRecord({
+                        serverUrl: session.serverUrl,
+                        sessionToken: session.sessionToken,
+                        blindRecordId: sealed.blindRecordId,
+                        expectedRevision,
+                        envelope: sealed.envelope,
+                        sha256: await sha256BytesHex(sealed.envelope),
+                        keyFingerprint: keyring.keyFingerprint,
+                        signal,
                     });
                 } catch (error) {
                     if (!(error instanceof OperationError) || error.code !== 'CLOUD_RECORD_TOO_LARGE') throw error;
@@ -124,17 +135,6 @@ export function createVaultPushSync(ctx: {
                     }, entry);
                     return 'oversized';
                 }
-
-                const putOutcome = await activeClient.putEncryptedRecord({
-                    serverUrl: session.serverUrl,
-                    sessionToken: session.sessionToken,
-                    blindRecordId: sealed.blindRecordId,
-                    expectedRevision,
-                    envelope: sealed.envelope,
-                    sha256: await sha256BytesHex(sealed.envelope),
-                    keyFingerprint: keyring.keyFingerprint,
-                    signal,
-                });
 
                 if (putOutcome.status === 'committed') {
                     await putSyncedCloudRecord({
@@ -231,9 +231,11 @@ export function createVaultPushSync(ctx: {
                 let oversizedSkipped = 0;
                 let retriedLater = 0;
 
+                const retriedEnqueueIds = new Set<string>();
                 for (;;) {
                     signal?.throwIfAborted();
-                    const due = await listDueCloudOutbox(now(), 25);
+                    const due = (await listDueCloudOutbox(now(), 25))
+                        .filter(entry => !retriedEnqueueIds.has(entry.enqueueId));
                     if (due.length === 0) break;
 
                     for (const entry of due) {
@@ -242,9 +244,11 @@ export function createVaultPushSync(ctx: {
                         if (status === 'uploaded') uploaded++;
                         else if (status === 'skipped') skippedUnchanged++;
                         else if (status === 'oversized') oversizedSkipped++;
-                        else retriedLater++;
+                        else {
+                            retriedEnqueueIds.add(entry.enqueueId);
+                            retriedLater++;
+                        }
                     }
-                    if (retriedLater > 0) break;
                 }
                 return { uploaded, skippedUnchanged, oversizedSkipped, retriedLater };
             } finally {
