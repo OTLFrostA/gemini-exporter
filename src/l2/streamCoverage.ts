@@ -1,6 +1,5 @@
 import type { PageObservation, PageObservationEvidence } from './pageObservation.js';
 import type { CoverageKey } from './contracts/coverageTypes.js';
-export type { CoverageKey } from './contracts/coverageTypes.js';
 interface CoverageRange { head: CoverageKey; tail: CoverageKey }
 export interface StreamCoverage { range: CoverageRange | null }
 export const emptyStream = (): StreamCoverage => ({ range: null });
