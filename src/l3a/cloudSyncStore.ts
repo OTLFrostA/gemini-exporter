@@ -2,8 +2,6 @@ import type { ConversationKey } from '../l2/conversationKey.js';
 import type { CloudVaultBackendType } from '../shared/types/cloudSync.js';
 import { isDirectoryHandle, type DirectoryHandle } from '../shared/types/directoryHandle.js';
 
-export type { CloudVaultBackendType } from '../shared/types/cloudSync.js';
-
 const CLOUD_DB_NAME = 'gemini_exporter_cloud_v2';
 const CLOUD_DB_VERSION = 2;
 const KEYRING_METADATA_INDEX = 'byOwnerFingerprintOrigin';
