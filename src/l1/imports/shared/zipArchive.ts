@@ -2,7 +2,7 @@ import { OperationError } from '../../../shared/errors/operationError.js';
 import { isRecord } from '../../../shared/utils/typeGuards.js';
 import { validateZipEntries, validateZipFile } from '../../parsers/shared/archive/zipBombGuard.js';
 
-export type RawZipSource = Blob | Uint8Array | ArrayBuffer;
+type RawZipSource = Blob | Uint8Array | ArrayBuffer;
 
 async function loadGlobalJsZip(bytes: RawZipSource): Promise<unknown> {
     const loader: unknown = Reflect.get(globalThis, 'JSZip');
