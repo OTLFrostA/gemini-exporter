@@ -10,7 +10,6 @@ import {
     decodeResearchPlan,
 } from './cardNodes.js';
 import {
-    GEMINI_ANNOTATION_TYPES,
     GEMINI_NODE_TYPES,
     GEMINI_WIRE_NODE_SLOTS,
     isHttpUrl,
@@ -33,9 +32,6 @@ import {
     type GeminiStructuredDecodeIssue,
 } from './structuredAnnotations.js';
 import {
-    headingLevelOf,
-    mathSourceOf,
-    orderedListStartOf,
     type GeminiAnnotation,
     type GeminiAttachmentNode,
     type GeminiCitationGroup,
@@ -64,38 +60,18 @@ import {
 } from './types.js';
 
 export {
-    GEMINI_ANNOTATION_TYPES,
-    GEMINI_NODE_TYPES,
     decodeGeminiAnnotation,
     decodeGeminiCitationReference,
-    headingLevelOf,
-    mathSourceOf,
-    orderedListStartOf,
     type GeminiStructuredDecodeIssue,
 };
 export type {
     GeminiAnnotation,
     GeminiAttachmentNode,
-    GeminiCitationGroup,
     GeminiCitationReference,
-    GeminiCitationSource,
-    GeminiCodeBlockNode,
-    GeminiCompositeParagraph,
-    GeminiFileCitation,
-    GeminiFileNode,
-    GeminiLineBreakNode,
-    GeminiMarkupNode,
-    GeminiOrderedListNode,
     GeminiPartialStructuredSlot,
-    GeminiQuoteNode,
-    GeminiSourceReference,
     GeminiStructuredDocument,
-    GeminiStructuredFragment,
     GeminiStructuredNode,
-    GeminiTableNode,
     GeminiTextNode,
-    GeminiThematicBreakNode,
-    GeminiUnorderedListNode,
 };
 
 function decodeStructuredChildren(rawChildren: unknown, issues?: DecodeIssues): GeminiStructuredNode[] | null {
