@@ -135,6 +135,7 @@ export function convertHtmlToMarkdown(html?: string | null): string {
     let markerId = 0;
     while (markerIds.has(String(markerId))) markerId++;
     const marker = `\uFFFDCODE${markerId}:`;
+    const tableBrMarker = `\uFFFDTABLEBR${markerId}\uFFFD`;
     const placeholderSource = String.raw`${marker}(\d+)\uFFFD`;
     const placeholder = new RegExp(placeholderSource, 'g');
     const inlineCode = new RegExp(HTML_INLINE_CODE.source + '(?=(`|' + placeholderSource + ')?)', 'gi');
@@ -235,7 +236,7 @@ export function convertHtmlToMarkdown(html?: string | null): string {
             for (const match of tr[1].matchAll(/<(?:th|td)\b([^>]*)>([\s\S]*?)<\/(?:th|td)>/gi)) {
                 let value = match[2];
                 value = value.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1<br>');
-                value = value.replace(/<br\s*\/?>/gi, '__TABLE_BR__');
+                value = value.replace(/<br\s*\/?>/gi, tableBrMarker);
                 value = stripHtmlTags(value);
                 value = unescapeHtml(value).replace(/\r?\n/g, ' ').trim();
                 value = value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
@@ -291,7 +292,7 @@ export function convertHtmlToMarkdown(html?: string | null): string {
     res = res.replace(/<br\s*\/?>/gi, '\n');
     res = res.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '\n$1\n');
     res = stripHtmlTags(res);
+    res = res.split(tableBrMarker).join('<br>');
     res = __restoreCode(res);
-    res = res.replace(/__TABLE_BR__/g, '<br>');
     return res;
 }

@@ -20,6 +20,11 @@ async function decodeArchive(bytes: GeminiTakeoutZipRaw, context: GeminiTakeoutZ
     const files: Record<string, TakeoutSourceFile> = {};
     for (const [path, entry] of Object.entries(inventory)) {
         if (!isRecord(entry) || (entry.dir !== undefined && typeof entry.dir !== 'boolean')) continue;
+        if ((typeof entry.unsafeOriginalName === 'string' && entry.unsafeOriginalName !== path)
+            || path.startsWith('/') || path.includes('\\')
+            || path.split('/').some(segment => segment === '..')) {
+            throw new TypeError(`Unsafe archive entry path: ${path}`);
+        }
         const read = entry.async;
         const data = isRecord(entry._data) ? entry._data : null;
         files[path] = {

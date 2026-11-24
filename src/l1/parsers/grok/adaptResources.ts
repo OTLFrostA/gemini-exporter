@@ -6,18 +6,22 @@ import { grokObject } from './source.js';
 
 /** Translate upstream resource records to the existing Domain registry, never inline bytes. */
 export function grokResources(assets: DomainAsset[], hints: Record<string, ResourceAcquisitionHint>, warn: (code: string, message: string) => void) {
+    let inlineCounter = 0;
+    function resolveHttpsUrl(candidate: string, allowRelativePath: boolean): string | undefined {
+        try {
+            const url = allowRelativePath && candidate.startsWith('/')
+                ? new URL(candidate, 'https://grok.com')
+                : new URL(candidate);
+            if (url.protocol === 'https:' && !url.username && !url.password) return url.href;
+        } catch { /* An unavailable locator is reported below. */ }
+        return undefined;
+    }
     function add(raw: unknown, messageId: string, ordinal: number, kind: 'image' | 'file'): string | null {
         const row = grokObject(raw);
         const embedded = row.embedded_image ? grokObject(row.embedded_image) : null;
         const data = typeof embedded?.data === 'string' ? embedded.data : undefined;
         const candidate = typeof row.url === 'string' && row.url ? row.url : undefined;
-        let uri: string | undefined;
-        if (candidate) {
-            try {
-                const url = new URL(candidate, 'https://grok.com');
-                if (url.protocol === 'https:' && !url.username && !url.password) uri = url.href;
-            } catch { /* An unavailable locator is reported below. */ }
-        }
+        const uri = candidate ? resolveHttpsUrl(candidate, true) : undefined;
         if (!uri && !data) { warn('grok.resource.unavailable', 'Grok attachment has no downloadable locator'); return null; }
         const id = 'grok:' + messageId + ':' + kind + ':' + ordinal;
         const name = typeof row.file_name === 'string' ? row.file_name : kind;
@@ -50,8 +54,20 @@ export function grokResources(assets: DomainAsset[], hints: Record<string, Resou
             return { attachmentIds };
         },
         image(ref: string, alt: string, messageId: string): ImageInline {
-            const id = add({ url: ref, file_name: alt || 'image' }, messageId, assets.length, 'image');
-            if (!id) throw new TypeError('Invalid Grok Markdown image locator');
+            const id = `grok:${messageId}:inline:${inlineCounter++}`;
+            const uri = ref ? resolveHttpsUrl(ref, true) : undefined;
+            if (!uri) {
+                warn('grok.resource.unavailable', 'Grok Markdown image has no downloadable HTTPS locator');
+                assets.push({ id, kind: 'image', name: alt || 'image' });
+                return { type: 'image', assetId: id, ...(alt ? { alt } : {}) };
+            }
+            assets.push({
+                id,
+                kind: 'image',
+                name: alt || 'image',
+                ...(isDurableSourceUri(uri) ? { sourceUri: uri } : {}),
+            });
+            hints[id] = { url: uri };
             return { type: 'image', assetId: id, ...(alt ? { alt } : {}) };
         },
     };

@@ -27,8 +27,8 @@ export function validateZipFile(file?: unknown, translate?: ZipGuardTranslator):
                 : typeof file.byteLength === 'number' ? file.byteLength
                 : NaN)
             : NaN;
-    // Fail closed when size cannot be determined
-    if (!Number.isFinite(byteSize)) {
+    // Fail closed when size cannot be determined or is negative
+    if (!Number.isFinite(byteSize) || byteSize < 0) {
         const msg = translate
             ? translate('zipSizeUnknown')
             : '无法确认 Takeout ZIP 体积，已中止以防 ZipBomb';
@@ -63,7 +63,7 @@ export function validateZipEntries(zip?: unknown, translate?: ZipGuardTranslator
         const sz = data && typeof data.uncompressedSize === 'number'
             ? data.uncompressedSize
             : NaN;
-        if (!Number.isFinite(sz)) {
+        if (!Number.isFinite(sz) || sz < 0) {
             unknownSizeEntries++;
             continue;
         }

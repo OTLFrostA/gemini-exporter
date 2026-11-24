@@ -93,11 +93,12 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
         const owned = resources.blocks(adapted, id);
         if (Array.isArray(response.generatedImageUrls) && response.generatedImageUrls.length && !owned.attachmentIds.length)
             warn('grok.generated_image.unavailable', 'Generated Grok image was not available in the source snapshot');
-        const citations = Array.isArray(adapted.citations) ? adapted.citations.map((value, index) => {
+        const citations = Array.isArray(adapted.citations) ? adapted.citations.flatMap((value, index) => {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
             const citation = grokObject(value);
-            return { id: 'grok-citation:' + index,
+            return [{ id: 'grok-citation:' + index,
                 ...(typeof citation.url === 'string' ? { url: citation.url } : {}),
-                ...(typeof citation.title === 'string' ? { title: citation.title } : {}) };
+                ...(typeof citation.title === 'string' ? { title: citation.title } : {}) }];
         }) : [];
         if (response.message.includes('<grok:render') && !citations.length && !owned.attachmentIds.length)
             warn('grok.citation.unresolved', 'A Grok inline card has no resolved source');
@@ -107,8 +108,12 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
         const timestamp = grokTimestamp(response.createTime);
         const model = modelsById.get(id);
         const reasoning = Array.isArray(response.steps) ? response.steps.flatMap(value => {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
             const step = grokObject(value);
-            return Array.isArray(step.text) ? step.text.filter((text): text is string => typeof text === 'string').flatMap(text => parseMarkdownToBlocks(text, id, ctx)) : [];
+            return Array.isArray(step.text)
+                ? step.text.filter((text): text is string => typeof text === 'string')
+                    .flatMap(text => parseMarkdownToBlocks(preprocessGrokMarkdown(text), id, ctx))
+                : [];
         }) : [];
         messages.push({ id, role: response.sender === 'human' ? 'user' : 'assistant',
             content: parseMarkdownToBlocks(markdown, id, ctx),

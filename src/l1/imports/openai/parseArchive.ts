@@ -40,7 +40,36 @@ async function libraryFiles(archive: OpenAIArchive): Promise<LibraryFile[]> {
     }] : []);
 }
 
-function bindResource(archive: OpenAIArchive, uri: string, library: readonly LibraryFile[], conversationId: string): { entry: OpenAIArchiveEntry; file?: LibraryFile } | undefined {
+interface OpenAIArchiveEntryIndex {
+    readonly byBase: ReadonlyMap<string, readonly OpenAIArchiveEntry[]>;
+    readonly byPrefix: ReadonlyMap<string, readonly OpenAIArchiveEntry[]>;
+}
+
+function buildEntryIndex(archive: OpenAIArchive): OpenAIArchiveEntryIndex {
+    const byBase = new Map<string, OpenAIArchiveEntry[]>();
+    const byPrefix = new Map<string, OpenAIArchiveEntry[]>();
+    const push = (map: Map<string, OpenAIArchiveEntry[]>, key: string, entry: OpenAIArchiveEntry) => {
+        const list = map.get(key);
+        if (list) list.push(entry);
+        else map.set(key, [entry]);
+    };
+    for (const entry of archive.entries.values()) {
+        const base = entry.path.split('/').at(-1) ?? '';
+        push(byBase, base, entry);
+        for (let dash = base.indexOf('-'); dash > 0; dash = base.indexOf('-', dash + 1)) {
+            push(byPrefix, base.slice(0, dash), entry);
+        }
+    }
+    return { byBase, byPrefix };
+}
+
+function bindResource(
+    archive: OpenAIArchive,
+    entryIndex: OpenAIArchiveEntryIndex,
+    uri: string,
+    library: readonly LibraryFile[],
+    conversationId: string,
+): { entry: OpenAIArchiveEntry; file?: LibraryFile } | undefined {
     let locator: string;
     try { locator = decodeURIComponent(uri); } catch { return undefined; }
     let id = locator.replace(/^(?:sediment:\/\/|file-service:\/\/|file-download:)/, '');
@@ -56,11 +85,11 @@ function bindResource(archive: OpenAIArchive, uri: string, library: readonly Lib
     // IDs and paths must match whole names; never select the first prefix match.
     const direct = archive.entries.get(id) ?? archive.entries.get(`${id}.dat`);
     if (direct) return { entry: direct, file: metadata };
-    const candidates = [...archive.entries.values()].filter(entry => {
-        const base = entry.path.split('/').at(-1) ?? '';
-        return base === id || base === `${id}.dat` || base.startsWith(`${id}-`);
-    });
-    return candidates.length === 1 ? { entry: candidates[0], file: metadata } : undefined;
+    const seen = new Set<OpenAIArchiveEntry>();
+    for (const list of [entryIndex.byBase.get(id), entryIndex.byBase.get(`${id}.dat`), entryIndex.byPrefix.get(id)]) {
+        if (list) for (const entry of list) seen.add(entry);
+    }
+    return seen.size === 1 ? { entry: [...seen][0], file: metadata } : undefined;
 }
 
 /** Pure L1 OpenAI ZIP decoding and resource binding without L2 admission or Runtime calls. */
@@ -82,6 +111,7 @@ export async function parseOpenAIExportArchive(
         }
     }
     const library = await libraryFiles(archive);
+    const entryIndex = buildEntryIndex(archive);
     // Decode all source rows before committing any of them: malformed shards cannot cause a half-import.
     const decoded = [];
     for (const path of paths) {
@@ -104,7 +134,7 @@ export async function parseOpenAIExportArchive(
         const bound = new Map<string, OpenAIArchiveEntry>();
         let itemMissing = 0;
         for (const asset of parsed.conversation.detail.assets) {
-            const resource = bindResource(archive, asset.sourceUri ?? asset.id, library, conversation.id);
+            const resource = bindResource(archive, entryIndex, asset.sourceUri ?? asset.id, library, conversation.id);
             if (!resource || resource.entry.size === 0) { itemMissing++; continue; }
             bound.set(asset.id, resource.entry);
             asset.name ??= resource.file?.name ?? resource.entry.path.split('/').at(-1);

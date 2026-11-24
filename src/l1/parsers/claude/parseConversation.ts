@@ -1,5 +1,7 @@
 import type { BlockNode } from '../../../l2/content/blocks.js';
+import type { ImageInline } from '../../../l2/content/inline.js';
 import type { DomainAsset, DomainMessage } from '../../../l2/conversationDetail.js';
+import { isDurableSourceUri } from '../../../l2/sourceUri.js';
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { SourceConversationParseResult } from '../parsingResult.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../shared/markdown/index.js';
@@ -73,6 +75,8 @@ function contentOf(message: ClaudeSourceMessage, ctx: MarkdownParseContext, tool
                 const parsed = parseToolResult(block, text => markdown(text, id, ctx));
                 content.push(...parsed.blocks);
                 for (const issue of parsed.issues) missing('claude.tool_result.unsupported', issue);
+            } else if (block.kind === 'redacted_thinking') {
+                missing('claude.content.redacted_thinking', 'Redacted thinking content is unavailable');
             } else if (block.kind === 'unsupported') {
                 missing('claude.content.unsupported', 'Unsupported content block: ' + block.sourceType);
             }
@@ -113,10 +117,31 @@ export function parseClaudeConversation(raw: unknown, requestedId: string): Sour
     const messages: DomainMessage[] = [];
     const assets: DomainAsset[] = [];
     const tools = createToolState(branch.messages);
+    let inlineImageCounter = 0;
     for (const message of branch.messages) {
-        if (message.sender !== 'human' && message.sender !== 'assistant') continue;
+        if (message.sender !== 'human' && message.sender !== 'assistant') {
+            partial = true;
+            diagnostics.push({
+                severity: 'warning',
+                code: 'claude.message.unknown_sender',
+                message: 'Skipped Claude message with unrecognized sender',
+                sourceRef: { ...ctx.sourceRef, providerMessageId: message.uuid },
+            });
+            continue;
+        }
+        const resolveImage = (ref: string, alt: string): ImageInline => {
+            const assetId = `claude-inline:${message.uuid}:${inlineImageCounter++}`;
+            assets.push({
+                id: assetId,
+                kind: 'image',
+                ...(alt ? { name: alt } : {}),
+                ...(isDurableSourceUri(ref) ? { sourceUri: ref } : {}),
+            });
+            return { type: 'image', assetId, ...(alt ? { alt } : {}) };
+        };
         const rendered = contentOf(message, { ...ctx,
-            sourceRef: { ...ctx.sourceRef, providerMessageId: message.uuid } }, tools, assets);
+            sourceRef: { ...ctx.sourceRef, providerMessageId: message.uuid },
+            resolveImage }, tools, assets);
         if (rendered.incomplete) partial = true;
         const timestamp = message.createdAt;
         const model = message.model ?? sourceModel;
