@@ -27,7 +27,7 @@ except ImportError as exc:
     ExportSpecificationAsserter = None
     _export_spec_import_error = str(exc)
 
-from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
+from scripts.framework.selectors import WorkbenchSelectors
 from scripts.framework.archive_resources import validate_archive_resources
 
 
@@ -258,43 +258,6 @@ class CDPAssertions:
         if match:
             return False, text[max(0, match.start() - 80):match.end() + 300]
         return True, ""
-
-    @staticmethod
-    def assert_stream_completed(cdp_gemini, min_turns: int = 1) -> Tuple[bool, str, Dict[str, Any]]:
-        """断言 Gemini 页面流式回复已彻底完成且 DOM 稳定"""
-        state = cdp_gemini.eval(f"""
-        (() => {{
-            const userQueries = document.querySelectorAll('{GeminiSelectors.USER_QUERY_ALL}');
-            const modelResponses = document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE_ALL}');
-            const isStreaming = !!document.querySelector('{GeminiSelectors.STREAMING_INDICATORS}');
-            const lastResp = modelResponses.length > 0 ? modelResponses[modelResponses.length - 1] : null;
-            const textLen = lastResp ? (lastResp.textContent || '').length : 0;
-            const hasImages = lastResp ? !!lastResp.querySelector('{GeminiSelectors.IMAGES}') : false;
-            return {{
-                userCount: userQueries.length,
-                modelCount: modelResponses.length,
-                isStreaming: isStreaming,
-                lastTextLength: textLen,
-                hasImages: hasImages
-            }};
-        }})()
-        """) or {}
-
-        user_count = state.get("userCount", 0)
-        model_count = state.get("modelCount", 0)
-        is_streaming = state.get("isStreaming", True)
-        last_len = state.get("lastTextLength", 0)
-
-        if user_count < min_turns:
-            return False, f"提问轮次不足: 当前 {user_count} < 预期 {min_turns}", state
-        if model_count < user_count:
-            return False, f"模型回复数量不足: 模型 {model_count} < 提问 {user_count}", state
-        if is_streaming:
-            return False, "页面仍处于流式生成状态 (streaming flag active)", state
-        if last_len == 0 and not state.get("hasImages"):
-            return False, "末尾模型回复内容为空 (0 字符且无图片实体)", state
-
-        return True, f"流式完成已断言 (轮次: {user_count}, 字符数: {last_len}, 包含图片: {state.get('hasImages')})", state
 
     @staticmethod
     def assert_realtime_order(cdp_opt, promoted_chat_id: str, older_chat_id: str) -> Tuple[bool, str, Dict[str, Any]]:
