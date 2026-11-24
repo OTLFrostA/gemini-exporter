@@ -235,9 +235,6 @@ class GeminiRuntime:
         from scripts.framework.platforms.gemini import GeminiPlugin
         return run_session(GeminiPlugin.session(self), {})
 
-    def _execute_lifecycle(self) -> bool:
-        return self.run()
-
     def prepare(self):
         print("=" * 80)
         print("🚀 启动 Gemini Exporter DAG 特性驱动测试执行器 (DAG Feature Runner)")
