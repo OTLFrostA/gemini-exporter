@@ -9,7 +9,7 @@ import {
 } from '../../../shared/types/cloudSync.js';
 import { isRecord } from '../../../shared/utils/typeGuards.js';
 
-export type CloudFetchFn = (input: string, init?: RequestInit) => Promise<Response>;
+type CloudFetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
 const OUTBOUND_MASTER_KEY_LEAK_RE = /GEK1-[0-9A-Z]{5}/i;
 const BLIND_ID_PATTERN = /^[0-9a-f]{64}$/;
