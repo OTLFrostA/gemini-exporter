@@ -38,10 +38,10 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Install Chromium for native L3a and UI test surfaces
-        run: npx playwright install --with-deps chromium
-      - name: Permit sandboxed Playwright on Ubuntu
-        run: bash scripts/setup-playwright-sandbox.sh
+      - name: Install latest stable Google Chrome and system dependencies
+        run: |
+          npx playwright install --with-deps chrome
+          google-chrome --version
       - name: Check that the strict execution guard blocks foreign production code
         run: node --test tests/arch/v2-unit-guard.test.cjs
       - name: Type-check mocked ports against latest v2 owner definitions

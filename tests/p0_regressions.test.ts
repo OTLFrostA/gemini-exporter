@@ -47,7 +47,7 @@ test('P0-4: doc title-fallback regex must match a real markdown H1 heading', () 
 test('P0-5: popup displays export errors to the user', async () => {
     const { chromium } = require('playwright');
     const { mount } = require('./helpers/uiPortHarness.js');
-    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
+    const browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         const errors: string[] = [];

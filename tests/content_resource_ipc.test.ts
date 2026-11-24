@@ -204,7 +204,7 @@ test('sniffed batchexecute stream reader enforces capture byte cap, cancels the 
 
 test('a thrown export releases Options UI busy state and permits the next export attempt', async () => {
     const { chromium } = await import('@playwright/test');
-    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
+    const browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         await mount(page, 'options', { throwExport: true });

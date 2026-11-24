@@ -24,7 +24,7 @@ test('Live Save badge preserves the real ChatGPT 429 cooldown across the worker 
         calls++;
         return new Response(null, { status: 429, headers: { 'Retry-After': '24' } });
     });
-    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
+    const browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: true, headless: true });
     t.after(() => browser.close());
     const page = await browser.newPage();
     await page.route('https://chatgpt.com/**', route => route.fulfill({
