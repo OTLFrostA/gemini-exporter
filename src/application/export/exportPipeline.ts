@@ -442,10 +442,8 @@ export async function executeExportWithSession(
                 const taskPromise: Promise<void> = preparedGroup.then(async group => {
                     await bodyWritten;
                     if (group && directory) {
-                        if (group !== body) {
-                            signal.throwIfAborted();
-                            if (group.files.length) await delivery.writeFolder(group.files, directory);
-                        }
+                        signal.throwIfAborted();
+                        if (group.files.length) await delivery.writeFolder(group.files, directory);
                         await delivery.finalize([group]);
                     }
                 }).catch(error => {
