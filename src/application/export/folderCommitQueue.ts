@@ -11,7 +11,7 @@ import { keyIdentity, type ExportGroup } from './exportPolicy.js';
 
 const MAX_FOLDER_WRITES = 3;
 
-export interface DeliveryCoordinatorHooks {
+interface DeliveryCoordinatorHooks {
     readonly request: ExportRequest;
     readonly result: ExportResult;
     readonly signal: AbortSignal;
