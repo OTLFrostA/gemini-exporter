@@ -23,7 +23,7 @@ export type ExportPendingContent =
     | { format: 'json'; document?: never }
     | { format: Exclude<ExportRequest['format'], 'json'>; document: DocumentAst };
 
-export type ExportRenderInput = ExportPendingContent & {
+type ExportRenderInput = ExportPendingContent & {
     key: ConversationKey;
     account: Account;
     conversation: ReadonlyDomain;
