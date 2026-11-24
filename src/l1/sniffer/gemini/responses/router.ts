@@ -1,7 +1,6 @@
 import { createProcessSessionHandler } from './processSession.js';
 import { batchexecuteHandler } from './batchexecute.js';
 import { createStreamGenerateHandler } from './streamGenerate.js';
-export type { GeminiCaptureContext, GeminiResponseHandler } from './types.js';
 
 /** Transport selection only; endpoint handlers own their response semantics. */
 export function createGeminiResponseRouter() {
