@@ -318,7 +318,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         this.initPromise.then(
             () => undefined,
             () => {
-                this.initPromise = null;
+                this.resetSandbox();
             },
         );
         return this.initPromise;
@@ -328,15 +328,19 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         if (!this.readyPromise) {
             this.readyPromise = new Promise<void>((resolve, reject) => {
                 const jobId = `__ready__`;
-                const timer = setTimeout(() => {
-                    this.pending.delete(jobId);
-                    reject(new OperationError('PDF_INIT_FAILED', `sandbox page did not signal ready within ${this.initTimeoutMs}ms`));
-                }, this.initTimeoutMs);
-                const onAbort = () => {
+                const cleanup = () => {
                     clearTimeout(timer);
+                    signal.removeEventListener('abort', onAbort);
                     this.pending.delete(jobId);
+                };
+                const onAbort = () => {
+                    cleanup();
                     reject(abortError('Typst sandbox init aborted while waiting for ready'));
                 };
+                const timer = setTimeout(() => {
+                    cleanup();
+                    reject(new OperationError('PDF_INIT_FAILED', `sandbox page did not signal ready within ${this.initTimeoutMs}ms`));
+                }, this.initTimeoutMs);
                 if (signal.aborted) {
                     onAbort();
                     return;
@@ -345,16 +349,12 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 this.pending.set(jobId, {
                     resolve: (result) => {
                         if (result.kind === 'inited') {
-                            clearTimeout(timer);
-                            signal.removeEventListener('abort', onAbort);
-                            this.pending.delete(jobId);
+                            cleanup();
                             resolve();
                         }
                     },
                     reject: (error) => {
-                        clearTimeout(timer);
-                        signal.removeEventListener('abort', onAbort);
-                        this.pending.delete(jobId);
+                        cleanup();
                         reject(error);
                     },
                     timer,
@@ -375,10 +375,6 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         const frame = this.frame;
         if (!frame) return Promise.reject(new Error('sandbox frame is not created'));
         return new Promise<PendingResult>((resolve, reject) => {
-            const timer = setTimeout(() => {
-                this.pending.delete(jobId);
-                reject(new OperationError('PDF_TIMEOUT', `sandbox job ${jobId} timed out after ${timeoutMs}ms`));
-            }, timeoutMs);
             const cleanup = () => {
                 clearTimeout(timer);
                 signal.removeEventListener('abort', onAbort);
@@ -393,6 +389,10 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 }
                 reject(abortError('Typst compile aborted'));
             };
+            const timer = setTimeout(() => {
+                cleanup();
+                reject(new OperationError('PDF_TIMEOUT', `sandbox job ${jobId} timed out after ${timeoutMs}ms`));
+            }, timeoutMs);
             if (signal.aborted) {
                 onAbort();
                 return;

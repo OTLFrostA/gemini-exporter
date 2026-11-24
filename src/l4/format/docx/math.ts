@@ -197,9 +197,12 @@ function convert(node: Element, depth = 0, inheritedVariant?: string): XmlCompon
     }
 }
 
+const CENTERED_NOT_IMPLIES = /\\centernot(?:\s+|\s*\{\s*)\\implies(?:\s*\})?/g;
+
 function parseMath(source: string, displayMode: boolean): Element | undefined {
     if (!source.trim() || source.length > 20_000) return undefined;
-    const mathml = katex.renderToString(source, {
+    const normalized = source.replace(CENTERED_NOT_IMPLIES, '\\not\\implies');
+    const mathml = katex.renderToString(normalized, {
         output: 'mathml', displayMode, throwOnError: true, trust: () => unsupported(),
         strict: 'error', maxExpand: 1000, maxSize: 20,
     });

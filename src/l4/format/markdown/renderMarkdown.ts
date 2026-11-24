@@ -1,4 +1,4 @@
-import { codeHeader, messageLabel, sourceNumberPrefix, unavailableResourceText } from '../shared/backendPresentation.js';
+import { codeHeader, messageLabel, sourceNumberPrefix, tableHeaderCrossesBoundary, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { isResourcePath } from '../shared/resourcePath.js';
 import { safeExternalHref, encodeResourceHref, encodeMarkdownHref } from '../shared/safeLinks.js';
@@ -112,8 +112,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
         return [
             '<table>',
             ...(node.caption ? ['<caption>' + htmlInlines(node.caption) + '</caption>'] : []),
-            ...(node.rows.length && node.headerRows.some((cells, index) =>
-                cells.some(cell => index + cell.rowSpan > node.headerRows.length))
+            ...(tableHeaderCrossesBoundary(node)
                 ? ['<tbody>', ...node.headerRows.map(cells => row(cells, true)), ...node.rows.map(cells => row(cells, false)), '</tbody>']
                 : [...(node.headerRows.length ? ['<thead>', ...node.headerRows.map(cells => row(cells, true)), '</thead>'] : []),
                     '<tbody>', ...node.rows.map(cells => row(cells, false)), '</tbody>']),
@@ -156,7 +155,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
                 return [image(node.resourceId, node.alt), node.caption && inlines(node.caption)].filter(Boolean).join('\n\n');
             }
             case 'file': return [available(node.resourceId) ? `[${escapeText(node.label)}](${resource(node.resourceId)})` : placeholder({ kind: 'file', text: node.label, id: node.resourceId }), node.description && inlines(node.description)].filter(Boolean).join('\n\n');
-            case 'disclosure': return `<details>\n<summary>${escapeText(node.title)}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
+            case 'disclosure': return `<details>\n<summary>${escapeHtml(node.title)}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
             case 'thematicBreak': return '---';
             case 'unsupported': return `${escapeText(`${strings.unsupportedContent} · ${node.sourceType}`)}\n\n${escapeText(node.text)}`;
         }
@@ -195,7 +194,9 @@ function projectedTable(node: Extract<DisplayBlock, { type: 'table' }>): Display
     const blank = (column: number): DisplayCell => ({ column, colSpan: 1, rowSpan: 1, children: [] });
     const rows = [...node.headerRows, ...node.rows].map(row => {
         const cells = Array.from({ length: width }, (_, column) => blank(column));
-        for (const cell of row) cells[cell.column] = { ...cell, colSpan: 1, rowSpan: 1 };
+        for (const cell of row) {
+            if (cell.column >= 0 && cell.column < width) cells[cell.column] = { ...cell, colSpan: 1, rowSpan: 1 };
+        }
         return cells;
     });
     return node.headerRows.length ? rows : [Array.from({ length: width }, (_, column) => blank(column)), ...rows];

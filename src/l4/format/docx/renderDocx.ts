@@ -8,6 +8,7 @@ import type { PreparedResources } from '../../../shared/resources/resourceResult
 import type { RendererOptions } from '../shared/renderOptions.js';
 import { headerMetadata, messageLabel, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
+import { isResourcePath } from '../shared/resourcePath.js';
 import { safeExternalHref } from '../shared/safeLinks.js';
 import { docxImageInfo } from '../../shared/docxImageType.js';
 
@@ -53,7 +54,7 @@ export async function renderDocumentDocx(
     const image = (resourceId: string, alt: string): ParagraphChild => {
         const resource = prepared.get(resourceId);
         const path = resources[resourceId];
-        if (!resource?.ok || !path) {
+        if (!resource?.ok || !isResourcePath(path)) {
             return textRun(unavailableResourceText('image', alt || resourceId, locale, options.resourceFailures?.[resourceId]));
         }
         const info = docxImageInfo(resource.value.mediaType, resource.value.bytes);
@@ -68,9 +69,11 @@ export async function renderDocumentDocx(
             altText: { name: alt || 'Image', title: alt || 'Image', description: alt || 'Image' },
         });
     };
-    const hyperlink = (href: string, children: ParagraphChild[]): ParagraphChild[] => {
-        const url = safeExternalHref(href);
-        return url ? [new ExternalHyperlink({ link: url, children })] : children;
+    const hyperlinkText = (href: string | undefined, label: string, style: InlineStyle = {}): ParagraphChild[] => {
+        const url = href ? safeExternalHref(href) : undefined;
+        return url
+            ? [new ExternalHyperlink({ link: url, children: [textRun(label, { ...style, link: true })] })]
+            : [textRun(label, style)];
     };
     const inlines = (nodes: readonly DisplayInline[], style: InlineStyle = {}): ParagraphChild[] =>
         nodes.flatMap((node): ParagraphChild[] => {
@@ -81,9 +84,7 @@ export async function renderDocumentDocx(
                 case 'strikethrough': return inlines(node.children, { ...style, strike: true });
                 case 'inlineCode': return [textRun(node.code, { ...style, code: true })];
                 case 'inlineMath': return [renderDocxMath(node.source, false) ?? textRun(node.source, { ...style, code: true })];
-                case 'citation': return node.href
-                    ? hyperlink(node.href, [textRun(node.label, { ...style, link: true })])
-                    : [textRun(node.label, style)];
+                case 'citation': return hyperlinkText(node.href, node.label, style);
                 case 'link': {
                     const url = safeExternalHref(node.href);
                     const children = inlines(node.children, url ? { ...style, link: true } : style);
@@ -98,7 +99,8 @@ export async function renderDocumentDocx(
     const table = (node: Extract<DisplayBlock, { type: 'table' }>): FileChild[] => {
         const rows = [...node.headerRows, ...node.rows];
         if (!rows.length) return [p([textRun('')])];
-        const columns = Math.max(...rows.flatMap(row => row.map(cell => cell.column + cell.colSpan)));
+        const columns = Math.max(0, ...rows.flatMap(row => row.map(cell => cell.column + cell.colSpan)));
+        if (columns <= 0) return [p([textRun('')])];
         const minimums = Array.from({ length: columns }, () => 600);
         for (const row of rows) for (const cell of row) {
             const width = (inlineWidth(cell.children) + 320) / cell.colSpan;
@@ -211,11 +213,21 @@ export async function renderDocumentDocx(
                     p([image(node.resourceId, node.alt)]),
                     ...(node.caption ? [p(inlines(node.caption), 'Caption')] : []),
                 ];
-                case 'file': return [
-                    p([textRun((locale === 'zh' ? '附件：' : 'Attachment: ') + node.label
-                        + (resources[node.resourceId] ? ' (' + resources[node.resourceId] + ')' : ''))]),
-                    ...(node.description ? [p(inlines(node.description), 'Caption')] : []),
-                ];
+                case 'file': {
+                    const failure = options.resourceFailures?.[node.resourceId];
+                    const path = resources[node.resourceId];
+                    if (failure) {
+                        return [
+                            p([textRun(unavailableResourceText('file', node.label, locale, failure))]),
+                            ...(node.description ? [p(inlines(node.description), 'Caption')] : []),
+                        ];
+                    }
+                    return [
+                        p([textRun((locale === 'zh' ? '附件：' : 'Attachment: ') + node.label
+                            + (isResourcePath(path) ? ' (' + path + ')' : ''))]),
+                        ...(node.description ? [p(inlines(node.description), 'Caption')] : []),
+                    ];
+                }
                 case 'disclosure': return [
                     new Paragraph({ text: node.title, heading: HeadingLevel.HEADING_3, keepNext: true }),
                     ...blocks(node.blocks, depth, quote),
@@ -236,9 +248,7 @@ export async function renderDocumentDocx(
             ...blocks(message.blocks),
             ...(message.sources?.length ? [
                 p([textRun(strings.sources + ':', { bold: true })], 'Caption'),
-                ...message.sources.map(source => p(source.href
-                    ? hyperlink(source.href, [textRun(sourceLabel(source), { link: true })])
-                    : [textRun(sourceLabel(source))], 'Caption')),
+                ...message.sources.map(source => p(hyperlinkText(source.href, sourceLabel(source)), 'Caption')),
             ] : []),
         ]),
         ...(!document.messages.length ? [p([textRun(strings.emptyConversation)])] : []),

@@ -1,4 +1,4 @@
-import { blockText, codeHeader, fileBadge, headerMetadata, messageLabel, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
+import { blockText, codeHeader, fileBadge, headerMetadata, messageLabel, sourceLabel, tableHeaderCrossesBoundary, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { isResourcePath } from '../shared/resourcePath.js';
 import { safeExternalHref, safeGeneratedFragment, encodeResourceHref } from '../shared/safeLinks.js';
@@ -220,13 +220,15 @@ export function renderDocumentHtml(document: DocumentAst, resources: ResourceBin
                 return `<${tag} class="gem-list"${node.start !== undefined ? ` start="${node.start}"` : ''}>${node.items.map(item => `<li>${blocks(item.blocks)}</li>`).join('')}</${tag}>`;
             }
             case 'quote': return `<blockquote class="gem-blockquote">${blocks(node.blocks)}</blockquote>`;
-            case 'code': return `<div class="gem-code-block"><div class="gem-code-header"><span class="gem-code-lang">${escapeHtml(codeHeader(node, 'html'))}</span>${node.meta ? `<span class="gem-code-meta"> · ${escapeHtml(node.meta)}</span>` : ''}
-<button class="gem-copy-btn" onclick="copyCode(this)" title="${isEn ? 'Copy Code' : '复制代码'}" data-copied="${isEn ? 'Copied ✓' : '已复制 ✓'}">${COPY_SVG}<span class="copy-text">${isEn ? 'Copy' : '复制'}</span></button></div><pre><code class="language-${escapeHtml(node.language || 'text')}">${escapeHtml(node.code)}</code></pre></div>`;
+            case 'code': {
+                const langClass = (node.language || 'text').replace(/[^\w+-]+/g, '') || 'text';
+                return `<div class="gem-code-block"><div class="gem-code-header"><span class="gem-code-lang">${escapeHtml(codeHeader(node, 'html'))}</span>${node.meta ? `<span class="gem-code-meta"> · ${escapeHtml(node.meta)}</span>` : ''}
+<button class="gem-copy-btn" onclick="copyCode(this)" title="${isEn ? 'Copy Code' : '复制代码'}" data-copied="${isEn ? 'Copied ✓' : '已复制 ✓'}">${COPY_SVG}<span class="copy-text">${isEn ? 'Copy' : '复制'}</span></button></div><pre><code class="language-${escapeHtml(langClass)}">${escapeHtml(node.code)}</code></pre></div>`;
+            }
             case 'math': return math(node.source, true);
             case 'table': {
                 const row = (cells: DisplayCell[], tag: 'th' | 'td') => `<tr>${cells.map(cell => `<${tag}${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}${node.columnAlignments[cell.column] && node.columnAlignments[cell.column] !== 'default' ? ` style="text-align:${node.columnAlignments[cell.column]}"` : ''}>${inlines(cell.children)}</${tag}>`).join('')}</tr>`;
-                const crossesHeaderBoundary = node.rows.length > 0 && node.headerRows.some((cells, index) =>
-                    cells.some(cell => index + cell.rowSpan > node.headerRows.length));
+                const crossesHeaderBoundary = tableHeaderCrossesBoundary(node);
                 const headerRows = node.headerRows.map(cells => row(cells, 'th')).join('');
                 const bodyRows = node.rows.map(cells => row(cells, 'td')).join('');
                 const tableRows = crossesHeaderBoundary ? `<tbody>${headerRows}${bodyRows}</tbody>`

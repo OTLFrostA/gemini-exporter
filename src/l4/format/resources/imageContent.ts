@@ -170,7 +170,7 @@ export function checkImageContent(
                 `asset ${asset.id} declares '${declared}' but bytes sniff as '${sniffed.mime}'; using the sniffed type`);
         }
         const nameExt = extFromName(asset.name);
-        if (nameExt && nameExt !== sniffed.ext) {
+        if (nameExt && nameExt !== sniffed.ext && !(nameExt === 'jpeg' && sniffed.ext === 'jpg')) {
             diag(asset.id, 'warning', 'ASSET_EXTENSION_MISMATCH',
                 `asset ${asset.id} name suggests '.${nameExt}' but validated content is '${sniffed.mime}'; virtual path uses '.${sniffed.ext}'`);
         }

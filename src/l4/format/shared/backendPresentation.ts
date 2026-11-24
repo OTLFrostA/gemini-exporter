@@ -104,3 +104,8 @@ export function unavailableResourceText(kind: 'image' | 'file', label: string, l
     const text = kind === 'image' ? strings.imageUnavailable : strings.fileUnavailable;
     return label ? `${text}: ${label}` : text;
 }
+
+export function tableHeaderCrossesBoundary(node: Extract<DisplayBlock, { type: 'table' }>): boolean {
+    return node.rows.length > 0 && node.headerRows.some((cells, index) =>
+        cells.some(cell => index + cell.rowSpan > node.headerRows.length));
+}
