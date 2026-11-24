@@ -36,9 +36,17 @@ export async function showRatingPromptIfEligible(): Promise<void> {
     const rate = document.createElement('a'); rate.className = 'tour-nav-btn primary';
     rate.id = 'ratingPromptRate'; rate.href = REVIEW_URL;
     rate.textContent = text('Leave a review', '去评价');
+    const closeCard = () => {
+        observer.disconnect();
+        if (card.open) card.close();
+        card.remove();
+    };
     const remember = async () => {
-        await updateSettings({ ratingPromptDismissed: true });
-        observer.disconnect(); card.close(); card.remove();
+        try {
+            await updateSettings({ ratingPromptDismissed: true });
+        } finally {
+            closeCard();
+        }
     };
     const reportError = (error: unknown) => console.warn('[Rating prompt] Could not save dismissal', error);
     dismiss.addEventListener('click', () => { void remember().catch(reportError); });
@@ -60,6 +68,7 @@ export async function showRatingPromptIfEligible(): Promise<void> {
         void updateSettings({ ratingPromptDismissed: true }).catch(reportError);
     };
     const observer = new MutationObserver(reveal);
+    window.addEventListener('pagehide', () => observer.disconnect(), { once: true });
     document.body.append(card);
     // Wait for the tutorial and queued prompts to finish before taking focus.
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['open', 'aria-modal'] });

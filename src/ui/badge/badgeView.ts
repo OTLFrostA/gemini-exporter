@@ -123,7 +123,9 @@ function ensureBadgeImpl(): HTMLElement | null {
     badge.addEventListener('pointerup', event => {
         if (!dragging) return; dragging = false;
         element.classList.remove('dragging');
-        element.releasePointerCapture(event.pointerId);
+        if (element.hasPointerCapture?.(event.pointerId)) {
+            element.releasePointerCapture(event.pointerId);
+        }
         if (moved) {
             const rect = element.getBoundingClientRect();
             void chrome.runtime.sendMessage({ action: 'updateBadgePosition',

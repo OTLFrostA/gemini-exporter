@@ -137,13 +137,13 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
             if (!active) return;
             list.disabled = false;
             updateButton();
-            void refresh();
+            void refresh().catch(() => {});
         });
     });
-    const changed = () => { void refresh(); };
+    const changed = () => { void refresh().catch(() => {}); };
     const stopObserving = observePlatformAccess(changed);
     window.addEventListener('focus', changed);
-    void refresh();
+    void refresh().catch(() => {});
     return () => {
         active = false;
         stopObserving();

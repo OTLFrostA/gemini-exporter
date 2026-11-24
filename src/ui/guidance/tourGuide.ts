@@ -16,6 +16,7 @@ let afterTutorial: (() => void) | undefined;
 let authorizationReady = false;
 let onConnected: ((accountId: string) => Promise<void>) | undefined;
 let prepareLiveSave: (() => Promise<void>) | undefined;
+let transitionSeq = 0;
 
 export function consumeTourIntent(): boolean {
     const url = new URL(location.href);
@@ -34,6 +35,7 @@ function observeVisibleWindowReturn(onReturn: () => void): () => void {
     };
 }
 function destroy(): void {
+    transitionSeq++;
     afterTutorial = undefined;
     delete document.body.dataset.guidedSelection;
     cleanupStep?.(); cleanupStep = undefined;
@@ -286,12 +288,13 @@ async function goToStep(index: number): Promise<void> {
     const steps = mode === 'platforms' ? PLATFORM_STEPS : STEPS;
     const length = steps.length;
     if (index >= length) { close(); return; }
+    const seq = ++transitionSeq;
     const nextIndex = Math.max(0, index);
     const returning = nextIndex < stepIndex;
     if (steps[nextIndex].id === 'live_save' && prepareLiveSave) {
         const previousRoot = root;
         try { await prepareLiveSave(); } catch { return; }
-        if (mode !== 'tour' || root !== previousRoot) return;
+        if (seq !== transitionSeq || mode !== 'tour' || root !== previousRoot) return;
     }
     stepIndex = nextIndex;
     const step = steps[stepIndex];
