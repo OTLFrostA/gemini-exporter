@@ -15,9 +15,6 @@ import {
     extractGroundingCitationMarkers,
     extractThoughts,
     robustFirstPayload,
-    safeStructureClean,
-    smartSummarizePrompt,
-    type GeminiJspbSchema,
     type TitleResult,
 } from './payloadWalkers.js';
 
@@ -31,9 +28,6 @@ export {
     extractGroundingCitationMarkers,
     extractThoughts,
     robustFirstPayload,
-    safeStructureClean,
-    smartSummarizePrompt,
-    type GeminiJspbSchema,
     type TitleResult,
 };
 
