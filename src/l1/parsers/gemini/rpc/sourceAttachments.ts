@@ -10,7 +10,6 @@ import {
     parseDocSections,
     type DeepResearchDocMeta,
     type DocLink,
-    type DocSectionsResult,
     type GeminiDocumentReader,
 } from './deepResearchDocs.js';
 
@@ -20,7 +19,6 @@ export {
     parseDocSections,
     type DeepResearchDocMeta,
     type DocLink,
-    type DocSectionsResult,
     type GeminiDocumentReader,
 };
 
