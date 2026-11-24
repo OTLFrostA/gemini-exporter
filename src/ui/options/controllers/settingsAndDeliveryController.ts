@@ -43,17 +43,19 @@ export function bindSettingsAndDeliveryControls(deps: {
     control('dialog', 'cleanupModal').addEventListener('close', () => {
         if (moreActionsMenu.hidden) moreActionsButton.focus();
     });
-    document.addEventListener('pointerdown', event => {
+    const onDocumentPointerDown = (event: PointerEvent) => {
         if (event.target instanceof Node && !moreActionsButton.parentElement?.contains(event.target)) {
             closeMoreActions();
         }
-    });
-    document.addEventListener('keydown', event => {
+    };
+    const onDocumentKeyDown = (event: KeyboardEvent) => {
         if (event.key === 'Escape' && !moreActionsMenu.hidden) {
             closeMoreActions();
             moreActionsButton.focus();
         }
-    });
+    };
+    document.addEventListener('pointerdown', onDocumentPointerDown);
+    document.addEventListener('keydown', onDocumentKeyDown);
 
     el('btnSetDir').addEventListener('click', () => {
         if (deps.isBusy() || deps.getSettings()?.exportDelivery !== 'folderWriter') return;
@@ -120,10 +122,10 @@ export function bindSettingsAndDeliveryControls(deps: {
     });
 
     const changeControlSetting = (input: HTMLInputElement | HTMLSelectElement, patch: Partial<GlobalSettings>) => {
-        if (deps.isBusy() || settingsSaving || input.disabled) { deps.render(); return; }
+        const prior = deps.getSettings();
+        if (deps.isBusy() || settingsSaving || !prior || input.disabled) { deps.render(); return; }
         const finishTutorialSetting = patch.defaultFormat ? TourGuide.beginFormatSelection()
             : patch.enabledDisk === true ? TourGuide.beginLiveSave() : undefined;
-        const prior = deps.getSettings();
         const rollback: Partial<GlobalSettings> = {
             ...(patch.defaultFormat !== undefined ? { defaultFormat: prior.defaultFormat } : {}),
             ...(patch.skipExported !== undefined ? { skipExported: prior.skipExported } : {}),
@@ -199,5 +201,11 @@ export function bindSettingsAndDeliveryControls(deps: {
         void savePresentation({ language: control('input', 'langToggle').checked ? 'en' : 'zh' });
     });
 
-    return { isThemeSaving: () => themeToggle.isSaving() };
+    return {
+        isThemeSaving: () => themeToggle.isSaving(),
+        dispose: () => {
+            document.removeEventListener('pointerdown', onDocumentPointerDown);
+            document.removeEventListener('keydown', onDocumentKeyDown);
+        },
+    };
 }

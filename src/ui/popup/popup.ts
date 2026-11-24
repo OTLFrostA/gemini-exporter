@@ -106,12 +106,12 @@ export async function initPopup(): Promise<void> {
             .catch(showError);
     });
     const changeSettings = (patch: Partial<GlobalSettings>) => {
-        if (busy) return;
+        if (busy || !settings) return;
         const prior = settings;
         busy = true; settings = { ...settings, ...patch }; useSettings(settings); render();
         void updateSettings(patch).then(refresh).catch(e => {
-            settings = prior; useSettings(prior); showError(e);
-        }).finally(() => { busy = false; render(); });
+            settings = prior; useSettings(prior); if (active) showError(e);
+        }).finally(() => { busy = false; if (active) render(); });
     };
     themeToggle = createOptimisticThemeToggle({
         getSettings: () => settings,
@@ -179,10 +179,14 @@ export async function initPopup(): Promise<void> {
     render();
     try {
         await ensureV2Ready();
+        if (!active) return;
         await refresh();
+        if (!active) return;
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!active) return;
         const platform = platformForTabUrl(tab?.url);
         if (platform && !await hasPlatformAccess(platform)) {
+            if (!active) return;
             permissionPlatform = platform;
             el('popupMain').hidden = true;
             el('popupPermission').hidden = false;
@@ -193,14 +197,16 @@ export async function initPopup(): Promise<void> {
                 },
             });
         } else {
+            if (!active) return;
             await showCurrentConversation(tab);
         }
     } catch (error) {
+        if (!active) return;
         el('popupPermission').hidden = true;
         el('popupMain').hidden = false;
         showError(error);
     }
-    render();
+    if (active) render();
 }
 const start = () => { void initPopup(); };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });

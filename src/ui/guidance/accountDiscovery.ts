@@ -182,7 +182,13 @@ export function mountAccountDiscovery(host: HTMLElement, next: HTMLButtonElement
                 }
                 continue;
             }
-            if (existing) continue;
+            if (existing) {
+                if (existing.state.kind === 'error' && existing.state.message === text('Site access required', '需要网站授权')) {
+                    existing.state = { kind: 'idle' };
+                    render(existing);
+                }
+                continue;
+            }
             const button = document.createElement('button');
             button.id = `btnConnectPlatform-${platform}`;
             button.className = 'tour-action-btn secondary tour-account-button';

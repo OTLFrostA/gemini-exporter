@@ -310,7 +310,7 @@ export async function initWorkbench(): Promise<void> {
         if (scanRunner.isScanning()) scanRunner.stopScan();
         else void scanRunner.scan();
     });
-    el('btnForceFullScan').addEventListener('click', () => { if (settings.developerMode) void scanRunner.scan(true); });
+    el('btnForceFullScan').addEventListener('click', () => { if (settings?.developerMode) void scanRunner.scan(true); });
     el('btnExport').addEventListener('click', () => {
         const keys = TourGuide.isGuidedSelection() ? state.keys().slice(0, 1) : state.keys();
         if (isBusy() || folderSuggestionPending || !keys.length || !settings) return;
@@ -538,8 +538,13 @@ export async function initWorkbench(): Promise<void> {
         scheduleDomainRefresh();
     });
 
+    let disposed = false;
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
+        disposed = true;
+        if (foreground.kind !== 'idle') foreground.controller.abort();
+        scanRunner.stopScan();
+        settingsControls?.dispose();
         cloudPanel?.unmount();
         taskPanel.unmount();
         unmountList();
@@ -551,23 +556,32 @@ export async function initWorkbench(): Promise<void> {
 
     logController.renderLog(); render();
     await ensureV2Ready();
+    if (disposed) return;
     settings = await readSettings();
+    if (disposed) return;
     cloudPanel = mountCloudVaultPanel({
         onStatus: (msg, level) => status(msg, level),
         onRestored: async () => { await refresh(); },
     });
     logController.renderLog();
-    await state.refresh(); render();
+    await state.refresh();
+    if (disposed) return;
+    render();
     chrome.storage.onChanged.addListener(onOpenedAccountChange);
     await applyOpenedAccount((await chrome.storage.session.get('openOptionsAccountId')).openOptionsAccountId);
+    if (disposed) return;
     try {
         await Directory.restoreSavedDirHandle();
+        if (disposed) return;
         directoryAvailable = await Directory.verifyDirPermission(Directory.getDirHandle());
     } catch (error) {
         directoryAvailable = false;
-        status(() => text('Folder permission could not be restored: ', '无法恢复文件夹权限：') + errorText(error),
-            'warn', 'Folder permission could not be restored: ' + (error instanceof Error ? error.message : String(error)));
+        if (!disposed) {
+            status(() => text('Folder permission could not be restored: ', '无法恢复文件夹权限：') + errorText(error),
+                'warn', 'Folder permission could not be restored: ' + (error instanceof Error ? error.message : String(error)));
+        }
     }
+    if (disposed) return;
     render();
     if (installationTour) await startWorkbenchTour();
     else {

@@ -103,17 +103,23 @@ export function mountCloudVaultPanel(callbacks: {
 
     const unsubscribeAutoEnqueue = defaultCloudSyncEngine.installAutoEnqueueListener();
 
+    let silentSyncInFlight = false;
     const silentAutoSync = async (): Promise<void> => {
-        if (!mounted || externalBusy || internalBusy) return;
-        const snap = await defaultCloudSyncEngine.getStatusSnapshot();
-        if (!mounted || externalBusy || internalBusy) return;
-        if (!snap.enabled || !snap.connected || !snap.hasRecoveryKey || snap.folderPermissionRequired || snap.keyMismatch) return;
-        const outcome = await defaultCloudSyncEngine.syncNow();
-        if (!mounted) return;
-        if (outcome.pull.changed > 0) {
-            await callbacks.onRestored();
+        if (!mounted || externalBusy || internalBusy || silentSyncInFlight) return;
+        silentSyncInFlight = true;
+        try {
+            const snap = await defaultCloudSyncEngine.getStatusSnapshot();
+            if (!mounted || externalBusy || internalBusy) return;
+            if (!snap.enabled || !snap.connected || !snap.hasRecoveryKey || snap.folderPermissionRequired || snap.keyMismatch) return;
+            const outcome = await defaultCloudSyncEngine.syncNow();
+            if (!mounted) return;
+            if (outcome.pull.changed > 0) {
+                await callbacks.onRestored();
+            }
+            if (mounted) await refresh();
+        } finally {
+            silentSyncInFlight = false;
         }
-        if (mounted) await refresh();
     };
 
     const onOnline = (): void => { void silentAutoSync().catch(() => {}); };
@@ -293,7 +299,7 @@ export function mountCloudVaultPanel(callbacks: {
             callbacks.onStatus(() => errorText(error), 'error');
         } finally {
             internalBusy = false;
-            paint();
+            if (mounted) paint();
         }
     };
 
