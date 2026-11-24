@@ -6,7 +6,7 @@ import { registerCleanup, runCleanups } from './cleanupRegistry.js';
 import { hookHistoryEvents } from './pageObserver.js';
 import { installContentRuntimeHost } from './installContentHost.js';
 
-export interface ContentBootstrapOptions {
+interface ContentBootstrapOptions {
     readonly label: string;
     readonly beforeRouteHooks?: (isActive: () => boolean) => void;
     readonly onRouteOrAccountChanged?: () => void;
