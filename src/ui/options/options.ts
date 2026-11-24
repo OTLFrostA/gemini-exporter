@@ -167,6 +167,7 @@ async function initWorkbench(): Promise<void> {
         scanning: scanRunner.isScanning(),
         scanAborted: scanRunner.isScanAborted(),
         presentationSaving,
+        settingsSaving: settingsControls?.isSettingsSaving() ?? false,
         themeSaving: settingsControls?.isThemeSaving() ?? false,
         directoryAvailable,
         folderSuggestionPending,
