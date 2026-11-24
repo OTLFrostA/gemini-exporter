@@ -1,7 +1,7 @@
 import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst } from '../../../l3b/ast/ast.js';
 import type { ResourceBindings } from '../../shared/resourceBindings.js';
 import { visual } from '../shared/visualContract.js';
-import { blockText, inlineText, codeHeader, fileBadge, humanBytes, headerMetadata, sourceLabel, unavailableResourceText } from '../shared/backendPresentation.js';
+import { blockText, codeHeader, fileBadge, humanBytes, headerMetadata, sourceLabel, tableHeaderCrossesBoundary, unavailableResourceText } from '../shared/backendPresentation.js';
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { isResourcePath } from '../shared/resourcePath.js';
 import type { RendererOptions } from '../shared/renderOptions.js';
@@ -29,42 +29,45 @@ export function renderDocumentTypstCore(
         if (!path) throw new TypeError(`Missing prepared resource binding: ${id}`);
         return path;
     };
-    const inline = (node: DisplayInline): TypstInlineNode => {
+    const inlines = (nodes: readonly DisplayInline[]): TypstInlineNode[] => nodes.flatMap((node): TypstInlineNode[] => {
         switch (node.type) {
-            case 'text': return { type: 'text', text: node.text };
-            case 'strong': case 'emphasis': case 'strikethrough': return { type: node.type, children: node.children.map(inline) };
-            case 'inlineCode': return { type: 'inlineCode', text: node.code };
+            case 'text': return [{ type: 'text', text: node.text }];
+            case 'strong': case 'emphasis': case 'strikethrough': return [{ type: node.type, children: inlines(node.children) }];
+            case 'inlineCode': return [{ type: 'inlineCode', text: node.code }];
             case 'link': {
                 const href = safeExternalHref(node.href);
-                const children = node.children.map(inline);
-                return href ? { type: 'link', url: href, children } : { type: 'text', text: node.children.map(inlineText).join('') };
+                const children = inlines(node.children);
+                return href ? [{ type: 'link', url: href, children }] : children;
             }
             case 'citation': {
                 const href = safeExternalHref(node.href);
-                return href ? { type: 'link', url: href, children: [{ type: 'text', text: node.label }] } : { type: 'text', text: node.label };
+                return [href ? { type: 'link', url: href, children: [{ type: 'text', text: node.label }] } : { type: 'text', text: node.label }];
             }
             case 'image':
                 if (!isResourcePath(resources[node.resourceId])) runtime.onDiagnostic?.({ severity: 'warning', code: 'TYPST_V8_INLINE_IMAGE_MISSING', message: `Missing prepared image ${node.resourceId}` });
-                return isResourcePath(resources[node.resourceId]) ? { type: 'image', asset: resource(node.resourceId), ...(node.alt ? { alt: node.alt } : {}) } : { type: 'text', text: unavailableResourceText('image', node.alt, locale, options.resourceFailures?.[node.resourceId]) };
-            case 'lineBreak': return { type: 'lineBreak' };
+                return [isResourcePath(resources[node.resourceId]) ? { type: 'image', asset: resource(node.resourceId), ...(node.alt ? { alt: node.alt } : {}) } : { type: 'text', text: unavailableResourceText('image', node.alt, locale, options.resourceFailures?.[node.resourceId]) }];
+            case 'lineBreak': return [{ type: 'lineBreak' }];
             case 'inlineMath': {
                 const typst = runtime.convertMath?.(node.source, false);
-                return { type: 'inlineMath', latex: node.source, ...(typst ? { typst } : {}) };
+                return [{ type: 'inlineMath', latex: node.source, ...(typst ? { typst } : {}) }];
             }
         }
-    };
+    });
     const missing = (kind: 'image' | 'file', label: string, id: string, details?: DisplayInline[]): TypstBlockNode => {
         runtime.onDiagnostic?.({ severity: 'warning', code: 'TYPST_V8_IMAGE_MISSING', message: `Missing prepared ${kind} resource` });
         const source = safeExternalHref(options.resourceFailures?.[id]?.sourceUrl ?? '');
-        const detailNodes: TypstInlineNode[] = details?.map(inline) ?? [];
-        if (source) detailNodes.push({ type: 'link', url: source, children: [{ type: 'text', text: locale === 'zh' ? '查看来源' : 'Open source' }] });
+        const detailNodes: TypstInlineNode[] = details ? inlines(details) : [];
+        if (source) {
+            if (detailNodes.length) detailNodes.push({ type: 'text', text: ' · ' });
+            detailNodes.push({ type: 'link', url: source, children: [{ type: 'text', text: locale === 'zh' ? '查看来源' : 'Open source' }] });
+        }
         return ({ type: 'unknown', sourceType: `missing-${kind}`, label: unavailableResourceText(kind, '', locale, options.resourceFailures?.[id]), fallback: label, ...(detailNodes.length ? { details: detailNodes } : {}), layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
     };
     const block = (node: DisplayBlock): TypstBlockNode => {
         const layout: BlockLayout = { gapBeforePt: 0, keepWithNext: false, width: 'full' };
         switch (node.type) {
-            case 'paragraph': return { type: 'paragraph', children: node.children.map(inline), layout };
-            case 'heading': return { type: 'heading', level: node.level, children: node.children.map(inline), layout };
+            case 'paragraph': return { type: 'paragraph', children: inlines(node.children), layout };
+            case 'heading': return { type: 'heading', level: node.level, children: inlines(node.children), layout };
             case 'list': return { type: 'list', ordered: node.ordered, ...(node.start !== undefined ? { start: node.start } : {}), items: node.items.map(item => ({ blocks: item.blocks.map(block) })), layout };
             case 'quote': return { type: 'quote', blocks: node.blocks.map(block), layout };
             case 'code': return { type: 'code', language: node.language ?? 'text', header: codeHeader(node, 'pdf'), text: node.code, layout };
@@ -73,14 +76,28 @@ export function renderDocumentTypstCore(
                 return { type: 'math', latex: node.source, ...(typst ? { typst } : {}), fallbackLabel: strings.mathFallback, layout };
             }
             case 'table': {
-                const cell = (entry: DisplayCell): TypstTableCell => ({ children: entry.children.map(inline), ...(entry.colSpan > 1 ? { colspan: entry.colSpan } : {}), ...(entry.rowSpan > 1 ? { rowspan: entry.rowSpan } : {}) });
-                return { type: 'table', headers: node.headerRows.map(row => row.map(cell)), rows: node.rows.map(row => row.map(cell)), columnCount: node.columnAlignments.length, aligns: node.columnAlignments.map(align => align === 'default' ? 'left' : align), repeatHeader: true, ...(node.caption?.length ? { caption: node.caption.map(inline) } : {}), layout };
+                const cell = (entry: DisplayCell): TypstTableCell => ({ children: inlines(entry.children), ...(entry.colSpan > 1 ? { colspan: entry.colSpan } : {}), ...(entry.rowSpan > 1 ? { rowspan: entry.rowSpan } : {}) });
+                const columnCount = node.columnAlignments.length;
+                if (columnCount <= 0) return { type: 'paragraph', children: [], layout };
+                const crossesBoundary = tableHeaderCrossesBoundary(node);
+                const renderedHeaders = node.headerRows.map(row => row.map(cell));
+                const renderedBody = node.rows.map(row => row.map(cell));
+                return {
+                    type: 'table',
+                    headers: crossesBoundary ? [] : renderedHeaders,
+                    rows: crossesBoundary ? [...renderedHeaders, ...renderedBody] : renderedBody,
+                    columnCount,
+                    aligns: node.columnAlignments.map(align => align === 'default' ? 'left' : align),
+                    repeatHeader: !crossesBoundary,
+                    ...(node.caption?.length ? { caption: inlines(node.caption) } : {}),
+                    layout,
+                };
             }
-            case 'image': return isResourcePath(resources[node.resourceId]) ? { type: 'image', asset: resource(node.resourceId), ...(node.caption?.length ? { caption: node.caption.map(inline) } : {}), layout } : missing('image', node.alt, node.resourceId, node.caption);
+            case 'image': return isResourcePath(resources[node.resourceId]) ? { type: 'image', asset: resource(node.resourceId), ...(node.caption?.length ? { caption: inlines(node.caption) } : {}), layout } : missing('image', node.alt, node.resourceId, node.caption);
             case 'file': {
                 if (options.resourceFailures?.[node.resourceId]) return missing('file', node.label, node.resourceId, node.description);
                 const kind = fileBadge(node), size = humanBytes(node.byteLength, strings.sizeUnknown);
-                return { type: 'file', name: node.label, kind, size, metadata: `${kind} · ${size}`, ...(node.description?.length ? { description: node.description.map(inline) } : {}), layout };
+                return { type: 'file', name: node.label, kind, size, metadata: `${kind} · ${size}`, ...(node.description?.length ? { description: inlines(node.description) } : {}), layout };
             }
             case 'unsupported': return { type: 'unknown', sourceType: node.sourceType, label: `${strings.unsupportedContent} · ${node.sourceType}`, fallback: node.text, layout };
             case 'thematicBreak': return { type: 'thematicBreak', layout };
