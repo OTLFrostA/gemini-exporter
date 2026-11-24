@@ -10,9 +10,9 @@ Implements the frozen [Application design](https://app.notion.com/p/3fb5d4d759e1
   belongs to L1. Local reads are validated by L2 before composition.
 - `importTakeout`, `importOpenAI`: offline archive import workflows orchestrating L1 archive
   decoding, L2 Detail admission, lazy task-resource retention and invalidation through the host port.
-- `cloud/`: optional encrypted vault sync. The engine orchestrates L1 vault transport,
-  L3a keyring and outbox storage, and L2 admission of restored records. This workflow
-  is independent of file export and Live Save.
+- `vault/`: optional encrypted vault sync. The engine orchestrates `vault/transport/`
+  (local folder & v2 Cloud Vault clients), L3a keyring and outbox storage, and L2 admission
+  of restored records. This workflow is independent of file export and Live Save.
 - `getSettings`, `updateSettings`, `isLiveSaveEffective`: defaults and explicit
   patches; ineffective Live Save does not reset the user's enabled preference.
 - `clearLocalExportRecords`: clear export history only.
