@@ -1,7 +1,7 @@
 import type { Account } from '../l2/accountRegistry.js';
 import type * as domain from '../l2/ingestion.js';
 
-export interface ContentAccountContext {
+interface ContentAccountContext {
     readonly providerId: string;
     readonly accountId: string;
     readonly slot: string;
