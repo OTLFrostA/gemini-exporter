@@ -4,30 +4,74 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Git release tag to publish (e.g. v1.1.0)'
+        description: 'Git release tag to publish (e.g. v2.1.1)'
         required: true
-        default: 'v1.1.0'
+        type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   upload-and-publish:
+    name: Upload & Publish to Chrome Web Store
     runs-on: ubuntu-latest
+    environment: chrome-web-store
+    permissions:
+      contents: read
     steps:
-      - name: Download release asset
+      - name: Validate tag input
+        id: validate
+        env:
+          TAG: ${{ inputs.tag }}
+        shell: bash
         run: |
-          gh release download "${TAG}" -p "*.zip" -R ${{ github.repository }}
-          ls -lh *.zip
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "Release tag must have the form vX.Y.Z: $TAG" >&2
+            exit 1
+          fi
+          ZIP_NAME="gemini-exporter-${TAG}.zip"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Download release asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.inputs.tag }}
+          TAG: ${{ steps.validate.outputs.tag }}
+          ZIP_NAME: ${{ steps.validate.outputs.zip_name }}
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" -p "$ZIP_NAME" -R "$GITHUB_REPOSITORY"
+          test -s "$ZIP_NAME"
+          unzip -t "$ZIP_NAME"
+          ZIP_SHA256=$(sha256sum "$ZIP_NAME" | awk '{print $1}')
+          ls -lh "$ZIP_NAME"
+          {
+            echo "## Chrome Web Store manual publish"
+            echo "- Tag: \`$TAG\`"
+            echo "- ZIP: \`$ZIP_NAME\`"
+            echo "- SHA-256: \`$ZIP_SHA256\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check Chrome Web Store credentials
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          CWS_EXT_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CWS_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$CWS_CLIENT_ID" || -z "$CWS_CLIENT_SECRET" || -z "$CWS_REFRESH_TOKEN" || -z "$CWS_EXT_ID" || -z "$CWS_PUBLISHER_ID" ]]; then
+            echo "Chrome Web Store credentials are incomplete; refusing to publish." >&2
+            exit 1
+          fi
 
       - name: Upload and Publish to Chrome Web Store
-        uses: mnao305/chrome-extension-upload@v5.0.0
+        uses: mnao305/chrome-extension-upload@f549d5d654694a7722d6abfa64c97409ad5e64c1 # v7.0.0
         with:
-          file-path: gemini-exporter-${{ github.event.inputs.tag }}.zip
+          file-path: ${{ steps.validate.outputs.zip_name }}
           extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
+          publisher-id: ${{ secrets.CHROME_PUBLISHER_ID }}
           client-id: ${{ secrets.CHROME_CLIENT_ID }}
           client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
           refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
