@@ -96,7 +96,6 @@ export function createDeliveryCoordinator(hooks: DeliveryCoordinatorHooks) {
 
     const deliver = async (
         groups: readonly ExportGroup[],
-        directory: FileSystemDirectoryHandle | null,
         savingCancelled = false,
     ): Promise<void> => {
         if (!groups.length) return;
@@ -104,13 +103,9 @@ export function createDeliveryCoordinator(hooks: DeliveryCoordinatorHooks) {
         try { files = await packageExportFiles(groups.map(group => group.files), request.delivery); }
         catch (error) { throw operationError(error, 'PACKAGING_FAILED'); }
         if (!savingCancelled) signal.throwIfAborted();
-        if (request.delivery === 'browserDownload') {
-            if (files.length !== 1) throw new Error('Browser delivery requires one final file');
-            await startBrowserDownload(files[0]);
-        } else {
-            if (!directory) throw new OperationError('DIRECTORY_UNAVAILABLE', 'Export directory unavailable');
-            await writeToFolder(files, directory);
-        }
+        if (request.delivery !== 'browserDownload') throw new OperationError('DIRECTORY_UNAVAILABLE', 'Export directory unavailable');
+        if (files.length !== 1) throw new Error('Browser delivery requires one final file');
+        await startBrowserDownload(files[0]);
     };
 
     return {

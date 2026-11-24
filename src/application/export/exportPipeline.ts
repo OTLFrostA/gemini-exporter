@@ -163,7 +163,7 @@ export async function executeExportWithSession(
                 return { ...group, record: settled?.record ?? group.record, files: [...files.values()] };
             });
             try {
-                await delivery.deliver(groups, directory, savingCancelled);
+                await delivery.deliver(groups, savingCancelled);
                 for (const group of groups) delivery.bodyDelivered(group.key);
                 await delivery.finalize(groups.filter((_, index) => !staged[index].hasAttachments || settledBodies.has(staged[index].group)));
             } catch (error) {
@@ -510,7 +510,7 @@ export async function executeExportWithSession(
         signal.throwIfAborted();
         if (groups.length) {
             try {
-                await delivery.deliver(groups, directory);
+                await delivery.deliver(groups);
                 await delivery.finalize(groups);
             } catch (error) {
                 if (cancelled(error)) throw error;
