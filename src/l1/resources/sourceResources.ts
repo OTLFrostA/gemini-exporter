@@ -6,7 +6,7 @@ import type { ResourceAcquisitionHints } from './resourceAcquisition.js';
 import type { ResourceBytes } from '../../shared/resources/resourceResult.js';
 import { diagnosticOrigin, emitDiagnostic, type Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 
-export interface RetainableParsedConversation {
+interface RetainableParsedConversation {
     readonly conversationId: string;
     readonly conversation: { readonly detail: { readonly assets: readonly DomainAsset[] } };
     readonly acquisitionHints: ResourceAcquisitionHints;
