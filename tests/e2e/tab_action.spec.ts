@@ -1,4 +1,5 @@
-import { test, expect, chromium } from '@playwright/test';
+import { launchChromeExtension } from '../../scripts/playwright-chrome.mjs';
+import { test, expect } from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -14,10 +15,7 @@ test('toolbar action follows supported platform tab navigations', async () => {
         manifest.host_permissions = manifest.optional_host_permissions;
         manifest.optional_host_permissions = [];
         fs.writeFileSync(path.join(staged, 'manifest.json'), JSON.stringify(manifest));
-        const context = await chromium.launchPersistentContext('', {
-            channel: 'chromium', headless: true, chromiumSandbox: true,
-            args: [`--disable-extensions-except=${staged}`, `--load-extension=${staged}`],
-        });
+        const { context } = await launchChromeExtension(staged);
         try {
             const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
             await worker.evaluate(() => {

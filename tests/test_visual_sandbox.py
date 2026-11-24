@@ -16,7 +16,6 @@ import zlib
 import json
 import zipfile
 import unittest
-import glob
 import subprocess
 import socket
 from unittest.mock import patch, MagicMock
@@ -24,6 +23,7 @@ from typing import Dict, Any, List, Optional
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from scripts.installed_chrome import installed_chrome
 from scripts.visual_agent.sandbox import VisualSandbox, ScreenObservation
 from scripts.visual_agent.providers.base import VisionProvider, VisualAction, VisualActionType
 from scripts.visual_agent.providers.custom_ai_provider import CustomAIVisionProvider
@@ -119,20 +119,17 @@ class TestVisualSandbox(unittest.TestCase):
             self.assertTrue(self.sandbox.switch_page("options"))
             connect.assert_called_once_with("ws://options")
 
-    def test_switch_page_missing_options_real_chromium(self):
+    def test_switch_page_missing_options_real_chrome(self):
         from scripts.cdp_client import CDPConnection, get_tabs
         from scripts.framework.environment import TestEnvironment
 
-        executables = glob.glob(os.path.expanduser("~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome"))
-        if not executables:
-            self.skipTest("Playwright Chromium is not installed")
+        chrome = installed_chrome()
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as profile:
             browser = subprocess.Popen([
-                executables[-1], "--headless=new", "--no-sandbox", "--disable-gpu",
-                "--no-first-run", "--remote-allow-origins=*",
+                chrome, "--headless=new", "--disable-gpu", "--no-first-run",
                 f"--remote-debugging-port={port}", f"--user-data-dir={profile}", "about:blank"
             ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             cdp = None
@@ -148,7 +145,7 @@ class TestVisualSandbox(unittest.TestCase):
                     if tabs and all(tab.get("url") == "about:blank" for tab in tabs):
                         break
                     time.sleep(0.1)
-                self.assertTrue(tabs, "Chromium CDP did not become ready")
+                self.assertTrue(tabs, "Chrome CDP did not become ready")
                 self.assertTrue(all(tab.get("url") == "about:blank" for tab in tabs))
                 env = TestEnvironment(port=port, output_dir=self.temp_dir)
                 self.assertIsNone(env.ensure_tab("options"))

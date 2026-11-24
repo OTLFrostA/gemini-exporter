@@ -7,7 +7,8 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { chromium, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { launchChromeExtension } from './playwright-chrome.mjs';
 import { migrationFacts, assertPersistedBaseline, upgradeOutcome } from './upgrade_baseline.mjs';
 import { NativeExportFailure } from './upgrade_failures.mjs';
 
@@ -72,25 +73,15 @@ async function install(zipPath, name) {
 }
 
 async function launch() {
-  context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true, chromiumSandbox: true,
-    acceptDownloads: true, args: ['--headless=new', `--disable-extensions-except=${installed}`,
-      `--load-extension=${installed}`, '--enable-unsafe-extension-debugging'] });
+  // Installing the unpacked package through CDP reloads the same extension in
+  // place on upgrade. The browser profile and extension data are kept intact.
+  const { context: launched, extensionId: id } = await launchChromeExtension(installed, { profile, acceptDownloads: true });
+  context = launched;
   // Only the deterministic Gemini route below may serve web responses in the upgrade test.
   await context.route(/^https?:\/\//, route => route.abort('blockedbyclient'));
-  let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent('serviceworker');
-  // The native loadUnpacked update preserves the existing extension ID and
-  // profile. Replacing files alone can leave the old MV3 worker code cached.
-  // No uninstall/remove/clear command is issued anywhere in this harness.
-  if (report.packages.candidate) {
-    const reloaded = context.waitForEvent('serviceworker', { timeout: 15000 }).catch(() => null);
-    const cdp = await context.browser().newBrowserCDPSession();
-    const updated = await cdp.send('Extensions.loadUnpacked', { path: installed });
-    assert.equal(updated.id, extensionId, 'Native update changed extension ID');
-    worker = await reloaded || context.serviceWorkers().at(-1);
-    await cdp.detach();
-  }
-  const id = worker.url().split('/')[2];
+  const isExtensionWorker = worker => new URL(worker.url()).host === id;
+  const worker = context.serviceWorkers().find(isExtensionWorker)
+    ?? await context.waitForEvent('serviceworker', { predicate: isExtensionWorker, timeout: 15000 });
   if (extensionId) assert.equal(id, extensionId, 'Extension ID changed across upgrade/restart');
   extensionId = id;
   report.extensionId = id;
@@ -179,8 +170,9 @@ async function importTakeout(page, slot) {
 async function exportZip(page, slot, format, label, selected = [...ids(slot), takeoutId(slot)], skip = false) {
   await page.locator('#format').selectOption(format);
   await page.locator('#skipExported').setChecked(skip);
-  await page.locator('#btnSelectAll').check();
-  await page.locator('#btnSelectAll').uncheck();
+  // The released v1 UI uses a button for select-all. Clear the actual row
+  // checkboxes so both versions start the export from the same selection.
+  for (const row of await page.locator('[data-chat-id] input[type="checkbox"]').all()) await row.uncheck();
   for (const id of selected) await page.locator(`[data-chat-id="${id}"] input[type="checkbox"]`).check();
   const downloadPending = page.waitForEvent('download', { timeout: 120000 });
   const failurePending = page.locator('#exportFailureList').waitFor({ state: 'visible', timeout: 120000 })
@@ -340,8 +332,9 @@ try {
     failDetail = true; const page = await options('u0'); await sync(page, 'u0');
     const before = await page.evaluate(() => chrome.storage.local.get('exportedIds'));
     await page.locator('#format').selectOption('markdown'); await page.locator('#skipExported').uncheck();
-    await page.locator('#btnSelectAll').check();
-  await page.locator('#btnSelectAll').uncheck();
+    // The released v1 UI uses a button for select-all. Clear the actual row
+  // checkboxes so both versions start the export from the same selection.
+  for (const row of await page.locator('[data-chat-id] input[type="checkbox"]').all()) await row.uncheck();
     await page.locator(`[data-chat-id="${failedId}"] input[type="checkbox"]`).check();
     await page.locator('#btnExport').click();
     await expect(page.locator('#exportFailureList')).toBeVisible({ timeout: 90000 });

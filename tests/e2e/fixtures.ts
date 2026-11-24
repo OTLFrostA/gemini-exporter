@@ -1,8 +1,9 @@
+import { launchChromeExtension } from '../../scripts/playwright-chrome.mjs';
 import { platformOrigins } from '../../src/shared/platformHosts';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { domainFixtureBrowser } from './domainFixtureBrowser';
-import { test as base, chromium, expect, type BrowserContext } from '@playwright/test';
+import { test as base, expect, type BrowserContext } from '@playwright/test';
 import * as path from 'path';
 
 const pathToExtension = path.resolve(__dirname, '../../');
@@ -26,17 +27,7 @@ export async function launchExtensionContext(grantGemini = true): Promise<Browse
       process.once('exit', () => fs.rmSync(staged, { recursive: true, force: true }));
     }
     if (grantGemini) extensionPath = authorizedExtensionPath!;
-    const context = await chromium.launchPersistentContext('', {
-      channel: 'chromium', // Use full Chromium binary to support extensions in true headless
-      headless: !isHeaded,
-      chromiumSandbox: true,
-      args: [
-        ...(isHeaded ? [] : ['--headless=new']),
-        `--disable-extensions-except=${extensionPath}`,
-        `--load-extension=${extensionPath}`,
-
-      ],
-    });
+    const { context } = await launchChromeExtension(extensionPath, { headless: !isHeaded });
     // Fixture tests do not require outbound traffic; an explicit mock route can override this guard.
     await context.route(/^https?:\/\//, route => route.abort('blockedbyclient'));
     if (grantGemini) {

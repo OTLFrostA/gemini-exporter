@@ -91,13 +91,11 @@ jobs:
         if: steps.filter.outputs.only_scenarios != 'true'
         run: npm run test:release-fonts
 
-      - name: Install Chromium for native Storage unit contracts
+      - name: Install latest stable Google Chrome and system dependencies
         if: steps.filter.outputs.only_scenarios != 'true'
-        run: npx playwright install --with-deps chromium
-
-      - name: Permit sandboxed Playwright on Ubuntu
-        if: steps.filter.outputs.only_scenarios != 'true'
-        run: bash scripts/setup-playwright-sandbox.sh
+        run: |
+          npx playwright install --with-deps chrome
+          google-chrome --version
 
       - name: Run Unit Tests & Syntax Verification
         if: steps.filter.outputs.only_scenarios != 'true'
@@ -144,7 +142,7 @@ jobs:
         if: steps.filter.outputs.only_scenarios == 'true'
         run: |
           echo "⚡ Fast-path: Only scenario pool / documentation files changed."
-          echo "🎉 Skipping Playwright Chromium installation and browser tests."
+          echo "🎉 Skipping Google Chrome installation and browser tests."
 
       - name: Setup Node.js
         if: steps.filter.outputs.only_scenarios != 'true'
@@ -161,25 +159,11 @@ jobs:
         if: steps.filter.outputs.only_scenarios != 'true'
         run: node build.js
 
-      - name: Cache Playwright Chromium
+      - name: Install latest stable Google Chrome and system dependencies
         if: steps.filter.outputs.only_scenarios != 'true'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
-
-      - name: Install Playwright Chromium & System Dependencies
-        if: steps.filter.outputs.only_scenarios != 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright System Dependencies Only
-        if: steps.filter.outputs.only_scenarios != 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-
-      - name: Permit sandboxed Playwright on Ubuntu
-        if: steps.filter.outputs.only_scenarios != 'true'
-        run: bash scripts/setup-playwright-sandbox.sh
+        run: |
+          npx playwright install --with-deps chrome
+          google-chrome --version
 
       - name: Run Playwright E2E Test Suite
         if: steps.filter.outputs.only_scenarios != 'true'

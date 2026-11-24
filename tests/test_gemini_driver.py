@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from scripts.cdp_client import CDPConnection, get_tabs
 from scripts.framework.driver import GeminiDriver, GeminiChatSession, TurnResult
+from scripts.installed_chrome import installed_chrome
 
 
 class MockCDP:
@@ -363,13 +364,11 @@ class TestBrowserCleanup(unittest.TestCase):
 class TestGeminiSidebarDelete(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        browsers = sorted((Path.home() / ".cache/ms-playwright").glob("chromium-*/chrome-linux*/chrome"))
-        if not browsers:
-            raise unittest.SkipTest("Playwright Chromium is not installed")
+        chrome = installed_chrome()
         profile = tempfile.TemporaryDirectory()
         cls.addClassCleanup(profile.cleanup)
         browser = subprocess.Popen([
-            str(browsers[-1]), "--headless=new", "--no-sandbox", "--disable-gpu",
+            chrome, "--headless=new", "--disable-gpu",
             "--remote-debugging-port=0", f"--user-data-dir={profile.name}", "about:blank",
         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         browser_ws_url = None
@@ -383,7 +382,7 @@ class TestGeminiSidebarDelete(unittest.TestCase):
         while not port_file.exists() and browser.poll() is None and time.monotonic() < deadline:
             time.sleep(0.05)
         if not port_file.exists():
-            raise RuntimeError("Chromium CDP did not become ready")
+            raise RuntimeError("Chrome CDP did not become ready")
         port, browser_path = port_file.read_text().splitlines()[:2]
         port = int(port)
         browser_ws_url = f"ws://127.0.0.1:{port}{browser_path}"

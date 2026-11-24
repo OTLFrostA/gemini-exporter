@@ -63,6 +63,8 @@ flowchart TD
 * **测试数量与耗时**：以当前运行结果为准，避免随 suite 扩展发生文档漂移。
 
 ### 2. 运行命令
+
+浏览器单测和端到端测试直接使用本机安装的稳定版 Google Chrome。请通过 Chrome 自身更新保持最新版。Playwright 负责控制浏览器，无需下载它自带的 Chromium。GitHub Actions 每次安装当前稳定版 Chrome，并在日志记录版本。
 ```bash
 # 执行完整 Tier 1 门禁（scoped zero-any、类型检查、回归测试、构建、发布字体检查、Playwright）
 npm test

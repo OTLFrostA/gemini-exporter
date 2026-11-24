@@ -9,6 +9,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 2 : 2,
   use: {
+    channel: 'chrome',
     headless: true,
     launchOptions: { chromiumSandbox: true },
   },

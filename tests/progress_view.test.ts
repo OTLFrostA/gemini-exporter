@@ -9,7 +9,7 @@ test('headless UI status helpers present readable failures without requiring a D
     assert.equal(errorText(new Error('Offline')), expected); assert.equal(errorText('Aborted'), expected);
 });
 test('body delivery advances its counter while attachments remain active, and cancellation reports the preserved document', async () => {
-    const browser = await chromium.launch({chromiumSandbox: true, headless:true});
+    const browser = await chromium.launch({channel: 'chrome', chromiumSandbox: true, headless:true});
     try {
         const page = await browser.newPage();
         await mount(page,'options',{holdExport:true});
@@ -32,7 +32,7 @@ test('body delivery advances its counter while attachments remain active, and ca
     } finally { await browser.close(); }
 });
 test('current progress status displays committed counts, final result and clears busy controls', async () => {
-    const browser = await chromium.launch({ chromiumSandbox: true, headless: true }); try {
+    const browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: true, headless: true }); try {
         const page = await browser.newPage(); await mount(page, 'options', { holdScan: true });
         await page.locator('#btnSyncAll').click(); await page.waitForFunction(() => document.body.dataset.busy === 'true');
         assert.equal(await page.locator('#scanStatus').textContent(), 'Committed 2 pages, 150 source entries');
@@ -49,7 +49,7 @@ test('current progress status displays committed counts, final result and clears
     } finally { await browser.close(); }
 });
 test('a subsequent operation keeps its current progress after the previous task completes; no stale delayed hide erases it', async () => {
-    const browser = await chromium.launch({chromiumSandbox: true, headless:true});try{
+    const browser = await chromium.launch({channel: 'chrome', chromiumSandbox: true, headless:true});try{
         const page=await browser.newPage();await page.clock.install();await mount(page,'options',{holdScan:true});
         await page.locator('#btnSyncAll').click();await page.evaluate(()=>Reflect.get(window,'harness').finishScan());await page.waitForFunction(()=>document.body.dataset.busy!=='true');
         await page.locator('#btnSyncAll').click();await page.clock.fastForward(1000);assert.equal(await page.locator('#scanStatus').textContent(),'Committed 2 pages, 150 source entries');assert.equal(await page.locator('#btnSyncAll').isVisible(),true);
@@ -59,7 +59,7 @@ test('a subsequent operation keeps its current progress after the previous task 
 
 
 test('Browser export visibly stages each result before ZIP delivery without marking an ExportRecord', async () => {
-    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
+    const browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         await mount(page, 'options', { holdExport: true, indexes: [
@@ -94,7 +94,7 @@ test('Browser export visibly stages each result before ZIP delivery without mark
 });
 
 test('Folder export updates persisted item badges and the bar before the full batch finishes', async () => {
-    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
+    const browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         await mount(page, 'options', { holdExport: true, directoryName: 'exports',
@@ -123,7 +123,7 @@ test('Folder export updates persisted item badges and the bar before the full ba
 });
 
 test('failed export temporarily overrides an old success badge and retry clears it', async () => {
-    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
+    const browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         await mount(page, 'options', { holdExport: true, failExport: true,
@@ -152,7 +152,7 @@ test('failed export temporarily overrides an old success badge and retry clears 
 });
 
 test('cancelling and final refresh keep one operation owner and reject subsequent progress', async () => {
-    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
+    const browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         await mount(page, 'options', { holdExport: true, holdRefresh: true });
@@ -189,7 +189,7 @@ test('cancelling and final refresh keep one operation owner and reject subsequen
 });
 
 test('a settled export cannot mutate a new task through retained Application callbacks', async () => {
-    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
+    const browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         await mount(page, 'options', { holdExport: true });
@@ -221,7 +221,7 @@ test('a settled export cannot mutate a new task through retained Application cal
 });
 
 test('live failure details retain their expansion across progress and language changes', async () => {
-    const browser = await chromium.launch({ chromiumSandbox: true, headless: true });
+    const browser = await chromium.launch({ channel: 'chrome', chromiumSandbox: true, headless: true });
     try {
         const page = await browser.newPage();
         await mount(page, 'options', { holdExport: true });

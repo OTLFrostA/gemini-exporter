@@ -1,4 +1,5 @@
-import { test as base, chromium, expect, type BrowserContext } from '@playwright/test';
+import { launchChromeExtension } from '../../scripts/playwright-chrome.mjs';
+import { test as base, expect, type BrowserContext } from '@playwright/test';
 import { build } from 'esbuild';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -29,10 +30,7 @@ export const test = base.extend<{ context: BrowserContext; extensionId: string }
                     return handleAccountRegistryMessage(message, sender, respond) || handleDomainIngestionMessage(message, sender, respond);
                 });
             ` }, bundle: true, platform: 'browser', format: 'iife', outfile: join(extension, 'background.js') });
-            context = await chromium.launchPersistentContext('', {
-                channel: 'chromium', headless: true, chromiumSandbox: true,
-                args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-            });
+            ({ context } = await launchChromeExtension(extension));
             // Native extension tests use local fixtures; unexpected external requests fail closed.
             await context.route(/^https?:\/\//, route => route.abort('blockedbyclient'));
             await use(context);
