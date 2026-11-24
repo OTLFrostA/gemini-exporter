@@ -212,4 +212,4 @@ if (require.main === module) {
     );
 }
 
-module.exports = { analyzeArchitecture, ALLOWED_LAYER_DEPS };
+module.exports = { analyzeArchitecture };
