@@ -130,7 +130,7 @@ function decodeMessage(raw: unknown): ClaudeSourceMessage {
     return {
         uuid: source.uuid,
         sender: source.sender === 'human' || source.sender === 'assistant' ? source.sender : null,
-        parentId, sortIndex: Number(source.index ?? 0),
+        parentId, sortIndex: typeof source.index === 'number' && Number.isFinite(source.index) ? source.index : 0,
         ...(createdAt !== undefined ? { createdAt } : {}),
         ...(model?.trim() ? { model } : {}),
         truncated: source.truncated === true,

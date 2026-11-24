@@ -225,7 +225,7 @@ function adaptPhrasingNode(
             return [{ type: 'lineBreak', kind: 'hard' }];
 
         case 'html': {
-            if (/<br\s*\/?>/i.test(node.value)) {
+            if (/^\s*<br\s*\/?>\s*$/i.test(node.value)) {
                 return [{ type: 'lineBreak', kind: 'hard' }];
             }
             return textWithSoftBreaks(node.value);
