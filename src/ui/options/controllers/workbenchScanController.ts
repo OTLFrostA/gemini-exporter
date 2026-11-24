@@ -15,7 +15,7 @@ import type { ScanEvidence, UiMessage } from '../state/foregroundTask.js';
 import type { LogLevel, ScanRunDiagnostic } from './diagnosticLogController.js';
 import { startSync } from './syncController.js';
 
-export interface WorkbenchScanState {
+interface WorkbenchScanState {
     readonly evidence: ScanEvidence | undefined;
     readonly takeoutCount: number | undefined;
     readonly slow: boolean;
