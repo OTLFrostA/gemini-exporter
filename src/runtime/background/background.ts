@@ -35,7 +35,7 @@ chrome.permissions?.onRemoved?.addListener(syncSourceAccess);
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
     if (handleDomainIngestionMessage(message, sender, respond)) return true;
     if (handleAccountRegistryMessage(message, sender, respond)) return true;
-    if (handleCloudSyncMessage(message, sender)) return true;
+    handleCloudSyncMessage(message, sender);
     if (!message || typeof message !== 'object' || !('action' in message)
         || !['ensureV2Ready', 'getLocalIndexCount', 'updateBadgePosition', 'runLiveSave', 'openOptions', 'openGeminiPage', 'reloadGeminiTab'].includes(String(message.action))) return false;
     void (async () => {
