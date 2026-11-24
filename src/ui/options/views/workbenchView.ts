@@ -41,6 +41,7 @@ interface WorkbenchRenderInput {
     readonly scanning: boolean;
     readonly scanAborted: boolean;
     readonly presentationSaving: boolean;
+    readonly settingsSaving: boolean;
     readonly themeSaving: boolean;
     readonly directoryAvailable: boolean;
     readonly folderSuggestionPending: boolean;
@@ -57,6 +58,7 @@ export function renderWorkbench(input: WorkbenchRenderInput): void {
         scanning,
         scanAborted,
         presentationSaving,
+        settingsSaving,
         themeSaving,
         directoryAvailable,
         folderSuggestionPending,
@@ -84,12 +86,20 @@ export function renderWorkbench(input: WorkbenchRenderInput): void {
     document.body.classList.toggle('dev-mode', settings?.developerMode ?? false);
 
     const controls = [
-        ['select', ['accountIdSelect', 'format', 'chatFilterSelect']],
-        ['input', ['skipExported', 'includeAssets', 'liveSaveDiskToggle', 'chatSearchInput', 'btnSelectAll']],
+        ['select', ['accountIdSelect', 'chatFilterSelect']],
+        ['input', ['chatSearchInput', 'btnSelectAll']],
         ['button', ['btnSetDir', 'btnExport', 'btnClearExported', 'btnClearScan',
             'btnSyncAll', 'btnForceFullScan', 'btnImportTakeout', 'btnTourGuide', 'btnPlatformPermissions']],
     ] as const;
     for (const [tag, ids] of controls) for (const id of ids) control(tag, id).disabled = busy || !settings;
+    const exportSettingsDisabled = busy || !settings || settingsSaving;
+    control('select', 'format').disabled = exportSettingsDisabled;
+    for (const id of ['skipExported', 'includeAssets']) {
+        control('input', id).disabled = exportSettingsDisabled;
+    }
+    control('input', 'liveSaveDiskToggle').disabled =
+        exportSettingsDisabled || settings?.exportDelivery !== 'folderWriter'
+        || settings.defaultFormat !== 'markdown' || !directoryAvailable;
     control('select', 'accountIdSelect').disabled ||= scanning;
     control('button', 'btnPlatformPermissions').disabled ||= scanning;
     control('button', 'btnTourGuide').disabled ||= scanning;
@@ -101,7 +111,7 @@ export function renderWorkbench(input: WorkbenchRenderInput): void {
     const folderSelected = settings?.exportDelivery === 'folderWriter';
     for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="delivery"]')) {
         radio.checked = radio.value === (settings?.exportDelivery ?? 'browserDownload');
-        radio.disabled = busy || !settings;
+        radio.disabled = exportSettingsDisabled;
     }
     el('localFolderControls').classList.toggle('is-disabled', !folderSelected);
     el('localFolderControls').dataset.authorized = String(folderSelected && directoryAvailable);
@@ -142,8 +152,6 @@ export function renderWorkbench(input: WorkbenchRenderInput): void {
         el('labelLangEn').style.color = en ? 'var(--text)' : 'var(--muted)';
         el('labelLangZh').style.color = en ? 'var(--muted)' : 'var(--text)';
         control('input', 'liveSaveDiskToggle').checked = settings.enabledDisk;
-        control('input', 'liveSaveDiskToggle').disabled =
-            busy || !folderSelected || settings.defaultFormat !== 'markdown' || !directoryAvailable;
         const liveStatus = el('liveSaveStatus');
         liveStatus.hidden = !settings.enabledDisk;
         liveStatus.textContent = isLiveSaveEffective(settings, directoryAvailable)

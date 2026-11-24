@@ -42,8 +42,39 @@ test('non-Markdown formats pause effective saving across Options, Popup and relo
     await page.evaluate(()=>{Reflect.set(window,'showDirectoryPicker',async()=>navigator.storage.getDirectory());});
     await page.locator('input[name="delivery"][value="folderWriter"]').check();
     await page.locator('#btnSetDir').click();await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled();
-    await page.locator('#liveSaveDiskToggle').check();await expect(page.locator('body')).toHaveAttribute('data-busy','false');
-    for(const format of ['pdf','html','json']){await page.locator('#format').selectOption(format);await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();expect((await storedSettings(page)).enabledDisk).toBe(true);}
+    // Hold the next real storage write until the format control has been checked.
+    await page.evaluate(() => {
+        const storage = chrome.storage.local;
+        const set = storage.set.bind(storage);
+        Object.defineProperty(storage, 'set', {
+            configurable: true,
+            value: async (items: Parameters<typeof set>[0]) => {
+                Object.defineProperty(storage, 'set', { configurable: true, value: set });
+                await new Promise<void>(release => {
+                    Reflect.set(globalThis, 'releaseLiveSaveWrite', release);
+                });
+                await set(items);
+            },
+        });
+    });
+    const liveSave = page.locator('#liveSaveDiskToggle');
+    const formatSelect = page.locator('#format');
+    await liveSave.check();
+    await expect.poll(() => page.evaluate(() => typeof Reflect.get(globalThis, 'releaseLiveSaveWrite'))).toBe('function');
+    await expect(formatSelect).toBeDisabled();
+    await expect(page.locator('input[name="delivery"][value="browserDownload"]')).toBeDisabled();
+    await page.evaluate(() => {
+        const release = Reflect.get(globalThis, 'releaseLiveSaveWrite');
+        if (typeof release === 'function') release();
+    });
+    for (const format of ['pdf', 'html', 'json']) {
+        await formatSelect.selectOption(format);
+        await expect(formatSelect).toBeEnabled();
+        await expect(formatSelect).toHaveValue(format);
+        await expect(liveSave).toBeDisabled();
+        await expect(liveSave).toBeChecked();
+        expect(await storedSettings(page)).toMatchObject({ defaultFormat: format, enabledDisk: true });
+    }
     await page.reload();await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();const popup=await openPopup(context,extensionId);await popup.locator('[data-format="markdown"]').click();await expect(page.locator('#format')).toHaveValue('markdown');await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled();await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
     await popup.locator('[data-format="html"]').click();await expect(page.locator('#format')).toHaveValue('html');await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();await expect(page.locator('#liveSaveDiskToggle')).toBeChecked();
 });

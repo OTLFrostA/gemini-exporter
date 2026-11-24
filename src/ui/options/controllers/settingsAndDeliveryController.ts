@@ -202,6 +202,7 @@ export function bindSettingsAndDeliveryControls(deps: {
     });
 
     return {
+        isSettingsSaving: () => settingsSaving,
         isThemeSaving: () => themeToggle.isSaving(),
         dispose: () => {
             document.removeEventListener('pointerdown', onDocumentPointerDown);
