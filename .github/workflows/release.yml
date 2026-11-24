@@ -5,19 +5,29 @@ on:
     tags:
       - 'v*'
 
+permissions: {}
+
 jobs:
-  build-and-release:
+  build:
+    name: Build, Test & Package
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
+      zip_name: ${{ steps.package.outputs.name }}
+      zip_sha256: ${{ steps.package.outputs.sha256 }}
 
     steps:
       - name: Checkout tagged source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # GITHUB_SHA is the commit selected by the pushed tag.
           ref: ${{ github.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Validate tag and source versions
         id: release
@@ -50,10 +60,9 @@ jobs:
           echo "Validated $TAG at $SOURCE_SHA (version $VERSION)"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
@@ -110,16 +119,62 @@ jobs:
             echo "- SHA-256: \`$ZIP_SHA256\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload release artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          tag_name: ${{ steps.release.outputs.tag }}
-          target_commitish: ${{ steps.release.outputs.sha }}
-          name: Gemini Exporter ${{ steps.release.outputs.tag }}
-          files: ${{ steps.package.outputs.name }}
+          name: release-zip-${{ steps.release.outputs.tag }}
+          path: ${{ steps.package.outputs.name }}
+          retention-days: 7
+          if-no-files-found: error
+
+  github-release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-zip-${{ needs.build.outputs.tag }}
+
+      - name: Verify artifact SHA-256
+        env:
+          ZIP_NAME: ${{ needs.build.outputs.zip_name }}
+          EXPECTED_SHA256: ${{ needs.build.outputs.zip_sha256 }}
+        run: |
+          set -euo pipefail
+          test -s "$ZIP_NAME"
+          ACTUAL_SHA256=$(sha256sum "$ZIP_NAME" | awk '{print $1}')
+          test "$ACTUAL_SHA256" = "$EXPECTED_SHA256"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: ${{ needs.build.outputs.tag }}
+          target_commitish: ${{ needs.build.outputs.sha }}
+          name: Gemini Exporter ${{ needs.build.outputs.tag }}
+          files: ${{ needs.build.outputs.zip_name }}
           generate_release_notes: true
           draft: false
           prerelease: false
+
+  publish-cws:
+    name: Publish to Chrome Web Store
+    needs:
+      - build
+      - github-release
+    runs-on: ubuntu-latest
+    environment: chrome-web-store
+    permissions: {}
+
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-zip-${{ needs.build.outputs.tag }}
 
       - name: Check Chrome Web Store credentials
         env:
@@ -135,19 +190,20 @@ jobs:
             exit 1
           fi
 
-      - name: Verify ZIP before Chrome Web Store upload
+      - name: Verify artifact SHA-256 before Chrome Web Store upload
         env:
-          ZIP_NAME: ${{ steps.package.outputs.name }}
-          EXPECTED_SHA256: ${{ steps.package.outputs.sha256 }}
+          ZIP_NAME: ${{ needs.build.outputs.zip_name }}
+          EXPECTED_SHA256: ${{ needs.build.outputs.zip_sha256 }}
         run: |
           set -euo pipefail
+          test -s "$ZIP_NAME"
           ACTUAL_SHA256=$(sha256sum "$ZIP_NAME" | awk '{print $1}')
           test "$ACTUAL_SHA256" = "$EXPECTED_SHA256"
 
       - name: Upload and publish to Chrome Web Store
-        uses: mnao305/chrome-extension-upload@v7.0.0
+        uses: mnao305/chrome-extension-upload@f549d5d654694a7722d6abfa64c97409ad5e64c1 # v7.0.0
         with:
-          file-path: ${{ steps.package.outputs.name }}
+          file-path: ${{ needs.build.outputs.zip_name }}
           extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
           publisher-id: ${{ secrets.CHROME_PUBLISHER_ID }}
           client-id: ${{ secrets.CHROME_CLIENT_ID }}
