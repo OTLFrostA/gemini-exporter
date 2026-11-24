@@ -96,7 +96,7 @@ export function createVaultPullSync(ctx: {
                             portable: PortableCloudConversation;
                             payloadSha256: string;
                             indexPayloadSha256?: string;
-                        } | null> => {
+                        }> => {
                             const blob = await request(() => activeClient.getEncryptedRecord({
                                 serverUrl: session.serverUrl,
                                 sessionToken: session.sessionToken,
@@ -135,31 +135,28 @@ export function createVaultPullSync(ctx: {
                             };
                         }, signal);
 
-                        const validOpened = openedBatch.filter((x): x is NonNullable<typeof x> => x !== null);
-                        if (validOpened.length > 0) {
-                            const summary = await suppression.withSuppressed(() =>
-                                restoreCloudConversationsToLocal(validOpened.map(x => x.portable)));
-                            accepted += summary.accepted;
-                            changed += summary.changed;
+                        const summary = await suppression.withSuppressed(() =>
+                            restoreCloudConversationsToLocal(openedBatch.map(x => x.portable)));
+                        accepted += summary.accepted;
+                        changed += summary.changed;
 
-                            const allAccounts = await listAccounts();
-                            for (const item of validOpened) {
-                                const localAcc = allAccounts.find(
-                                    a => a.providerId === item.portable.account.providerId
-                                        && a.providerAccountId === item.portable.account.providerAccountId,
-                                );
-                                if (!localAcc) continue;
-                                await putSyncedCloudRecord({
-                                    ownerSubject: session.ownerSubject,
-                                    accountId: localAcc.id,
-                                    conversationId: item.portable.conversationId,
-                                    blindRecordId: item.meta.blindRecordId,
-                                    remoteRevision: item.meta.revision,
-                                    payloadSha256: item.payloadSha256,
-                                    indexPayloadSha256: item.indexPayloadSha256,
-                                    syncedAt: now(),
-                                });
-                            }
+                        const allAccounts = await listAccounts();
+                        for (const item of openedBatch) {
+                            const localAcc = allAccounts.find(
+                                a => a.providerId === item.portable.account.providerId
+                                    && a.providerAccountId === item.portable.account.providerAccountId,
+                            );
+                            if (!localAcc) continue;
+                            await putSyncedCloudRecord({
+                                ownerSubject: session.ownerSubject,
+                                accountId: localAcc.id,
+                                conversationId: item.portable.conversationId,
+                                blindRecordId: item.meta.blindRecordId,
+                                remoteRevision: item.meta.revision,
+                                payloadSha256: item.payloadSha256,
+                                indexPayloadSha256: item.indexPayloadSha256,
+                                syncedAt: now(),
+                            });
                         }
                     }
 
