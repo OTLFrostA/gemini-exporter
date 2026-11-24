@@ -45,7 +45,8 @@ shared      ──► (none)
 ### 2.2 Account Registry & `ConversationKey`
 - Every conversation is uniquely identified by `ConversationKey = { accountId: string, conversationId: string }`, where `accountId` is a device-local Registry UUID (`src/l2/accountRegistry.ts`), never a transient URL slot (`/u/0/`) or email address.
 - Deletions require an identified (non-`default`) account, a source-verified receipt, and atomic removal of Index, Detail, and ExportRecord for the exact `ConversationKey` without affecting other accounts.
-- `Detail` quality (`complete` / `partial` / `unknown`) is computed uniformly via `contentQuality()` (`src/l1/parsers/qualityEvidence.ts`). Complete snapshots are never overwritten by inferior incomplete captures.
+- `Detail` quality (`complete` / `partial` / `unknown`) is computed uniformly via `contentQuality()` (`src/l1/parsers/qualityEvidence.ts`). `selectConversationDetail` symmetrically prefers `complete` over `partial`/`unknown` regardless of admission order.
+- `CoverageAdmission` serializes `recordPageCoverage` / `hasTrustedBoundary` per `(accountId, streamId)` with a `resetEpoch` guard against post-clear session resurrection, and `CoverageSession` never evicts the `null` anchor page at the 2,000-page cap.
 
 ---
 
@@ -77,8 +78,8 @@ All four supported platforms (`gemini`, `chatgpt`, `grok`, `claude`) share one d
 - **Bounded Concurrency & Memory Release**:
   - Secondary `needsResourceRefresh` detail fetches route through `detailPrefetchSemaphore`.
   - `exportPipeline.ts` clears `pendingSlots` immediately after extraction and nulls each `pending[index]` entry after `renderGroup()` so raw `Uint8Array` attachment buffers are eligible for GC before `ZipWriter` runs.
-- **Typst-PDF Sandbox (`src/l4/format/pdf/typst/`)**: Compiles in an isolated iframe sandbox with bundled offline fonts, automatic WASM fault recovery, and deterministic sandbox rotation every 32 compiles.
-- **DOCX (`src/l4/format/docx/`)**: Local Word `.docx` generation from `DocumentAst` with embedded raster images, tables, code blocks, and math fallback.
+- **Typst-PDF Sandbox (`src/l4/format/pdf/typst/`)**: Compiles in an isolated iframe sandbox with bundled offline fonts, automatic WASM fault recovery, full `resetSandbox()` cleanup on init abort/timeout, and deterministic sandbox rotation every 32 compiles. All `DocumentAst` and `TypstBlockNode`/`TypstInlineNode` traversals enforce exhaustive `never` switches, and header `rowSpan` boundary crossings flatten cleanly across Markdown, HTML, and Typst.
+- **DOCX (`src/l4/format/docx/`)**: Local Word `.docx` generation from `DocumentAst` with embedded raster images, empty-row/bounds-safe tables, code blocks, `\centernot\implies`-compatible math, and verified external hyperlinks/resource failure states.
 
 ---
 
@@ -111,7 +112,7 @@ The optional Encrypted Vault is a self-contained Application workflow supporting
 - **Dedicated Settings Lock**: `settingsAndDeliveryController.ts` uses a serialized `runSettingsWrite` lock with field-level rollback instead of overloading `perform('cleanup', ...)`, preserving task feedback and avoiding full IndexedDB refreshes on toggle clicks.
 - **Controller-Owned Scan State**: `workbenchScanController.ts` owns `evidence`, `takeoutCount`, `slow`, `connectionError`, and `advanceTutorialScan`, exposing `getState()`, `clearConnectionError()`, `clearImportBannerState()`, and `resetAccountState()`.
 - **Explicit Props over DOM-as-State**: `listView.ts` receives `disabled` and `guidedSelection` (`TourGuide.isGuidedSelection()`) explicitly instead of reading `document.body.dataset.*` (while `workbenchView.ts` retains `data-foreground-busy` as a write-only observable attribute for E2E harnesses).
-- **Account Switch Hygiene**: Both explicit and implicit account switches call `resetAccountEphemeralState()`, and `cloudVaultController.ts` guards `silentAutoSync()` with `!mounted || externalBusy || internalBusy`.
+- **Account Switch & Lifecycle Hygiene**: Both explicit and implicit account switches call `resetAccountEphemeralState()`; `options.ts` and `popup.ts` guard async initialization and abort/dispose listeners on `pagehide`; `cloudVaultController.ts` guards `silentAutoSync()` with `!mounted || externalBusy || internalBusy || silentSyncInFlight`; and `tourGuide.ts` serializes async step transitions via `transitionSeq`.
 
 ---
 
