@@ -26,7 +26,7 @@ interface DecodedGeminiUserResources {
     files: UserFileAttachment[];
 }
 
-export interface DecodedGeminiCandidateResources {
+interface DecodedGeminiCandidateResources {
     images: ImageAttachment[];
     filteredImages: ImageAttachment[];
     structuredImages: ImageAttachment[];
