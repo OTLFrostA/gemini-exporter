@@ -29,8 +29,7 @@ class TestContext:
         output_dir: Optional[str] = None,
         dataset: Optional[Any] = None,
         delay: int = 6,
-        takeout_zip: Optional[str] = None,
-        pop_scenarios: bool = False
+        takeout_zip: Optional[str] = None
     ):
         self.port = port
         self.worktree_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -59,9 +58,6 @@ class TestContext:
         self.chat_records: List[Dict[str, Any]] = []
         self.shared_data: Dict[str, Any] = {}
         os.makedirs(self.output_dir, exist_ok=True)
-
-        if pop_scenarios:
-            self.ensure_scenarios()
 
     def ensure_scenarios(self) -> List[Dict[str, Any]]:
         if not self.scenarios:
