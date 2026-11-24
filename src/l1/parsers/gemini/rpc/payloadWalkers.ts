@@ -163,7 +163,7 @@ export const GEMINI_JSPB_SCHEMA: GeminiJspbSchema = Object.freeze({
     },
 });
 
-export function isObjectRecord(value: unknown): value is Record<string, unknown> {
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object';
 }
 
