@@ -29,7 +29,7 @@ installApplicationHost();
 installProviderHost();
 
 /** Only the explicitly opened Popup inspects its active tab; URLs never establish Account identity. */
-export function platformForTabUrl(url: string | undefined): SourcePlatform | null {
+function platformForTabUrl(url: string | undefined): SourcePlatform | null {
     return platformForPageUrl(url);
 }
 
@@ -50,11 +50,11 @@ async function readActiveSource(activeTab?: chrome.tabs.Tab): Promise<{ accountI
     return { accountId: context.accountId, key };
 }
 
-export async function readActiveKey(activeTab?: chrome.tabs.Tab): Promise<ConversationKey | null> {
+async function readActiveKey(activeTab?: chrome.tabs.Tab): Promise<ConversationKey | null> {
     return (await readActiveSource(activeTab))?.key ?? null;
 }
 
-export async function initPopup(): Promise<void> {
+async function initPopup(): Promise<void> {
     const button = control('button', 'btnCurrent');
     const status = el('status');
     let currentStatus: (() => string) | null = null;
