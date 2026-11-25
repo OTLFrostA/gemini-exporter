@@ -202,7 +202,7 @@ test('UI v2: Dev switch uses standard right ON and left OFF beside its left labe
         await expect(toggle).toBeEnabled();
         await label.click();
         await expect(toggle).not.toBeChecked();
-        await expect.poll(knobX).toBe(14);
+        await expect.poll(knobX).toBe(0);
         await expect(page.locator('body')).not.toHaveClass(/dev-mode/);
         await expect.poll(async () => (await read(page, 'settings')).developerMode).toBe(false);
 
