@@ -15,7 +15,6 @@
     "test:gemini-remaining": "node -r ./tests/ts_register.js --test tests/gemini_remaining_recovery.test.ts",
     "test:tier2": "python3 scripts/test_live_chat_and_export.py",
     "test:upgrade": "node scripts/test_upgrade_profile.mjs",
-    "release": "gh workflow run release.yml --ref main",
     "test:v2-modules": "node scripts/test-v2-modules.cjs",
     "test:l2:unit": "node scripts/test-l2.cjs --unit-only",
     "test:l3b:unit": "node scripts/test-l3b.cjs",
