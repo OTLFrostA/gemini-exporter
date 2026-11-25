@@ -19,12 +19,6 @@ TESTS_DIR = os.path.join(BASE_DIR, "tests")
 
 ISOLATED_SUITE_MARKERS = (
     "helpers/l1V2UnitMocks",
-    "chromium.launch",
-    "@playwright/test",
-    "from 'playwright'",
-    'from "playwright"',
-    "import('playwright')",
-    'import("playwright")',
     "before(",
     "after(",
     "beforeEach(",
