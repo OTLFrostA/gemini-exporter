@@ -15,7 +15,6 @@ jobs:
       contents: read
     outputs:
       tag: ${{ steps.release.outputs.tag }}
-      version: ${{ steps.release.outputs.version }}
       sha: ${{ steps.release.outputs.sha }}
       zip_name: ${{ steps.package.outputs.name }}
       zip_sha256: ${{ steps.package.outputs.sha256 }}
