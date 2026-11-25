@@ -17,7 +17,7 @@ export interface DocLink {
     url: string;
 }
 
-export interface DocSectionsResult {
+interface DocSectionsResult {
     sections: string[];
     links: DocLink[];
     contentMarkdown: string;
