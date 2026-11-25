@@ -12,7 +12,7 @@ export interface SourceGeneratedMediaIdentity {
 
 
 /** Takeout activity timestamps have second precision; RPC retains milliseconds. */
-export function eventSecond(value: number | undefined): number | null {
+function eventSecond(value: number | undefined): number | null {
     if (value === undefined || !Number.isFinite(value) || value <= 0) return null;
     return Math.floor(value / 1000);
 }
