@@ -14,17 +14,13 @@ interface JspbTurnSchema {
 
 interface JspbModelPayloadSchema {
     CANDIDATES: number;
-    SEARCH_QUERIES: number;
-    PROVIDER: number;
     SELECTED_CANDIDATE_ID: number;
-    TELEMETRY_START: number;
     STRUCTURED_CONTENT?: number;
 }
 
 interface JspbCandidateSchema {
     ID: number;
     BODY: number;
-    LANGUAGE_CODE: number;
 }
 
 interface JspbCandidateBodySchema {
@@ -35,10 +31,7 @@ interface JspbListItemSchema {
     ID: number;
     TITLE: number;
     TIMESTAMP: number;
-    UPDATE_TIME_ALT: number;
     CREATE_TIME_ALT: number;
-    COUNT_ALT1: number;
-    COUNT_ALT2: number;
 }
 
 interface JspbInnerSchema {
@@ -106,16 +99,12 @@ export const GEMINI_JSPB_SCHEMA: GeminiJspbSchema = Object.freeze({
     },
     MODEL_PAYLOAD: {
         CANDIDATES: 0,
-        SEARCH_QUERIES: 1,
-        PROVIDER: 2,
         SELECTED_CANDIDATE_ID: 3,
-        TELEMETRY_START: 3,
         STRUCTURED_CONTENT: 12,
     },
     CANDIDATE: {
         ID: 0,
         BODY: 1,
-        LANGUAGE_CODE: 2,
     },
     CANDIDATE_BODY: {
         PARTS: 0,
@@ -124,10 +113,7 @@ export const GEMINI_JSPB_SCHEMA: GeminiJspbSchema = Object.freeze({
         ID: 0,
         TITLE: 1,
         TIMESTAMP: 5,
-        UPDATE_TIME_ALT: 2,
         CREATE_TIME_ALT: 3,
-        COUNT_ALT1: 4,
-        COUNT_ALT2: 9,
     },
     INNER: {
         TURNS_OR_LIST_PRIMARY: 0,
