@@ -8,7 +8,6 @@
 import { provideProviderHost } from '../../src/l1/client/providerHost.js';
 import { provideContentRuntimeHost } from '../../src/l1/contentPorts.js';
 import type { Account } from '../../src/l2/accountRegistry.js';
-import type { ConversationKey } from '../../src/l2/conversationKey.js';
 import type { DetailIngestResult } from '../../src/l2/ingestion.js';
 import type { AccountContext } from '../../src/runtime/content/accountContext.js';
 
