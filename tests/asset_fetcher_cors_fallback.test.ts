@@ -365,6 +365,52 @@ test('image acquisition rejects external and other-platform hosts before fetchin
     assert.equal(fetch.mock.callCount(), 1);
 });
 
+test('Gemini reads only verified hops of its own manual image request', async t => {
+    const sourceUri = 'https://lh3.googleusercontent.com/gg/image';
+    const target = 'https://lh3.google.com/image';
+    type HeaderEvent = {
+        requestId: string; url: string; initiator: string;
+        requestHeaders?: { name: string; value: string }[];
+        responseHeaders?: { name: string; value: string }[];
+    };
+    function event() {
+        const listeners = new Set<(details: HeaderEvent) => void>();
+        return { addListener: listeners.add.bind(listeners), removeListener: listeners.delete.bind(listeners),
+            emit(details: HeaderEvent) { for (const receive of listeners) receive(details); }, listeners };
+    }
+    const onSendHeaders = event(), onHeadersReceived = event();
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: {
+        runtime: { id: 'exporter' }, webRequest: { onSendHeaders, onHeadersReceived },
+    } });
+    t.after(() => {
+        if (original) Object.defineProperty(globalThis, 'chrome', original);
+        else Reflect.deleteProperty(globalThis, 'chrome');
+    });
+    let location = target, requestId = '1';
+    const requests: string[] = [];
+    t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
+        assert.equal(init.redirect, 'manual');
+        requests.push(url);
+        if (url === target) return new Response(Uint8Array.of(42));
+        const details = { url, requestId: '1', initiator: 'chrome-extension://exporter' };
+        onSendHeaders.emit({ ...details, requestHeaders: [{ name: 'Accept', value: new Headers(init.headers).get('accept') ?? '' }] });
+        setTimeout(() => onHeadersReceived.emit({ ...details, requestId, responseHeaders: [{ name: 'Location', value: location }] }), 1);
+        return { type: 'opaqueredirect' };
+    });
+    const resources = createSourceResourceContext();
+    const read = () => resources.acquire(key, { ...asset, sourceUri }, undefined, undefined, undefined, 'gemini');
+    assert.deepEqual((await read()).bytes, Uint8Array.of(42));
+    assert.deepEqual(requests.splice(0), [sourceUri, target]);
+    for (const [id, redirect] of [['1', 'https://images.openai.com/image'], ['different-request', target]]) {
+        requestId = id;
+        location = redirect;
+        await assert.rejects(read(), { code: 'RESOURCE_LOCATOR_UNAVAILABLE' });
+        assert.deepEqual(requests.splice(0), [sourceUri]);
+    }
+    assert.equal(onSendHeaders.listeners.size + onHeadersReceived.listeners.size, 0);
+});
+
 test('a direct platform image redirect is treated as unavailable without following or retrying it', async t => {
     const resources = createSourceResourceContext();
     t.after(() => resources.release());

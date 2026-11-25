@@ -4,6 +4,7 @@ import type { DomainAsset } from '../../l2/conversationDetail.js';
 import { readConversationKey, type ConversationKey } from '../../l2/conversationKey.js';
 import type { ResourceAcquisitionHints } from './resourceAcquisition.js';
 import type { ResourceBytes } from '../../shared/resources/resourceResult.js';
+import { fetchGeminiImage } from './gemini/fetchGeminiImage.js';
 import { isPlatformImageUrl, type SourcePlatform } from '../../shared/platformHosts.js';
 import { diagnosticOrigin, emitDiagnostic, type Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 
@@ -101,15 +102,16 @@ export async function acquireSourceResource(asset: DomainAsset, signal?: AbortSi
     if (remoteImage && (!platform || !isPlatformImageUrl(platform, asset.sourceUri))) {
         throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'Image is outside the source platform');
     }
-    // Fetch cannot expose redirect targets reliably. Do not follow them for direct images.
+    // Each direct image GET stops before the browser follows a redirect.
     const redirect: RequestRedirect = remoteImage ? 'manual' : 'follow';
+    const read = remoteImage && platform === 'gemini' ? fetchGeminiImage : fetch;
     const startedAt = Date.now();
     const origin = diagnosticOrigin(asset.sourceUri);
     let phase = 'fetch';
     let credentials: RequestCredentials = 'include';
     let response: Response | undefined;
     try {
-        try { response = await fetch(asset.sourceUri, { credentials, signal, redirect }); }
+        try { response = await read(asset.sourceUri, { credentials, signal, redirect }); }
         catch (error) {
             signal?.throwIfAborted();
             if (!(error instanceof TypeError)) throw error;
@@ -118,7 +120,7 @@ export async function acquireSourceResource(asset: DomainAsset, signal?: AbortSi
             credentials = 'omit';
             emitDiagnostic(onDiagnostic, { severity: 'info', code: 'RESOURCE_CREDENTIAL_FALLBACK',
                 message: 'Retrying source attachment without credentials', details: { origin } });
-            response = await fetch(asset.sourceUri, { credentials, signal, redirect });
+            response = await read(asset.sourceUri, { credentials, signal, redirect });
         }
         if (remoteImage && (response.type === 'opaqueredirect' || response.status >= 300 && response.status < 400)) {
             throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'Image download redirected');
