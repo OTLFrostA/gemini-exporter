@@ -1,4 +1,4 @@
-import { PLATFORM_HOSTS, SOURCE_PLATFORMS as platforms, platformDisplayName, type SourcePlatform } from '../../shared/platformHosts.js';
+import { PLATFORM_HOSTS, SOURCE_PLATFORMS, platformDisplayName, type SourcePlatform } from '../../shared/platformHosts.js';
 import { activatePlatformAccess, findAuthorizedAccount, hasPlatformAccess,
     observePlatformAccess, requestPlatformAuthorization } from '../../runtime/capabilities/platformAuthorization.js';
 import { text } from './settings.js';
@@ -8,11 +8,8 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
     ready?: (authorized: boolean) => void;
     connected?: (accountId: string) => Promise<void>;
     selectedPlatforms?: readonly SourcePlatform[];
-    platforms?: readonly SourcePlatform[];
     granted?: (platforms: readonly SourcePlatform[]) => void;
-    allAuthorized?: () => void;
 } = {}): () => void {
-    const targets = options.platforms ?? platforms;
     let active = true;
     let busy = false;
     let revision = 0;
@@ -32,7 +29,7 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
     // A granted platform is never a selectable request target, even during refresh.
     const selection = () => rows.filter(row => !row.row.hidden && row.input.checked).map(row => row.platform);
     const updateButton = () => { authorize.disabled = busy || !selection().length; };
-    const rows = targets.map(platform => {
+    const rows = SOURCE_PLATFORMS.map(platform => {
         const row = document.createElement('div');
         row.className = 'platform-permission-row';
         row.dataset.platform = platform;
@@ -81,26 +78,23 @@ export function mountPlatformAuthorization(host: HTMLElement, options: {
     hint.hidden = true;
     const refresh = async () => {
         const current = ++revision;
-        const granted = await Promise.all(targets.map(hasPlatformAccess));
+        const granted = await Promise.all(SOURCE_PLATFORMS.map(hasPlatformAccess));
         if (!active || current !== revision) return;
-        authorized = targets.filter((_, index) => granted[index]);
+        authorized = SOURCE_PLATFORMS.filter((_, index) => granted[index]);
         for (const { platform, row, state } of rows) {
             row.hidden = authorized.includes(platform);
             state.textContent = text('Not authorized', '未授权');
             state.dataset.authorized = 'false';
         }
-        const remaining = authorized.length < targets.length;
+        const remaining = authorized.length < SOURCE_PLATFORMS.length;
         list.hidden = !remaining;
         authorize.hidden = !remaining;
         hint.hidden = !remaining;
-        const completeText = options.platforms ? text(
-            'Website access is granted. Open the platform and sign in to the selected account, then retry sync.',
-            '网站访问权限已授予。请打开平台并登录所选账号，然后重试同步。') : text('All supported platforms have website access.', '所有支持的平台均已获得网站访问权限。');
+        const completeText = text('All supported platforms have website access.', '所有支持的平台均已获得网站访问权限。');
         if (!remaining) status.textContent = completeText;
         else if (status.textContent === completeText) status.textContent = '';
         updateButton();
         options.ready?.(!busy && authorized.length > 0);
-        if (!busy && !remaining) options.allAuthorized?.();
     };
     authorize.addEventListener('click', () => {
         const selected = selection();
