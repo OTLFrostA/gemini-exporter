@@ -32,8 +32,11 @@ select:disabled{opacity:0.45;cursor:not-allowed;background:#10111a;color:#6b7280
 .log::-webkit-scrollbar-thumb{background:#282c44;border-radius:99px}
 .badge{font-size:10px;background:#171929;border:1px solid var(--border);color:#a5b4fc;padding:2px 7px;border-radius:99px}
 .badge.inactive{background:#141520;color:#6b7280;border-color:#202232}
-.progress{height:5px;background:#161824;border-radius:99px;overflow:hidden;margin-top:6px;display:none}
-.bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .2s}
+.progress{height:4px;background:#161824;border-radius:99px;overflow:hidden;margin-top:8px;display:none}
+.bar{height:100%;width:32%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px;animation:popup-progress 1.4s linear infinite}
+@keyframes popup-progress{from{transform:translateX(-100%)}to{transform:translateX(350%)}}
+.popup-option-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 2px 8px;font-size:11px;color:var(--muted);cursor:pointer;user-select:none}
+.popup-option-row:has(input:disabled){opacity:.45;cursor:default}
 input[type=checkbox].toggle{
   -webkit-appearance:none;appearance:none;width:26px;height:14px;background:#1e2030;border-radius:14px;position:relative;cursor:pointer;outline:none;margin:0;flex:none;transition:background 0.2s;
 }
@@ -93,11 +96,17 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
     <button type="button" class="tab-btn" data-format="json" data-i18n="fmtJsonStandardTab">JSON</button>
   </div>
 
+  <label class="popup-option-row" data-i18n-title="includeAssetsTip" title="下载图片与文件附件">
+    <span data-i18n="includeAssets">下载附件（可能需要更长时间）</span>
+    <input type="checkbox" id="popupIncludeAssets" class="toggle">
+  </label>
+
   <div class="row" style="margin-bottom:0px;">
-    <button id="btnCurrent" class="ghost" style="font-size:11px;padding:9px 6px;display:flex;align-items:center;justify-content:center;gap:4px;" data-i18n="btnCurrent">📥 导出当前页面</button>
-    <button id="btnOptions" class="primary" style="font-size:11px;padding:9px 6px;display:flex;align-items:center;justify-content:center;gap:4px;" data-i18n="btnOptions">去控制台批量导出 ↗</button>
+    <button id="btnCurrent" class="primary" style="font-size:11px;padding:9px 6px;display:flex;align-items:center;justify-content:center;gap:4px;" data-i18n="btnCurrent">📥 导出当前页面</button>
+    <button id="btnOptions" class="ghost" style="font-size:11px;padding:9px 6px;display:flex;align-items:center;justify-content:center;gap:4px;" data-i18n="btnOptions">去控制台批量导出 ↗</button>
   </div>
 
+  <div id="popupProgWrap" class="progress" role="progressbar" aria-label="Export progress"><div id="popupBar" class="bar"></div></div>
   <p id="status" class="log" role="status" aria-live="polite" style="margin:6px 0 0;min-height:15px;"></p>
 </div>
 </div>

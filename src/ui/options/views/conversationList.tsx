@@ -15,10 +15,13 @@ interface ConversationRowFacts {
 }
 interface ConversationListProps {
     rows: readonly ConversationRowFacts[];
+    totalCount?: number;
     disabled: boolean;
     provider: Account['providerId'] | undefined;
     developerMode: boolean;
-    onSelect: (id: string, selected: boolean) => void;
+    onSelect: (id: string, selected: boolean, shiftKey?: boolean) => void;
+    onSync?: () => void;
+    onResetFilters?: () => void;
 }
 
 /** Display recent ExportRecord facts and transient delivery results; Application still owns Skip. */
@@ -80,11 +83,17 @@ function ConversationRow({ row, disabled, provider, developerMode, onSelect }: O
     return <div className="item" data-chat-id={id} data-account-id={index.key.accountId}
         data-selected={selected} onClick={event => {
             if (disabled || event.target instanceof Element && event.target.closest('input, a, details, button')) return;
-            onSelect(id, !selected);
+            onSelect(id, !selected, event.shiftKey);
         }}>
         <input type="checkbox" checked={selected} disabled={disabled}
             aria-label={text(`Select ${index.title || id}`, `选择 ${index.title || id}`)}
-            onChange={event => onSelect(id, event.currentTarget.checked)} />
+            onClick={event => {
+                if (event.shiftKey) {
+                    event.preventDefault();
+                    onSelect(id, !selected, true);
+                }
+            }}
+            onChange={event => onSelect(id, event.currentTarget.checked, false)} />
         <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
                 <span className="chat-title title" style={index.title ? undefined : { color: 'var(--warn)' }}>{index.title || id}</span>
@@ -105,7 +114,36 @@ function ConversationRow({ row, disabled, provider, developerMode, onSelect }: O
     </div>;
 }
 
-export function ConversationList({ rows, ...props }: ConversationListProps) {
-    if (!rows.length) return <>{text('No conversations match this view', '当前视图没有对话')}</>;
+export function ConversationList({ rows, totalCount = 0, onSync, onResetFilters, ...props }: ConversationListProps) {
+    if (!rows.length) {
+        const hasAny = totalCount > 0;
+        return <div className="list-empty-state">
+            <svg className="list-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                {hasAny
+                    ? <><circle cx="11" cy="11" r="7" /><path d="m21 21-4.35-4.35" /><path d="M8.5 11h5" /></>
+                    : <><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" /><path d="M8 10h8M8 14h5" /></>}
+            </svg>
+            <div className="list-empty-title">
+                {hasAny
+                    ? text('No conversations match this view', '当前视图没有对话')
+                    : text('No conversations synced yet', '暂无已同步的对话')}
+            </div>
+            <div className="list-empty-desc">
+                {hasAny
+                    ? text('Try clearing your search keyword or switching the status filter.', '尝试清空搜索关键词或重置状态筛选条件。')
+                    : text('Click Sync All to fetch conversations from the connected platform.', '点击「同步会话」从当前已授权平台拉取对话列表。')}
+            </div>
+            {hasAny && onResetFilters && (
+                <button type="button" className="ghost small" disabled={props.disabled} onClick={onResetFilters}>
+                    {text('Clear filters', '重置筛选')}
+                </button>
+            )}
+            {!hasAny && onSync && (
+                <button type="button" className="primary small" disabled={props.disabled} onClick={onSync}>
+                    {text('Sync All', '同步会话')}
+                </button>
+            )}
+        </div>;
+    }
     return <>{rows.map(row => <ConversationRow key={`${row.index.key.accountId}:${row.index.key.conversationId}`} row={row} {...props} />)}</>;
 }
