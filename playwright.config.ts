@@ -7,7 +7,7 @@ export default defineConfig({
     : ['**/readme_screenshots.spec.ts'],
   timeout: 30000,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 2 : 2,
+  workers: 2,
   use: {
     channel: 'chrome',
     headless: true,
@@ -15,4 +15,3 @@ export default defineConfig({
   },
   reporter: [['list']],
 });
-
