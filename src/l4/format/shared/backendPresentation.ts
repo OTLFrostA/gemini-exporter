@@ -2,7 +2,7 @@ import { resourceFailureText, type ResourceFailure } from '../../../shared/resou
 import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, SourceItem } from '../../../l3b/ast/ast.js';
 import { getRendererStrings } from './renderStrings.js';
 
-export function inlineText(node: DisplayInline): string {
+function inlineText(node: DisplayInline): string {
     if ('children' in node) return node.children.map(inlineText).join('');
     switch (node.type) {
         case 'text': return node.text;
