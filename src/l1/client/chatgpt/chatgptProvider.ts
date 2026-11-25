@@ -263,7 +263,7 @@ export class ChatGPTProvider implements AIProvider {
                     if (!fileId) {
                         phase = 'source_fetch';
                         origin = asset.sourceUri ? diagnosticOrigin(asset.sourceUri) : null;
-                        return await acquireSourceResource(asset, signal, onDiagnostic);
+                        return await acquireSourceResource(asset, signal, onDiagnostic, this.id);
                     }
                     path = uploadedFile ? buildAttachmentDownloadPath(fileId, key.conversationId)
                         : buildFileDownloadPath(fileId, key.conversationId);
@@ -333,6 +333,6 @@ export class ChatGPTProvider implements AIProvider {
                 throw error;
             }
         };
-        return this.resources ? this.resources.acquire(key, asset, signal, remote, onDiagnostic) : remote();
+        return this.resources ? this.resources.acquire(key, asset, signal, remote, onDiagnostic, this.id) : remote();
     }
 }

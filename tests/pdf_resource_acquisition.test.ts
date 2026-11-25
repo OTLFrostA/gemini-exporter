@@ -11,7 +11,7 @@ import { composeDomainDocument } from '../src/l3b/compose/composeDomainDocument.
 import { collectDocumentResources } from '../src/l3b/ast/resourceReferences.js';
 import { prepareExportResources } from '../src/application/export/prepareExportResources.js';
 
-const url = 'https://example.test/shared-image';
+const url = 'https://lh3.googleusercontent.com/shared-image';
 const firstBytes = new Uint8Array([11, 22, 33]);
 const secondBytes = new Uint8Array([44, 55, 66]);
 
@@ -147,7 +147,7 @@ test('actual attachment response status distinguishes unavailable, restricted an
     t.after(() => { globalThis.fetch = originalFetch; });
     for (const [status, kind] of [[404, 'expired'], [410, 'expired'], [401, 'restricted'], [403, 'restricted'], [429, 'download'], [500, 'download']] as const) {
         globalThis.fetch = async () => new Response('', {status});
-        const failure = await attemptResource('asset', () => acquireSourceResource({id:'asset',kind:'image',sourceUri:'https://example.test/photo'}));
+        const failure = await attemptResource('asset', () => acquireSourceResource({id:'asset',kind:'image',sourceUri:'https://lh3.googleusercontent.com/photo'}, undefined, undefined, 'gemini'));
         assert.equal(failure.ok, false);
         if (failure.ok) continue;
         assert.equal(failure.httpStatus, status);
@@ -177,8 +177,8 @@ test('Markdown, HTML and PDF payload preserve the actual missing attachment reas
         assert.match(output, /来源附件无法获取/);
         assert.match(output, /HTTP 404/);
         assert.match(output, /same\.png/);
-        assert.doesNotMatch(output, /<img[^>]+src="https:\/\/example\.test\/shared-image|!\[[^\]]*\]\(https:\/\/example\.test\/shared-image/);
-        assert.match(output, /https:\/\/example\.test\/shared-image/);
+        assert.doesNotMatch(output, /<img[^>]+src="https:\/\/lh3\.googleusercontent\.com\/shared-image|!\[[^\]]*\]\(https:\/\/lh3\.googleusercontent\.com\/shared-image/);
+        assert.match(output, /https:\/\/lh3\.googleusercontent\.com\/shared-image/);
     }
 });
 

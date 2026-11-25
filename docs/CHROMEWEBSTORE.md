@@ -45,7 +45,6 @@ unchecking a choice does not revoke previously granted access.
 | **ChatGPT (experimental)** | `chatgpt.com`, `chat.openai.com`, `images.openai.com` | Identify the signed-in account/workspace and retrieve requested conversations and images. |
 | **Claude (experimental)** | `claude.ai` | Identify the current organization and retrieve requested conversations and attachments. |
 | **Grok (experimental)** | `grok.com`, `assets.grok.com` | Retrieve requested conversations and available attachments using the signed-in Grok tab. |
-| **External images** | `cdn.sanity.io` | Read an image when the user separately authorizes the host from a failed attachment's details. |
 
 Use the release `manifest.json` as the authoritative permission list; temporary
 required permissions used for local staging must never enter a store package.

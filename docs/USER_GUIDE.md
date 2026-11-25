@@ -81,7 +81,7 @@ Takeout can supplement what Gemini exposes to an online scan. It cannot guarante
 
 **Why is an attachment missing?** Some source files and generated images may have expired or become inaccessible. The exporter reports resource problems when it detects them but cannot reconstruct bytes the source no longer serves.
 
-For a failed image from `cdn.sanity.io`, expand **Attachment details**, click **Allow downloads from cdn.sanity.io**, approve the optional site access, and export the conversation again. This access is separate from connecting ChatGPT and can be revoked in Chrome’s extension settings.
+Export and Live Save download remote images from the conversation platform’s allowed hosts. External images appear as placeholders with source links when available.
 
 **Does PDF require access to my installed fonts?** PDF compiles locally. The renderer supports bundled offline fonts, so access to installed fonts is not a prerequisite for generating a PDF.
 

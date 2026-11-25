@@ -67,7 +67,7 @@ test('v2 Live Save preserves user-upload and generated Imagen bytes as distinct 
 
 test('v2 Live Save renders failed image visibly as unavailable without a dangling sidecar or remote image embedding', async t => {
     const host = v2LiveSaveHost(t), id = 'failing-images';
-    const good = 'https://example.test/good.png', bad = 'https://example.test/broken.png';
+    const good = 'https://lh3.googleusercontent.com/good.png', bad = 'https://lh3.googleusercontent.com/broken.png';
     await seedLiveDetail(id, [
         { id: 'good', kind: 'image', name: 'good.png', sourceUri: good, mediaType: 'image/png' },
         { id: 'broken', kind: 'image', name: 'broken.png', sourceUri: bad, mediaType: 'image/png' },
@@ -85,7 +85,7 @@ test('v2 Live Save renders failed image visibly as unavailable without a danglin
     assert.deepEqual(imageFiles[0][1], bytes);
     const markdown = mainMarkdown(host.files);
     assert.ok(markdown.includes(imageFiles[0][0]));
-    assert.match(markdown, /\[Open source\]\(https:\/\/example\.test\/broken\.png\)/);
+    assert.match(markdown, /\[Open source\]\(https:\/\/lh3\.googleusercontent\.com\/broken\.png\)/);
     assert.doesNotMatch(markdown, /!\[[^\]]*\]\(https:/);
     assert.doesNotMatch(markdown, /\]\(assets\/[^)]*broken\.png\)/,
         'failed media may have a visible placeholder but never a missing relative file link');
@@ -93,7 +93,7 @@ test('v2 Live Save renders failed image visibly as unavailable without a danglin
 });
 
 test('L3b reference dedup means one source fetch and sidecar despite multiple image occurrences', async t => {
-    const host = v2LiveSaveHost(t), id = 'repeated-image', url = 'https://example.test/same.png';
+    const host = v2LiveSaveHost(t), id = 'repeated-image', url = 'https://lh3.googleusercontent.com/same.png';
     await seedLiveDetail(id, [{ id: 'same', kind: 'image', name: 'same.png', sourceUri: url, mediaType: 'image/png' }], {
         messages: [
             { role: 'user', content: [paragraph('Please explain this diagram')] },

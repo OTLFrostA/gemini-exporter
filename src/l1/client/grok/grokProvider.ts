@@ -122,6 +122,6 @@ export class GrokProvider implements AIProvider {
     async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void) {
         assertValidResourceKey(key);
         await this.account(key.accountId);
-        return this.resources ? this.resources.acquire(key, asset, signal, undefined, onDiagnostic) : acquireSourceResource(asset, signal, onDiagnostic);
+        return this.resources ? this.resources.acquire(key, asset, signal, undefined, onDiagnostic, this.id) : acquireSourceResource(asset, signal, onDiagnostic, this.id);
     }
 }

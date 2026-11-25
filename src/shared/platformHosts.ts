@@ -88,6 +88,20 @@ export function platformOrigins(platform: SourcePlatform): string[] {
     return [...PLATFORM_HOSTS[platform].pages, ...PLATFORM_HOSTS[platform].attachments];
 }
 
+/** Direct image locators may only use the conversation platform's HTTPS origins. */
+export function isPlatformImageUrl(platform: SourcePlatform, uri: string): boolean {
+    try {
+        const url = new URL(uri);
+        if (url.protocol !== 'https:' || url.port || url.username || url.password) return false;
+        return platformOrigins(platform).some(pattern => {
+            const host = pattern.slice('https://'.length, -'/*'.length);
+            if (!host.startsWith('*.')) return url.hostname === host;
+            const suffix = host.slice(2);
+            return url.hostname === suffix || url.hostname.endsWith('.' + suffix);
+        });
+    } catch { return false; }
+}
+
 export function isSourcePlatform(value: unknown): value is SourcePlatform {
     return typeof value === 'string' && SOURCE_PLATFORMS.some(platform => platform === value);
 }
@@ -107,14 +121,4 @@ export function platformForPageUrl(url: string | undefined | null): SourcePlatfo
 
 export function matchesPlatformPageUrl(platform: SourcePlatform, url: string | undefined | null): boolean {
     return platformForPageUrl(url) === platform;
-}
-
-/** External image access is separate from platform connection and granted per origin. */
-export const RESOURCE_DOWNLOAD_ORIGINS = ['https://cdn.sanity.io/*'] as const;
-export function resourceDownloadOrigin(uri: string): string | undefined {
-    try {
-        const url = new URL(uri);
-        if (url.protocol !== 'https:' || url.username || url.password) return undefined;
-        return RESOURCE_DOWNLOAD_ORIGINS.find(origin => origin === `${url.origin}/*`);
-    } catch { return undefined; }
 }

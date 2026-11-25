@@ -322,24 +322,16 @@ test('successful snapshot export shows source generation state separately from m
     assert.equal(await page.locator('[data-chat-id="two"] .source-turn-status').innerText(), '原回答已中断');
 });
 
-test('failed external image offers an explicit origin grant without auto-authorizing or exporting', async () => {
+test('failed external image keeps a source link without an authorization control', async () => {
     const sourceUrl = 'https://cdn.sanity.io/images/project/preview.png?q=100';
-    await open({ settings: { language: 'zh', developerMode: true }, indexes: [rows[0]], resourcePermissionDenied: true,
+    await open({ settings: { language: 'zh', developerMode: true }, indexes: [rows[0]],
         records: { [A]: { one: { status: 'partial', format: 'markdown', exportedAt: 100, otherContentMissing: false,
-            attachmentIssues: [{ resourceId: 'image', name: 'preview.png', code: 'RESOURCE_UNAVAILABLE', sourceUrl }] } } } });
-    await page.locator('.attachment-issues summary').click();
-    const allow = page.locator('.authorize-resource');
-    await allow.waitFor({ state: 'visible' });
-    assert.equal(await allow.innerText(), '允许从 cdn.sanity.io 下载');
-    assert.deepEqual(await read(page, 'resourceRequests'), undefined);
-    await allow.click();
-    assert.deepEqual(await read(page, 'resourceRequests'), [[sourceUrl, true]]);
-    assert.equal(await allow.isEnabled(), true, 'a declined grant can be retried');
-    await page.evaluate(() => { Reflect.get(window, 'harness').resourcePermissionDenied = false; });
-    await allow.click();
-    await page.waitForFunction(() => document.querySelector('.authorize-resource')?.textContent === '已授权，请重新导出此会话');
-    assert.equal(await allow.isDisabled(), true);
-    assert.deepEqual(await read(page, 'exports'), [], 'permission approval alone does not start an export');
+            attachmentIssues: [{ resourceId: 'image', name: 'preview.png', code: 'RESOURCE_LOCATOR_UNAVAILABLE', sourceUrl }] } } } });
+    const issues = page.locator('.attachment-issues');
+    await issues.locator('summary').click();
+    assert.equal(await issues.getByRole('link', { name: '查看来源' }).getAttribute('href'), sourceUrl);
+    assert.equal(await issues.getByRole('button').count(), 0);
+    assert.deepEqual(await read(page, 'exports'), []);
 });
 
 test('legacy 429 countdown survives attachment progress and overlapping waits, then clears after retry or cancellation', async () => {
@@ -431,23 +423,6 @@ test('React list preserves focused checkbox and expanded details across domain r
     await page.keyboard.press('Space');
     assert.equal(await row.locator('input').isChecked(), true);
     assert.equal(await row.getAttribute('data-selected'), 'true');
-});
-
-test('React attachment permission control survives unrelated redraws without repeating its access query', async () => {
-    const sourceUrl = 'https://cdn.sanity.io/images/project/preview.png';
-    await open({ settings: { developerMode: true }, indexes: rows,
-        records: { [A]: { one: { status: 'partial', format: 'markdown', exportedAt: 100,
-            attachmentIssues: [{ resourceId: 'image', name: 'preview.png', code: 'RESOURCE_UNAVAILABLE', sourceUrl }] } } } });
-    const row = page.locator('[data-chat-id="one"]');
-    await row.locator('summary').click();
-    await row.locator('.authorize-resource').waitFor({ state: 'visible' });
-    const queries = await read(page, 'resourceAccessChecks');
-    await row.locator('input').check();
-    await page.locator('#list [data-chat-id="two"] input').check();
-    await row.locator('input').uncheck();
-    assert.equal(await read(page, 'resourceAccessChecks'), queries);
-    assert.equal(await row.locator('details').evaluate((details: HTMLDetailsElement) => details.open), true);
-    assert.deepEqual(await read(page, 'resourceRequests'), undefined);
 });
 
 test('React list gives same-id conversations in different accounts independent row identity', async () => {

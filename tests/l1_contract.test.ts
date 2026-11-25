@@ -292,7 +292,7 @@ test('L1 source resource operation returns bytes and respects pre-abort', async 
     globalThis.fetch = async () => new Response(Uint8Array.of(1, 2, 3));
     try {
         const p = provider([]);
-        const asset = { id: 'image', kind: 'image' as const, sourceUri: 'https://example.test/image', mediaType: 'image/png' };
+        const asset = { id: 'image', kind: 'image' as const, sourceUri: 'https://lh3.googleusercontent.com/image', mediaType: 'image/png' };
         const result = await p.acquireResource({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }, asset);
         assert.deepEqual(result, { bytes: Uint8Array.of(1, 2, 3), mediaType: 'image/png' });
         const controller = new AbortController(); controller.abort();
@@ -394,7 +394,7 @@ test('L1 Takeout import discards temporary archive readers when L2 rejects its D
 test('L1 unavailable current bytes fall back to remote locator with signal', async () => {
     const resources = createSourceResourceContext(), original = globalThis.fetch;
     const key = { accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' };
-    const asset = { id: 'image', kind: 'image' as const, sourceUri: 'https://example.test/image' };
+    const asset = { id: 'image', kind: 'image' as const, sourceUri: 'https://lh3.googleusercontent.com/image' };
     const controller = new AbortController();
     resources.retain(key, asset.id, async () => { throw new Error('Unavailable current entry'); });
     globalThis.fetch = async (url, options) => {

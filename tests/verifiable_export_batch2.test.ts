@@ -23,8 +23,8 @@ test('D5: failed tasks show retry UI and no fabricated success badge',async()=>{
 });
 test('D6: colliding authored image names retain exact bytes, separate paths and immutable Domain',async t=>{
     const h=v2LiveSaveHost(t),key=liveKey('collision123');
-    const assets=[{id:'one',kind:'image' as const,name:'diagram.png',sourceUri:'https://example.test/first'},
-        {id:'two',kind:'image' as const,name:'diagram.jpeg',sourceUri:'https://example.test/second'}];
+    const assets=[{id:'one',kind:'image' as const,name:'diagram.png',sourceUri:'https://lh3.googleusercontent.com/first'},
+        {id:'two',kind:'image' as const,name:'diagram.jpeg',sourceUri:'https://lh3.googleusercontent.com/second'}];
     const bytes=[Buffer.from('BYTES_IMAGE_1'),Buffer.from('BYTES_IMAGE_2')];
     await seedLiveDetail(key.conversationId,assets);assets.forEach((a,i)=>h.source(a.sourceUri,bytes[i]));
     const before=await getDetail(key);assert.equal((await runLiveSave(key))?.exported,1);

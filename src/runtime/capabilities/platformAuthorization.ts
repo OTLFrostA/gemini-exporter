@@ -1,4 +1,4 @@
-import { hasResourceAccess, requestResourceAccess, hasPlatformAccess, requestPlatformsAccess } from '../../l1/client/platformAccess.js';
+import { hasPlatformAccess, requestPlatformsAccess } from '../../l1/client/platformAccess.js';
 import { PLATFORM_HOSTS, platformSignInUrl, type SourcePlatform } from '../../shared/platformHosts.js';
 import { readBoundAccountContext } from '../../shared/types/accountContextReply.js';
 import { preparePlatformTab, syncPlatformContentScripts } from './platformInjection.js';
@@ -8,8 +8,7 @@ import { discoverClaudeAccounts } from './claudeDiscovery.js';
 import { getAccount } from '../api/accountRegistry.js';
 import { sendTabMessage } from './tabService.js';
 
-export { hasPlatformAccess, requestPlatformsAccess as requestPlatformAuthorization,
-    hasResourceAccess, requestResourceAccess as requestResourceAuthorization };
+export { hasPlatformAccess, requestPlatformsAccess as requestPlatformAuthorization };
 
 /** Authorization works without a signed-in tab. Existing documents activate in place. */
 export async function activatePlatformAccess(platforms: readonly SourcePlatform[]): Promise<boolean> {

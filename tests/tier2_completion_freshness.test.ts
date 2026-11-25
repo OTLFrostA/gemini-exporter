@@ -16,7 +16,7 @@ const messages = (turns: number): DomainMessage[] => Array.from({ length: turns 
 
 test('Tier 2 continued reply with Live Save off refreshes source, badge and all six exported turns including the earlier image', async t => {
     const host = v2LiveSaveHost(t), key = liveKey('continued-live-off');
-    const assets = [{ id: 'earlier-image', kind: 'image' as const, name: 'earlier.png', sourceUri: 'https://example.test/earlier.png' }];
+    const assets = [{ id: 'earlier-image', kind: 'image' as const, name: 'earlier.png', sourceUri: 'https://lh3.googleusercontent.com/earlier.png' }];
     await seedLiveDetail(key.conversationId, assets, { savedAt: 1700000000000, messages: messages(5) });
     host.source(assets[0].sourceUri, Uint8Array.of(1, 2, 3));
     await runLiveSave(key);

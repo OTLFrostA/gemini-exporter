@@ -4,6 +4,7 @@ import type { DomainAsset } from '../../l2/conversationDetail.js';
 import { readConversationKey, type ConversationKey } from '../../l2/conversationKey.js';
 import type { ResourceAcquisitionHints } from './resourceAcquisition.js';
 import type { ResourceBytes } from '../../shared/resources/resourceResult.js';
+import { isPlatformImageUrl, type SourcePlatform } from '../../shared/platformHosts.js';
 import { diagnosticOrigin, emitDiagnostic, type Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 
 interface RetainableParsedConversation {
@@ -12,7 +13,7 @@ interface RetainableParsedConversation {
     readonly acquisitionHints: ResourceAcquisitionHints;
 }
 
-type ResourceReader = (signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void) => Promise<ResourceBytes>;
+type ResourceReader = (signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void, platform?: SourcePlatform) => Promise<ResourceBytes>;
 const conversationIdentity = (key: ConversationKey) => JSON.stringify([key.accountId, key.conversationId]);
 
 /** The caller owns this context and releases it on completion. A workbench may
@@ -51,7 +52,7 @@ export function createSourceResourceContext() {
                         const bytes = Uint8Array.from(atob(raw), character => character.charCodeAt(0));
                         return { bytes, mediaType: asset.mediaType ?? hint.mimeType ?? hint.mime };
                     });
-                } else if (locator) selected.set(asset.id, (signal, onDiagnostic) => acquireSourceResource({ ...asset, sourceUri: locator }, signal, onDiagnostic));
+                } else if (locator) selected.set(asset.id, (signal, onDiagnostic, platform) => acquireSourceResource({ ...asset, sourceUri: locator }, signal, onDiagnostic, platform));
             }
             readers.set(conversationIdentity(key), selected);
         },
@@ -59,14 +60,14 @@ export function createSourceResourceContext() {
             return !released && readers.get(conversationIdentity(key))?.has(assetId) === true;
         },
         async acquire(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal, remote?: ResourceReader,
-            onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<ResourceBytes> {
+            onDiagnostic?: (diagnostic: Diagnostic) => void, platform?: SourcePlatform): Promise<ResourceBytes> {
             readConversationKey(key);
             signal?.throwIfAborted();
             if (released) throw new Error('Resource context released');
             const read = readers.get(conversationIdentity(key))?.get(asset.id);
             let result: ResourceBytes | undefined;
             if (read) {
-                try { result = await read(signal, onDiagnostic); }
+                try { result = await read(signal, onDiagnostic, platform); }
                 catch (error) {
                     signal?.throwIfAborted();
                     emitDiagnostic(onDiagnostic, { severity: 'info', code: 'RESOURCE_READER_FALLBACK',
@@ -75,7 +76,7 @@ export function createSourceResourceContext() {
                 }
             }
             signal?.throwIfAborted();
-            if (!result?.bytes.byteLength) result = await (remote ? remote(signal, onDiagnostic) : acquireSourceResource(asset, signal, onDiagnostic));
+            if (!result?.bytes.byteLength) result = await (remote ? remote(signal, onDiagnostic) : acquireSourceResource(asset, signal, onDiagnostic, platform));
             signal?.throwIfAborted();
             if (!result.bytes.byteLength) throw new ResourceProcessingError('Empty source resource');
             const mediaType = result.mediaType ?? asset.mediaType, name = result.name ?? asset.name;
@@ -93,16 +94,22 @@ export type SourceResourceContext = ReturnType<typeof createSourceResourceContex
 
 /** Bytes remain acquisition output, never a second Detail field. */
 export async function acquireSourceResource(asset: DomainAsset, signal?: AbortSignal,
-    onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<ResourceBytes> {
+    onDiagnostic?: (diagnostic: Diagnostic) => void, platform?: SourcePlatform): Promise<ResourceBytes> {
     signal?.throwIfAborted();
     if (!asset.sourceUri || !/^(https:\/\/|data:)/i.test(asset.sourceUri)) throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'No supported source locator');
+    const remoteImage = asset.kind === 'image' && /^https:/i.test(asset.sourceUri);
+    if (remoteImage && (!platform || !isPlatformImageUrl(platform, asset.sourceUri))) {
+        throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'Image is outside the source platform');
+    }
+    // Fetch cannot expose redirect targets reliably. Do not follow them for direct images.
+    const redirect: RequestRedirect = remoteImage ? 'manual' : 'follow';
     const startedAt = Date.now();
     const origin = diagnosticOrigin(asset.sourceUri);
     let phase = 'fetch';
     let credentials: RequestCredentials = 'include';
     let response: Response | undefined;
     try {
-        try { response = await fetch(asset.sourceUri, { credentials, signal }); }
+        try { response = await fetch(asset.sourceUri, { credentials, signal, redirect }); }
         catch (error) {
             signal?.throwIfAborted();
             if (!(error instanceof TypeError)) throw error;
@@ -111,7 +118,10 @@ export async function acquireSourceResource(asset: DomainAsset, signal?: AbortSi
             credentials = 'omit';
             emitDiagnostic(onDiagnostic, { severity: 'info', code: 'RESOURCE_CREDENTIAL_FALLBACK',
                 message: 'Retrying source attachment without credentials', details: { origin } });
-            response = await fetch(asset.sourceUri, { credentials, signal });
+            response = await fetch(asset.sourceUri, { credentials, signal, redirect });
+        }
+        if (remoteImage && (response.type === 'opaqueredirect' || response.status >= 300 && response.status < 400)) {
+            throw new OperationError('RESOURCE_LOCATOR_UNAVAILABLE', 'Image download redirected');
         }
         if (!response.ok) throw new ResourceHttpError(response.status);
         phase = 'read_body';

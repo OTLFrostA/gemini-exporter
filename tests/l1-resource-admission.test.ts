@@ -50,3 +50,37 @@ test('task resource readers remain isolated by full account/conversation identit
         resources.release();
     }
 });
+
+test('image acquisition rejects external and other-platform hosts before fetching stored or retained URLs', async t => {
+    const fetch = t.mock.method(globalThis, 'fetch', async () => new Response(Uint8Array.of(1)));
+    const resources = createSourceResourceContext();
+    t.after(() => resources.release());
+    for (const sourceUri of [
+        'https://cdn.sanity.io/example.png',
+        'https://assets.grok.com/example.png',
+        'https://images.openai.com.example.test/example.png',
+        'https://images.openai.com:8443/example.png',
+    ]) {
+        resources.retainParsed(key, { ...parsed('image', undefined), acquisitionHints: { image: { url: sourceUri } } });
+        await assert.rejects(resources.acquire(key, { ...asset, sourceUri }, undefined, undefined, undefined, 'chatgpt'),
+            { code: 'RESOURCE_LOCATOR_UNAVAILABLE' });
+    }
+    assert.equal(fetch.mock.callCount(), 0);
+    resources.retainParsed(key, { ...parsed('image', undefined),
+        acquisitionHints: { image: { url: 'https://images.openai.com/example.png' } } });
+    assert.deepEqual((await resources.acquire(key, asset, undefined, undefined, undefined, 'chatgpt')).bytes, Uint8Array.of(1));
+    assert.equal(fetch.mock.callCount(), 1);
+});
+
+test('a direct platform image redirect is treated as unavailable without following or retrying it', async t => {
+    const resources = createSourceResourceContext();
+    t.after(() => resources.release());
+    const response = Response.redirect('https://example.test/example.png');
+    const fetch = t.mock.method(globalThis, 'fetch', async (_input: RequestInfo | URL, init?: RequestInit) => {
+        assert.equal(init?.redirect, 'manual');
+        return response;
+    });
+    await assert.rejects(resources.acquire(key, { ...asset, sourceUri: 'https://assets.grok.com/example.png' },
+        undefined, undefined, undefined, 'grok'), { code: 'RESOURCE_LOCATOR_UNAVAILABLE' });
+    assert.equal(fetch.mock.callCount(), 1);
+});

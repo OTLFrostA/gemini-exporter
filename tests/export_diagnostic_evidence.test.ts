@@ -45,22 +45,22 @@ for (const failure of ['locator', 'payload', 'signed', 'body'] as const) {
     });
 }
 
-test('external request diagnostics preserve the original failure and redact URL paths', async t => {
+test('source request diagnostics preserve the original failure and redact URL paths', async t => {
     const failure = new TypeError('Failed to fetch');
     t.mock.method(globalThis, 'fetch', async () => { throw failure; });
     const diagnostics: Diagnostic[] = [];
     await assert.rejects(acquireSourceResource({ id: 'external', kind: 'image',
-        sourceUri: 'https://images.example/private?signature=secret' }, undefined, d => diagnostics.push(d)), error => error instanceof Error && error.cause === failure && 'code' in error && error.code === 'RESOURCE_DOWNLOAD_FAILED');
+        sourceUri: 'https://images.openai.com/private?signature=secret' }, undefined, d => diagnostics.push(d), 'chatgpt'), error => error instanceof Error && error.cause === failure && 'code' in error && error.code === 'RESOURCE_DOWNLOAD_FAILED');
     const failed = diagnostics.find(d => d.code === 'RESOURCE_FETCH_FAILED');
     assert.ok(failed?.details && typeof failed.details === 'object' && !Array.isArray(failed.details));
-    assert.equal(failed.details.origin, 'https://images.example');
+    assert.equal(failed.details.origin, 'https://images.openai.com');
     assert.equal(failed.details.phase, 'fetch');
     assert.equal(failed.details.errorName, 'TypeError');
     assert.equal(failed.details.httpStatus, null);
     assert.equal(failed.details.credentials, 'omit');
     assert.doesNotMatch(JSON.stringify(diagnostics), /private|signature|secret/);
     const result = await attemptResource('external', () => acquireSourceResource({ id: 'external', kind: 'image',
-        sourceUri: 'https://images.example/private?signature=secret' }));
+        sourceUri: 'https://images.openai.com/private?signature=secret' }, undefined, undefined, 'chatgpt'));
     if (result.ok) assert.fail('browser transport failure cannot produce attachment bytes');
     assert.equal(result.code, 'RESOURCE_DOWNLOAD_FAILED');
     assert.equal(resourceIssueKind(result), 'download');
@@ -71,10 +71,11 @@ test('source images recover from wildcard CORS without breaking authenticated do
     t.mock.method(globalThis, 'fetch', async (_url: RequestInfo | URL, init?: RequestInit) => {
         const credentials = init?.credentials ?? 'same-origin';
         attempts.push(credentials);
+        assert.equal(init?.redirect, 'manual');
         if (credentials === 'include') throw new TypeError('Failed to fetch');
         return new Response('public-image');
     });
-    const result = await acquireSourceResource({ id: 'public', kind: 'image', sourceUri: 'https://raw.githubusercontent.com/image.png' });
+    const result = await acquireSourceResource({ id: 'public', kind: 'image', sourceUri: 'https://images.openai.com/image.png' }, undefined, undefined, 'chatgpt');
     assert.equal(new TextDecoder().decode(result.bytes), 'public-image');
     assert.deepEqual(attempts, ['include', 'omit']);
     t.mock.method(globalThis, 'fetch', async (_url: RequestInfo | URL, init?: RequestInit) => {
@@ -82,17 +83,17 @@ test('source images recover from wildcard CORS without breaking authenticated do
         return new Response('authenticated-image');
     });
     assert.equal(new TextDecoder().decode((await acquireSourceResource({ id: 'private', kind: 'image',
-        sourceUri: 'https://lh3.googleusercontent.com/image' })).bytes), 'authenticated-image');
+        sourceUri: 'https://lh3.googleusercontent.com/image' }, undefined, undefined, 'gemini')).bytes), 'authenticated-image');
 });
 
 test('source acquisition never retries an HTTP error or a cancelled request without credentials', async t => {
     const controller = new AbortController();
     let calls = 0;
     t.mock.method(globalThis, 'fetch', async () => { calls++; return new Response('', { status: 403 }); });
-    await assert.rejects(acquireSourceResource({ id: 'restricted', kind: 'image', sourceUri: 'https://images.example/image' }));
+    await assert.rejects(acquireSourceResource({ id: 'restricted', kind: 'image', sourceUri: 'https://images.openai.com/image' }, undefined, undefined, 'chatgpt'));
     assert.equal(calls, 1);
     t.mock.method(globalThis, 'fetch', async () => { calls++; controller.abort(); throw new TypeError('Failed to fetch'); });
-    await assert.rejects(acquireSourceResource({ id: 'cancelled', kind: 'image', sourceUri: 'https://images.example/image' }, controller.signal),
+    await assert.rejects(acquireSourceResource({ id: 'cancelled', kind: 'image', sourceUri: 'https://images.openai.com/image' }, controller.signal, undefined, 'chatgpt'),
         { name: 'AbortError' });
     assert.equal(calls, 2);
 });
