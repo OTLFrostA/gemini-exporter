@@ -617,6 +617,18 @@ class DiskContentTests(unittest.TestCase):
         text = document().replace(REPLY, '```markdown\n## 👤 You\n```\n' + REPLY)
         self.assertTrue(assert_turn_content(text, evidence)[0])
 
+    def test_merged_table_checks_grid_even_when_concatenated_text_is_identical(self):
+        table = ('<table><thead><tr><th colspan="2">A&amp;B</th></tr></thead>'
+                 '<tbody><tr><td></td><td><code>x</code></td></tr></tbody></table>')
+        grid = [[{'text': 'A&B', 'colSpan': '2'}], ['', 'x']]
+        evidence = [{'prompt': 'Q', 'response': 'A&BxA&Bx', 'html_tables': [grid, grid]}]
+        prefix = '## 👤 You\nQ\n## 🤖 Assistant\n'
+        self.assertTrue(assert_turn_content(prefix + table + '\n' + table, evidence)[0])
+        for damaged in (table.replace('<td></td>', ''), table.replace('<td></td>', '<td></td><td></td>'),
+                        table.replace('colspan="2"', 'colspan="3"'), table.replace('<td></td><td><code>x</code></td>',
+                                                                                '<td>x</td><td></td>')):
+            self.assertFalse(assert_turn_content(prefix + damaged + '\n' + table, evidence)[0])
+
     def test_user_prompt_punctuation_and_escapes_are_required(self):
         evidence = [{'prompt': r'Use f(\$)=1 and **literal** text.', 'response': REPLY}]
         exported = document(evidence)
