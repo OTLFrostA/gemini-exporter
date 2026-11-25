@@ -31,8 +31,6 @@ export const installProviderHost = () => {};
 export const installGlobalErrorDiagnosticCapture = () => {};
 export const reportRuntimeDiagnostic = () => {};
 export const fetchRuntimeDiagnosticSnapshot = async () => h.runtimeEvents ?? null;
-export const serializeErrorForDiagnostic = error => error instanceof Error ? { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) } : { name: typeof error, message: String(error) };
-export const diagnosticSnapshot = value => value;
 export const requestPlatformAuthorization = async platforms => {
  h.connectionRequests.push([platforms,navigator.userActivation.isActive]);
  const granted = h.holdPermission ? await new Promise(resolve=>h.finishPermission=resolve) : !h.permissionDenied;
