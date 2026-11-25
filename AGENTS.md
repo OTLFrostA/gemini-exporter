@@ -37,11 +37,12 @@
 * **浏览器**：本地使用已安装的稳定版 Google Chrome，CI 安装当前稳定版并输出版本。Playwright 直接控制该浏览器，无需下载配套 Chromium。
 * **执行命令**：
   - **全量门禁**：`npm test`（对应 `node scripts/check-zero-any.cjs && node scripts/check-architecture.cjs && npm run type-check && npm run test:unit -- --skip-typecheck && node build.js && npm run test:release-fonts && playwright test`）。
+  - **工具链自测**：`npm run test:harness`（运行 Python / Tier 2 / Tier 3 测试工具链自测，独立于产品 `npm test` 门禁）。
   - **增量极速（推荐日常开发使用）**：`npm run test:changed`（基于 Git 差异进行**模块级反向依赖分析与传递闭包推导 (Transitive Impact Analysis)**，若修改底层依赖则自动递归追溯并运行所有直接与间接关联模块及对应 Playwright 规格，耗时仅 5~15 秒）。
   - **影响分析报告**：`python3 scripts/test_impact_analyzer.py --summary`（打印当前改动对全仓模块与测试的传递影响拓扑）。
   - **单点定向单元测试**：`python3 tests/run_tests.py --filter <keyword>`（如 `python3 tests/run_tests.py --filter storage`，秒级验证指定模块）。
 * **适用场景**：日常功能开发与单步迭代推荐使用 `npm run test:changed` 极速自测；每次提交 PR 前必须全量通过 `npm test`，GitHub Actions 门禁对此强制校验。
-* **特性**：轻量极速，包含 scoped zero-any 门禁、TypeScript 严格类型检查、当前全量单元测试套件、esbuild 生产 Bundle 打包构建校验与当前全量无头 Playwright 端到端用例（含 1:1 HTML 导出、老会话置顶升权、确证远端删除后的同 Key 原子清理、显式本地清理及 Takeout 标题升级视觉审计），完全自包含，不依赖外网与真实 Google 账号。
+* **特性**：轻量极速，包含 scoped zero-any 门禁、架构依赖门禁、TypeScript 严格类型检查、Sociable Core 单元/集成套件与 `fast-check` 属性/5 格式差分 Fuzzing、esbuild 生产 Bundle 打包构建校验，以及基于持久 worker 复用的高保真无头 Playwright 端到端用例（含多平台真实路由标签页执行、CORS 降级与 404 附件报告、MV3 Service Worker CDP 强杀冷重启及 5 格式导出断言），完全自包含，不依赖外网与真实 Google 账号。
 
 ### Tier 2/3 本地测试权限原则
 * 为避免纯净重装后的平台授权弹窗阻塞自动化，Tier 2/3 共用重装入口在加载扩展期间，将 `optional_host_permissions` 临时合入 `host_permissions`，将 `optional_permissions`（若有）临时合入 `permissions`，保留已有 required 权限并去重。适用于 Gemini 及 Tier 3 的重装/重置入口。ChatGPT / Claude 默认使用 `temp/`（git-ignored）内的独立安装副本，将对应平台所需 host 权限改为 required，源 manifest 始终不变；仅专门验证 optional 授权时，可设置 `TIER2_CHATGPT_REQUIRED_HOSTS=0` / `TIER2_CLAUDE_REQUIRED_HOSTS=0`。
