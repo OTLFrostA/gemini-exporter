@@ -69,7 +69,7 @@ def run_python_suites(suites):
     if failures:
         rel, res = failures[0]
         print(f"❌ Python harness suite failed: {rel}\n{res.stdout}\n{res.stderr}", file=sys.stderr)
-        sys.exit(res.returncode or 1)
+        sys.exit(res.returncode)
 
     elapsed = time.monotonic() - started
     print(f"  ⚡ Executed {len(suites)} Python harness suites in {elapsed:.1f}s")
