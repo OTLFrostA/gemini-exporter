@@ -11,7 +11,7 @@ export class ScanConnectionError extends Error {
     }
 }
 
-export interface PlatformHostConfig {
+interface PlatformHostConfig {
     readonly name: string;
     readonly signInUrl: string;
     readonly conversationUrlPrefix: string;
