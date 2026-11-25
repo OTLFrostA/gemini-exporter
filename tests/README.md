@@ -66,19 +66,29 @@ flowchart TD
 
 浏览器单测和端到端测试直接使用本机安装的稳定版 Google Chrome。请通过 Chrome 自身更新保持最新版。Playwright 负责控制浏览器，无需下载它自带的 Chromium。GitHub Actions 每次安装当前稳定版 Chrome，并在日志记录版本。
 ```bash
-# 执行完整 Tier 1 门禁（scoped zero-any、类型检查、回归测试、构建、发布字体检查、Playwright）
+# 执行完整 Tier 1 门禁（scoped zero-any、架构门禁、类型检查、单元/集成/Fuzz 回归、构建、发布字体检查、Playwright）
 npm test
 
 # 或分别单独执行
-npm run test:unit    # 运行 python3 tests/run_tests.py (当前全量单元测试套件)
-npm run test:unit -- --filter test_integrity_model  # 按文件名筛选 Python 或 JS/TS（含 CommonJS）单元测试
-npx playwright test  # 运行当前全量 Playwright 用例 (需先 node build.js)
+npm run test:unit            # 运行 python3 tests/run_tests.py (纯 JS/TS + WASM 分片并发单元/集成/Fuzz 套件)
+npm run test:unit -- --filter domain  # 按文件名筛选 JS/TS（含 CommonJS）单元测试
+npm run test:harness         # 运行 Python / Tier 2 / Tier 3 测试工具链自测（独立于产品主门禁）
+npm run test:v2:unit-ports   # 校验 v2 隔离单测 Mock 与真实端口的类型契约
+npm run test:v2:unit-isolation # 校验 10 个模块 Owner 的 Sociable Core 隔离边界
+npx playwright test          # 运行当前全量 Playwright 用例 (需先 node build.js; 4 worker 复用持久扩展上下文)
 ```
 
 ### 3. 测试覆盖范围
-* **核心解析与状态管理**：`gemini_parser`、`takeout_engine`、`conversation_order`、`conversations_store`、`chat_formatter`、`html_export`、`format_store` 等；
-* **网络与恢复机制**：`gemini_client_retry`（HTTP 400 XSRF 重试、AbortSignal 干净终止、多页游标分页）、`storage_service`、`message_bridge`；
-* **端到端完整格式导出**：`export_zip.spec.ts`（Markdown 格式导出与解压断言）、`html_export.spec.ts`（1:1 独立 HTML 格式导出、主题切换与打印样式断言）、`json_export.spec.ts`（Standard JSON 格式导出与完整 Domain 结构/角色断言）、`takeout_limit_prompt.spec.ts`、`page_sync.spec.ts`、`workbench_ui.spec.ts` 等。
+* **核心域与多平台解析**：`domain_admission_rules`、`domain_closure`、`domain_runtime_validation`、`gemini_parser`、`provider-gemini-takeout-domain`、`provider_multiturn_realistic_corpus`（Claude / ChatGPT / Gemini Takeout 多轮真实 wire 语料）；
+* **属性测试与 5 格式差分 Fuzzing (`fast-check`)**：`fuzz_markdown_html_delimiters`（对抗分隔符与 XSS 安全）、`fuzz_l2_admission_invariants`（L2 标题权威/质量单调性/删除重摄入）、`fuzz_l4_five_format_differential`（Markdown / HTML / JSON / Typst / DOCX 五格式差分不变量）；
+* **网络、存储与恢复机制**：`gemini_client_retry`、`l3a_storage_v2`、`application_export`、`cloud_sync_engine`、`runtime_v2`、`ui_v2`；
+* **高保真端到端浏览器套件 (`tests/e2e/`)**：`export_flow.spec.ts`、`claude_scan.spec.ts` / `grok_scan.spec.ts`（真实路由标签页内执行 `request.func` 闭包）、`chatgpt_scan.spec.ts`（Chromium `page.route`）、`popup_ui.spec.ts`（真实 content-script IPC）、`resilience_v2.spec.ts`（`includeAssets` 无凭证 CORS 降级 + 404 附件报告、并发设置交错、MV3 Service Worker CDP 强杀冷重启）、`page_sync.spec.ts`、`workbench_ui.spec.ts` 等。
+
+### 4. 反膨胀与质量治理铁律 (Anti-Bloat Governance Rules)
+1. **禁止按 Ticket / PR / Bug 编号新建碎片化单测文件**：新回归用例必须合入对应领域的内聚套件（如 `domain_admission_rules.test.ts`、`application_export.test.ts`、`ui_v2.test.ts`），除非引入全新独立子系统。
+2. **禁止在 Mock 中手写 L2 校验或状态机副本**：遵守 [Sociable Core Testing](../docs/v2-unit-isolation.md)，直接复用真实 `L2` / `Shared` 纯函数，杜绝 Mock 漂移和同义反复断言。
+3. **禁止在 E2E 中短路跳过核心执行链路**：禁止用忽略 `request.func` 的假 `chrome.scripting.executeScript` 或替换 `window.fetch` 来绕过真实 Chromium 网络与标签页执行边界；网络隔离统一使用 Playwright `page.route` / `context.route`。
+4. **工具链自测与产品门禁分离**：Tier 2/3 Python 脚本自测归口 `npm run test:harness`，不得污染产品 `npm run test:unit`。
 
 ---
 

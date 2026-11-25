@@ -40,7 +40,8 @@ Exports run entirely on the user's device with zero developer telemetry. Optiona
 
 ## Verification & Governance
 
-- **`npm test`**: Offline release gate covering zero-any lint, `scripts/check-architecture.cjs` (0 layer violations, 0 file/layer/submodule cycles), `tsc --noEmit`, full unit & `tests/arch/*` suites, production bundle build, bundled font checks, and Playwright E2E.
+- **`npm test`**: Offline release gate covering zero-any lint, `scripts/check-architecture.cjs` (0 layer violations, 0 file/layer/submodule cycles), `tsc --noEmit`, batched Sociable Core unit/integration + `fast-check` fuzzing + `tests/arch/*` suites, production bundle build, bundled font checks, and worker-reused high-fidelity Playwright E2E.
+- **`npm run test:harness`**: Offline self-test suite for Python/Tier 2/Tier 3 test tooling, separated from the product `npm test` gate.
 - **`npm run test:changed`**: Dependency-aware incremental gate running architecture/zero-any checks, type-check, affected unit tests, build, and feature-mapped Playwright E2E specs.
-- **`npm run test:v2:unit-isolation`**: Enforces per-module isolation across all 10 owners ([docs/v2-unit-isolation.md](docs/v2-unit-isolation.md)).
+- **`npm run test:v2:unit-isolation`**: Enforces DAG-aware Sociable Core module isolation across all 10 owners ([docs/v2-unit-isolation.md](docs/v2-unit-isolation.md)).
 - **Tier 2 & Tier 3**: Live authenticated browser validation ([docs/tier2-platform-plugins.md](docs/tier2-platform-plugins.md)) and pure-visual autonomous QA ([docs/tier3-exploration-checklist.md](docs/tier3-exploration-checklist.md)).

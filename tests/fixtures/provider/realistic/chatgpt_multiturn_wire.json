@@ -1,0 +1,147 @@
+{
+  "id": "gpt-realistic-multiturn-01",
+  "title": "Maxwell Equations & Waveguide Analysis",
+  "create_time": 1760256000,
+  "update_time": 1760256900,
+  "current_node": "node-a2",
+  "mapping": {
+    "node-root": {
+      "id": "node-root",
+      "parent": null,
+      "children": ["node-u1"],
+      "message": null
+    },
+    "node-u1": {
+      "id": "node-u1",
+      "parent": "node-root",
+      "children": ["node-abandoned", "node-think1"],
+      "message": {
+        "id": "msg-u1",
+        "author": { "role": "user" },
+        "recipient": "all",
+        "create_time": 1760256010,
+        "status": "finished_successfully",
+        "end_turn": true,
+        "content": {
+          "content_type": "multimodal_text",
+          "parts": [
+            {
+              "content_type": "image_asset_pointer",
+              "asset_pointer": "file-service://file-waveguide-01",
+              "size_bytes": 2048,
+              "width": 640,
+              "height": 480
+            },
+            "Inspect the rectangular waveguide cross-section and derive the TE10 cutoff frequency."
+          ]
+        },
+        "metadata": {}
+      }
+    },
+    "node-abandoned": {
+      "id": "node-abandoned",
+      "parent": "node-u1",
+      "children": [],
+      "message": {
+        "id": "msg-abandoned",
+        "author": { "role": "assistant" },
+        "recipient": "all",
+        "create_time": 1760256020,
+        "status": "finished_successfully",
+        "end_turn": true,
+        "content": {
+          "content_type": "text",
+          "parts": ["ABANDONED_CHATGPT_BRANCH_MARKER"]
+        },
+        "metadata": { "model_slug": "o3" }
+      }
+    },
+    "node-think1": {
+      "id": "node-think1",
+      "parent": "node-u1",
+      "children": ["node-a1"],
+      "message": {
+        "id": "msg-think1",
+        "author": { "role": "assistant" },
+        "recipient": "all",
+        "create_time": 1760256030,
+        "status": "finished_successfully",
+        "content": {
+          "content_type": "thoughts",
+          "thoughts": [
+            {
+              "summary": "Check TE10 boundary conditions",
+              "content": "For width a > b, the dominant mode is TE10 with cutoff f_c = c / (2a)."
+            }
+          ]
+        },
+        "metadata": { "model_slug": "o3" }
+      }
+    },
+    "node-a1": {
+      "id": "node-a1",
+      "parent": "node-think1",
+      "children": ["node-u2"],
+      "message": {
+        "id": "msg-a1",
+        "author": { "role": "assistant" },
+        "recipient": "all",
+        "create_time": 1760256060,
+        "status": "finished_successfully",
+        "end_turn": true,
+        "content": {
+          "content_type": "text",
+          "parts": [
+            "The dominant $TE_{10}$ cutoff frequency is:\n\n$$f_c = \\frac{c}{2a}$$\n\n```python\ndef te10_cutoff_ghz(a_mm: float) -> float:\n    return 299.792458 / (2.0 * a_mm)\n```"
+          ]
+        },
+        "metadata": {
+          "model_slug": "o3",
+          "content_references": [
+            {
+              "type": "webpage",
+              "title": "Pozar Microwave Engineering Reference",
+              "url": "https://example.edu/microwave/waveguides"
+            }
+          ]
+        }
+      }
+    },
+    "node-u2": {
+      "id": "node-u2",
+      "parent": "node-a1",
+      "children": ["node-a2"],
+      "message": {
+        "id": "msg-u2",
+        "author": { "role": "user" },
+        "recipient": "all",
+        "create_time": 1760256600,
+        "status": "finished_successfully",
+        "end_turn": true,
+        "content": {
+          "content_type": "text",
+          "parts": ["对于 WR-90 波导（a = 22.86 mm），截止频率是多少？"]
+        },
+        "metadata": {}
+      }
+    },
+    "node-a2": {
+      "id": "node-a2",
+      "parent": "node-u2",
+      "children": [],
+      "message": {
+        "id": "msg-a2",
+        "author": { "role": "assistant" },
+        "recipient": "all",
+        "create_time": 1760256900,
+        "status": "finished_successfully",
+        "end_turn": true,
+        "content": {
+          "content_type": "text",
+          "parts": ["WR-90 的 $TE_{10}$ 截止频率约为 **6.557 GHz**。"]
+        },
+        "metadata": { "model_slug": "o3" }
+      }
+    }
+  }
+}

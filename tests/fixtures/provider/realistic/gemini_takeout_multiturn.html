@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>My Activity</title></head>
+<body>
+  <div class="outer-cell">
+    <a href="https://gemini.google.com/app/c_TakeoutRealistic_01">Conversation</a>
+    <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">
+      Prompted Summarize the complexity table and show the plotted curve.<br>
+      2026-10-15T10:30:00Z<br>
+      <p>Here is the summary table and rendered diagram:</p>
+      <table>
+        <thead><tr><th>Algorithm</th><th>Time</th><th>Formula</th></tr></thead>
+        <tbody>
+          <tr><td><code>quicksort</code></td><td>\(O(n \log n)\)</td><td>Average case</td></tr>
+          <tr><td><code>mergesort</code></td><td>\(O(n \log n)\)</td><td>Worst case</td></tr>
+        </tbody>
+      </table>
+      <p><img src="images/complexity_curve.png" alt="Complexity Curve"></p>
+    </div>
+  </div>
+  <div class="outer-cell">
+    <a href="https://gemini.google.com/app/c_TakeoutRealistic_01">Conversation</a>
+    <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">
+      Prompted Write a minimal TypeScript binary search.<br>
+      2026-10-15T10:00:00Z<br>
+      <p>Use half-open bounds to avoid overflow:</p>
+      <pre><code class="language-ts">export function binarySearch(arr: number[], target: number): number {
+  let lo = 0, hi = arr.length;
+  while (lo &lt; hi) {
+    const mid = (lo + hi) &gt;&gt;&gt; 1;
+    if (arr[mid] &lt; target) lo = mid + 1; else hi = mid;
+  }
+  return arr[lo] === target ? lo : -1;
+}</code></pre>
+    </div>
+  </div>
+</body>
+</html>
