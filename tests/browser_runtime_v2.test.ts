@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { mockAccountRegistry, mockConversationKey, assertRuntimeUnitBoundary, v2Settings, v2IndexFixtures, mockLiveSaveEffective } from './helpers/runtimeV2ContractMocks.js';
+import { mockAccountRegistry, mockConversationKey, assertRuntimeUnitBoundary, v2Settings, mockGetSettings, v2IndexFixtures, mockLiveSaveEffective } from './helpers/runtimeV2ContractMocks.js';
 
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
@@ -48,19 +48,7 @@ function load(file: string, stubs: Record<string, unknown>) {
         'src/runtime/api/domainStorage.js': { installDomainStorage() {} },
         'src/l1/contentPorts.js': { provideContentRuntimeHost() {} },
         'src/l2/conversationKey.js': mockConversationKey([uuid, otherUuid]),
-        // Runtime unit mocks L2 decoders; real schema/closure validation is covered by L2 and integration suites.
-        'src/l2/runtimeValidation.js': { restoreDomainDetail: (value: unknown) => value },
-        'src/l2/conversationIndex.js': { restoreConversationIndex: (value: unknown) => {
-            if (!value || typeof value !== 'object' || Array.isArray(value) || !('key' in value)) throw new TypeError('Invalid Index');
-            const key = mockConversationKey([uuid, otherUuid]).readConversationKey(value.key);
-            const title = 'title' in value ? value.title : undefined;
-            const titleSource = 'titleSource' in value ? value.titleSource : undefined;
-            const updatedAt = 'updatedAt' in value ? value.updatedAt : undefined;
-            if (title !== undefined && (typeof title !== 'string' || typeof titleSource !== 'string')) throw new TypeError('Invalid Index title');
-            if (updatedAt !== undefined && (typeof updatedAt !== 'number' || !Number.isSafeInteger(updatedAt))) throw new TypeError('Invalid Index timestamp');
-            const { key: _rawKey, ...fields } = value;
-            return { key, ...fields };
-        } }, ...stubs };
+        ...stubs };
     Module._load = function(request: string, parent: { filename: string }, ...args: unknown[]) {
         const resolved = request.startsWith('.') ? path.resolve(path.dirname(parent.filename), request).replace(/\.ts$/, '.js') : request;
         const key = Object.keys(ports).find(key => resolved === path.resolve(root, key).replace(/\.ts$/, '.js'));
@@ -342,7 +330,7 @@ test('Extension ingestion calls the same L2 function after readiness', async () 
 
 function live(settings: object, permission = 'granted', handleExists = true, exporter?: Function) {
     return load('src/runtime/background/liveSaveHandler.ts', {
-        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }), isLiveSaveEffective: mockLiveSaveEffective },
+        'src/application/settings/index.js': { getSettings: async () => mockGetSettings(settings), isLiveSaveEffective: mockLiveSaveEffective },
         'src/l3a/storageService.js': { getDirectoryHandle: async () => handleExists ? { queryPermission: async (options: unknown) => { assert.deepEqual(options, { mode: 'readwrite' }); return permission; }, requestPermission: () => assert.fail('Worker must not request permission') } : null },
         'src/application/export/runMarkdownExport.js': { runMarkdownExport: exporter || (() => assert.fail('Unexpected Export')) },
     }).runLiveSave;
@@ -373,7 +361,7 @@ test('Live Save returns the exact unified result and request, including skip/par
 test('Worker Live Save scopes KeepAlive to the active export and releases it on failure', async () => {
     const trace: string[] = [];
     const save = load('src/runtime/background/liveSaveHandler.ts', {
-        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, enabledDisk: true }), isLiveSaveEffective: mockLiveSaveEffective },
+        'src/application/settings/index.js': { getSettings: async () => mockGetSettings({ enabledDisk: true }), isLiveSaveEffective: mockLiveSaveEffective },
         'src/l3a/storageService.js': { getDirectoryHandle: async () => ({ queryPermission: async () => 'granted', requestPermission: () => assert.fail('Worker must not request permission') }) },
         'src/application/export/runMarkdownExport.js': { runMarkdownExport: async () => { trace.push('export'); throw new Error('Delivery failed'); } },
         'src/runtime/background/keepAlive.js': { startKeepAlive: () => { trace.push('start'); return () => trace.push('stop'); } },

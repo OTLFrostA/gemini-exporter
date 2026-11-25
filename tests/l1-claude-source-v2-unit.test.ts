@@ -1,22 +1,33 @@
-import { claudeRequest, activeClaudeOrganization } from '../src/l1/sniffer/claude/observation.js';
-import { claudeFileId } from '../src/l1/client/claude/fileAssets.js';
-import { contentComposer } from '../src/l3b/compose/composeContent.js';
-import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
-import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { parseClaudeList } from '../src/l1/parsers/claude/parseList.js';
-import { parseClaudeConversation } from '../src/l1/parsers/claude/parseConversation.js';
-import { decodeClaudeDetail } from '../src/l1/parsers/claude/decodeDetail.js';
-import { parseNativeTool } from '../src/l1/parsers/claude/parseNativeTools.js';
-import { parseToolUse } from '../src/l1/parsers/claude/parseTools.js';
-import { readClaudeSource } from '../src/l1/client/claude/claudeSource.js';
-import { organizationsGen as claudeOrganizationsGen } from './fixtures/providers/claudeOrganizations.js';
-import { listGen as claudeListGen } from './fixtures/providers/claudeList.js';
-import { detailGen as claudeDetailGen } from './fixtures/providers/claudeDetail.js';
-import { streamGen as claudeStreamGen } from './fixtures/providers/claudeStream.js';
-import { deleteGen as claudeDeleteGen } from './fixtures/providers/claudeDelete.js';
+import { describe as __suiteDescribe } from 'node:test';
+import { claudeRequest } from "../src/l1/sniffer/claude/observation.js";
+import { activeClaudeOrganization } from "../src/l1/sniffer/claude/observation.js";
+import { claudeFileId } from "../src/l1/client/claude/fileAssets.js";
+import { contentComposer } from "../src/l3b/compose/composeContent.js";
+import { renderDocumentMarkdown } from "../src/l4/format/markdown/renderMarkdown.js";
+import { renderDocumentHtml } from "../src/l4/format/html/renderHtml.js";
+import test from "node:test";
+import assert from "node:assert/strict";
+import { parseClaudeList } from "../src/l1/parsers/claude/parseList.js";
+import { parseClaudeConversation } from "../src/l1/parsers/claude/parseConversation.js";
+import { decodeClaudeDetail } from "../src/l1/parsers/claude/decodeDetail.js";
+import { parseNativeTool } from "../src/l1/parsers/claude/parseNativeTools.js";
+import { parseToolUse } from "../src/l1/parsers/claude/parseTools.js";
+import { readClaudeSource } from "../src/l1/client/claude/claudeSource.js";
+import { organizationsGen as claudeOrganizationsGen } from "./fixtures/providers/claudeOrganizations.js";
+import { listGen as claudeListGen } from "./fixtures/providers/claudeList.js";
+import { detailGen as claudeDetailGen } from "./fixtures/providers/claudeDetail.js";
+import { streamGen as claudeStreamGen } from "./fixtures/providers/claudeStream.js";
+import { deleteGen as claudeDeleteGen } from "./fixtures/providers/claudeDelete.js";
+import { organizationsGen } from "./fixtures/providers/claudeOrganizations.js";
+import { observeClaudeAccount } from "../src/l1/client/claude/accountObservation.js";
+import { readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+import { relative } from "node:path";
+import { createClaudeVisitSave } from "../src/runtime/content/claudeVisitSave.js";
+import { type GlobalSettings } from "../src/application/settings/index.js";
 
+__suiteDescribe("l1-claude-source-v2-unit", () => {
 test('Claude discovery injection omits absent optional arguments for Chrome serialization', async () => {
     const original = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     const calls: unknown[][] = [];
@@ -470,4 +481,180 @@ test('Claude tab execution caches organization verification per Cookie snapshot 
         if (savedDoc) Object.defineProperty(globalThis, 'document', savedDoc); else Reflect.deleteProperty(globalThis, 'document');
         if (savedFetch) Object.defineProperty(globalThis, 'fetch', savedFetch); else Reflect.deleteProperty(globalThis, 'fetch');
     }
+});
+});
+
+__suiteDescribe("claude-account-observation", () => {
+test('Claude account observation validates organization JSON before caching typed data', async () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    const foreign = '22222222-2222-4222-8222-222222222222';
+    const savedDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    const savedFetch = globalThis.fetch;
+    const savedNow = Date.now;
+    let now = 1_700_000_000_000;
+    let cookie = `lastActiveOrg=${id}`;
+    let payload: unknown = organizationsGen('CL_ACCOUNT_MIXED_ROWS_01');
+    let status = 200, calls = 0;
+    try {
+        Object.defineProperty(globalThis, 'document', { configurable: true, value: { get cookie() { return cookie; } } });
+        Date.now = () => now;
+        globalThis.fetch = async (url, init) => {
+            assert.equal(url, '/api/organizations');
+            assert.equal(init?.credentials, 'include');
+            calls++;
+            return new Response(JSON.stringify(payload), { status });
+        };
+        assert.deepEqual(await observeClaudeAccount(), {
+            providerId: 'claude', providerAccountId: id, displayName: 'Team A',
+        });
+        payload = organizationsGen('CL_ACCOUNT_CACHED_CHANGE_01');
+        assert.equal((await observeClaudeAccount())?.displayName, 'Team A');
+        assert.equal(calls, 1, 'verified data is cached');
+
+        cookie = `lastActiveOrg=${foreign}`;
+        assert.equal(await observeClaudeAccount(), null, 'new cookie cannot reuse old account');
+        cookie = `lastActiveOrg=${id}`;
+
+        now += 30_001;
+        payload = organizationsGen('CL_ACCOUNT_NUMBER_NAME_01');
+        assert.deepEqual(await observeClaudeAccount(), { providerId: 'claude', providerAccountId: id });
+        now += 30_001;
+        payload = organizationsGen('CL_ACCOUNT_BLANK_NAME_01');
+        assert.deepEqual(await observeClaudeAccount(), { providerId: 'claude', providerAccountId: id });
+
+        now += 30_001;
+        payload = organizationsGen('CL_ACCOUNT_INVALID_ENVELOPE_01');
+        assert.equal(await observeClaudeAccount(), null, 'invalid responses do not create accounts');
+        now += 30_001;
+        payload = organizationsGen('CL_ACCOUNT_HTTP_FAILURE_01');
+        status = 403;
+        assert.equal(await observeClaudeAccount(), null, 'HTTP failure clears cached organizations');
+        assert.equal(calls, 5);
+    } finally {
+        Date.now = savedNow;
+        globalThis.fetch = savedFetch;
+        if (savedDocument) Object.defineProperty(globalThis, 'document', savedDocument);
+        else Reflect.deleteProperty(globalThis, 'document');
+    }
+});
+});
+
+__suiteDescribe("claude_rpc_fixture_closure", () => {
+/** Fixed Claude source responses belong to endpoint-specific Gen(key) fixtures.
+ * Parser assertions, transport statuses and request routing stay in their tests.
+ */
+const root = join(__dirname);
+
+function testSources(dir: string): string[] {
+    const files: string[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const file = join(dir, entry.name);
+        if (entry.isDirectory()) {
+            if (entry.name === 'live' || entry.name === 'node_modules') continue;
+            files.push(...testSources(file));
+        } else if (entry.isFile() && file.endsWith('.ts')) {
+            files.push(file);
+        }
+    }
+    return files;
+}
+
+test('Claude native response mocks use fixed endpoint Gen(key) samples', () => {
+    const violations: string[] = [];
+    const inlineMocks = [
+        /\bpayload\s*(?::\s*unknown\s*)?=\s*(?:\[\s*(?:null|\{)|\{\s*error\s*:)/g,
+        /parseClaudeList\(\s*(?:\[|\{\s*items\s*:)/g,
+        /parseClaudeConversation\(\s*(?:detail\s*\(|\{\s*uuid\s*:)/g,
+        /new\s+Response\(\s*(?:['"]data:|status\s*===\s*204\s*\?\s*null)/g,
+        /return\s+\[\{\s*result\s*:\s*\[\s*\]\s*\}\]/g,
+        /apiGet\s*:\s*async\s*[^=]{0,100}=>\s*(?:\{\s*return\s+)?\{\s*data\s*:/g,
+    ];
+    for (const file of testSources(root)) {
+        const path = relative(root, file).replaceAll('\\', '/');
+        if (path.startsWith('fixtures/providers/') || path === 'claude_rpc_fixture_closure.test.ts') continue;
+        const source = readFileSync(file, 'utf8');
+        if (!/\b(?:ClaudeProvider|parseClaudeConversation|parseClaudeList|installClaudeHook|readClaudeSource|observeClaudeAccount)\b/.test(source)) continue;
+        for (const pattern of inlineMocks) {
+            for (const match of source.matchAll(pattern)) {
+                const line = source.slice(0, match.index).split('\n').length;
+                violations.push(path + ':' + line + ' creates a native Claude response outside Gen(key)');
+            }
+        }
+    }
+    assert.deepEqual(violations, []);
+});
+});
+
+__suiteDescribe("claude_visit_save", () => {
+const first = '11111111-1111-4111-8111-111111111111';
+const second = '22222222-2222-4222-8222-222222222222';
+const enabled: GlobalSettings = { enabledDisk: true, exportDelivery: 'folderWriter', defaultFormat: 'markdown',
+    skipExported: true, includeAssets: true, developerMode: false };
+
+test('Claude SSR visit save requires effective opt-in and coalesces repeated initialization', async () => {
+    let settings = { ...enabled, enabledDisk: false };
+    let identities = 0, saves = 0;
+    const controller = createClaudeVisitSave({ path: () => '/chat/' + first,
+        settings: async () => settings, account: async () => { identities++; return { id: 'account' }; },
+        save: async (key, refresh) => { saves++; assert.equal(key.conversationId, first); assert.equal(refresh, true); } });
+    await controller.save();
+    assert.equal(identities, 0, 'disabled Live Save does not even acquire source identity');
+    settings = { ...enabled, exportDelivery: 'browserDownload' };
+    await controller.save();
+    assert.equal(identities, 0, 'browser download is not effective Live Save');
+    settings = enabled;
+    await Promise.all([controller.save(), controller.save(), controller.save()]);
+    assert.equal(identities, 1);
+    assert.equal(saves, 1);
+    await controller.save();
+    assert.equal(saves, 1, 'no source polling or retries during one visit');
+});
+
+test('Claude native detail capture suppresses redundant SSR acquisition', async () => {
+    let saves = 0;
+    const controller = createClaudeVisitSave({ path: () => '/chat/' + first, settings: async () => enabled,
+        account: async () => ({ id: 'account' }), save: async () => { saves++; } });
+    controller.nativeDetail(first);
+    await controller.save();
+    assert.equal(saves, 0);
+});
+
+test('Claude navigation cancels delayed old identity and only saves the current visit', async () => {
+    let path = '/chat/' + first;
+    let resolve!: (value: { id: string }) => void;
+    const identity = new Promise<{ id: string }>(r => { resolve = r; });
+    const saved: string[] = [];
+    const controller = createClaudeVisitSave({ path: () => path, settings: async () => enabled,
+        account: () => identity, save: async key => { saved.push(key.conversationId); } });
+    const old = controller.save();
+    await Promise.resolve();
+    path = '/chat/' + second;
+    controller.observe(path);
+    resolve({ id: 'account' });
+    await old;
+    assert.deepEqual(saved, []);
+    await controller.save();
+    assert.deepEqual(saved, [second]);
+});
+
+test('Claude failed visit acquisition is not retried and non-conversation routes never save', async () => {
+    let path = '/chat/' + first, attempts = 0;
+    const controller = createClaudeVisitSave({ path: () => path, settings: async () => enabled,
+        account: async () => ({ id: 'account' }), save: async () => { attempts++; throw new Error('HTTP 429'); } });
+    await assert.rejects(controller.save(), /HTTP 429/);
+    await controller.save();
+    assert.equal(attempts, 1);
+    path = '/new'; controller.observe(path);
+    await controller.save();
+    assert.equal(attempts, 1);
+});
+
+test('Claude disabling Live Save while identity resolves prevents acquisition', async () => {
+    let settings = enabled, saved = false;
+    const controller = createClaudeVisitSave({ path: () => '/chat/' + first, settings: async () => settings,
+        account: async () => { settings = { ...enabled, enabledDisk: false }; return { id: 'account' }; },
+        save: async () => { saved = true; } });
+    await controller.save();
+    assert.equal(saved, false);
+});
 });

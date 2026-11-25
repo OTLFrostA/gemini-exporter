@@ -1,4 +1,5 @@
 import type { ExportProgress, ExportRequest, ExportResult } from '../../src/application/export/types.js';
+import { isLiveSaveEffective } from '../../src/shared/types/settings.js';
 
 /**
  * Node UI-unit boundary: every non-UI module below is represented by its frozen v2
@@ -55,7 +56,7 @@ export function assertUiNodeIsolation(): void {
         const normalized = filename.replace(/\\/g, '/');
         if (!normalized.startsWith(root)) continue;
         const owner = normalized.slice(root.length);
-        if (!owner.startsWith('ui/') && !owner.startsWith('shared/') && !mockedFiles.has(filename)) {
+        if (!owner.startsWith('ui/') && !owner.startsWith('shared/') && !owner.startsWith('l2/') && !mockedFiles.has(filename)) {
             throw new Error(`Unmocked non-UI production import: ${owner}`);
         }
     }
@@ -66,11 +67,6 @@ export function installUiV2Mocks(): void {
     stub('../../src/runtime/api/applicationHost.js', { installApplicationHost() {} });
     stub('../../src/runtime/api/domainStorage.js', { installDomainStorage() {} });
     stub('../../src/runtime/api/providerHost.js', { installProviderHost() {} });
-    const dates: Pick<typeof import('../../src/l2/conversationIndex.js'), 'indexActivityTime' | 'compareConversationIndexes'> = {
-        indexActivityTime: index => index.updatedAt === undefined ? index.activityAt : index.activityAt === undefined ? index.updatedAt : Math.max(index.updatedAt, index.activityAt),
-        compareConversationIndexes: (a, b) => (dates.indexActivityTime(b) ?? -Infinity) - (dates.indexActivityTime(a) ?? -Infinity),
-    };
-    stub('../../src/l2/conversationIndex.js', dates);
     stub('../../src/application/export/runExport.js', { runExport: mockRunExport });
     stub('../../src/application/export/fonts.js', {
         warmLocalFontCache: () => unconfigured('Application.warmLocalFontCache'),
@@ -81,9 +77,7 @@ export function installUiV2Mocks(): void {
     stub('../../src/application/settings/index.js', {
         getSettings: () => unconfigured('Application.getSettings'),
         updateSettings: () => unconfigured('Application.updateSettings'),
-        isLiveSaveEffective: (settings: { enabledDisk: boolean; defaultFormat: string; exportDelivery?: string }, permitted: boolean) =>
-            settings.enabledDisk && settings.exportDelivery === 'folderWriter'
-                && settings.defaultFormat === 'markdown' && permitted,
+        isLiveSaveEffective,
     });
     stub('../../src/runtime/api/accountRegistry.js', {
         listAccounts: () => unconfigured('Runtime.listAccounts'),
@@ -138,16 +132,5 @@ export function installUiV2Mocks(): void {
     stub('../../src/runtime/capabilities/vaultFolderAuth.js', {
         pickVaultDirectoryHandle: () => unconfigured('Runtime.pickVaultDirectoryHandle'),
         reauthorizeVaultDirectoryHandle: () => unconfigured('Runtime.reauthorizeVaultDirectoryHandle'),
-    });
-    stub('../../src/shared/utils/pathUtils.js', {
-        isVersionGreater: (one: string, two: string) => {
-            const left = one.replace(/^v/i, '').split('.').map(Number);
-            const right = two.replace(/^v/i, '').split('.').map(Number);
-            for (let i = 0; i < Math.max(left.length, right.length); i++) {
-                if ((left[i] ?? 0) > (right[i] ?? 0)) return true;
-                if ((left[i] ?? 0) < (right[i] ?? 0)) return false;
-            }
-            return false;
-        },
     });
 }

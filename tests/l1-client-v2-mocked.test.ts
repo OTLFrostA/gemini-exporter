@@ -1,20 +1,60 @@
-import { parseGeminiRequest } from '../src/l1/parsers/gemini/rpc/request.js';
-import { geminiListPage, geminiListPages, GEMINI_LIST_CAPTURE } from './fixtures/providers/geminiListCapture.js';
-import test, { beforeEach } from 'node:test';
-import assert from 'node:assert/strict';
-import { ports, GEMINI_ACCOUNT, CHATGPT_ACCOUNT, DEFAULT_ACCOUNT } from './helpers/l1V2UnitMocks.js';
-import { GeminiProvider } from '../src/l1/client/gemini/geminiProvider.js';
-import { ChatGPTProvider } from '../src/l1/client/chatgpt/chatgptProvider.js';
-import { ConfirmedGeminiConversationNotFound } from '../src/l1/client/gemini/geminiClient.js';
-import { createSourceResourceContext } from '../src/l1/resources/sourceResources.js';
-import type { Diagnostic } from '../src/shared/diagnostics/diagnostic.js';
-import { mergeConversationPages } from '../src/l1/parsers/gemini/rpc/mergePages.js';
-import { sourceDetail, sourceMessage } from './helpers/l1SourceFixture.js';
-import { parseList, type ListParseResult } from '../src/l1/parsers/gemini/rpc/parseList.js';
-import { listGen as geminiListGen } from './fixtures/providers/gemini.js';
-import { listGen as chatgptListGen } from './fixtures/providers/chatgpt.js';
-import { sessionGen as chatgptSessionGen } from './fixtures/providers/chatgptSession.js';
+import { describe as __suiteDescribe } from 'node:test';
+import { parseGeminiRequest } from "../src/l1/parsers/gemini/rpc/request.js";
+import { geminiListPage } from "./fixtures/providers/geminiListCapture.js";
+import { geminiListPages } from "./fixtures/providers/geminiListCapture.js";
+import { GEMINI_LIST_CAPTURE } from "./fixtures/providers/geminiListCapture.js";
+import test from "node:test";
+import { beforeEach } from "node:test";
+import assert from "node:assert/strict";
+import { ports } from "./helpers/l1V2UnitMocks.js";
+import { GEMINI_ACCOUNT } from "./helpers/l1V2UnitMocks.js";
+import { CHATGPT_ACCOUNT } from "./helpers/l1V2UnitMocks.js";
+import { DEFAULT_ACCOUNT } from "./helpers/l1V2UnitMocks.js";
+import { GeminiProvider } from "../src/l1/client/gemini/geminiProvider.js";
+import { ChatGPTProvider } from "../src/l1/client/chatgpt/chatgptProvider.js";
+import { ConfirmedGeminiConversationNotFound } from "../src/l1/client/gemini/geminiClient.js";
+import { createSourceResourceContext } from "../src/l1/resources/sourceResources.js";
+import { type Diagnostic } from "../src/shared/diagnostics/diagnostic.js";
+import { mergeConversationPages } from "../src/l1/parsers/gemini/rpc/mergePages.js";
+import { sourceDetail } from "./helpers/l1SourceFixture.js";
+import { sourceMessage } from "./helpers/l1SourceFixture.js";
+import { parseList } from "../src/l1/parsers/gemini/rpc/parseList.js";
+import { type ListParseResult } from "../src/l1/parsers/gemini/rpc/parseList.js";
+import { listGen as geminiListGen } from "./fixtures/providers/gemini.js";
+import { listGen as chatgptListGen } from "./fixtures/providers/chatgpt.js";
+import { sessionGen as chatgptSessionGen } from "./fixtures/providers/chatgptSession.js";
+import { type Account } from "../src/l2/accountRegistry.js";
+import { type ConversationKey } from "../src/l2/conversationKey.js";
+import { type DomainAsset } from "../src/l2/conversationDetail.js";
+import { type PageObservation } from "../src/l2/pageObservation.js";
+import { type ResourceBytes } from "../src/shared/resources/resourceResult.js";
+import { type AIProvider } from "../src/l1/client/aiProvider.js";
+import { type ProviderListOptions } from "../src/l1/client/aiProvider.js";
+import { type PageEvidence } from "../src/l1/client/aiProvider.js";
+import { type CommittedListPage } from "../src/l1/client/aiProvider.js";
+import { type ListEnd } from "../src/l1/client/aiProvider.js";
+import { type ProviderReadiness } from "../src/l1/client/aiProvider.js";
+import { type GeminiNetworkBatchexecutePayload } from "../src/l1/protocol/gemini/events.js";
+import { type GeminiTakeoutZipRaw } from "../src/l1/imports/takeout/readArchive.js";
+import { type GeminiTakeoutParseResult } from "../src/l1/parsers/gemini/takeout/parseConversation.js";
+import { type SourceConversationParseResult } from "../src/l1/parsers/parsingResult.js";
+import { ProviderRegistryClass } from "../src/l1/client/providerRegistry.js";
+import { parseGeminiIndexObservation } from "../src/l1/parsers/gemini/parseIndexObservation.js";
+import { parseGeminiRpcConversation } from "../src/l1/parsers/gemini/rpc/parseConversation.js";
+import { geminiRpcPacket } from "./fixtures/providers/geminiRpcCapture.js";
+import { GEMINI_DETAIL_CAPTURE } from "./fixtures/providers/geminiRpcCapture.js";
+import { parseGeminiTakeoutArchive } from "../src/l1/parsers/gemini/takeout/parseConversation.js";
+import { PLATFORM_HOSTS } from "../src/shared/platformHosts.js";
+import assert__s3 from "node:assert";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { type TestContext } from "node:test";
+import fs__s4 from "node:fs";
+import path__s4 from "node:path";
+import { handleHttp429 } from "../src/l1/client/gemini/api/retryPolicy.js";
+import { interruptibleSleep } from "../src/l1/client/gemini/api/retryPolicy.js";
 
+__suiteDescribe("l1-client-v2-mocked", () => {
 beforeEach(() => ports.reset());
 const route = async () => 'u0';
 const client = (pages: ListParseResult[]) => ({
@@ -265,4 +305,216 @@ test('Detail diagnostics expose parsing evidence and L2 admission without export
         () => { throw new Error('Diagnostic observer failed'); });
     assert.equal(ports.details.length, 2, 'diagnostic listener failures do not suppress source admission');
     assert.equal(ports.details[1].detail.quality.status, 'partial');
+});
+});
+
+__suiteDescribe("l1-outbound-contract", () => {
+type Assert<T extends true> = T;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type ParseTakeoutArchive = typeof import('../src/l1/imports/takeout/readArchive.js').parseGeminiTakeoutZipArchive;
+type ParseOpenAIArchive = typeof import('../src/l1/imports/openai/parseArchive.js').parseOpenAIExportArchive;
+type FrozenPageEvidence = Omit<PageObservation, 'providerId' | 'accountId'>;
+
+type Contract = [
+    Assert<Equal<PageEvidence, FrozenPageEvidence>>,
+    Assert<Equal<keyof ProviderListOptions, 'accountId' | 'streamId' | 'signal' | 'onPageCommitted' | 'onDiagnostic'>>,
+    Assert<Equal<ProviderListOptions['accountId'], Account['id']>>,
+    Assert<Equal<ProviderListOptions['onPageCommitted'],
+        ((info: CommittedListPage) => Promise<boolean>) | undefined>>,
+    Assert<Equal<keyof CommittedListPage, 'page' | 'totalObserved' | 'scanHead' | 'indexChanges'>>,
+    Assert<Equal<CommittedListPage['scanHead'], FrozenPageEvidence | undefined>>,
+    Assert<Equal<ListEnd, 'source_end' | 'provider_limit' | 'max_pages' | 'stopped'>>,
+    Assert<Equal<Parameters<AIProvider['listConversations']>[0], ProviderListOptions>>,
+    Assert<Equal<ReturnType<AIProvider['listConversations']>, Promise<ListEnd>>>,
+    Assert<Equal<Parameters<AIProvider['checkReadiness']>[0], Account['id']>>,
+    Assert<Equal<ReturnType<AIProvider['checkReadiness']>, Promise<ProviderReadiness>>>,
+    Assert<Equal<Parameters<AIProvider['fetchConversationDetail']>[0], Account['id']>>,
+    Assert<Equal<Parameters<AIProvider['fetchConversationDetail']>[1], ConversationKey['conversationId']>>,
+    Assert<Equal<ReturnType<AIProvider['fetchConversationDetail']>, Promise<void>>>,
+    Assert<Equal<Parameters<AIProvider['acquireResource']>[0], ConversationKey>>,
+    Assert<Equal<Parameters<AIProvider['acquireResource']>[1], DomainAsset>>,
+    Assert<Equal<ReturnType<AIProvider['acquireResource']>, Promise<ResourceBytes>>>,
+    Assert<Equal<keyof GeminiNetworkBatchexecutePayload,
+        'text' | 'url' | 'slot' | 'requestedAt' | 'truncated' | 'requestAccountObservation' | 'listRequest' | 'detailRequest'>>,
+    Assert<Equal<GeminiNetworkBatchexecutePayload['detailRequest'],
+        { conversationId: ConversationKey['conversationId']; requestCursor: string | null } | undefined>>,
+    Assert<Equal<Parameters<ParseTakeoutArchive>[0], GeminiTakeoutZipRaw>>,
+    Assert<Equal<ReturnType<ParseTakeoutArchive>, Promise<GeminiTakeoutParseResult[]>>>,
+    Assert<Equal<Parameters<ParseOpenAIArchive>[0], Blob | Uint8Array>>,
+    Assert<Equal<Parameters<ParseOpenAIArchive>[1], string>>,
+];
+const verified: Contract = [
+    true, true, true, true, true, true, true, true,
+    true, true, true, true, true, true, true, true,
+    true, true, true, true, true, true, true,
+];
+
+type ConcreteClientContract = [
+    Assert<Equal<Parameters<GeminiProvider['checkReadiness']>[0], Account['id']>>,
+    Assert<Equal<Parameters<GeminiProvider['fetchConversationDetail']>[1], ConversationKey['conversationId']>>,
+    Assert<Equal<Parameters<ChatGPTProvider['checkReadiness']>[0], Account['id']>>,
+    Assert<Equal<Parameters<ChatGPTProvider['fetchConversationDetail']>[1], ConversationKey['conversationId']>>,
+];
+const concreteVerified: ConcreteClientContract = [true, true, true, true];
+
+test('L1 exposed Client, Sniffer and Takeout types match frozen public contracts', () => {
+    assert.equal(verified.length, 23);
+    assert.ok(verified.every(Boolean) && concreteVerified.every(Boolean));
+});
+});
+
+__suiteDescribe("provider_contract", () => {
+type Assert<T extends true> = T;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Contracts = [
+    Assert<Equal<ReturnType<AIProvider['listConversations']>, Promise<ListEnd>>>,
+    Assert<Equal<ReturnType<AIProvider['fetchConversationDetail']>, Promise<void>>>,
+    Assert<Equal<keyof ProviderListOptions, 'accountId' | 'streamId' | 'signal' | 'onPageCommitted' | 'onDiagnostic'>>,
+    Assert<Equal<keyof CommittedListPage, 'page' | 'totalObserved' | 'scanHead' | 'indexChanges'>>,
+    Assert<'key' extends keyof SourceConversationParseResult['conversation']['index'] ? false : true>,
+    Assert<'key' extends keyof SourceConversationParseResult['conversation']['detail'] ? false : true>,
+    Assert<GeminiProvider extends AIProvider ? true : false>,
+];
+const contracts: Contracts = [true, true, true, true, true, true, true];
+test('provider contract exposes control results and keyless pure source candidates', () => assert.ok(contracts.every(Boolean)));
+test('provider registry accepts the thin neutral API without a Gemini companion', async () => {
+    const registry = new ProviderRegistryClass();
+    const provider: AIProvider = { id: 'other', name: 'Other', hostPatterns: [], matchesUrl: () => true,
+        checkReadiness: async () => ({ ready: true }), listConversations: async () => 'source_end',
+        fetchConversationDetail: async () => {}, acquireResource: async () => ({ bytes: Uint8Array.of(1) }) };
+    registry.register(provider);
+    assert.equal(registry.get('other'), provider);
+    assert.equal(await provider.listConversations({ accountId: 'uuid', streamId: 'recent' }), 'source_end');
+});
+test('Index normalization needs no Registry UUID and uses semantic title sources', () => {
+    assert.deepEqual(parseGeminiIndexObservation({ id: 'c_source123', title: 'Source title', titleSource: 'rpc' }, 'rpc-list'),
+        { conversationId: 'source123', fields: { title: 'Source title', titleSource: 'provider' } });
+    assert.deepEqual(parseGeminiIndexObservation({ id: 'source123' }, 'dom'), { conversationId: 'source123', fields: {} });
+});
+test('RPC source parsing creates no local Key or Account', () => {
+    const wire = geminiRpcPacket('detail').responseBody;
+    const parsed = parseGeminiRpcConversation(wire, { providerId: 'gemini' });
+    assert.equal(parsed.conversationId, GEMINI_DETAIL_CAPTURE.conversationId);
+    assert.equal('account' in parsed, false);
+    assert.equal('key' in parsed.conversation.index, false);
+    assert.equal('key' in parsed.conversation.detail, false);
+    assert.equal(parsed.conversation.detail.savedAt, undefined);
+    assert.equal(parsed.conversation.detail.quality.status, 'unknown');
+});
+test('Takeout pure HTML parser produces the same keyless candidates without ZIP IO', () => {
+    const htmlText = '<div class="outer-cell"><a href="https://gemini.google.com/app/source123">Conversation</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Question<br>2026-09-02T12:00:00Z<br><p>Answer</p></div></div>';
+    const [parsed] = parseGeminiTakeoutArchive({ htmlText }, { providerId: 'gemini' });
+    assert.equal(parsed.conversationId, 'source123');
+    assert.equal(parsed.conversation.index.titleSource, 'derived');
+    assert.equal('account' in parsed, false);
+    assert.equal('key' in parsed.conversation.index, false);
+    assert.equal(parsed.conversation.detail.quality.status, 'partial');
+});
+});
+
+__suiteDescribe("provider_degrade", () => {
+/**
+ * tests/provider_degrade.test.ts
+ * Source scripts are dynamically registered only after optional site access.
+ */
+
+
+
+
+
+
+
+test('Phase E: content-script matches are scoped to explicit HTTPS provider hosts', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest.json'), 'utf8'));
+    assert__s3.deepEqual(manifest.content_scripts ?? [], [], 'no platform is injected before permission');
+    const patterns = Object.values(PLATFORM_HOSTS).flatMap(group => [...group.pages]);
+    for (const pattern of patterns) {
+        assert__s3.match(pattern, /^https:\/\/[a-z0-9.-]+\/\*$/i, `not a narrowly scoped HTTPS host: ${pattern}`);
+        assert__s3.ok(!pattern.includes('*.'), `wildcard host is too broad: ${pattern}`);
+    }
+    assert__s3.ok(patterns.includes('https://gemini.google.com/*'), 'Gemini remains supported');
+    // Other explicitly supported providers may be added without rewriting this test.
+});
+});
+
+__suiteDescribe("retry_utils", () => {
+const SRC = (p: string) => fs__s4.readFileSync(path__s4.join(__dirname, '..', p), 'utf8');
+
+
+test('retryPolicy - interruptibleSleep delegates to abortableSleep when isAborted is omitted', async (t: TestContext) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    try {
+        const fullPromise = interruptibleSleep(5000);
+        t.mock.timers.tick(5000);
+        const full = await fullPromise;
+        assert.strictEqual(full, false, 'unaborted resolves false');
+
+        const controller = new AbortController();
+        const cutPromise = interruptibleSleep(5000, controller.signal);
+        t.mock.timers.tick(100);
+        controller.abort();
+        const cut = await cutPromise;
+        assert.strictEqual(cut, true, 'aborted resolves true');
+    } finally {
+        t.mock.timers.reset();
+    }
+});
+
+test('retryPolicy - interruptibleSleep polling handles custom isAborted predicate', async (t: TestContext) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+    try {
+        let abortedFlag = true;
+        const resInit = await interruptibleSleep(5000, undefined, () => abortedFlag);
+        assert.strictEqual(resInit, true, 'initially aborted returns true');
+
+        abortedFlag = false;
+        const pPoll = interruptibleSleep(5000, undefined, () => abortedFlag);
+        t.mock.timers.tick(50);
+        abortedFlag = true;
+        t.mock.timers.tick(50);
+        const resPoll = await pPoll;
+        assert.strictEqual(resPoll, true, 'polling aborted returns true');
+
+        abortedFlag = false;
+        const pNormal = interruptibleSleep(5000, undefined, () => abortedFlag);
+        t.mock.timers.tick(5000);
+        const resNormal = await pNormal;
+        assert.strictEqual(resNormal, false, 'non-aborted predicate resolves false');
+    } finally {
+        t.mock.timers.reset();
+    }
+});
+
+test('retryPolicy - handleHttp429 honors Retry-After header and backoff options', async (t: TestContext) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    try {
+        const resPromise = handleHttp429({
+            resp: {
+                status: 429,
+                headers: { get: (h: string) => (h === 'retry-after' ? '1' : null) }
+            },
+            retryCount: 0,
+            maxRetries: 3,
+            label: 'test-429'
+        });
+        t.mock.timers.tick(35000);
+        const res = await resPromise;
+        assert.strictEqual(res.shouldRetry, true);
+        assert.strictEqual(res.nextRetryCount, 1);
+        assert.ok(typeof res.delayMs === 'number' && res.delayMs >= 2000, `delayMs >= 2000 (was ${res.delayMs})`);
+    } finally {
+        t.mock.timers.reset();
+    }
+});
+
+
+
+
+
+test('architecture - retryPolicy.ts does not import export engine or rateLimiter', () => {
+    const src = SRC('src/l1/client/gemini/api/retryPolicy.ts');
+    assert.ok(!/from\s+['"][^'"]*engine/i.test(src), 'retryPolicy must not import from engine');
+    assert.ok(!/from\s+['"][^'"]*rateLimiter/i.test(src), 'retryPolicy must not import rateLimiter');
+    assert.ok(src.includes('retryUtils'), 'retryPolicy imports from retryUtils');
+});
 });

@@ -2,19 +2,13 @@
   "tests/helpers/recordFixture/attachments.ts",
   "tests/helpers/recordFixture/conversationRecord.ts",
   "tests/helpers/recordFixture/parseRecord.ts",
-  "tests/domain-parsing.test.ts",
   "tests/domain_parsing.types.ts",
   "tests/provider-gemini-rpc-domain.test.ts",
   "tests/provider-gemini-takeout-domain.test.ts",
   "tests/takeout-archive-resources.test.ts",
-  "tests/helpers/recordFixture/parseConversation.ts",
-  "tests/domain-storage.test.ts",
   "tests/helpers/nativeFixture.ts",
   "tests/native-json-export.test.ts",
-  "tests/stream_coverage.test.ts",
-  "tests/helpers/recordFixture/parseIndex.ts",
-  "tests/account_registry.test.ts",
   "tests/domain_admission_rules.test.ts",
-  "tests/domain_admission_storage.test.ts",
-  "tests/chatgpt-capture.test.ts"
+  "tests/account_registry.test.ts",
+  "tests/domain_admission_storage.test.ts"
 ]

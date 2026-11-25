@@ -83,7 +83,11 @@ export const DISCORD_URL = 'https://discord.gg/e3FgrXUZ8f';
 export const REVIEW_URL = 'https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf/reviews';
 export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB?source=extension';
 export const indexActivityTime = i => i.updatedAt === undefined ? i.activityAt : i.activityAt === undefined ? i.updatedAt : Math.max(i.updatedAt,i.activityAt);
-export const compareConversationIndexes = (a,b) => (indexActivityTime(b) ?? -Infinity) - (indexActivityTime(a) ?? -Infinity);
+export const compareConversationIndexes = (a,b) => {
+ const left = indexActivityTime(a), right = indexActivityTime(b);
+ if (left === undefined) return right === undefined ? 0 : 1;
+ return right === undefined ? -1 : right - left;
+};
 export const resourceIssueKind = f => f.code === 'RESOURCE_SOURCE_EXPIRED' ? 'expired' : f.code === 'RESOURCE_ACCESS_RESTRICTED' ? 'restricted' : f.code === 'RESOURCE_PROCESSING_FAILED' ? 'processing' : 'download';
 export const resourceFailureText = (f, locale) => locale === 'zh' ? '附件不可用' : 'Attachment unavailable';
 export const getSettings = async () => ({...h.settings});

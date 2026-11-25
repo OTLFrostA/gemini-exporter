@@ -260,3 +260,36 @@ test('PR 3 - 5: Real-world 040ffd Imagen regression shape (model text + 6 genera
         assert.strictEqual(count, 1, `Expected src="${path}" to appear exactly once in HTML, found ${count}`);
     }
 });
+
+test('Composer preserves explicit attachment ownership without collapsing shared provider IDs', async () => {
+    const { fixtureKey } = require('./helpers/domainFixture.js');
+    const { composeFixture } = require('./helpers/documentFixture.js');
+    const { collectDocumentResources } = require('../src/l3b/ast/resourceReferences.js');
+    const gen = { providerRequestId: 'abcd1234abcd1234', time: 1700000000123, prompt: 'Draw a cat', generationOrdinal: 0, imageCount: 1, imageOrdinal: 0 };
+    const explicitDomain = {
+        index: { key: fixtureKey('media-chat', 'gemini'), titleSource: 'derived' as const, title: 'Generated media' },
+        detail: {
+            key: fixtureKey('media-chat', 'gemini'), quality: { status: 'unknown' as const },
+            assets: ['one', 'two', 'three'].map(id => ({ id, kind: 'image' as const, generation: gen })),
+            messages: [{ role: 'assistant' as const, content: [], attachmentIds: ['one', 'two', 'three'] }],
+        },
+    };
+    assert.strictEqual(collectDocumentResources((await composeFixture(explicitDomain)).document).referencedIds.size, 3);
+
+    const ownedDomain = {
+        index: { key: fixtureKey('media-chat', 'gemini'), titleSource: 'derived' as const, title: 'Generated media' },
+        detail: {
+            key: fixtureKey('media-chat', 'gemini'), quality: { status: 'unknown' as const },
+            assets: [{ id: 'cat', kind: 'image' as const, name: 'cat.png', generation: gen }],
+            messages: [
+                { id: 'abcd1234abcd1234', role: 'assistant' as const, content: [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: 'First' }] }] },
+                { role: 'assistant' as const, content: [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: 'Second' }] }], attachmentIds: ['cat'] },
+            ],
+        },
+    };
+    const original = structuredClone(ownedDomain);
+    const result = await composeFixture(ownedDomain);
+    assert.strictEqual(result.document.messages[0].blocks.some((b: { type: string }) => b.type === 'image'), false);
+    assert.strictEqual(result.document.messages[1].blocks.some((b: { type: string }) => b.type === 'image'), true);
+    assert.deepStrictEqual(ownedDomain, original);
+});
