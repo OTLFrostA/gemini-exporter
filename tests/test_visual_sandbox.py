@@ -6,6 +6,7 @@ Unit tests for Tier 3 Visual Sandbox and Autonomous QA Agent:
 """
 
 import os
+import shutil
 import sys
 import time
 import base64
@@ -127,7 +128,8 @@ class TestVisualSandbox(unittest.TestCase):
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as profile:
+        profile = tempfile.mkdtemp()
+        try:
             browser = subprocess.Popen([
                 chrome, "--headless=new", "--disable-gpu", "--no-first-run",
                 f"--remote-debugging-port={port}", f"--user-data-dir={profile}", "about:blank"
@@ -167,6 +169,8 @@ class TestVisualSandbox(unittest.TestCase):
                     env.browser_cdp.close()
                 browser.terminate()
                 browser.wait(timeout=10)
+        finally:
+            shutil.rmtree(profile, ignore_errors=True)
 
     def test_viewport_normalization(self):
         # 1. 归一化坐标转换 (0.5, 0.5) -> (640, 400)

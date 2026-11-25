@@ -49,8 +49,7 @@ IMPORT_PATTERN = re.compile(
 )
 
 COMPONENT_E2E_MAP = {
-    "src/ui": ["tests/e2e/ui_v2.spec.ts", "tests/e2e/production_v2.spec.ts", "tests/e2e/tier2_v2_probes.spec.ts"],
-    "scripts/framework": ["tests/e2e/tier2_v2_probes.spec.ts"],
+    "src/ui": ["tests/e2e/ui_v2.spec.ts", "tests/e2e/production_v2.spec.ts"],
     "src/runtime/content": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts", "tests/e2e/ui_v2.spec.ts"],
     "src/runtime/background": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts"],
     "src/application/vault/": ["tests/e2e/cloud_e2ee_sync.spec.ts", "tests/e2e/cloud_deletion_isolation.spec.ts", "tests/e2e/cloud_rotation_verify.spec.ts"],
@@ -312,7 +311,7 @@ def analyze_impact(
     for root, _, files in os.walk(os.path.join(base_dir, "tests")):
         for f in files:
             p = normalize_repo_path(os.path.join(root, f), base_dir)
-            if p.startswith("tests/e2e/") and p.endswith(".spec.ts"):
+            if p.startswith("tests/e2e/") and p.endswith(".spec.ts") and not f.startswith(("readme_screenshots", "tier2_")):
                 all_e2e_specs.append(p)
             elif p.startswith("tests/") and not p.startswith("tests/e2e/") and (p.endswith((".test.ts", ".test.js", ".test.cjs")) or (f.startswith("test_") and f.endswith(".py"))):
                 all_unit_tests.append(p)

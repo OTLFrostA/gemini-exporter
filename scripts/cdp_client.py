@@ -138,7 +138,7 @@ class CDPConnection:
                             return data
                     except Exception:
                         continue
-            except TimeoutError as exc:
+            except (TimeoutError, socket.timeout) as exc:
                 self.close()
                 raise TimeoutError(f"CDP call {method} 超时 ({timeout}s)") from exc
             except (ConnectionError, socket.error):

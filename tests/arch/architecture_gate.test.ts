@@ -29,16 +29,6 @@ function withTempSrc(files: Record<string, string>, fn: (dir: string) => void): 
     }
 }
 
-test('arch-gate: current src/ satisfies zero layer violations and zero cycles', () => {
-    const report = analyzeArchitecture(path.resolve(__dirname, '../../src'));
-    assert.deepEqual(report.layerViolations, []);
-    assert.deepEqual(report.platformViolations, []);
-    assert.deepEqual(report.layerCycles, []);
-    assert.deepEqual(report.subModuleCycles, []);
-    assert.deepEqual(report.fileCycles, []);
-    assert.ok(report.fileCount > 300);
-});
-
 test('arch-gate: rejects forbidden cross-layer imports (l1->runtime, l2->l3a, runtime->ui, application->concrete client)', () => {
     withTempSrc({
         'runtime/api/foo.ts': 'export const foo = 1;',

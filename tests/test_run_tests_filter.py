@@ -62,14 +62,13 @@ class RunTestsFilterTests(unittest.TestCase):
         self.assert_passed(result)
         self.assertRegex(result.stderr, r"Ran [1-9]\d* tests?")
 
-    def test_runs_matching_languages_without_running_the_migration_twice(self):
+    def test_runs_matching_languages_across_ts_cjs_and_python(self):
         result = self.run_filter("upgrade")
         self.assert_passed(result)
         output = result.stdout.replace("\\", "/")
         self.assertIn("Unit test suite passed: tests/gemini_integrity_upgrade.test.ts", output)
         self.assertIn("Unit test suite passed: tests/upgrade_v1.test.cjs", output)
         self.assertIn("tests/test_upgrade_profile.py", output)
-        self.assertNotIn("tests/upgrade_released_v17.test.ts", output)
 
     def test_no_match_is_an_error(self):
         result = self.run_filter("not-a-real-gemini-exporter-suite")

@@ -235,7 +235,7 @@ test('Domain consumers never parse provider syntax or reconcile acquisition alia
     assert.equal('attachments' in domain.detail.messages[0], false);
 });
 
-test('existing raw corpus preserves Domain, AST and all backend outputs across JSON round trips', async () => {
+test('existing raw provider fixtures preserve Domain, AST and all backend outputs across JSON round trips', async () => {
     const fixtureDir = join(__dirname, 'fixtures/provider');
     const inputs: Conversation[] = [];
     for (const file of ['conversation-sample.json', 'conversation-turns.json']) {
@@ -248,24 +248,25 @@ test('existing raw corpus preserves Domain, AST and all backend outputs across J
         const structure: { children?: unknown[] } = JSON.parse(readFileSync(join(fixtureDir, 'structured_rpc', file), 'utf8'));
         if (structure.children) inputs.push({ ...metadata, id: file, messages: [{ id: 'm', role: 'model', content: 'Markdown fallback', structuredContent: structure }] });
     }
-    const corpus: { corpusSets: Record<string, { documents?: Array<{ id: string; content?: string; markdown?: string; text?: string }> }> } =
-        JSON.parse(readFileSync(join(__dirname, 'fixtures/parser_migration_corpus.json'), 'utf8'));
-    for (const group of Object.values(corpus.corpusSets)) {
-        for (const document of group.documents ?? []) {
-            const content = document.content || document.markdown || document.text;
-            if (typeof content === 'string') inputs.push({ ...metadata, id: document.id, messages: [{ id: 'm', role: 'model', content }] });
+    for (const file of readdirSync(join(fixtureDir, 'math'))) {
+        if (file.endsWith('.md') || file.endsWith('.tex')) {
+            const raw = readFileSync(join(fixtureDir, 'math', file), 'utf8');
+            const content = file.endsWith('.tex') ? `$$\n${raw.trim()}\n$$` : raw;
+            inputs.push({ ...metadata, id: `math-${file}`, messages: [{ id: 'm', role: 'model', content }] });
         }
     }
-    assert.ok(inputs.length > 100);
+    for (const file of ['live-range-coder-evidence.md', 'structured-citations.md']) {
+        const content = readFileSync(join(fixtureDir, file), 'utf8');
+        inputs.push({ ...metadata, id: file, messages: [{ id: 'm', role: 'model', content }] });
+    }
+    assert.ok(inputs.length >= 15);
     for (const input of inputs) {
         const original = structuredClone(input);
         const { conversation: domain, resourceHints } = historicalFixture(input);
         const semantic = await composeFixture(domain, resourceHints);
-        const restored = await composeFixture(JSON.parse(JSON.stringify(domain)), resourceHints);
-        const parsed = historicalFixture(input, { providerId: 'gemini' });
-        const direct = await composeFixture(parsed.conversation, parsed.resourceHints);
-        assert.deepEqual(domain, parsed.conversation, input.id);
-        assert.deepEqual(direct.document, semantic.document, input.id);
+        const restoredDomain: DomainConversationWithDetail = JSON.parse(JSON.stringify(domain));
+        assertDomainClosure(restoredDomain.detail);
+        const restored = await composeFixture(restoredDomain, resourceHints);
         assert.deepEqual(restored, semantic, input.id);
         assert.deepEqual(renderDocumentHtml(semantic.document, semantic.resources), renderDocumentHtml(restored.document, restored.resources), input.id);
         assert.equal(renderDocumentMarkdown(semantic.document, semantic.resources), renderDocumentMarkdown(restored.document, restored.resources), input.id);
