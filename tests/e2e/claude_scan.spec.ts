@@ -55,6 +55,7 @@ async function claudeBoundary(
     });
     await claudeTab.goto('https://claude.ai/new');
     await claudeTab.evaluate(org => { document.cookie = `lastActiveOrg=${encodeURIComponent(org)}; path=/`; }, orgUuid);
+    await page.bringToFront();
 
     await page.exposeFunction('__execInClaudeTab', async (funcSource: string, args: unknown[]) => {
         return claudeTab.evaluate(async ([src, callArgs]) => {

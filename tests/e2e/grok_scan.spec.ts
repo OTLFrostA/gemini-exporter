@@ -61,6 +61,7 @@ async function grokBoundary(
     });
     await grokTab.goto('https://grok.com/');
     await grokTab.evaluate(() => { document.cookie = 'sso=fixture-session; path=/'; });
+    await page.bringToFront();
 
     await page.exposeFunction('__execInGrokTab', async (funcSource: string, args: unknown[]) => {
         return grokTab.evaluate(async ([src, callArgs]) => {
