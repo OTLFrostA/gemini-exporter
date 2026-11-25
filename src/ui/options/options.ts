@@ -22,6 +22,7 @@ import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { readSettings } from '../shared/readSettings.js';
 import { errorText, observeSettings, text } from '../shared/settings.js';
 import { mountCloudVaultPanel, type CloudVaultControllerHandle } from './controllers/cloudVaultController.js';
+import { mountDriveExportPanel } from './controllers/driveExportController.js';
 import { createDiagnosticLogController, type LogLevel } from './controllers/diagnosticLogController.js';
 import type { UIExportRequest } from './controllers/exportController.js';
 import { runExportSession, type ExportRunDiagnostic } from './controllers/exportSession.js';
@@ -570,6 +571,7 @@ async function initWorkbench(): Promise<void> {
     logController.renderLog();
     await state.refresh();
     if (disposed) return;
+    mountDriveExportPanel(() => state.accountId);
     render();
     chrome.storage.onChanged.addListener(onOpenedAccountChange);
     await applyOpenedAccount((await chrome.storage.session.get('openOptionsAccountId')).openOptionsAccountId);

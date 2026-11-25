@@ -1,5 +1,6 @@
 import { SETTINGS_KEY, LEGACY_DIRECT_WRITE_PROMPT_KEY } from '../shared/types/settings.js';
 import type { GlobalSettings } from '../l2/settings.js';
+import { readDriveExportConnection } from '../shared/types/driveExport.js';
 
 export { SETTINGS_KEY };
 
@@ -11,7 +12,9 @@ export async function getStoredSettings(): Promise<Partial<GlobalSettings>> {
         chrome.storage.local.get<{ [LEGACY_DIRECT_WRITE_PROMPT_KEY]?: boolean }>(LEGACY_DIRECT_WRITE_PROMPT_KEY),
     ]);
     // Honor the v1 one-time acknowledgement without replaying the tip after upgrading.
-    return { ...(data[SETTINGS_KEY] ?? {}),
+    const raw = data[SETTINGS_KEY] ?? {};
+    return { ...raw,
+        ...(raw.driveExport !== undefined ? { driveExport: readDriveExportConnection(raw.driveExport) } : {}),
         ...(legacy[LEGACY_DIRECT_WRITE_PROMPT_KEY] ? { directWritePromptCompleted: true } : {}) };
 }
 export async function patchStoredSettings(patch: Partial<GlobalSettings>): Promise<void> {
