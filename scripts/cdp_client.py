@@ -118,7 +118,7 @@ class CDPConnection:
                 self.sock.sendall(header + masked_payload)
 
                 while True:
-                    b1, b2 = self._recv_exact(2, deadline)
+                    _, b2 = self._recv_exact(2, deadline)
                     masked = (b2 & 0x80) != 0
                     payload_len = b2 & 0x7F
                     if payload_len == 126:
@@ -145,12 +145,11 @@ class CDPConnection:
                 if attempt:
                     raise
 
-    def _recv_exact(self, num_bytes, deadline=None):
+    def _recv_exact(self, num_bytes, deadline):
         chunks = []
         received = 0
         while received < num_bytes:
-            if deadline is not None:
-                self.sock.settimeout(self._remaining(deadline))
+            self.sock.settimeout(self._remaining(deadline))
             chunk = self.sock.recv(num_bytes - received)
             if not chunk:
                 raise ConnectionError("WebSocket 连接意外关闭")
