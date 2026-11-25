@@ -14,11 +14,7 @@ interface RpcRequestOptions {
 }
 
 interface GeminiClientRpcClientModule {
-    GEMINI_API_URL: string;
-    getProtocol: () => GeminiProtocolModule;
     getApiUrl: (slot?: string | null) => string;
-    nextReqid: () => string;
-    generateFallbackSid: () => string;
     postBatchexecute: (options: RpcRequestOptions) => Promise<{ response: Response; text: string }>;
     mergeAbortSignals: (signals: Array<AbortSignal | null | undefined>) => AbortSignal | undefined;
 }
@@ -125,11 +121,7 @@ export function isOwnRpcRequest(requestId: unknown, sid: string): boolean {
 export { getApiUrl, postBatchexecute };
 
 const GeminiClientRpcClient: GeminiClientRpcClientModule = {
-    GEMINI_API_URL,
-    getProtocol,
     getApiUrl,
-    nextReqid,
-    generateFallbackSid,
     postBatchexecute,
     mergeAbortSignals
 };
