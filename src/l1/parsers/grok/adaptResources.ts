@@ -7,9 +7,9 @@ import { grokObject } from './source.js';
 /** Translate upstream resource records to the existing Domain registry, never inline bytes. */
 export function grokResources(assets: DomainAsset[], hints: Record<string, ResourceAcquisitionHint>, warn: (code: string, message: string) => void) {
     let inlineCounter = 0;
-    function resolveHttpsUrl(candidate: string, allowRelativePath: boolean): string | undefined {
+    function resolveHttpsUrl(candidate: string): string | undefined {
         try {
-            const url = allowRelativePath && candidate.startsWith('/')
+            const url = candidate.startsWith('/')
                 ? new URL(candidate, 'https://grok.com')
                 : new URL(candidate);
             if (url.protocol === 'https:' && !url.username && !url.password) return url.href;
@@ -21,7 +21,7 @@ export function grokResources(assets: DomainAsset[], hints: Record<string, Resou
         const embedded = row.embedded_image ? grokObject(row.embedded_image) : null;
         const data = typeof embedded?.data === 'string' ? embedded.data : undefined;
         const candidate = typeof row.url === 'string' && row.url ? row.url : undefined;
-        const uri = candidate ? resolveHttpsUrl(candidate, true) : undefined;
+        const uri = candidate ? resolveHttpsUrl(candidate) : undefined;
         if (!uri && !data) { warn('grok.resource.unavailable', 'Grok attachment has no downloadable locator'); return null; }
         const id = 'grok:' + messageId + ':' + kind + ':' + ordinal;
         const name = typeof row.file_name === 'string' ? row.file_name : kind;
@@ -55,7 +55,7 @@ export function grokResources(assets: DomainAsset[], hints: Record<string, Resou
         },
         image(ref: string, alt: string, messageId: string): ImageInline {
             const id = `grok:${messageId}:inline:${inlineCounter++}`;
-            const uri = ref ? resolveHttpsUrl(ref, true) : undefined;
+            const uri = ref ? resolveHttpsUrl(ref) : undefined;
             if (!uri) {
                 warn('grok.resource.unavailable', 'Grok Markdown image has no downloadable HTTPS locator');
                 assets.push({ id, kind: 'image', name: alt || 'image' });
