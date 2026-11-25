@@ -12,30 +12,14 @@ import { isLiveSaveEffective } from '../../src/shared/types/settings.js';
 export const A = '11111111-1111-4111-8111-111111111111';
 export const B = '22222222-2222-4222-8222-222222222222';
 
-export const exportPort = {
-    calls: [] as { request: ExportRequest; signal?: AbortSignal }[],
-    progress: [] as ExportProgress[],
-    result: null as ExportResult | null,
-    error: null as Error | null,
-    reset(): void {
-        this.calls.length = 0;
-        this.progress.length = 0;
-        this.result = null;
-        this.error = null;
-    },
-};
-
-export async function mockRunExport(request: ExportRequest, options: {
+async function mockRunExport(request: ExportRequest, options: {
     onProgress?: (progress: ExportProgress) => void; signal?: AbortSignal;
 } = {}): Promise<ExportResult> {
-    exportPort.calls.push({ request, signal: options.signal });
-    if (exportPort.error) throw exportPort.error;
     for (const [index, key] of request.keys.entries()) {
         const progress: ExportProgress = { current: index + 1, total: request.keys.length, key };
-        exportPort.progress.push(progress);
         options.onProgress?.(progress);
     }
-    return exportPort.result ?? { exported: request.keys.length, partial: 0, skipped: 0, failed: [], aborted: false };
+    return { exported: request.keys.length, partial: 0, skipped: 0, failed: [], aborted: false };
 }
 
 function unconfigured(port: string): never {
