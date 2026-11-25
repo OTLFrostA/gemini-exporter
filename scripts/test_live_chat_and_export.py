@@ -20,7 +20,6 @@ try:
 except Exception:
     pass
 
-from scripts.framework.features import FeatureRegistry, FeatureDomain, TestStatus
 from scripts.framework.actions import CDPActions
 from scripts.framework.runner import FrameworkRunner, DEFAULT_SCENARIOS, DESIGNATED_HISTORICAL_CHATS
 from scripts.framework.pipeline import ProcessLock, ProcessLockError
