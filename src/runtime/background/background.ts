@@ -6,6 +6,7 @@ import { installProviderHost } from '../api/providerHost.js';
 import { handleDomainIngestionMessage } from './domainStorageHandler.js';
 import { handleAccountRegistryMessage } from './accountRegistryHandler.js';
 import { initCloudSyncBackground, handleCloudSyncMessage } from './cloudSyncHandler.js';
+import { initBackgroundDiagnosticCapture, handleDiagnosticMessage, recordBackgroundDiagnostic } from './diagnosticBuffer.js';
 import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
 import { initGeminiCredentialCapture } from './geminiCredentialCapture.js';
 import { initTabActionListeners } from './tabAction.js';
@@ -22,6 +23,7 @@ installApplicationHost();
 installProviderHost();
 
 initSessionAccessLevel();
+initBackgroundDiagnosticCapture();
 initLifecycleListeners();
 initUninstallUrl();
 initTabActionListeners();
@@ -33,6 +35,7 @@ chrome.permissions?.onAdded?.addListener(syncSourceAccess);
 chrome.permissions?.onRemoved?.addListener(syncSourceAccess);
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
+    if (handleDiagnosticMessage(message, sender, respond)) return true;
     if (handleDomainIngestionMessage(message, sender, respond)) return true;
     if (handleAccountRegistryMessage(message, sender, respond)) return true;
     handleCloudSyncMessage(message, sender);
@@ -92,7 +95,18 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
             if (request.refreshDetail !== undefined && typeof request.refreshDetail !== 'boolean') throw new TypeError('Expected refreshDetail boolean');
             if (key) respond({ ok: true, result: await runLiveSave(key, request.refreshDetail === true) });
             else respond({ ok: true, count: (await listIndexes(account.id)).length });
-        } catch (error) { respond({ ok: false, error: error instanceof Error ? error.message : String(error) }); }
+        } catch (error) {
+            recordBackgroundDiagnostic({
+                source: 'background',
+                severity: 'error',
+                code: 'BACKGROUND_MESSAGE_FAILED',
+                message: error instanceof Error ? error.message : String(error),
+                details: { action: message && typeof message === 'object' && 'action' in message ? String(Reflect.get(message, 'action')) : null },
+                error,
+                ...(typeof sender.tab?.url === 'string' ? { tabUrl: sender.tab.url } : {}),
+            });
+            respond({ ok: false, error: error instanceof Error ? error.message : String(error) });
+        }
     })();
     return true;
 });

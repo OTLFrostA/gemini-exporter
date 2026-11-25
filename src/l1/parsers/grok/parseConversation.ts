@@ -5,7 +5,8 @@ import { normalizeGrokResponses } from './vendor/loominary/normalizeResponses.js
 import { grokResources } from './adaptResources.js';
 import type { ResourceAcquisitionHint } from '../../resources/resourceAcquisition.js';
 import type { DomainAsset, DomainMessage } from '../../../l2/conversationDetail.js';
-import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
+import { diagnosticSnapshot, type Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
+import type { JsonValue } from '../../../shared/utils/jsonTypes.js';
 import type { SourceConversationParseResult } from '../parsingResult.js';
 import { parseMarkdownToBlocks } from '../shared/markdown/index.js';
 import { contentQuality } from '../qualityEvidence.js';
@@ -41,7 +42,10 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
     const diagnostics: Diagnostic[] = [];
     const sourceRef = { providerId: 'grok', locator: 'conversation:' + requestedId };
     let partial = responses.size !== nodes.size || !Array.isArray(graph.inflightResponses) || graph.inflightResponses.length > 0;
-    const warn = (code: string, message: string) => { partial = true; diagnostics.push({ severity: 'warning', code, message, sourceRef }); };
+    const warn = (code: string, message: string, details?: JsonValue) => {
+        partial = true;
+        diagnostics.push({ severity: 'warning', code, message, sourceRef, ...(details !== undefined ? { details } : {}) });
+    };
     // Multiple leaves have no authoritative selected branch in this endpoint.
     if (leaves.length !== 1) warn('grok.branch.ambiguous', 'Grok selected branch unavailable; all source responses retained');
     let ordered = [...nodes.keys()];
@@ -82,11 +86,27 @@ export function parseGrokConversation(metadata: unknown, tree: unknown, bodies: 
     for (const id of ordered) {
         const response = responses.get(id);
         if (!response) { warn('grok.response.missing', 'A source response body is unavailable'); continue; }
-        if (response.sender !== 'human' && response.sender !== 'assistant') { warn('grok.sender.unsupported', 'Unsupported Grok response sender'); continue; }
-        if (response.partial === true || Array.isArray(response.streamErrors) && response.streamErrors.length) warn('grok.response.partial', 'Grok response incomplete');
+        if (response.sender !== 'human' && response.sender !== 'assistant') {
+            warn('grok.sender.unsupported', 'Unsupported Grok response sender', { responseId: id, sender: diagnosticSnapshot(response.sender) });
+            continue;
+        }
+        if (response.partial === true || Array.isArray(response.streamErrors) && response.streamErrors.length) {
+            warn('grok.response.partial', 'Grok response incomplete', {
+                responseId: id,
+                partial: response.partial === true,
+                streamErrors: diagnosticSnapshot(response.streamErrors ?? []),
+            });
+        }
         // Preserve unsupported source facts explicitly rather than silently advertising a full export.
         for (const field of ['toolResponses', 'citedXposts', 'inputChunks', 'outputChunks']) {
-            if (Array.isArray(response[field]) && response[field].length) warn('grok.' + field + '.unsupported', 'Grok ' + field + ' is not yet supported');
+            if (Array.isArray(response[field]) && response[field].length) {
+                warn('grok.' + field + '.unsupported', 'Grok ' + field + ' is not yet supported', {
+                    responseId: id,
+                    field,
+                    count: response[field].length,
+                    sample: diagnosticSnapshot(response[field]),
+                });
+            }
         }
         const adapted = parsedById.get(id);
         if (!adapted || typeof adapted.display_text !== 'string') throw new TypeError('Missing upstream Grok message');

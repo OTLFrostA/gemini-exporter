@@ -7,6 +7,7 @@ import type { PageObservationHead } from '../../l2/pageObservation.js';
 import { isSourcePlatform, isValidPlatformConversationId } from '../../shared/platformHosts.js';
 import { ensureV2Ready } from './readiness.js';
 import { object, requireContentContext, assertContentSender } from './contentSender.js';
+import { recordBackgroundDiagnostic } from './diagnosticBuffer.js';
 
 /** IPC page evidence must be typed before L2 Coverage can interpret it as proof. */
 function readPageHead(value: unknown): PageObservationHead {
@@ -76,7 +77,18 @@ export function handleDomainIngestionMessage(message: unknown, sender: chrome.ru
             } else throw new TypeError('Unknown ingestion operation');
             notifyDomainChanged(account.id);
             respond({ ok: true });
-        } catch (error) { respond({ ok: false, error: error instanceof Error ? error.message : String(error) }); }
+        } catch (error) {
+            recordBackgroundDiagnostic({
+                source: 'background',
+                severity: 'error',
+                code: 'DOMAIN_INGEST_FAILED',
+                message: error instanceof Error ? error.message : String(error),
+                details: { operation: message && typeof message === 'object' && 'operation' in message ? String(Reflect.get(message, 'operation')) : null },
+                error,
+                ...(typeof sender.tab?.url === 'string' ? { tabUrl: sender.tab.url } : {}),
+            });
+            respond({ ok: false, error: error instanceof Error ? error.message : String(error) });
+        }
     })();
     return true;
 }

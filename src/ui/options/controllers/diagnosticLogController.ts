@@ -1,5 +1,7 @@
 import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
 import type { ScanResult } from '../../../application/sync/scanController.js';
+import type { GlobalSettings } from '../../../application/settings/index.js';
+import { fetchRuntimeDiagnosticSnapshot } from '../../../runtime/api/runtimeDiagnostics.js';
 import type { ConversationViewState } from '../state/conversationsStore.js';
 import type { ExportRunDiagnostic } from './exportSession.js';
 import { elementById as el, requiredElement as control } from '../../shared/elements.js';
@@ -25,6 +27,7 @@ export interface ScanRunDiagnostic {
 
 export function createDiagnosticLogController(deps: {
     readonly state: ConversationViewState;
+    readonly getSettings?: () => GlobalSettings | undefined;
     readonly onShowTakeout: (count: number) => void;
     readonly onError: (error: unknown) => void;
 }) {
@@ -92,6 +95,10 @@ export function createDiagnosticLogController(deps: {
             void (async () => {
                 let grantedPermissions: chrome.permissions.Permissions | null = null;
                 try { grantedPermissions = await chrome.permissions.getAll(); } catch { /* Diagnostic export still works without permission inspection. */ }
+                const runtimeEvents = await fetchRuntimeDiagnosticSnapshot();
+                const records = Object.values(deps.state.records);
+                const partialCount = records.filter(record => record.status === 'partial').length;
+                const okCount = records.filter(record => record.status === 'ok').length;
                 const currentExportIssues = deps.state.indexes.flatMap(index => {
                     const record = deps.state.records[index.key.conversationId];
                     return record?.status === 'partial' ? [{
@@ -102,13 +109,30 @@ export function createDiagnosticLogController(deps: {
                     }] : [];
                 });
                 const payload = JSON.stringify({
-                    schemaVersion: 2,
-                    diagnosticRevision: 2,
+                    schemaVersion: 3,
+                    diagnosticRevision: 3,
                     generatedAt: Date.now(),
                     environment: { online: navigator.onLine, grantedPermissions },
                     extensionVersion: chrome.runtime.getManifest().version,
                     userAgent: navigator.userAgent,
+                    settings: deps.getSettings?.() ?? null,
                     accountId: deps.state.accountId,
+                    accountSummary: {
+                        totalAccounts: deps.state.accounts.length,
+                        accounts: deps.state.accounts.map(account => ({
+                            id: account.id,
+                            providerId: account.providerId,
+                            providerAccountId: account.providerAccountId,
+                            displayName: account.displayName ?? null,
+                        })),
+                        activeAccountStats: {
+                            totalIndexes: deps.state.indexes.length,
+                            totalRecords: records.length,
+                            okCount,
+                            partialCount,
+                        },
+                    },
+                    runtimeEvents,
                     scanRuns,
                     exportRuns,
                     droppedExportRuns,

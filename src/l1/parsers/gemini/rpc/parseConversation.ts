@@ -12,7 +12,7 @@ import { decodeTurn } from './extractors.js';
 import type { GeminiDetailDebugEvidence, GeminiMessageEvidence, GeminiDetailEvidence, GeminiCandidateDiagnosticEvidence } from './detailEvidence.js';
 import type { DomainCitation, DomainMessage } from '../../../../l2/conversationDetail.js';
 import type { ConversationParseContext } from '../../contracts.js';
-import type { Diagnostic } from '../../../../shared/diagnostics/diagnostic.js';
+import { diagnosticSnapshot, type Diagnostic } from '../../../../shared/diagnostics/diagnostic.js';
 import { closeSourceCitations } from '../../shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
 import { parseGeminiBody, parseGeminiPrompt, parseSourceReasoning, structuredBodyAttachments } from '../shared/contentAdapter.js';
@@ -234,8 +234,26 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
             assets: resources.assets, messages: resources.messages },
     };
     const diagnostics: Diagnostic[] = (evidence.schemaDrift ?? []).map(message => ({ severity: 'warning', code: 'GEMINI_SCHEMA_DRIFT', message }));
-    if (rejected) diagnostics.push({ severity: 'warning', code: 'GEMINI_TURNS_REJECTED', message: `Discarded ${evidence.turnsRejected} undecodable source turns` });
-    if (evidence.turnsRecovered) diagnostics.push({ severity: 'warning', code: 'GEMINI_TURNS_RECOVERED', message: `Recovered ${evidence.turnsRecovered} structurally unrecognized source turns` });
+    if (rejected) diagnostics.push({
+        severity: 'warning',
+        code: 'GEMINI_TURNS_REJECTED',
+        message: `Discarded ${evidence.turnsRejected} undecodable source turns`,
+        details: {
+            turnsRejected: rejected,
+            bodyShape: evidence.bodyShape ?? null,
+            ...(evidence._raw != null ? { rawSample: diagnosticSnapshot(evidence._raw, { maxDepth: 4, maxArray: 8, maxStringLength: 240 }) } : {}),
+        },
+    });
+    if (evidence.turnsRecovered) diagnostics.push({
+        severity: 'warning',
+        code: 'GEMINI_TURNS_RECOVERED',
+        message: `Recovered ${evidence.turnsRecovered} structurally unrecognized source turns`,
+        details: {
+            turnsRecovered: evidence.turnsRecovered,
+            bodyShape: evidence.bodyShape ?? null,
+            ...(evidence._raw != null ? { rawSample: diagnosticSnapshot(evidence._raw, { maxDepth: 4, maxArray: 8, maxStringLength: 240 }) } : {}),
+        },
+    });
     if (newerMessages.length) diagnostics.push({ severity: 'info', code: 'CONVERSATION_VERSION_MISMATCH', message: 'Detail contains activity newer than its metadata version',
         details: { sourceVersion: updatedAt, newerMessages } });
     diagnostics.push(...contentDiagnostics);

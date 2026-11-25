@@ -18,6 +18,7 @@ import { conversationKey, type ConversationKey } from '../../l2/conversationKey.
 import { getIndex } from '../../application/conversations/catalogQueries.js';
 import { updateSettings, type GlobalSettings } from '../../application/settings/index.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
+import { installGlobalErrorDiagnosticCapture, reportRuntimeDiagnostic } from '../../runtime/api/runtimeDiagnostics.js';
 import { warmLocalFontCache } from '../../application/export/fonts.js';
 import { runExport } from '../../application/export/runExport.js';
 import { EXPORT_FORMATS, observeSettings, useSettings, text, errorText, labelPage, labelThemeToggle } from '../shared/settings.js';
@@ -27,6 +28,7 @@ import { readSettings } from '../shared/readSettings.js';
 installDomainStorage();
 installApplicationHost();
 installProviderHost();
+installGlobalErrorDiagnosticCapture('popup');
 
 /** Only the explicitly opened Popup inspects its active tab; URLs never establish Account identity. */
 function platformForTabUrl(url: string | undefined): SourcePlatform | null {
@@ -141,6 +143,14 @@ async function initPopup(): Promise<void> {
             const result = await runExport({ keys: [current], format, delivery: 'browserDownload',
                 includeAssets: latest.includeAssets, skipUnchanged: false }, {
                 onDiagnostic: diagnostic => {
+                    if (diagnostic.severity === 'error' || diagnostic.severity === 'warning') {
+                        reportRuntimeDiagnostic('popup', {
+                            severity: diagnostic.severity,
+                            code: diagnostic.code,
+                            message: diagnostic.message,
+                            details: diagnostic.details ?? { stage: diagnostic.stage, key: diagnostic.key ?? null },
+                        });
+                    }
                     if (backoff.observe(diagnostic) && active) showStatus(exportMessage);
                 },
             });
@@ -150,7 +160,15 @@ async function initPopup(): Promise<void> {
                 : result.partial ? exportSummary(result)
                 : text('Download initiated', '已发起下载'));
             if (result.exported > 0 && !result.partial && !result.failed.length && !result.aborted) void showRatingPromptIfEligible().catch(error => console.warn('[Rating prompt]', error));
-        })().catch(e => { if (active) showError(e); })
+        })().catch(e => {
+            reportRuntimeDiagnostic('popup', {
+                severity: 'error',
+                code: 'POPUP_EXPORT_FAILED',
+                message: e instanceof Error ? e.message : String(e),
+                error: e,
+            });
+            if (active) showError(e);
+        })
             .finally(() => {
                 stopBackoffTicker();
                 if (active) { busy = false; render(); }
