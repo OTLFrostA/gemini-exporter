@@ -14,7 +14,6 @@ function literal(node) {
 }
 let referenceNumbers = new Set();
 const executionNodes = new WeakSet();
-let visibleReference = '';
 const compact = text => text.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '');
 // Gemini sometimes displays literal ** delimiters instead of rendering bold.
 // Keep them only when that exact physical source span is also visible in the
@@ -90,7 +89,7 @@ let input = '';
 for await (const chunk of process.stdin) input += chunk;
 const parsed = JSON.parse(input);
 const evidence = typeof parsed === 'string' ? { text: parsed, visibleReference: '' } : parsed;
-visibleReference = compact(evidence.visibleReference ?? '');
+const visibleReference = compact(evidence.visibleReference ?? '');
 const tree = fromMarkdown(evidence.text, {
     extensions: [gfm(), math()],
     mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()],
