@@ -60,8 +60,22 @@ export class ConversationViewState {
     }
     private matchesView(row: DomainConversationIndex): boolean {
         const record = this.records[row.key.conversationId];
-        return (this.filter === 'all' || this.filter === (record ? 'has_record' : 'no_record'))
-            && this.matchesSearch(row);
+        let matchesFilter = true;
+        if (this.filter === 'has_record') matchesFilter = Boolean(record);
+        else if (this.filter === 'no_record') matchesFilter = !record;
+        else if (this.filter === 'needs_update') {
+            matchesFilter = Boolean(
+                record
+                && record.chatTime !== undefined
+                && row.updatedAt !== undefined
+                && Number.isSafeInteger(record.chatTime)
+                && Number.isSafeInteger(row.updatedAt)
+                && row.updatedAt > record.chatTime,
+            );
+        } else if (this.filter === 'has_issues') {
+            matchesFilter = record?.status === 'partial';
+        }
+        return matchesFilter && this.matchesSearch(row);
     }
     keys() {
         return this.indexes.filter(row => this.selected.has(row.key.conversationId)).map(row => ({ ...row.key }));

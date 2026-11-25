@@ -188,8 +188,7 @@
 :root[data-theme="dark"] .card-left {
   background: #18181a;
 }
-/* The sticky progress panel is painted with --card inline in Options; match
-   the sidebar so it does not create a stray band under the export button. */
+:root[data-theme="dark"] .export-action-dock,
 :root[data-theme="dark"] #taskProgressPanel {
   background: #18181a !important;
 }

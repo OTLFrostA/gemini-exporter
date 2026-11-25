@@ -15,9 +15,17 @@ let feedbackResult: ExportResult | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let countPoll: ReturnType<typeof setInterval> | undefined;
 let dragging = false;
+let hovering = false;
 let alive = false;
 let positionChanged = false;
 const clearFeedback = () => { clearTimeout(timer); timer = undefined; feedback = null; feedbackResult = null; };
+const scheduleFeedbackClear = (delayMs: number) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+        if (hovering) { scheduleFeedbackClear(1500); return; }
+        feedback = null; feedbackResult = null; timer = undefined; render();
+    }, delayMs);
+};
 const stopCountPolling = () => {
     if (countPoll !== undefined) clearInterval(countPoll);
     countPoll = undefined;
@@ -90,12 +98,12 @@ function showLiveSaveResultImpl(result: ExportResult | null, id: string): void {
         : result.exported && result.partial ? (result.attachmentIssues?.length && result.attachmentIssues.every(issue => resourceIssueKind(issue) === 'expired') && result.otherPartial === 0 ? 'unavailable' : 'partial') : result.exported ? 'ok' : null;
     if (!outcome) return;
     clearFeedback(); feedback = outcome; feedbackResult = result; render();
-    timer = setTimeout(() => { feedback = null; feedbackResult = null; timer = undefined; render(); }, 3000);
+    scheduleFeedbackClear(outcome === 'ok' ? 3000 : 6500);
 }
 function showLiveSaveErrorImpl(id: string): void {
     if (!alive || id !== accountId) return;
     clearFeedback(); feedback = 'failed'; render();
-    timer = setTimeout(() => { feedback = null; feedbackResult = null; timer = undefined; render(); }, 3000);
+    scheduleFeedbackClear(6500);
 }
 function ensureBadgeImpl(): HTMLElement | null {
     if (typeof document === 'undefined') return null;
@@ -139,6 +147,8 @@ function ensureBadgeImpl(): HTMLElement | null {
         }
     });
     badge.addEventListener('pointercancel', () => { dragging = false; moved = true; element.classList.remove('dragging'); });
+    badge.addEventListener('pointerenter', () => { hovering = true; });
+    badge.addEventListener('pointerleave', () => { hovering = false; });
     const open = () => {
         void resolveCurrentAccount().catch(() => null)
             .then(context => chrome.runtime.sendMessage({ action: 'openOptions', accountId: context?.accountId ?? null }))

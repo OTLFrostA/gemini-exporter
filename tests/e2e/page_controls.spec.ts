@@ -170,3 +170,41 @@ test('support links stay fully visible above the bottom edge in the 1280 × 800 
     }));
     expect(fullyVisible).toBe(true);
 });
+
+test('Shift-click range selection, Updated/Incomplete filters, empty-state reset, and Export count badge work smoothly', async ({ context, extensionId }) => {
+    await seedRegistryAccounts(context);
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [
+        { id: 'c1', title: 'Alpha Chat', updatedAt: 4000 },
+        { id: 'c2', title: 'Beta Chat', updatedAt: 3000 },
+        { id: 'c3', title: 'Gamma Chat', updatedAt: 2000 },
+        { id: 'c4', title: 'Delta Chat', updatedAt: 1000 },
+    ], {
+        c1: { exportedAt: 2000, chatTime: 2000, format: 'markdown', status: 'ok' },
+        c2: { exportedAt: 3000, chatTime: 3000, format: 'markdown', status: 'partial', otherContentMissing: true },
+    });
+    await expect(page.locator('#list .item')).toHaveCount(4);
+
+    // Shift-click range selection from row 0 to row 2 selects 3 items and updates #btnExport count
+    await page.locator('#list .item').nth(0).click();
+    await page.locator('#list .item').nth(2).click({ modifiers: ['Shift'] });
+    await expect(page.locator('#selectedStat')).toContainText('3 of 4');
+    await expect(page.locator('#btnExport')).toHaveText('Export selected (3)');
+
+    // Filter: Updated shows only c1 (updatedAt 4000 > chatTime 2000)
+    await page.locator('#chatFilterSelect').selectOption('needs_update');
+    await expect(page.locator('#list .item')).toHaveCount(1);
+    await expect(page.locator('#list')).toContainText('Alpha Chat');
+
+    // Filter: Incomplete / issues shows only c2 (status: 'partial')
+    await page.locator('#chatFilterSelect').selectOption('has_issues');
+    await expect(page.locator('#list .item')).toHaveCount(1);
+    await expect(page.locator('#list')).toContainText('Beta Chat');
+
+    // Empty-state reset button clears search + filter back to all 4 rows
+    await page.locator('#chatSearchInput').fill('no-such-conversation-xyz');
+    await expect(page.locator('.list-empty-state')).toBeVisible();
+    await page.locator('.list-empty-state button').click();
+    await expect(page.locator('#list .item')).toHaveCount(4);
+    await expect(page.locator('#chatFilterSelect')).toHaveValue('all');
+});

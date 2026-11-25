@@ -9,11 +9,13 @@ import { ConversationList } from './conversationList.js';
 // Only this adapter touches the legacy workbench's DOM and mutable selection.
 // React exclusively owns #list's descendants; Application owns all export facts.
 const roots = new WeakMap<HTMLElement, Root>();
+const anchors = new WeakMap<HTMLElement, string>();
 
 export function unmountList(): void {
     const list = elementById('list');
     roots.get(list)?.unmount();
     roots.delete(list);
+    anchors.delete(list);
 }
 
 export function renderList(
@@ -37,16 +39,45 @@ export function renderList(
     // Existing workbench code and guidance read the DOM immediately after render.
     // Keep that synchronous contract at the migration boundary only.
     flushSync(() => root.render(createElement(ConversationList, {
-        rows, disabled, provider, developerMode: isDeveloperMode(),
-        onSelect: (id: string, selected: boolean) => {
+        rows, totalCount: state.indexes.length, disabled, provider, developerMode: isDeveloperMode(),
+        onSelect: (id: string, selected: boolean, shiftKey = false) => {
             if (disabled) return;
-            if (selected) {
+            const anchor = anchors.get(list);
+            if (shiftKey && !guidedSelection && anchor) {
+                const orderedIds = rows.map(row => row.index.key.conversationId);
+                const start = orderedIds.indexOf(anchor);
+                const end = orderedIds.indexOf(id);
+                if (start !== -1 && end !== -1) {
+                    const [lo, hi] = start <= end ? [start, end] : [end, start];
+                    for (let i = lo; i <= hi; i++) {
+                        if (selected) state.selected.add(orderedIds[i]);
+                        else state.selected.delete(orderedIds[i]);
+                    }
+                } else if (selected) state.selected.add(id);
+                else state.selected.delete(id);
+            } else if (selected) {
                 if (guidedSelection) state.selected.clear();
                 state.selected.add(id);
-            } else state.selected.delete(id);
+            } else {
+                state.selected.delete(id);
+            }
+            anchors.set(list, id);
             renderList(state, disabled, preparedKeys, failedKeys, guidedSelection);
             // The legacy tour observes selection intent, including row-title clicks.
             list.dispatchEvent(new Event('conversation-selection-change'));
+        },
+        onSync: () => {
+            const syncBtn = document.getElementById('btnSyncAll') as HTMLButtonElement | null;
+            if (syncBtn && !syncBtn.disabled) syncBtn.click();
+        },
+        onResetFilters: () => {
+            state.search = '';
+            state.filter = 'all';
+            const searchInput = document.getElementById('chatSearchInput') as HTMLInputElement | null;
+            if (searchInput) searchInput.value = '';
+            const filterSelect = document.getElementById('chatFilterSelect') as HTMLSelectElement | null;
+            if (filterSelect) filterSelect.value = 'all';
+            renderList(state, disabled, preparedKeys, failedKeys, guidedSelection);
         },
     })));
     updateStat(state, disabled);
@@ -78,4 +109,7 @@ function updateStat(state: ConversationViewState, disabled: boolean): void {
         text(`${state.selected.size} of ${total} selected`, `已选 ${state.selected.size} / ${total}`);
     const button = requiredElement('button', 'btnExport');
     button.disabled = !state.selected.size || disabled;
+    button.textContent = state.selected.size > 0
+        ? text(`Export selected (${state.selected.size})`, `导出选中 (${state.selected.size})`)
+        : text('Export selected', '导出选中');
 }

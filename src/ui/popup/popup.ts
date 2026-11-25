@@ -69,7 +69,9 @@ async function initPopup(): Promise<void> {
     let key: ConversationKey | null = null;
     let indexTitle: string | null = null;
     let identityLoaded = false;
-    let busy = false, active = true;
+    let busy = false, exporting = false, active = true;
+    const includeAssetsToggle = document.getElementById('popupIncludeAssets') as HTMLInputElement | null;
+    const progressWrap = document.getElementById('popupProgWrap');
     let themeToggle: ReturnType<typeof createOptimisticThemeToggle> | undefined;
     let permissionPlatform: SourcePlatform | null = null;
     let stopPermission: (() => void) | null = null;
@@ -96,7 +98,14 @@ async function initPopup(): Promise<void> {
         }
         if (settings) {
             el('activeFormatLabel').textContent = formatName[settings.defaultFormat];
+            if (includeAssetsToggle) {
+                includeAssetsToggle.checked = settings.includeAssets;
+                includeAssetsToggle.disabled = busy;
+            }
+        } else if (includeAssetsToggle) {
+            includeAssetsToggle.disabled = true;
         }
+        if (progressWrap) progressWrap.style.display = exporting ? 'block' : 'none';
         if (currentStatus) status.textContent = currentStatus();
     };
     const refresh = async () => { settings = await readSettings(); if (active) render(); };
@@ -127,12 +136,15 @@ async function initPopup(): Promise<void> {
         const format = EXPORT_FORMATS.find(value => value === btn.dataset.format);
         if (format) changeSettings({ defaultFormat: format });
     });
+    includeAssetsToggle?.addEventListener('change', () => {
+        changeSettings({ includeAssets: includeAssetsToggle.checked });
+    });
     button.addEventListener('click', () => {
         if (busy || !key || !settings) return;
         const format = settings.defaultFormat;
         // Local Font Access starts inside this gesture, before any await.
         const fonts = format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
-        busy = true; render();
+        busy = true; exporting = true; render();
         const backoff = createBackoffNotice();
         const exportMessage = () => backoff.message() ?? text('Preparing export…', '正在准备导出…');
         showStatus(exportMessage);
@@ -171,7 +183,7 @@ async function initPopup(): Promise<void> {
         })
             .finally(() => {
                 stopBackoffTicker();
-                if (active) { busy = false; render(); }
+                if (active) { busy = false; exporting = false; render(); }
             });
     });
     const showCurrentConversation = async (tab?: chrome.tabs.Tab) => {

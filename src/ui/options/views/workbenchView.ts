@@ -149,6 +149,8 @@ export function renderWorkbench(input: WorkbenchRenderInput): void {
         control('input', 'devToggle').checked = settings.developerMode;
         const en = !document.documentElement.lang.startsWith('zh');
         control('input', 'langToggle').checked = en;
+        el('labelLangEn').classList.toggle('lang-active', en);
+        el('labelLangZh').classList.toggle('lang-active', !en);
         el('labelLangEn').style.color = en ? 'var(--text)' : 'var(--muted)';
         el('labelLangZh').style.color = en ? 'var(--muted)' : 'var(--text)';
         control('input', 'liveSaveDiskToggle').checked = settings.enabledDisk;
