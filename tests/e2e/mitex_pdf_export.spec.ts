@@ -4,10 +4,12 @@
  * No v1 chrome.storage.local conversation arrays or __mitex UI debug hooks.
  */
 import { test, expect, seedRegistryAccounts } from './fixtures';
-import { openOptions, accountId, exposeUIStorage } from './uiFixture';
+import { openOptions, seedConversations, accountId, exposeUIStorage } from './uiFixture';
+import { extractPdfText } from '../helpers/pdfTextExtract';
 import { build } from 'esbuild';
 import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
+const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
 
 let mitexBundle: string;
 test.beforeAll(async () => {
@@ -113,3 +115,181 @@ for (const denied of [false, true]) {
         expect(remoteRequests).toEqual([]);
     });
 }
+
+test('sandbox page compiles a minimal template to PDF with zero external requests', async ({ context, extensionId }) => {
+    test.setTimeout(90000);
+    const extOrigin = `chrome-extension://${extensionId}`;
+    const page = await context.newPage();
+
+    const remoteRequests: string[] = [];
+    await page.route(/^https?:\/\//, async route => {
+        remoteRequests.push(route.request().url());
+        await route.abort();
+    });
+
+    await page.goto(`${extOrigin}/src/ui/options/options.html`);
+
+    const result = await page.evaluate(
+        async (urls: { sandbox: string; wasm: string; font: string }) => {
+            const nextJob = () => (crypto as Crypto).randomUUID
+                ? (crypto as Crypto).randomUUID()
+                : `job-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            const ready = new Promise<void>(resolve => {
+                const onMessage = (event: MessageEvent) => {
+                    if (event.source !== iframe.contentWindow || event.origin !== 'null') return;
+                    const data = event.data as { type?: string };
+                    if (data && data.type === 'typst/ready') {
+                        window.removeEventListener('message', onMessage);
+                        resolve();
+                    }
+                };
+                window.addEventListener('message', onMessage);
+            });
+            iframe.src = urls.sandbox;
+            document.documentElement.appendChild(iframe);
+            await ready;
+
+            const post = <T>(message: Record<string, unknown>, transfer?: Transferable[]): Promise<T> =>
+                new Promise<T>((resolve, reject) => {
+                    const jobId = message.jobId as string;
+                    const timer = window.setTimeout(() => reject(new Error(`timeout waiting for ${message.type}`)), 60000);
+                    const onMessage = (event: MessageEvent) => {
+                        if (event.source !== iframe.contentWindow || event.origin !== 'null') return;
+                        const data = event.data as { type?: string; jobId?: string };
+                        if (!data || data.jobId !== jobId) return;
+                        if (data.type === 'typst/compiled' || data.type === 'typst/inited') {
+                            window.clearTimeout(timer);
+                            window.removeEventListener('message', onMessage);
+                            resolve(data as T);
+                        } else if (data.type === 'typst/error') {
+                            window.clearTimeout(timer);
+                            window.removeEventListener('message', onMessage);
+                            const err = (data as { error?: { message?: string } }).error;
+                            reject(new Error(`sandbox error: ${err?.message ?? 'unknown'}`));
+                        }
+                    };
+                    window.addEventListener('message', onMessage);
+                    iframe.contentWindow!.postMessage(message, '*', transfer ?? []);
+                });
+
+            const fetchBytes = async (url: string): Promise<ArrayBuffer> => {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`fetch ${url}: HTTP ${res.status}`);
+                return res.arrayBuffer();
+            };
+
+            const wasm = await fetchBytes(urls.wasm);
+            const initJob = nextJob();
+            const inited = await post<{ type: string; ok: boolean; initMs: number }>(
+                { type: 'typst/init', jobId: initJob, wasm },
+                [wasm],
+            );
+            if (!inited.ok) throw new Error('sandbox init reported ok=false');
+
+            const font = await fetchBytes(urls.font);
+            const payload = {
+                schemaVersion: 1,
+                title: 'P1b sandbox smoke',
+                profile: { id: 'pdf', version: 1 },
+                metadata: 'gemini · 2026-09-26 · 1 messages',
+                layout: {
+                    page: { widthMm: 210, heightMm: 297, topMm: 18.5, bottomMm: 18, sideMm: 22, contentWidthMm: 166, proseWidthMm: 166 * 720 / 880 },
+                    bubble: { maxWidthRatio: 0.85, compactHeightPt: 120, minInnerWidthPt: 28, paddingXPt: 12.5, paddingYPt: 8.4 },
+                    figure: { maxPageHeightRatio: 0.6, captionMaxWidthMm: 115 },
+                    textLanguage: 'zh', headerGapPt: 4.5, bodyGapPt: 22.5,
+                },
+                messages: [{
+                    id: 'm1',
+                    variant: 'bubble', minWidthCards: [], gapAfterPt: 0,
+                    blocks: [{
+                        type: 'paragraph',
+                        layout: { gapBeforePt: 0, keepWithNext: false, width: 'container' },
+                        children: [{ type: 'text', text: 'hello from the sandbox smoke test' }],
+                    }],
+                }],
+            };
+            const compileJob = nextJob();
+            const compiled = await post<{
+                type: string;
+                ok: boolean;
+                pdf: ArrayBuffer | null;
+                pdfBytes: number;
+                diagnostics: Array<{ severity: string; message: string }>;
+            }>(
+                {
+                    type: 'typst/compile',
+                    jobId: compileJob,
+                    files: [{ path: '/payload.json', text: JSON.stringify(payload) }],
+                    binaries: [],
+                    fonts: [font],
+                },
+                [font],
+            );
+            iframe.remove();
+            const header = compiled.pdf
+                ? String.fromCharCode(...new Uint8Array(compiled.pdf).slice(0, 5))
+                : null;
+            return { ok: compiled.ok, pdfBytes: compiled.pdfBytes, pdfHeader: header };
+        },
+        {
+            sandbox: `${extOrigin}/src/l4/format/pdf/sandbox/typst-compile.html`,
+            wasm: `${extOrigin}/src/l4/format/pdf/sandbox/vendor/typst_ts_web_compiler_bg.wasm`,
+            font: `${extOrigin}/src/l4/format/pdf/sandbox/fonts/NewCMMath-Regular.otf`,
+        },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.pdfHeader).toBe('%PDF-');
+    expect(result.pdfBytes).toBeGreaterThan(1000);
+    expect(remoteRequests).toEqual([]);
+});
+
+test('one PDF batch survives sandbox rotation with all physical documents and text intact', async ({ context, extensionId }) => {
+    test.setTimeout(120000);
+    const remoteRequests: string[] = [];
+    await context.route(/^https?:\/\//, async route => { remoteRequests.push(route.request().url()); await route.abort(); });
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, Array.from({ length: 33 }, (_, index) => ({
+        id: `batch_${index}`, title: `Batch lifecycle ${index}`,
+        body: `Retained answer marker ${index}.`, question: `Retained question marker ${index}.`,
+    })));
+    await page.evaluate(() => {
+        Object.defineProperty(window, 'queryLocalFonts', { configurable: true,
+            value: async () => { throw new DOMException('Denied for test', 'NotAllowedError'); } });
+    });
+    let sandboxes = 0;
+    page.on('framenavigated', frame => { if (frame.url().includes('/sandbox/typst-compile.html')) sandboxes++; });
+    await page.locator('#format').selectOption('pdf');
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    await page.locator('#skipExported').uncheck();
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    await page.locator('#btnSelectAll').click();
+    const downloaded = page.waitForEvent('download', { timeout: 90000 });
+    await page.locator('#btnExport').click();
+    await expect(page.locator('#directWriteModal')).toBeVisible();
+    await expect(page.locator('#directWritePromptText')).toContainText('33 conversations');
+    await page.locator('#btnModalContinueZip').click();
+    const download = await downloaded;
+    const zip = await JSZip.loadAsync(await readFile((await download.path())!));
+    const documents = Object.values(zip.files).filter((file: unknown) => {
+        const entry = file as { dir: boolean; name: string };
+        return !entry.dir && entry.name.endsWith('.pdf');
+    }) as Array<{ async(type: string): Promise<Uint8Array> }>;
+    expect(documents).toHaveLength(33);
+    const text: string[] = [];
+    for (const document of documents) {
+        const bytes = await document.async('uint8array');
+        expect(Buffer.from(bytes.subarray(0, 5)).toString()).toBe('%PDF-');
+        text.push(extractPdfText(bytes).text);
+    }
+    for (let index = 0; index < 33; index++) {
+        expect(text.filter(value => value.includes(`Retained answer marker ${index}.`))).toHaveLength(1);
+        expect(text.filter(value => value.includes(`Retained question marker ${index}.`))).toHaveLength(1);
+    }
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    expect(sandboxes).toBe(2);
+    expect(remoteRequests).toEqual([]);
+});

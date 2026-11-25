@@ -1,5 +1,8 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
-import { openOptions, seedConversations } from './uiFixture';
+import { accountId, exposeUIStorage, openOptions, seedConversations, storedSettings } from './uiFixture';
+import { mkdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
+const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
 test.beforeEach(async({context,extensionId})=>{void extensionId;await seedRegistryAccounts(context);});
 test('conversation checkboxes are named by their displayed titles in both languages', async ({context, extensionId}) => {
     const page = await openOptions(context, extensionId);
@@ -256,4 +259,256 @@ test('focus and unrelated storage changes avoid unchanged paints; notification b
     await expect(page.locator('#btnThemeToggle')).toBeEnabled();
     // Theme's optimistic paint and unlock paint are enough; its own storage echo adds none.
     expect((await metrics()).paints).toBe(3);
+});
+
+test('repeated list refresh does not resurrect a verified deletion or display a removed archive-state notice', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{ id: 'deleted_notice' }, { id: 'keep' }]);
+    await page.evaluate(async id => Reflect.get(globalThis, 'uiFixture').ingestDeletedConversation(id, 'deleted_notice'), accountId);
+    for (let i = 0; i < 5; i++) {
+        await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+        await expect(page.locator('#list .item')).toHaveCount(1);
+        await expect(page.locator('[data-chat-id="deleted_notice"],#archiveNotice')).toHaveCount(0);
+    }
+});
+
+test('record cleanup requires confirmation and retains all bodies; a subsequent verified deletion removes only that conversation', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{ id: 'one' }, { id: 'unlisted' }, { id: 'another' }], { one: { exportedAt: 100, format: 'markdown', status: 'ok' } });
+    await expect(page.locator('#btnClearExported')).toBeHidden();
+    await page.locator('#devToggle').check();
+    await page.locator('#btnMoreActions').click();
+    await expect(page.locator('#btnClearExported')).toBeVisible();
+    await page.locator('#btnClearExported').click();
+    await page.locator('#btnCleanupCancel').click();
+    expect(Object.keys(await page.evaluate(id => Reflect.get(globalThis, 'uiFixture').listExportRecords(id), accountId))).toEqual(['one']);
+    await page.locator('#btnMoreActions').click();
+    await page.locator('#btnClearExported').click();
+    await page.locator('#btnCleanupConfirm').click();
+    await expect(page.locator('#status')).toHaveText('Records cleared');
+    await expect(page.locator('#list .item')).toHaveCount(3);
+    expect(await page.evaluate(id => Reflect.get(globalThis, 'uiFixture').listExportRecords(id), accountId)).toEqual({});
+    await page.evaluate(async id => Reflect.get(globalThis, 'uiFixture').ingestDeletedConversation(id, 'another'), accountId);
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(page.locator('#list .item')).toHaveCount(2);
+    expect(await page.evaluate(id => Reflect.get(globalThis, 'uiFixture').readConversation({ accountId: id, conversationId: 'unlisted' }), accountId)).toBeTruthy();
+});
+
+test('absence from a source list alone keeps local conversations and never manufactures deletion state', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{ id: 'unlisted_notice' }, { id: 'active' }]);
+    await page.evaluate(async id => Reflect.get(globalThis, 'uiFixture').ingestIndexes(id, [{ conversationId: 'active', fields: { title: 'Latest title', titleSource: 'provider' } }]), accountId);
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(page.locator('#list .item')).toHaveCount(2);
+    await expect(page.locator('#archiveNotice,.cloud-status')).toHaveCount(0);
+    await expect(page.locator('[data-chat-id="active"]')).toContainText('Latest title');
+});
+
+test('explicit scan reset clears the current local list and bodies only after confirmation', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{ id: 'reset-one' }, { id: 'reset-two' }], { 'reset-one': { exportedAt: 100, format: 'markdown', status: 'ok' } });
+    await page.locator('#btnMoreActions').click();
+    await page.locator('#btnClearScan').click();
+    await page.locator('#btnCleanupCancel').click();
+    await expect(page.locator('#list .item')).toHaveCount(2);
+    await page.locator('#btnMoreActions').click();
+    await page.locator('#btnClearScan').click();
+    await expect(page.locator('#cleanupPromptText')).toContainText('all local conversations');
+    await page.locator('#btnCleanupConfirm').click();
+    await expect(page.locator('#status')).toHaveText('Records cleared');
+    await expect(page.locator('#list .item')).toHaveCount(0);
+    for (const conversationId of ['reset-one', 'reset-two']) {
+        expect(await page.evaluate(({ accountId, conversationId }) => Reflect.get(globalThis, 'uiFixture').readConversation({ accountId, conversationId }), { accountId, conversationId })).toBeNull();
+    }
+    expect(await page.evaluate(id => Reflect.get(globalThis, 'uiFixture').listExportRecords(id), accountId)).toEqual({});
+    await page.reload();
+    await expect(page.locator('#list .item')).toHaveCount(0);
+});
+
+test('Show reveals a selected conversation hidden by both search and export status', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [
+        { id: 'orchard', title: 'Orchard planning' },
+        { id: 'ocean', title: 'Ocean research' },
+    ], { ocean: { format: 'markdown', exportedAt: 100, status: 'ok' } });
+    const ocean = page.locator('[data-chat-id="ocean"] input');
+    await ocean.check();
+
+    const search = page.locator('#chatSearchInput');
+    const status = page.locator('#chatFilterSelect');
+    await status.selectOption('no_record');
+    await expect(page.locator('#hiddenSelectionNotice')).toContainText('1 selected conversation hidden by filter');
+    await expect(page.locator('#btnExport')).toBeEnabled();
+    await search.fill('Orchard');
+    await expect(ocean).toBeHidden();
+    await expect(page.locator('#hiddenSelectionNotice')).toContainText('1 selected conversation hidden by search or filter');
+
+    await page.locator('#btnShowHiddenSelection').click();
+    await expect(ocean).toBeChecked();
+    await expect(search).toHaveValue('');
+    await expect(status).toHaveValue('all');
+    await expect(page.locator('#hiddenSelectionNotice')).toBeHidden();
+
+    await page.locator('[data-chat-id="orchard"] input').check();
+    await status.selectOption('has_record');
+    await expect(page.locator('#hiddenSelectionNotice')).toContainText('1 selected conversation hidden by filter');
+    await page.locator('#btnDeselectHidden').click();
+    await expect(page.locator('#hiddenSelectionNotice')).toBeHidden();
+    await expect(page.locator('#selectedStat')).toHaveText('1 of 2 selected');
+    await expect(status).toHaveValue('has_record');
+    await expect(ocean).toBeChecked();
+});
+
+test('search preserves selection, explains hidden items and exports the full selection', async ({ context, extensionId }, testInfo) => {
+    const page = await openOptions(context, extensionId);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await seedConversations(page, [
+        { id: 'visible', title: 'Orchard planning', body: 'Visible selected conversation' },
+        { id: 'hidden-one', title: 'Ocean research', body: 'Hidden selected conversation one' },
+        { id: 'hidden-two', title: 'Mountain routes', body: 'Hidden selected conversation two' },
+    ]);
+    const notice = page.locator('#hiddenSelectionNotice');
+    const search = page.locator('#chatSearchInput');
+    await expect(notice).toBeHidden();
+    await page.locator('#btnSelectAll').check();
+    await search.fill('Orchard');
+    await expect(page.locator('#list .item')).toHaveCount(1);
+    await expect(page.locator('#selectedStat')).toHaveText('3 of 3 selected');
+    await expect(notice).toContainText('2 selected conversations hidden by search');
+
+    const pending = page.waitForEvent('download');
+    await page.locator('#btnExport').click();
+    const download = await pending;
+    const destination = testInfo.outputPath('hidden-selection.zip');
+    await download.saveAs(destination);
+    const zip = await JSZip.loadAsync(await readFile(destination));
+    const entries: string[] = Object.keys(zip.files).filter(name => name.endsWith('.md'));
+    expect(entries).toHaveLength(3);
+    const contents: string[] = await Promise.all(entries.map(name => zip.file(name).async('string')));
+    for (const body of ['Visible selected conversation', 'Hidden selected conversation one', 'Hidden selected conversation two']) {
+        expect(contents.join('\n')).toContain(body);
+    }
+    await expect(page.locator('#btnShowHiddenSelection')).toBeEnabled();
+    await page.locator('#btnShowHiddenSelection').click();
+    await expect(search).toHaveValue('');
+    await expect(notice).toBeHidden();
+    await expect(page.locator('#list input[type="checkbox"]:checked')).toHaveCount(3);
+    await search.fill('no matches');
+    await expect(notice).toContainText('3 selected conversations hidden by search');
+    await search.fill('Orchard');
+    await page.locator('#btnDeselectHidden').click();
+    await expect(notice).toBeHidden();
+    await expect(page.locator('#selectedStat')).toHaveText('1 of 3 selected');
+    await expect(search).toHaveValue('Orchard');
+    await search.fill('');
+    await expect(page.locator('[data-chat-id="visible"] input')).toBeChecked();
+    await expect(page.locator('[data-chat-id="hidden-one"] input')).not.toBeChecked();
+    await expect(page.locator('[data-chat-id="hidden-two"] input')).not.toBeChecked();
+    await search.fill('Ocean');
+    await expect(page.locator('#hiddenSelectionText')).toHaveText('1 selected conversation hidden by search');
+});
+
+test('format picker is page-rendered and supports pointer, keyboard and dismissal', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const select = page.locator('#format');
+    await expect(select).toHaveCSS('appearance', 'base-select');
+    await select.click();
+    const pdf = select.locator('option[value="pdf"]');
+    await expect(pdf).toBeVisible();
+    const box = await pdf.boundingBox();
+    expect(box?.height).toBeGreaterThan(20);
+    await mkdir('tests/output/visual_audit', { recursive: true });
+    await page.screenshot({ animations: 'disabled', path: 'tests/output/visual_audit/format_picker_dark.png' });
+    await pdf.click();
+    await expect(select).toHaveValue('pdf');
+    await expect.poll(async () => (await storedSettings(page)).defaultFormat).toBe('pdf');
+    await expect.poll(() => select.evaluate(node => node.matches(':open'))).toBe(false);
+
+    await select.click();
+    await page.keyboard.press('Escape');
+    await expect.poll(() => select.evaluate(node => node.matches(':open'))).toBe(false);
+    await expect(select).toBeFocused();
+    await expect(select).toHaveValue('pdf');
+
+    await select.press('Space');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await expect(select).toHaveValue('json');
+    await expect.poll(async () => (await storedSettings(page)).defaultFormat).toBe('json');
+
+    await select.click();
+    await page.locator('h1').click();
+    await expect.poll(() => select.evaluate(node => node.matches(':open'))).toBe(false);
+    await expect(select).toHaveValue('json');
+    await page.evaluate(async () => Reflect.get(globalThis, 'uiFixture').updateSettings({ theme: 'light' }));
+    await select.click();
+    await page.screenshot({ animations: 'disabled', path: 'tests/output/visual_audit/format_picker_light.png' });
+    await page.keyboard.press('Escape');
+    await page.close();
+});
+
+test('55-conversation browser delivery suggests folder once, then ZIP remains available and suppression survives reload', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, Array.from({ length: 55 }, (_, i) => ({
+        id: `bulk_${i}`, title: `Bulk ${i}`, body: `Bulk answer ${i}`,
+    })));
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+
+    const modal = page.locator('#directWriteModal');
+    await expect(modal).toBeVisible();
+    await expect(page.locator('#directWritePromptText')).toContainText('55 conversations');
+    await expect(page.locator('#btnModalSwitchFolder')).toBeVisible();
+    await expect(page.locator('#btnModalContinueZip')).toBeVisible();
+    await expect.poll(async () => (await storedSettings(page)).directWritePromptCompleted).toBe(true);
+
+    const pending = page.waitForEvent('download');
+    await page.locator('#btnModalContinueZip').click();
+    await expect(modal).toBeHidden();
+    const file = await pending;
+    expect(file.suggestedFilename()).toMatch(/\.zip$/);
+    const zip = await JSZip.loadAsync(await readFile((await file.path())!));
+    const files = Object.keys(zip.files).filter(x => x.endsWith('.md'));
+    expect(files).toHaveLength(55);
+    expect((await Promise.all(files.map(x => zip.file(x).async('string')))).join('\n')).toContain('Bulk answer 54');
+
+    await expect(page.locator('#status')).toContainText('Successfully downloaded: 55', { timeout: 30000 });
+    await expect.poll(async () => page.evaluate(async () =>
+        Object.keys(await Reflect.get(globalThis, 'uiFixture')
+            .listExportRecords('10000000-0000-4000-8000-000000000001')).length),
+        { timeout: 30000 }).toBe(55);
+
+    await page.reload();
+    await expect(page.locator('#list .item')).toHaveCount(55);
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+    await expect(page.locator('#status')).toContainText('Skipped: 55');
+    await expect(modal).toBeHidden();
+});
+
+test('closing a displayed batch suggestion permanently dismisses it without starting an export', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, Array.from({ length: 21 }, (_, i) => ({ id: `tip_${i}` })));
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+    await expect(page.locator('#directWriteModal')).toBeVisible();
+    await page.locator('#btnDirectWriteClose').click();
+    await expect(page.locator('#directWriteModal')).toBeHidden();
+    await expect.poll(async () => (await storedSettings(page)).directWritePromptCompleted).toBe(true);
+
+    await page.reload();
+    await expect(page.locator('#list .item')).toHaveCount(21);
+    await exposeUIStorage(page);
+    await page.locator('#btnSelectAll').click();
+    const pending = page.waitForEvent('download');
+    await page.locator('#btnExport').click();
+    await pending;
+    await expect(page.locator('#directWriteModal')).toBeHidden();
+    await expect(page.locator('#status')).toContainText('Successfully downloaded: 21', { timeout: 30000 });
+    await expect.poll(async () => page.evaluate(async () =>
+        Object.keys(await Reflect.get(globalThis, 'uiFixture')
+            .listExportRecords('10000000-0000-4000-8000-000000000001')).length),
+        { timeout: 30000 }).toBe(21);
 });

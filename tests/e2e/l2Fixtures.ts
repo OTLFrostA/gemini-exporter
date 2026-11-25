@@ -1,14 +1,23 @@
 import { launchChromeExtension } from '../../scripts/playwright-chrome.mjs';
-import { test as base, expect, type BrowserContext } from '@playwright/test';
+import { test as base, expect, type BrowserContext, type Page } from '@playwright/test';
 import { build } from 'esbuild';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 export { seedRegistryAccounts } from './fixtures';
 
-/** Isolated L2 browser harness: uses the real admission/storage brokers without loading other v2 modules. */
-export const test = base.extend<{ context: BrowserContext; extensionId: string }>({
-    context: async ({}, use) => {
+interface L2WorkerSession {
+    context: BrowserContext;
+    extensionId: string;
+    anchor: Page;
+}
+
+/** Isolated L2 browser harness: reuses one minimal L2 extension context per worker. */
+export const test = base.extend<
+    { context: BrowserContext; extensionId: string },
+    { _l2Session: L2WorkerSession }
+>({
+    _l2Session: [async ({}, use) => {
         const extension = await mkdtemp(join(tmpdir(), 'exporter-l2-'));
         let context: BrowserContext | undefined;
         try {
@@ -31,17 +40,40 @@ export const test = base.extend<{ context: BrowserContext; extensionId: string }
                 });
             ` }, bundle: true, platform: 'browser', format: 'iife', outfile: join(extension, 'background.js') });
             ({ context } = await launchChromeExtension(extension));
-            // Native extension tests use local fixtures; unexpected external requests fail closed.
             await context.route(/^https?:\/\//, route => route.abort('blockedbyclient'));
-            await use(context);
+            const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
+            const extensionId = new URL(worker.url()).host;
+            const anchor = context.pages()[0] ?? await context.newPage();
+            await anchor.goto('about:blank').catch(() => {});
+            await use({ context, extensionId, anchor });
         } finally {
             await context?.close();
             await rm(extension, { recursive: true, force: true });
         }
+    }, { scope: 'worker' }],
+    context: async ({ _l2Session }, use) => {
+        for (const page of _l2Session.context.pages()) {
+            if (page !== _l2Session.anchor) await page.close({ runBeforeUnload: false }).catch(() => {});
+        }
+        await _l2Session.context.unrouteAll({ behavior: 'ignoreErrors' });
+        await _l2Session.context.route(/^https?:\/\//, route => route.abort('blockedbyclient'));
+        const worker = _l2Session.context.serviceWorkers()[0] ?? await _l2Session.context.waitForEvent('serviceworker');
+        await worker.evaluate(async () => {
+            await chrome.storage.local.clear();
+            if (typeof indexedDB?.databases === 'function') {
+                for (const info of await indexedDB.databases()) {
+                    if (!info.name) continue;
+                    await new Promise<void>(r => {
+                        const del = indexedDB.deleteDatabase(info.name!);
+                        del.onsuccess = del.onerror = del.onblocked = () => r();
+                    });
+                }
+            }
+        });
+        await use(_l2Session.context);
     },
-    extensionId: async ({ context }, use) => {
-        const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
-        await use(new URL(worker.url()).host);
+    extensionId: async ({ _l2Session }, use) => {
+        await use(_l2Session.extensionId);
     },
 });
 export { expect };

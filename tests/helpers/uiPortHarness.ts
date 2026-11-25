@@ -222,31 +222,71 @@ export const isVersionGreater = (a,b) => {
 `;
 export const A = '11111111-1111-4111-8111-111111111111';
 export const B = '22222222-2222-4222-8222-222222222222';
+
+const bundleCache = new Map<string, Promise<string>>();
+const textFileCache = new Map<string, string>();
+
+function readCachedText(filePath: string): string {
+    let text = textFileCache.get(filePath);
+    if (text === undefined) {
+        text = fs.readFileSync(filePath, 'utf8');
+        textFileCache.set(filePath, text);
+    }
+    return text;
+}
+
+function getUiMockBundle(root: string, kind: 'options' | 'popup' | 'badge'): Promise<string> {
+    const cacheKey = `${root}::${kind}`;
+    let pending = bundleCache.get(cacheKey);
+    if (!pending) {
+        pending = (async () => {
+            const bundle = await build({
+                ...(kind === 'badge'
+                    ? { stdin: { contents: `import { BadgeView } from './src/ui/badge/badgeView.ts'; globalThis.badge = BadgeView; BadgeView.ensureBadge();`, resolveDir: root } }
+                    : { stdin: { contents: `import './src/ui/${kind}/${kind}.ts'; import * as tour from './src/ui/guidance/tourGuide.ts'; import * as settings from './src/ui/shared/settings.ts'; import { readSettings } from './src/ui/shared/readSettings.ts'; globalThis.testUi = {tour:{...tour.TourGuide,consumeTourIntent:tour.consumeTourIntent},settings:{...settings,readSettings}};`, resolveDir: root, loader: 'ts' } }),
+                bundle: true,
+                write: false,
+                metafile: true,
+                format: 'iife',
+                plugins: [{
+                    name: 'ui-port-mocks',
+                    setup(b) {
+                        b.onResolve({ filter: /accountContext\.js$/ }, args => ({ path: args.path, namespace: 'account-mock' }));
+                        b.onLoad({ filter: /.*/, namespace: 'account-mock' }, () => ({ contents: `export const getAccountContext=()=>({accountId:globalThis.harness.source,providerId:'gemini'});export const resolveCurrentAccount=async()=>getAccountContext();`, loader: 'js' }));
+                        b.onResolve({ filter: /^\./ }, args => {
+                            const owner = path.relative(path.join(root, 'src'), path.resolve(args.resolveDir, args.path)).replace(/\\/g, '/');
+                            const port = /^(?:l1|l2|l3a|l3b|l4|application|migration|runtime|shared)\//.test(owner);
+                            if (port) return { path: args.path, namespace: 'ui-mock' };
+                        });
+                        b.onLoad({ filter: /.*/, namespace: 'ui-mock' }, () => ({ contents: mock, loader: 'js' }));
+                    },
+                }],
+            });
+            const rootSource = root.replace(/\\/g, '/') + '/src/';
+            for (const input of Object.keys(bundle.metafile?.inputs ?? {})) {
+                const normalized = input.replace(/\\/g, '/');
+                const owner = normalized.startsWith('src/') ? normalized.slice(4)
+                    : normalized.startsWith(rootSource) ? normalized.slice(rootSource.length) : null;
+                if (owner !== null && !owner.startsWith('ui/')) {
+                    throw new Error(`UI mock harness bundled non-UI production owner: ${input}`);
+                }
+            }
+            return bundle.outputFiles[0].text;
+        })();
+        bundleCache.set(cacheKey, pending);
+    }
+    return pending;
+}
+
 export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', patch: Record<string, unknown> = {}, query = '') {
     page.setDefaultTimeout(5000);
     const root = process.cwd();
-    const bundle = await build({ ...(kind === 'badge' ? { stdin: { contents: `import { BadgeView } from './src/ui/badge/badgeView.ts'; globalThis.badge = BadgeView; BadgeView.ensureBadge();`, resolveDir: root } } : { stdin: { contents: `import './src/ui/${kind}/${kind}.ts'; import * as tour from './src/ui/guidance/tourGuide.ts'; import * as settings from './src/ui/shared/settings.ts'; import { readSettings } from './src/ui/shared/readSettings.ts'; globalThis.testUi = {tour:{...tour.TourGuide,consumeTourIntent:tour.consumeTourIntent},settings:{...settings,readSettings}};`, resolveDir: root, loader: 'ts' } }), bundle: true, write: false, metafile: true, format: 'iife', plugins: [{ name: 'ui-port-mocks', setup(build) {
-        build.onResolve({ filter: /accountContext\.js$/ }, args => ({path:args.path,namespace:'account-mock'}));
-        build.onLoad({filter:/.*/,namespace:'account-mock'},()=>({contents:`export const getAccountContext=()=>({accountId:globalThis.harness.source,providerId:'gemini'});export const resolveCurrentAccount=async()=>getAccountContext();`,loader:'js'}));
-        build.onResolve({ filter: /^\./ }, args => {
-            const owner = path.relative(path.join(root, 'src'), path.resolve(args.resolveDir, args.path)).replace(/\\/g, '/');
-            // Every non-UI source owner is external to the isolated UI unit.
-            // Mock its frozen public port even when indirectly imported by UI.
-            const port = /^(?:l1|l2|l3a|l3b|l4|application|migration|runtime|shared)\//.test(owner);
-            if (port) return { path: args.path, namespace: 'ui-mock' };
-        });
-        build.onLoad({ filter: /.*/, namespace: 'ui-mock' }, () => ({ contents: mock, loader: 'js' }));
-    } }] });
-    const rootSource = root.replace(/\\/g, '/') + '/src/';
-    for (const input of Object.keys(bundle.metafile?.inputs ?? {})) {
-        const normalized = input.replace(/\\/g, '/');
-        const owner = normalized.startsWith('src/') ? normalized.slice(4)
-            : normalized.startsWith(rootSource) ? normalized.slice(rootSource.length) : null;
-        if (owner !== null && !owner.startsWith('ui/')) {
-            throw new Error(`UI mock harness bundled non-UI production owner: ${input}`);
-        }
-    }
-    await page.route('https://ui.test/**', route => route.fulfill({ contentType: 'text/html', body: fs.readFileSync(path.join(root, `src/ui/${kind === 'badge' ? 'options' : kind}/${kind === 'badge' ? 'options' : kind}.html`), 'utf8').replace(/<script[^>]*><\/script>/g, '').replace(/<link[^>]*>/g, '') }));
+    const bundleText = await getUiMockBundle(root, kind);
+    const htmlKind = kind === 'badge' ? 'options' : kind;
+    const htmlBody = readCachedText(path.join(root, `src/ui/${htmlKind}/${htmlKind}.html`))
+        .replace(/<script[^>]*><\/script>/g, '')
+        .replace(/<link[^>]*>/g, '');
+    await page.route('https://ui.test/**', route => route.fulfill({ contentType: 'text/html', body: htmlBody }));
     await page.addInitScript(({ A, B, patch }) => {
         const w = window as any;
         w.harness = { settings: {defaultFormat:'markdown',includeAssets:true,skipExported:true,enabledDisk:true,developerMode:false,language:'en',lastSeenFeatureVersion:'1.8.1'},
@@ -300,12 +340,12 @@ export async function mount(page: Page, kind: 'options' | 'popup' | 'badge', pat
     });
     // Badge tests reuse Options HTML as a host fixture; Gemini's page has no theme bootstrap.
     if (kind === 'badge') await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
-    await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/guidance/tourGuide.css'), 'utf8') });
-    await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/shared/theme.css'), 'utf8') });
+    await page.addStyleTag({ content: readCachedText(path.join(root, 'src/ui/guidance/tourGuide.css')) });
+    await page.addStyleTag({ content: readCachedText(path.join(root, 'src/ui/shared/theme.css')) });
     if (kind === 'badge') {
         // Production injects this through manifest.json; the isolated UI harness must do the same.
-        await page.addStyleTag({ content: fs.readFileSync(path.join(root, 'src/ui/badge/content.css'), 'utf8') });
+        await page.addStyleTag({ content: readCachedText(path.join(root, 'src/ui/badge/content.css')) });
     }
-    await page.addScriptTag({ content: bundle.outputFiles[0].text });
+    await page.addScriptTag({ content: bundleText });
 }
 export const read = (page: Page, key: string) => page.evaluate(key => (window as any).harness[key], key);

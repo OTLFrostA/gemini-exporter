@@ -8,7 +8,7 @@ export default defineConfig({
   ],
   timeout: 30000,
   retries: process.env.CI ? 2 : 0,
-  workers: 2,
+  workers: 4,
   use: {
     channel: 'chrome',
     headless: true,

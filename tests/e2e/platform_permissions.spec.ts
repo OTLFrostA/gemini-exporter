@@ -52,30 +52,16 @@ test('unconnected ChatGPT shows the tutorial authorization selector instead of e
     await popup.close();
 });
 
-test.describe('authorized platform activation', () => {
-    test.use({ grantGemini: true });
-    test('connecting activates an existing document without granting other platforms', async ({ context, extensionId }) => {
-        const options = await context.newPage();
-        await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-        await options.evaluate(async () => {
-            const scripts = await chrome.scripting.getRegisteredContentScripts();
-            await chrome.scripting.unregisterContentScripts({ ids: scripts.map(script => script.id) });
-        });
-        const source = await context.newPage();
-        await source.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><script>window.WIZ_global_data={qDCSke:"10000000001",SNlM0e:"fixture",cfb2h:"build"}</script><main>Existing tab</main>' }));
-        await source.goto('https://gemini.google.com/app');
-        expect(await source.locator('#geminiExportBadge').count()).toBe(0);
-        const { build } = await import('esbuild');
-        const bundle = await build({ stdin: { contents: "import {preparePlatformTab} from './src/runtime/capabilities/platformInjection.ts'; globalThis.prepareSource=preparePlatformTab;", resolveDir: process.cwd(), loader: 'ts' }, bundle: true, write: false, format: 'iife' });
-        await options.evaluate(bundle.outputFiles[0].text);
-        await options.evaluate(async () => {
-            const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
-            await Reflect.get(globalThis, 'prepareSource')('gemini', tabs[0].id);
-        });
-        await expect(source.locator('#geminiExportBadge')).toBeVisible();
-        const scripts = await options.evaluate(() => chrome.scripting.getRegisteredContentScripts());
-        expect(scripts.map(script => script.id).sort()).toEqual(['gemini-source-content', 'gemini-source-main']);
-        expect(await options.evaluate(() => chrome.permissions.contains({ origins: ['https://chatgpt.com/*'] }))).toBe(false);
-        expect(await options.evaluate(() => chrome.permissions.contains({ origins: ['https://claude.ai/*'] }))).toBe(false);
-    });
+test('fixture browser blocks unexpected external requests while allowing explicit mocks', async ({ context }) => {
+    const blockedPage = await context.newPage();
+    await expect(blockedPage.goto('https://untrusted.invalid/')).rejects.toThrow(/ERR_BLOCKED_BY_CLIENT/);
+    await blockedPage.close();
+
+    const page = await context.newPage();
+    await page.route('https://fixture.invalid/**', route => route.fulfill({
+        contentType: 'text/html',
+        body: '<main data-testid="fixture">Local browser fixture</main>',
+    }));
+    await page.goto('https://fixture.invalid/');
+    await expect(page.getByTestId('fixture')).toHaveText('Local browser fixture');
 });

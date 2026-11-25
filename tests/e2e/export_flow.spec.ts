@@ -1,7 +1,8 @@
 import { test, expect, seedRegistryAccounts } from './fixtures';
-import { readFile } from 'node:fs/promises';
+import { copyFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { accountId, openOptions, seedConversations, storedSettings } from './uiFixture';
+import type { Download } from '@playwright/test';
+import { accountId, exposeUIStorage, openOptions, seedConversations, storedSettings } from './uiFixture';
 test.beforeEach(async({context,extensionId})=>{void extensionId;await seedRegistryAccounts(context);});
 for (const language of ['en', 'zh'] as const) test(`single-conversation export progress uses correct ${language} counters`, async ({context,extensionId}, testInfo) => {
     const page = await openOptions(context, extensionId);
@@ -158,4 +159,106 @@ test('export progress keeps one cumulative three-counter message through source 
     for (let i=1;i<counts.length;i++) for (let metric=0;metric<3;metric++)
         expect(counts[i][metric]).toBeGreaterThanOrEqual(counts[i-1][metric]);
     expect(counts.at(-1)).toEqual([2,2,2]);
+});
+
+test('old interrupted sessions stay inert after reload and language changes; source titles remain untouched', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{ id: 'one', title: 'Takeout Prompt 临时问题', titleSource: 'derived' }, { id: 'two' }]);
+    await page.evaluate(() => chrome.storage.local.set({ gemini_last_export_session: { status: 'interrupted', total: 2, current: 1, lastChatId: 'one', lastChatTitle: 'Must not overwrite source title' } }));
+    await page.reload();
+    await expect(page.locator('#list .item')).toHaveCount(2);
+    await expect(page.locator('#exportSessionBanner,#btnResumeExport,#btnDismissExportBanner')).toHaveCount(0);
+    await expect(page.locator('#list input:checked')).toHaveCount(0);
+    await page.locator('#langToggle').uncheck();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+    await expect(page.locator('[data-chat-id="one"]')).toContainText('Takeout Prompt 临时问题');
+    await expect(page.locator('#btnExport')).toBeDisabled();
+    await page.locator('#langToggle').check();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.locator('[data-chat-id="one"]')).toContainText('Takeout Prompt 临时问题');
+    await exposeUIStorage(page);
+    const index = await page.evaluate(id => Reflect.get(globalThis, 'uiFixture').getIndex({ accountId: id, conversationId: 'one' }), accountId);
+    expect(index.title).toBe('Takeout Prompt 临时问题');
+    expect(index.titleSource).toBe('derived');
+});
+
+test('Options Markdown download preserves literal prompt separator lines', async ({ context, extensionId }, testInfo) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{ id: 'literal-separators', question: 'Standalone\n\n---\n\nText above\n---\n***\n___\n- - -\nHeading\n===', body: 'Unchanged answer' }]);
+    await page.locator('#btnSelectAll').click();
+    const pending = page.waitForEvent('download');
+    await page.locator('#btnExport').click();
+    const download = await pending;
+    expect(download.suggestedFilename()).toMatch(/\.md$/);
+    const file = (await download.path())!;
+    await copyFile(file, testInfo.outputPath('export.md'));
+    const markdown = await readFile(file, 'utf8');
+    expect(markdown).toContain('Standalone\n\n\\---');
+    expect(markdown).toContain('Text above\n\\---');
+    expect(markdown).toContain('\\*\\*\\*\n\\_\\_\\_\n\\- - -\nHeading\n\\===');
+    expect(markdown).toContain('Unchanged answer');
+});
+
+const archivePng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS9sAAAAASUVORK5CYII=';
+test('physical archive bytes survive verified local deletion; missing bodies fail rather than fabricate content, and record cleanup stays nondestructive', async ({ context, extensionId }) => {
+    test.setTimeout(60000);
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{ id: 'archive_local', body: 'Preserved local answer' }]);
+    const source = await context.newPage();
+    await source.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><script>window.WIZ_global_data={qDCSke:'10000000001',SNlM0e:'token',cfb2h:'build'}</script><main>Offline source fixture</main>` }));
+    await source.goto('https://gemini.google.com/app/archive_local');
+    await expect(source.locator('#geminiExportBadge')).toBeVisible();
+    await context.route('https://lh3.googleusercontent.com/archive-fixture.png', route => route.fulfill({ contentType: 'image/png', body: Buffer.from(archivePng, 'base64') }));
+    await page.evaluate(async id => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        const key = { accountId: id, conversationId: 'archive_local' };
+        const detail = await api.getDetail(key);
+        const { key: _key, ...fields } = detail;
+        fields.savedAt = 200;
+        fields.assets = [{ id: 'img', kind: 'image', sourceUri: 'https://lh3.googleusercontent.com/archive-fixture.png', mediaType: 'image/png' }];
+        fields.messages[1].content.push({ type: 'image', assetId: 'img' });
+        await api.ingestDetail(id, 'archive_local', fields, { title: 'Retained local archive', titleSource: 'provider' });
+        await api.ingestIndexes(id, [{ conversationId: 'metadata_only', fields: { title: 'Title without body', titleSource: 'derived' } }]);
+        window.dispatchEvent(new Event('focus'));
+    }, accountId);
+    await expect(page.locator('#list .item')).toHaveCount(2);
+    await page.locator('#devToggle').check();
+    await expect(page.locator('#devToggle')).toBeEnabled();
+    await page.locator('#includeAssets').check();
+    await expect(page.locator('#includeAssets')).toBeEnabled();
+    await page.locator('[data-chat-id="archive_local"] input').check();
+    const downloads: Download[] = [];
+    page.on('download', file => downloads.push(file));
+    await page.locator('#btnExport').click();
+    await expect.poll(() => downloads.length).toBe(1);
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    const file = downloads[0];
+    const bytes = await readFile((await file.path())!);
+    const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
+    const zip = await JSZip.loadAsync(bytes);
+    const documentPath = Object.keys(zip.files).find(name => name.endsWith('.md'));
+    expect(documentPath).toBeTruthy();
+    const body = await zip.file(documentPath).async('string');
+    expect(body).toContain('Preserved local answer');
+    const attachment = Object.keys(zip.files).find(x => x.endsWith('.png'));
+    expect(attachment).toBeTruthy();
+    expect(body).toContain(attachment);
+    expect(Buffer.from(await zip.file(attachment).async('uint8array'))).toEqual(Buffer.from(archivePng, 'base64'));
+    await page.locator('[data-chat-id="archive_local"] input').uncheck();
+    await page.locator('[data-chat-id="metadata_only"] input').check();
+    await page.locator('#btnExport').click();
+    await expect(page.locator('#status')).toContainText('failed: 1');
+    await page.locator('#btnMoreActions').click();
+    await expect(page.locator('#btnClearExported')).toBeVisible();
+    await page.locator('#btnClearExported').click();
+    await page.locator('#btnCleanupCancel').click();
+    expect(await page.evaluate(id => Reflect.get(globalThis, 'uiFixture').getExportRecord({ accountId: id, conversationId: 'archive_local' }), accountId)).toBeTruthy();
+    await page.locator('#btnMoreActions').click();
+    await page.locator('#btnClearExported').click();
+    await page.locator('#btnCleanupConfirm').click();
+    await expect(page.locator('#status')).toHaveText('Records cleared');
+    expect(await page.evaluate(id => Reflect.get(globalThis, 'uiFixture').readConversation({ accountId: id, conversationId: 'archive_local' }), accountId)).toBeTruthy();
+    await page.evaluate(id => Reflect.get(globalThis, 'uiFixture').ingestDeletedConversation(id, 'archive_local'), accountId);
+    expect(await page.evaluate(id => Reflect.get(globalThis, 'uiFixture').readConversation({ accountId: id, conversationId: 'archive_local' }), accountId)).toBeNull();
+    expect(await readFile((await file.path())!)).toEqual(bytes);
 });

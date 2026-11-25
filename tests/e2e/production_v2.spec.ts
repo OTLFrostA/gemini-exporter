@@ -1,4 +1,5 @@
 import { geminiListPage, GEMINI_LIST_CAPTURE } from '../fixtures/providers/geminiListCapture.js';
+import { geminiRpcPacket, GEMINI_DETAIL_CAPTURE } from '../fixtures/providers/geminiRpcCapture.js';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { build } from 'esbuild';
 import { readFile } from 'node:fs/promises';
@@ -24,7 +25,8 @@ test.beforeAll(async () => {
         import { runLiveSave } from './src/runtime/background/liveSaveHandler.ts';
         import { installProviderHost } from './src/runtime/api/providerHost.ts';
         installProviderHost();
-        Object.assign(globalThis, { productionProbe: { ...storage, ...domain, readConversation, resolveScanTarget, runLiveSave } });
+        import { repairSourceVersions } from './src/migration/sourceVersions.ts';
+        Object.assign(globalThis, { productionProbe: { ...storage, ...domain, readConversation, resolveScanTarget, runLiveSave, repairSourceVersions } });
     ` }, bundle: true, write: false, format: 'iife', platform: 'browser', conditions: ['worker', 'browser'], logLevel: 'silent',
         define: { __EXT_VERSION__: '"2.0.0"' } });
     bundle = output.outputFiles[0].text;
@@ -333,4 +335,159 @@ test('scan source resolution activates an already authorized document without a 
     expect(await page.evaluate(id=>chrome.tabs.sendMessage(id,{action:'getAccountContext'}),tabId))
         .toMatchObject({ok:true,accountContext:{accountId,providerId:'gemini'}});
     await source.close();
+});
+
+test('content-script native detail is committed in extension IndexedDB and remains readable after the source tab closes', async ({ context, extensionId }) => {
+    const options = await context.newPage();
+    await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+    const source = await context.newPage();
+    await source.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `
+        <title>Cross origin - Gemini</title><script>window._WIZ_global_data = { qDCSke: '10000000001', SNlM0e: 'mock-at', cfb2h: 'mock-bl' };</script>
+        <user-query><div class="query-text"><p>Persist this question</p></div></user-query>
+        <model-response data-model-name="Cross origin model"><div class="markdown"><p><strong>Persist this answer</strong></p></div></model-response>
+    ` }));
+    const wire = geminiRpcPacket('detail').responseBody;
+    await source.route('**/batchexecute*', route => route.fulfill({ contentType: 'application/json', body: wire }));
+    await source.goto('https://gemini.google.com/app/0000000000000001');
+    await source.waitForFunction(() => window.__gemExporterHookInstalled === true);
+    await source.evaluate(async body => {
+        await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body: new URLSearchParams(body) });
+    }, geminiRpcPacket('detail').requestBody);
+    await expect.poll(() => options.evaluate(async () => {
+        const request = indexedDB.open('gemini_exporter_v2');
+        const db = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+        try {
+            return await new Promise<number>((resolve, reject) => {
+                const get = db.transaction('details').objectStore('details').get(['10000000-0000-4000-8000-000000000001', '0000000000000001']);
+                get.onsuccess = () => resolve(get.result?.messages?.length ?? 0); get.onerror = () => reject(get.error);
+            });
+        } finally { db.close(); }
+    })).toBe(GEMINI_DETAIL_CAPTURE.messages);
+    await source.close();
+    const stored = await options.evaluate(async () => {
+        const request = indexedDB.open('gemini_exporter_v2');
+        const db = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+        try {
+            return await new Promise<unknown>((resolve, reject) => {
+                const tx = db.transaction('details', 'readonly');
+                const get = tx.objectStore('details').get(['10000000-0000-4000-8000-000000000001', '0000000000000001']);
+                let value: unknown;
+                get.onsuccess = () => { value = get.result; };
+                tx.oncomplete = () => resolve(value);
+                tx.onerror = () => reject(tx.error);
+            });
+        } finally { db.close(); }
+    }) as { key: { accountId: string }; messages: Array<{ model?: string; content: unknown[] }> };
+    expect(stored.key.accountId).toBe('10000000-0000-4000-8000-000000000001');
+    expect(stored.messages).toHaveLength(GEMINI_DETAIL_CAPTURE.messages);
+    expect(stored.messages[0].content).not.toHaveLength(0);
+    expect(stored.messages.every(message => message.content.length > 0)).toBe(true);
+    expect(JSON.stringify(stored.messages.at(-1)?.content)).toContain(GEMINI_DETAIL_CAPTURE.lastAnswer);
+    expect(stored).not.toHaveProperty('index');
+});
+
+test('existing profile repairs mixed versions once and admits an older online timestamp in native IndexedDB', async ({ context, extensionId }) => {
+    const page = await workbench(context, extensionId);
+    const result = await page.evaluate(async accountId => {
+        const api = Reflect.get(globalThis, 'productionProbe');
+        const key = { accountId, conversationId: 'migration-version' };
+        const detail = { savedAt: 9000, quality: { status: 'partial' }, assets: [], messages: [
+            { role: 'user', timestamp: 9000, content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Keep this body' }] }] },
+        ] };
+        await api.ingestDetail(accountId, key.conversationId, detail, { title: 'Migration regression', titleSource: 'provider', updatedAt: 9000 });
+        await api.putExportRecord(key, { format: 'markdown', status: 'ok', exportedAt: 10000, chatTime: 9000 });
+        await chrome.storage.local.remove('gemini_exporter_source_versions_v1');
+        await api.repairSourceVersions();
+        const repaired = { index: await api.getIndex(key), detail: await api.getDetail(key), record: await api.getExportRecord(key) };
+        const admission = await api.ingestDetail(accountId, key.conversationId, { ...detail, savedAt: 1000 }, { updatedAt: 1000 });
+        await api.repairSourceVersions();
+        return { repaired, admission, final: { index: await api.getIndex(key), detail: await api.getDetail(key) } };
+    }, accountId);
+    expect(result.repaired.index.updatedAt).toBeUndefined();
+    expect(result.repaired.index.activityAt).toBe(9000);
+    expect(result.repaired.detail.savedAt).toBeUndefined();
+    expect(result.repaired.detail.messages[0].content[0].children[0].text).toBe('Keep this body');
+    expect(result.repaired.record).toEqual({ format: 'markdown', status: 'ok', exportedAt: 10000 });
+    expect(result.admission.accepted).toBe(true);
+    expect(result.final.index.updatedAt).toBe(1000);
+    expect(result.final.detail.savedAt).toBe(1000);
+    await page.reload();
+    await expect(page.locator('#list .item')).toHaveCount(1);
+    await expect(page.locator('#list')).toContainText('Migration regression');
+});
+
+for (const transport of ['fetch', 'XHR'] as const) test(`native Gemini ${transport} feeds extension storage without putting credentials on the page bus`, async ({ context }) => {
+    const source = await context.newPage();
+    const { requestBody, responseBody } = geminiListPage();
+    await source.route('https://gemini.google.com/**', route => {
+        if (new URL(route.request().url()).pathname.endsWith('/batchexecute')) {
+            return route.fulfill({ contentType: 'application/json', body: responseBody });
+        }
+        return route.fulfill({ contentType: 'text/html', body: '<title>Offline Gemini fixture</title>' });
+    });
+    await source.goto('https://gemini.google.com/u/1/app');
+    await expect(source.locator('#geminiExportBadge')).toBeVisible();
+
+    const boundary = await source.evaluate(async ({ requestBody, transport }) => {
+        const counts = { list: 0, credentialEvents: 0, rpcUrlsWithQuery: 0 };
+        const listDelivered = new Promise<void>(resolve => {
+            window.addEventListener('message', function receive(event) {
+                if (event.data?.type === 'GEMINI_CREDENTIALS') counts.credentialEvents++;
+                if (event.data?.type !== 'GEMINI_NETWORK_BATCHEXECUTE') return;
+                counts.list++;
+                if (new URL(event.data.payload.url).search) counts.rpcUrlsWithQuery++;
+                window.removeEventListener('message', receive);
+                resolve();
+            });
+        });
+        const body = new URLSearchParams(requestBody);
+        body.set('at', 'fixture-at');
+        const url = '/u/1/_/BardChatUi/data/batchexecute?f.sid=fixture-sid&bl=fixture-build';
+        if (transport === 'fetch') {
+            const response = await fetch(url, { method: 'POST', body });
+            await response.text();
+        } else {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', url);
+            const done = new Promise<void>(resolve => xhr.addEventListener('loadend', () => resolve(), { once: true }));
+            xhr.send(body.toString());
+            await done;
+        }
+        await listDelivered;
+        return counts;
+    }, { requestBody, transport });
+    expect(boundary, 'page bus should carry list facts, not credential events or RPC query strings')
+        .toEqual({ list: 1, credentialEvents: 0, rpcUrlsWithQuery: 0 });
+
+    const worker = context.serviceWorkers()[0];
+    await expect.poll(() => worker.evaluate(async () => {
+        const { gemini_credentials_map } = await chrome.storage.session.get('gemini_credentials_map');
+        const entry = (gemini_credentials_map as Record<string, { at?: string; bl?: string; accountSlot?: string }> | undefined)
+            ?.['fixture-sid'];
+        return entry?.at === 'fixture-at' && entry?.bl === 'fixture-build' && entry?.accountSlot === 'u1';
+    }), { message: 'extension session storage still has the native RPC credentials for u1' }).toBe(true);
+});
+
+test('connecting activates an existing document without granting other platforms', async ({ context, extensionId }) => {
+    const options = await context.newPage();
+    await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+    await options.evaluate(async () => {
+        const scripts = await chrome.scripting.getRegisteredContentScripts();
+        await chrome.scripting.unregisterContentScripts({ ids: scripts.map(script => script.id) });
+    });
+    const source = await context.newPage();
+    await source.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><script>window.WIZ_global_data={qDCSke:"10000000001",SNlM0e:"fixture",cfb2h:"build"}</script><main>Existing tab</main>' }));
+    await source.goto('https://gemini.google.com/app');
+    expect(await source.locator('#geminiExportBadge').count()).toBe(0);
+    const prepareBundle = await build({ stdin: { contents: "import {preparePlatformTab} from './src/runtime/capabilities/platformInjection.ts'; globalThis.prepareSource=preparePlatformTab;", resolveDir: process.cwd(), loader: 'ts' }, bundle: true, write: false, format: 'iife' });
+    await options.evaluate(prepareBundle.outputFiles[0].text);
+    await options.evaluate(async () => {
+        const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+        await Reflect.get(globalThis, 'prepareSource')('gemini', tabs[0].id);
+    });
+    await expect(source.locator('#geminiExportBadge')).toBeVisible();
+    const scripts = await options.evaluate(() => chrome.scripting.getRegisteredContentScripts());
+    expect(scripts.map(script => script.id).sort()).toEqual(['gemini-source-content', 'gemini-source-main']);
+    expect(await options.evaluate(() => chrome.permissions.contains({ origins: ['https://chatgpt.com/*'] }))).toBe(false);
+    expect(await options.evaluate(() => chrome.permissions.contains({ origins: ['https://claude.ai/*'] }))).toBe(false);
 });
