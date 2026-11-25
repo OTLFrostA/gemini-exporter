@@ -158,6 +158,9 @@ function throwMappedHttpError(
     if (status === 404 && details.code === 'VAULT_NOT_FOUND') {
         throw new OperationError('CLOUD_VAULT_NOT_FOUND', details.message, status);
     }
+    if (details.code === 'VAULT_GENERATION_MISMATCH') {
+        throw new OperationError('CLOUD_VAULT_RESET', details.message, status);
+    }
     if (status === 429 || details.code === 'RATE_LIMITED') {
         throw new OperationError('CLOUD_RATE_LIMITED', details.message, status, retryAt ? { retryAt } : undefined);
     }
@@ -196,6 +199,23 @@ function parseRecordMeta(raw: unknown): CloudRecordMeta {
     };
 }
 
+function generationHeaders(generation: number | undefined): Record<string, string> {
+    return generation === undefined ? {} : { 'X-Vault-Generation': String(generation) };
+}
+
+function readGeneration(raw: unknown): number | undefined {
+    if (raw === undefined) return undefined;
+    if (typeof raw !== 'number' || !Number.isSafeInteger(raw) || raw < 0) {
+        throw new OperationError('CLOUD_SERVER_ERROR', 'Invalid Cloud Vault generation');
+    }
+    return raw;
+}
+
+interface CloudPurgeRequest {
+    readonly generation: number;
+    readonly proof: string;
+}
+
 export interface CloudVaultClient extends VaultRecordClient {
     authenticateKey(input: {
         readonly serverUrl: string;
@@ -203,6 +223,7 @@ export interface CloudVaultClient extends VaultRecordClient {
         readonly authToken: string;
         readonly mode: CloudAuthKeyMode;
         readonly accessCode?: string;
+        readonly purgeVerifierHash?: string;
         readonly signal?: AbortSignal;
     }): Promise<CloudAuthSessionResponse>;
 }
@@ -212,6 +233,7 @@ export interface VaultRecordClient {
     putEncryptedRecord(input: {
         readonly serverUrl: string;
         readonly sessionToken: string;
+        readonly generation?: number;
         readonly blindRecordId: string;
         readonly expectedRevision: number;
         readonly envelope: Uint8Array<ArrayBuffer>;
@@ -225,6 +247,7 @@ export interface VaultRecordClient {
     getEncryptedRecord(input: {
         readonly serverUrl: string;
         readonly sessionToken: string;
+        readonly generation?: number;
         readonly blindRecordId: string;
         readonly signal?: AbortSignal;
     }): Promise<{
@@ -236,11 +259,12 @@ export interface VaultRecordClient {
     listChanges(input: {
         readonly serverUrl: string;
         readonly sessionToken: string;
+        readonly generation?: number;
         readonly sinceSeq: number;
         readonly limit?: number;
         readonly signal?: AbortSignal;
     }): Promise<CloudChangesResponse>;
-    purgeVault(serverUrl: string, sessionToken: string, signal?: AbortSignal): Promise<void>;
+    purgeVault(serverUrl: string, sessionToken: string, signal?: AbortSignal, authorization?: CloudPurgeRequest): Promise<void | number>;
 }
 
 export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fetch.bind(globalThis)): CloudVaultClient {
@@ -259,6 +283,7 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
                     keyFingerprint: input.keyFingerprint,
                     authToken: input.authToken,
                     mode: input.mode,
+                    ...(input.purgeVerifierHash ? { purgeVerifierHash: input.purgeVerifierHash } : {}),
                     ...(input.accessCode?.trim() ? { accessCode: input.accessCode.trim() } : {}),
                 }),
                 signal: input.signal,
@@ -300,7 +325,9 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
                 || typeof raw.keyFingerprint !== 'string' || !/^[0-9a-f]{32}$/.test(raw.keyFingerprint)) {
                 throw new OperationError('CLOUD_SERVER_ERROR', 'Malformed vault status response');
             }
+            const generation = readGeneration(raw.generation);
             return {
+                ...(generation === undefined ? {} : { generation }),
                 ownerSubject: raw.ownerSubject,
                 recordCount: raw.recordCount,
                 usedBytes: raw.usedBytes,
@@ -320,6 +347,7 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
                 redirect: 'error',
                 headers: {
                     Authorization: `Bearer ${input.sessionToken}`,
+                    ...generationHeaders(input.generation),
                     'Content-Type': 'application/octet-stream',
                     'X-Expected-Revision': String(input.expectedRevision),
                     'X-Content-SHA256': input.sha256,
@@ -330,8 +358,8 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
             });
             if (res.status === 409) {
                 const details = await readErrorDetails(res);
-                if (details.code === 'KEY_FINGERPRINT_MISMATCH') {
-                    throw new OperationError('CLOUD_KEY_MISMATCH', details.message, 409);
+                if (details.code === 'KEY_FINGERPRINT_MISMATCH' || details.code === 'VAULT_GENERATION_MISMATCH') {
+                    throwMappedHttpError(res.status, details, res.headers.get('Retry-After'));
                 }
                 if (details.currentRevision === undefined) {
                     throw new OperationError('CLOUD_SERVER_ERROR', 'Conflict response missing currentRevision', 409);
@@ -351,7 +379,7 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
             const base = normalizeCloudServerUrl(input.serverUrl);
             const res = await fetchFn(`${base}/v2/vault/records/${input.blindRecordId}`, {
                 redirect: 'error',
-                headers: { Authorization: `Bearer ${input.sessionToken}` },
+                headers: { Authorization: `Bearer ${input.sessionToken}`, ...generationHeaders(input.generation) },
                 signal: input.signal,
             });
             if (res.status === 404) return null;
@@ -366,6 +394,10 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
             if (!Number.isSafeInteger(revision) || revision < 1 || !Number.isSafeInteger(changeSeq)) {
                 throw new OperationError('CLOUD_SERVER_ERROR', 'Missing or invalid X-Record-Revision header on download');
             }
+            if (input.generation !== undefined && res.headers.get('X-Vault-Generation') !== String(input.generation)) {
+                void res.body?.cancel().catch(() => {});
+                throw new OperationError('CLOUD_VAULT_RESET', 'Download generation changed during sync');
+            }
             const envelope = await readRecordBody(res);
             return { revision, changeSeq, sha256: shaHeader, envelope };
         },
@@ -375,7 +407,7 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
             const limit = input.limit ?? 100;
             const res = await fetchFn(`${base}/v2/vault/changes?since=${input.sinceSeq}&limit=${limit}`, {
                 redirect: 'error',
-                headers: { Authorization: `Bearer ${input.sessionToken}` },
+                headers: { Authorization: `Bearer ${input.sessionToken}`, ...generationHeaders(input.generation) },
                 signal: input.signal,
             });
             if (!res.ok) {
@@ -389,7 +421,12 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
                 || typeof raw.hasMore !== 'boolean') {
                 throw new OperationError('CLOUD_SERVER_ERROR', 'Malformed changes response');
             }
+            const generation = readGeneration(raw.generation);
+            if (input.generation !== undefined && generation !== input.generation) {
+                throw new OperationError('CLOUD_VAULT_RESET', 'Change feed generation changed during sync');
+            }
             return {
+                ...(generation === undefined ? {} : { generation }),
                 items: raw.items.map(item => parseRecordMeta(item)),
                 nextSince: raw.nextSince,
                 headSeq: raw.headSeq,
@@ -397,17 +434,36 @@ export function createCloudVaultClient(rawFetchFn: CloudFetchFn = globalThis.fet
             };
         },
 
-        async purgeVault(serverUrl, sessionToken, signal) {
+        async purgeVault(serverUrl, sessionToken, signal, authorization) {
+            if (!authorization) throw new OperationError('CLOUD_AUTH_REQUIRED', 'Confirm this purge with the vault key');
             const base = normalizeCloudServerUrl(serverUrl);
+            const headers = { Authorization: `Bearer ${sessionToken}`, ...generationHeaders(authorization.generation) };
+            const grant = await fetchFn(`${base}/v2/vault/purge-authorization`, {
+                method: 'POST',
+                redirect: 'error',
+                headers: { ...headers, 'Content-Type': 'text/plain' },
+                body: authorization.proof,
+                signal,
+            });
+            if (!grant.ok) throwMappedHttpError(grant.status, await readErrorDetails(grant), grant.headers.get('Retry-After'));
+            const rawGrant: unknown = await grant.json();
+            if (!isRecord(rawGrant) || typeof rawGrant.purgeToken !== 'string' || !rawGrant.purgeToken.startsWith('gep2.')) {
+                throw new OperationError('CLOUD_SERVER_ERROR', 'Invalid Cloud Vault purge authorization');
+            }
             const res = await fetchFn(`${base}/v2/vault`, {
                 method: 'DELETE',
                 redirect: 'error',
-                headers: { Authorization: `Bearer ${sessionToken}` },
+                headers: { ...headers, 'X-Vault-Purge-Token': rawGrant.purgeToken },
                 signal,
             });
             if (!res.ok) {
                 throwMappedHttpError(res.status, await readErrorDetails(res), res.headers.get('Retry-After'));
             }
+            const raw: unknown = await res.json();
+            if (!isRecord(raw) || raw.ok !== true || raw.generation !== authorization.generation + 1) {
+                throw new OperationError('CLOUD_SERVER_ERROR', 'Cloud Vault purge could not be confirmed. Refresh vault status before trying again.');
+            }
+            return raw.generation;
         },
     };
 }

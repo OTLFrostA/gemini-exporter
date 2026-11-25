@@ -1,6 +1,7 @@
 /** Passive persistence for the separate vault IndexedDB. */
 export {
     clearCloudSyncSession,
+    commitCloudVaultReset,
     clearSyncedCloudRecordsForOwner,
     countCloudOutbox,
     countOversizedCloudRecords,

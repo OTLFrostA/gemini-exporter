@@ -63,6 +63,8 @@ The vault is separate from **Live Save** and from ordinary file exports. In the 
 
 Keep the original key to unlock existing data or pair another browser. If the vault reports a key mismatch, enter its original key. Resetting the vault is destructive and cannot recover data encrypted with a lost key.
 
+On a connected cloud vault, choose **Clear Cloud Backup** and confirm to erase its encrypted server records. Local conversations stay on each device. Automatic backup pauses on each device when it detects the reset. Turn backup on again only when you intend to upload local history to the cleared vault.
+
 ## Import older history with Google Takeout
 
 1. Download a Gemini archive from [Google Takeout](https://takeout.google.com/settings/takeout/custom/gemini).

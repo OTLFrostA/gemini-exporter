@@ -78,6 +78,8 @@ export function mountCloudVaultPanel(callbacks: {
     const includeDetailToggle = control('input', 'cloudIncludeDetailToggle');
     const btnSyncNow = control('button', 'btnCloudSyncNow');
     const keyMismatchBox = el('cloudKeyMismatchBox');
+    const keyMismatchText = el('cloudKeyMismatchText');
+    const resetRow = el('cloudVaultResetRow');
     const btnResetVault = control('button', 'btnCloudResetVault');
     const btnCloseModal = control('button', 'btnCloudModalClose');
     const modalFeedback = el('cloudModalFeedback');
@@ -228,18 +230,26 @@ export function mountCloudVaultPanel(callbacks: {
         btnCreateRemoteVault.disabled = disabled || !hasKey;
 
         const showKeyMismatch = Boolean(connected && snap?.keyMismatch);
+        const showCloudReset = connected && activeBackend === 'cloud-server' && !showKeyMismatch;
+        const showLocalReset = connected && activeBackend === 'local-folder' && showKeyMismatch;
         const showIncludeDetailRow = !includeDetailRow.hidden;
         connectedRow.hidden = !connected;
-        actionsSection.hidden = !connected || (!showKeyMismatch && !showIncludeDetailRow);
+        actionsSection.hidden = !connected || (!showKeyMismatch && !showIncludeDetailRow && !showCloudReset);
         includeDetailToggle.checked = Boolean(snap?.includeDetail);
         includeDetailToggle.disabled = disabled || !connected;
         btnDisconnect.disabled = disabled;
         btnSyncNow.disabled = disabled || !connected || needsLocalReauth;
         keyMismatchBox.hidden = !showKeyMismatch;
+        if (showKeyMismatch) {
+            keyMismatchText.textContent = activeBackend === 'cloud-server'
+                ? text('Import the original Master Key to resume access to this cloud vault.', '请导入原主密钥，恢复此云端保险箱的访问。')
+                : text('This folder uses a different key. Import the original Master Key or reset the folder with the current key.', '此文件夹使用另一把密钥。请导入原主密钥，或用当前密钥重置文件夹。');
+        }
+        resetRow.hidden = !showCloudReset && !showLocalReset;
         btnResetVault.disabled = disabled || !connected;
-        btnResetVault.textContent = resetArmed
-            ? text('Confirm Erase & Reset Vault', '确认清空旧密文并重置')
-            : text('Reset Vault with Current Key', '用当前密钥重置保险箱');
+        btnResetVault.textContent = showCloudReset
+            ? (resetArmed ? text('Confirm Clear Cloud Backup', '确认清空云端备份') : text('Clear Cloud Backup', '清空云端备份'))
+            : (resetArmed ? text('Confirm Erase & Reset Vault', '确认清空旧密文并重置') : text('Reset Vault with Current Key', '用当前密钥重置保险箱'));
 
         if (connected) {
             connectedLabel.textContent = activeBackend === 'local-folder'
@@ -523,7 +533,15 @@ export function mountCloudVaultPanel(callbacks: {
         }
         resetArmed = false;
         void runAction(async () => {
+            const isCloud = latestSnapshot?.backend === 'cloud-server';
             await defaultCloudSyncEngine.resetVaultWithCurrentKey();
+            if (isCloud) {
+                setModalFeedback(text(
+                    'Cloud backup cleared. Local conversations are preserved. Automatic backup is paused.',
+                    '已清空云端备份。本地会话已保留，自动备份已暂停。',
+                ));
+                return;
+            }
             const synced = await runSyncAndNotify();
             setModalFeedback(text(
                 `Vault reset with current key · Saved ${synced.saved} conversations`,

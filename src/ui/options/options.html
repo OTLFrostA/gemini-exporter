@@ -589,9 +589,9 @@
     </label>
     <div id="cloudKeyMismatchBox" class="export-issues" style="margin-top:4px;" hidden>
       <div id="cloudKeyMismatchText" style="margin-bottom:8px;line-height:1.45;" data-ui-en="Existing encrypted data uses a different key. Syncing is paused so nothing is overwritten — enter the original Master Key above, or reset the vault if that key was lost." data-ui-zh="检测到此保险箱已由另一把密钥加密，已暂停写入以防数据冲突。请在上方输入原主密钥解锁；若原密钥已遗失，可用当前密钥重置保险箱。">检测到此保险箱已由另一把密钥加密，已暂停写入以防数据冲突。请在上方输入原主密钥解锁；若原密钥已遗失，可用当前密钥重置保险箱。</div>
-      <div class="cloud-modal-row" style="justify-content:flex-end;">
-        <button id="btnCloudResetVault" type="button" class="ghost small" style="color:var(--warn);" data-ui-en="Reset Vault with Current Key" data-ui-zh="用当前密钥重置保险箱">用当前密钥重置保险箱</button>
-      </div>
+    </div>
+    <div id="cloudVaultResetRow" class="cloud-modal-row" style="justify-content:flex-end;" hidden>
+      <button id="btnCloudResetVault" type="button" class="ghost small" style="color:var(--warn);" data-ui-en="Reset Vault with Current Key" data-ui-zh="用当前密钥重置保险箱">用当前密钥重置保险箱</button>
     </div>
   </div>
   <div id="cloudModalFeedback" role="status" aria-live="polite" hidden></div>
