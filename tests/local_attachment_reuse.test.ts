@@ -10,11 +10,11 @@ for (const format of ['markdown', 'html', 'json'] as const) {
         const host = v2LiveSaveHost(t);
         const key = liveKey('reuse-chat');
         const assets: DomainAsset[] = [
-            { id: 'image', kind: 'image', name: 'photo.png', mediaType: 'image/png', sourceUri: 'https://example.test/photo.png' },
+            { id: 'image', kind: 'image', name: 'photo.png', mediaType: 'image/png', sourceUri: 'https://lh3.googleusercontent.com/photo.png' },
             { id: 'file', kind: 'file', name: 'notes.txt', mediaType: 'text/plain', sourceUri: 'https://example.test/notes.txt' },
         ];
         await seedLiveDetail(key.conversationId, assets);
-        host.source('https://example.test/photo.png', Uint8Array.of(1, 2, 3));
+        host.source('https://lh3.googleusercontent.com/photo.png', Uint8Array.of(1, 2, 3));
         host.source('https://example.test/notes.txt', Uint8Array.of(4, 5), 'text/plain');
         const request = { keys: [key], format, delivery: 'folderWriter' as const, includeAssets: true, skipUnchanged: false };
         assert.equal((await runExport(request)).partial, 0);
@@ -25,7 +25,7 @@ for (const format of ['markdown', 'html', 'json'] as const) {
         assert.deepEqual(host.files.get(file), Uint8Array.of(4, 5));
         // Local edits are deliberately retained by the filename-only policy.
         host.files.set(image, Uint8Array.of(9));
-        host.source('https://example.test/photo.png', null);
+        host.source('https://lh3.googleusercontent.com/photo.png', null);
         host.requests.length = 0; host.events.length = 0;
         await seedLiveDetail(key.conversationId, assets, { savedAt: 1700000001000, title: 'Updated title' });
         const progress: number[] = [];

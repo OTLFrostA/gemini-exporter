@@ -28,8 +28,8 @@ import type { DomainAsset } from '../src/l2/conversationDetail.js';
 const JSZip = require('../lib/jszip.min.js');
 const account = fixtureAccount('gemini');
 const png = Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10, 9, 8, 7, 6);
-const goodUri = 'https://source.example.test/good.png';
-const badUri = 'https://source.example.test/bad.png';
+const goodUri = 'https://lh3.googleusercontent.com/good.png';
+const badUri = 'https://lh3.googleusercontent.com/bad.png';
 const paragraph = (text: string) => ({ type: 'paragraph' as const, children: [{ type: 'text' as const, text }] });
 const image = (id: string, uri: string, name = id + '.png'): DomainAsset => ({
     id, kind: 'image', name, sourceUri: uri, mediaType: 'image/png',
@@ -128,8 +128,8 @@ for (const format of ['markdown', 'html', 'json'] as const) for (const failure o
         } else {
             assert.ok(body.includes(sidecars[0].name), 'body references an actually packaged image');
             assert.match(body, {throw:/Attachment failed: Unknown error/,empty:/Attachment could not be processed/,http:/Source attachment unavailable.*HTTP 404/}[failure]);
-            assert.match(body, /https:\/\/source\.example\.test\/bad\.png/, 'retain a source link for inspection');
-            assert.doesNotMatch(body, /src="https:\/\/source\.example\.test\/bad\.png|!\[[^\]]*\]\(https:\/\/source\.example\.test\/bad\.png/, 'never embed a broken remote image');
+            assert.match(body, /https:\/\/lh3\.googleusercontent\.com\/bad\.png/, 'retain a source link for inspection');
+            assert.doesNotMatch(body, /src="https:\/\/lh3\.googleusercontent\.com\/bad\.png|!\[[^\]]*\]\(https:\/\/lh3\.googleusercontent\.com\/bad\.png/, 'never embed a broken remote image');
         }
         const record = await getExportRecord(exportKey(id));
         assert.equal(record?.status, 'partial');
@@ -308,8 +308,8 @@ test('long near-colliding media names get distinct actual ZIP paths and correct 
     const id = 'near-colliding-assets';
     const longName = 'same-repeated-segment-'.repeat(8);
     const assets = [
-        image('first', 'https://source.example.test/one.png', longName + 'first.png'),
-        image('second', 'https://source.example.test/two.png', longName + 'second.png'),
+        image('first', 'https://lh3.googleusercontent.com/one.png', longName + 'first.png'),
+        image('second', 'https://lh3.googleusercontent.com/two.png', longName + 'second.png'),
     ];
     await seed(id, assets);
     const calls = network(t, url => response(url.includes('/one.png') ? Uint8Array.of(1, 2) : Uint8Array.of(9, 8, 7)));

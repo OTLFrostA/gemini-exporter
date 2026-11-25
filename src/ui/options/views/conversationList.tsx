@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
-import { isSourcePlatform, platformConversationUrl, platformDisplayName, resourceDownloadOrigin } from '../../../shared/platformHosts.js';
-import { hasResourceAccess, requestResourceAuthorization } from '../../../runtime/capabilities/platformAuthorization.js';
+import { isSourcePlatform, platformConversationUrl, platformDisplayName } from '../../../shared/platformHosts.js';
 import { attachmentFailure, attachmentIssueText } from '../../shared/exportSummary.js';
 import { resourceIssueKind } from '../../../shared/resources/resourceResult.js';
 import { indexActivityTime, type DomainConversationIndex } from '../../../l2/conversationIndex.js';
@@ -47,31 +45,6 @@ function date(value: number | undefined): string {
     return value === undefined || !Number.isFinite(value) ? '' : new Date(value).toLocaleString(uiLocale());
 }
 
-// Permission queries belong to the mounted control, never the list render loop.
-function ResourceAuthorization({ sourceUrl, hostname }: { sourceUrl: string; hostname: string }) {
-    const [permission, setPermission] = useState<'checking' | 'available' | 'requesting' | 'granted' | 'existing'>('checking');
-    useEffect(() => {
-        let active = true;
-        void hasResourceAccess(sourceUrl).then(granted => {
-            if (active) setPermission(granted ? 'existing' : 'available');
-        }).catch(() => { if (active) setPermission('available'); });
-        return () => { active = false; };
-    }, [sourceUrl]);
-    if (permission === 'checking' || permission === 'existing') return null;
-    return <button type="button" className="authorize-resource"
-        disabled={permission !== 'available'} onClick={() => {
-            // Start the browser permission request within the actual click gesture.
-            const request = requestResourceAuthorization(sourceUrl);
-            setPermission('requesting');
-            void request.then(granted => setPermission(granted ? 'granted' : 'available'))
-                .catch(() => setPermission('available'));
-        }}>
-        {permission === 'granted'
-            ? text('Access allowed; export this conversation again', '已授权，请重新导出此会话')
-            : text(`Allow downloads from ${hostname}`, `允许从 ${hostname} 下载`)}
-    </button>;
-}
-
 function AttachmentIssue({ issue }: { issue: NonNullable<ExportRecord['attachmentIssues']>[number] }) {
     let source: URL | undefined;
     if (issue.sourceUrl) {
@@ -82,10 +55,6 @@ function AttachmentIssue({ issue }: { issue: NonNullable<ExportRecord['attachmen
     }
     return <div>{attachmentIssueText(issue)}{source && <>
         {' '}<a href={source.href} target="_blank" rel="noopener noreferrer">{text('Open source', '查看来源')}</a>
-        {issue.sourceUrl && resourceDownloadOrigin(issue.sourceUrl) && issue.httpStatus === undefined
-            && ['RESOURCE_DOWNLOAD_FAILED', 'RESOURCE_UNAVAILABLE'].includes(issue.code) && <>
-                {' '}<ResourceAuthorization key={issue.sourceUrl} sourceUrl={issue.sourceUrl} hostname={source.hostname} />
-            </>}
     </>}</div>;
 }
 

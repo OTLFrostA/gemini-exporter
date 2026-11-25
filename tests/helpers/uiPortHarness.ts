@@ -25,13 +25,6 @@ export const TakeoutParseError = h.TakeoutParseError ??= class extends Error {
  }
 };
 export const ScanConnectionError = h.ScanConnectionError ??= class extends Error { constructor(platform,message){super(message);this.name='ScanConnectionError';this.platform=platform;} };
-export const resourceDownloadOrigin = uri => {try {const u=new URL(uri);return u.origin==='https://cdn.sanity.io'&&!u.username&&!u.password?'https://cdn.sanity.io/*':undefined;}catch{return undefined;}};
-export const hasResourceAccess = async () => {h.resourceAccessChecks=(h.resourceAccessChecks??0)+1;return h.resourceAccess ?? false;};
-export const requestResourceAuthorization = async uri => {
- (h.resourceRequests??=[]).push([uri,navigator.userActivation.isActive]);
- if(h.resourcePermissionDenied)return false;
- h.resourceAccess=true;return true;
-};
 export const hasPlatformAccess = async platform => h[platform+'Access'] ?? (platform==='gemini');
 export const installApplicationHost = () => {};
 export const installProviderHost = () => {};

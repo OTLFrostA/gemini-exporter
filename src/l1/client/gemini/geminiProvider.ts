@@ -148,9 +148,9 @@ export class GeminiProvider implements GeminiProviderContract {
             // Missing/unsupported locators cannot become usable by finding a
             // source tab. Let acquisition report that fact before route lookup.
             if (/^https:\/\//i.test(asset.sourceUri ?? '')) await this.context(key.accountId);
-            return acquireSourceResource(asset, signal, onDiagnostic);
+            return acquireSourceResource(asset, signal, onDiagnostic, this.id);
         };
-        return this.resources ? this.resources.acquire(key, asset, signal, remote, onDiagnostic) : remote();
+        return this.resources ? this.resources.acquire(key, asset, signal, remote, onDiagnostic, this.id) : remote();
     }
 }
 export const defaultGeminiProvider = new GeminiProvider();

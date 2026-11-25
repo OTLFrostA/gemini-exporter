@@ -146,7 +146,7 @@ test('a rejected Takeout snapshot cannot replace online Domain bytes or supply e
     t.after(() => { globalThis.fetch = previousFetch; });
 
     const prepared = await prepareExportResources(stored.detail.assets, new Set([asset.id]),
-        (candidate, signal) => context.acquire(key, candidate, signal));
+        (candidate, signal) => context.acquire(key, candidate, signal, undefined, undefined, 'gemini'));
     assert.equal(prepared.get(asset.id)?.ok, true);
     const [plan] = planExportPaths([{ conversation: stored, prepared, fileIds: new Set<string>() }], 'json');
     const content = serializeDomainJson(stored, account, plan.resources);

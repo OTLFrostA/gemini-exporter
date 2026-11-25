@@ -35,7 +35,7 @@ test('direct sidecar write rejects after one acquisition, with no refetch and no
 
 test('retry after direct disk failure reacquires once and commits exactly the delivered v2 asset', async t => {
     const host = v2LiveSaveHost(t), id = 'disk-recovered';
-    const url = 'https://example.test/restored-image.png';
+    const url = 'https://lh3.googleusercontent.com/restored-image.png';
     const bytes = Uint8Array.of(137, 80, 78, 71, 9, 8, 7);
     await seedLiveDetail(id, [{ id: 'restored', kind: 'image', name: 'restored.png',
         mediaType: 'image/png', sourceUri: url }]);

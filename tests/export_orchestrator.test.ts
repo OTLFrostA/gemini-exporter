@@ -306,7 +306,7 @@ test('L3b -> L4 HTML formats native v2 content without DOM source scraping', asy
 
 test('unreferenced v2 resource metadata never causes an acquisition request or sidecar', async t => {
     const host = v2ExportHost(t);
-    const asset = source('unused', 'image', 'https://resources.example.test/unused.png');
+    const asset = source('unused', 'image', 'https://lh3.googleusercontent.com/unused.png');
     await seedAssets('unreferenced', [asset], { includeReferences: false });
     const result = await runExport(exportRequest(['unreferenced'], { includeAssets: true }));
     assert.equal(result.exported, 1);
@@ -314,12 +314,12 @@ test('unreferenced v2 resource metadata never causes an acquisition request or s
     assert.equal(host.clicks(), 1);
     assert.match(host.filenames[0], /\.md$/);
     assert.equal(host.blobs.length, 1);
-    assert.doesNotMatch(await host.blobs[0].text(), /resources\.example\.test/);
+    assert.doesNotMatch(await host.blobs[0].text(), /lh3\.googleusercontent\.com/);
 });
 
 test('includeAssets=false keeps a referenced image readable without fetching or false partial', async t => {
     const host = v2ExportHost(t);
-    const asset = source('ignored-image', 'image', 'https://resources.example.test/ignored.png');
+    const asset = source('ignored-image', 'image', 'https://lh3.googleusercontent.com/ignored.png');
     await seedAssets('no-resources', [asset]);
     const result = await runExport(exportRequest(['no-resources'], { includeAssets: false }));
     assert.equal(result.exported, 1);
@@ -332,7 +332,7 @@ test('includeAssets=false keeps a referenced image readable without fetching or 
 
 test('an unavailable resource leaves its document intact and delivers a failure report without fabricated image bytes', async t => {
     const host = v2ExportHost(t); realZip(t);
-    const asset = source('lost-image', 'image', 'https://resources.example.test/missing.png');
+    const asset = source('lost-image', 'image', 'https://lh3.googleusercontent.com/missing.png');
     await seedAssets('resource-fails', [asset]);
     const result = await runExport(exportRequest(['resource-fails'], { includeAssets: true }));
     assert.equal(result.exported, 1);
@@ -348,13 +348,13 @@ test('an unavailable resource leaves its document intact and delivers a failure 
     assert.equal(files.filter(file=>file.name.startsWith('assets/')).length,0);
     const report = files.find(file=>file.name.startsWith('attachment-reports/'));
     assert.ok(report);
-    assert.match(String(await report.async('string')), /resources\.example\.test\/missing\.png/);
+    assert.match(String(await report.async('string')), /lh3\.googleusercontent\.com\/missing\.png/);
     assert.equal((await getExportRecord(exportKey('resource-fails')))?.status, 'partial');
 });
 
 test('real Gemini L1 bytes follow the L4 resource binding while Domain asset identity remains unchanged', async t => {
     const host = v2ExportHost(t); realZip(t);
-    const uri = 'https://resources.example.test/snapshot-image.png';
+    const uri = 'https://lh3.googleusercontent.com/snapshot-image.png';
     const raw = Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10, 22, 33);
     const calls = sourceTransport(t, { [uri]: { bytes: raw, type: 'image/png' } });
     await seedAssets('with-image', [source('snapshot', 'image', uri)]);
@@ -416,8 +416,8 @@ test('a captured document without a remote locator exports its semantic source a
 
 test('two v2 conversations with identical asset IDs never share bytes or packaging paths', async t => {
     const host = v2ExportHost(t); realZip(t);
-    const firstUri = 'https://resources.example.test/a.png';
-    const secondUri = 'https://resources.example.test/b.png';
+    const firstUri = 'https://lh3.googleusercontent.com/a.png';
+    const secondUri = 'https://lh3.googleusercontent.com/b.png';
     const a = Uint8Array.of(1, 2, 3);
     const b = Uint8Array.of(4, 5, 6, 7);
     const calls = sourceTransport(t, { [firstUri]: { bytes: a, type: 'image/png' },
@@ -442,8 +442,8 @@ test('two v2 conversations with identical asset IDs never share bytes or packagi
 
 test('resource failure makes only the affected v2 conversation partial, not its healthy batch peer', async t => {
     const host = v2ExportHost(t); realZip(t);
-    const good = 'https://resources.example.test/good.png';
-    const bad = 'https://resources.example.test/bad.png';
+    const good = 'https://lh3.googleusercontent.com/good.png';
+    const bad = 'https://lh3.googleusercontent.com/bad.png';
     sourceTransport(t, { [good]: { bytes: Uint8Array.of(10, 11), type: 'image/png' } });
     await seedAssets('one-good', [source('good', 'image', good)]);
     await seedAssets('one-bad', [source('bad', 'image', bad)]);
@@ -517,8 +517,8 @@ test('404 and retryable attachment failures deliver text, persist reasons and ne
     const host = v2ExportHost(t); realZip(t);
     sourceTransport(t, {});
     globalThis.fetch = async input => new Response('', {status:String(input).includes('expired') ? 404 : 503});
-    await seedAssets('expired-only', [source('expired', 'image', 'https://example.test/expired')]);
-    await seedAssets('mixed-resources', [source('expired', 'image', 'https://example.test/expired'), source('retry', 'image', 'https://example.test/retry')]);
+    await seedAssets('expired-only', [source('expired', 'image', 'https://lh3.googleusercontent.com/expired')]);
+    await seedAssets('mixed-resources', [source('expired', 'image', 'https://lh3.googleusercontent.com/expired'), source('retry', 'image', 'https://lh3.googleusercontent.com/retry')]);
     const result = await runExport(exportRequest(['expired-only','mixed-resources'], {includeAssets:true}));
     assert.equal(result.exported, 2);
     assert.equal(result.partial, 2);
@@ -528,7 +528,7 @@ test('404 and retryable attachment failures deliver text, persist reasons and ne
     assert.equal(result.attachmentIssues?.length, 3);
     const record = await getExportRecord(exportKey('mixed-resources'));
     assert.deepEqual(record?.attachmentIssues?.map(issue => issue.httpStatus), [404,503]);
-    assert.equal(record?.attachmentIssues?.[0].sourceUrl, 'https://example.test/expired');
+    assert.equal(record?.attachmentIssues?.[0].sourceUrl, 'https://lh3.googleusercontent.com/expired');
     const {files} = await deliveredContents(host);
     for (const file of files.filter(file => file.name.endsWith('.md'))) {
         const body = await file.async('string') as string;

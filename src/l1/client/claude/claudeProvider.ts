@@ -115,10 +115,10 @@ export class ClaudeProvider implements AIProvider {
         const account = await this.account(key.accountId);
         const id = claudeFileId(asset.sourceUri);
         const remote = async () => {
-            const result = id ? await readClaudeFile(account.providerAccountId, id, signal) : await acquireSourceResource(asset, signal, onDiagnostic);
+            const result = id ? await readClaudeFile(account.providerAccountId, id, signal) : await acquireSourceResource(asset, signal, onDiagnostic, this.id);
             if (asset.byteLength !== undefined && result.bytes.byteLength !== asset.byteLength) throw new OperationError('RESOURCE_SIZE_MISMATCH', 'Claude attachment byte count mismatch');
             return result;
         };
-        return this.resources ? this.resources.acquire(key, asset, signal, remote, onDiagnostic) : remote();
+        return this.resources ? this.resources.acquire(key, asset, signal, remote, onDiagnostic, this.id) : remote();
     }
 }

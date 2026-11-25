@@ -9,7 +9,7 @@ const request = (id: string, includeAssets: boolean) => ({ keys: [liveKey(id)], 
     delivery: 'folderWriter' as const, includeAssets, skipUnchanged: true });
 
 test('Skip exported upgrades a text-only export to include assets, then skips the covered request', async t => {
-    const host = v2LiveSaveHost(t), id = 'asset-upgrade', url = 'https://example.test/image.png';
+    const host = v2LiveSaveHost(t), id = 'asset-upgrade', url = 'https://lh3.googleusercontent.com/image.png';
     const bytes = Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10);
     await seedLiveDetail(id, [{ id: 'image', kind: 'image', name: 'image.png', sourceUri: url, mediaType: 'image/png' }]);
     host.source(url, bytes);

@@ -295,12 +295,12 @@ test('p1c - source download propagates cancellation before and during acquisitio
         calls++;
         return new Promise((_resolve, reject) => options?.signal?.addEventListener('abort', () => reject(options?.signal?.reason), { once: true }));
     };
-    const asset = { id: 'image', kind: 'image', sourceUri: 'https://example.test/image' };
+    const asset = { id: 'image', kind: 'image', sourceUri: 'https://lh3.googleusercontent.com/image' };
     try {
         const before = new AbortController(); before.abort();
         await assert.rejects(acquireSourceResource(asset, before.signal), { name: 'AbortError' });
         assert.strictEqual(calls, 0);
-        const during = new AbortController(), work = acquireSourceResource(asset, during.signal);
+        const during = new AbortController(), work = acquireSourceResource(asset, during.signal, undefined, 'gemini');
         during.abort(); await assert.rejects(work, { name: 'AbortError' }); assert.strictEqual(calls, 1);
     } finally { globalThis.fetch = original; }
 });

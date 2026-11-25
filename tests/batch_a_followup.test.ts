@@ -9,7 +9,7 @@ test('batch A acquisition rejects empty provider bytes instead of claiming succe
     const original = globalThis.fetch;
     globalThis.fetch = async () => new Response(new Uint8Array());
     try {
-        await assert.rejects(acquireSourceResource({ id: 'test-asset', kind: 'image', sourceUri: 'https://example.test/image.png' }), /Empty source resource/);
+        await assert.rejects(acquireSourceResource({ id: 'test-asset', kind: 'image', sourceUri: 'https://lh3.googleusercontent.com/image.png' }, undefined, undefined, 'gemini'), /Empty source resource/);
     } finally { globalThis.fetch = original; }
 });
 

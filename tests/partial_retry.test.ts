@@ -25,7 +25,7 @@ function markdown(files: Map<string, string | Uint8Array>): string {
 }
 
 test('Live Save: unavailable bytes write readable partial Markdown, remain retryable at the same source version, then recover', async t => {
-    const host = v2LiveSaveHost(t), id = 'retry-image', url = 'https://example.test/retry.png';
+    const host = v2LiveSaveHost(t), id = 'retry-image', url = 'https://lh3.googleusercontent.com/retry.png';
     await seedLiveDetail(id, [png('image', url)], { title: 'Attachment retry' });
     host.source(url, null);
 
@@ -35,7 +35,7 @@ test('Live Save: unavailable bytes write readable partial Markdown, remain retry
     assert.equal(first.partial, 1);
     assert.deepEqual(first.failed, []);
     assert.match(markdown(host.files), /Answer for retry-image/);
-    assert.match(markdown(host.files), /\[Open source\]\(https:\/\/example\.test\/retry\.png\)/);
+    assert.match(markdown(host.files), /\[Open source\]\(https:\/\/lh3\.googleusercontent\.com\/retry\.png\)/);
     assert.doesNotMatch(markdown(host.files), /!\[[^\]]*\]\(https:/);
     assert.equal([...host.files.keys()].filter(name => name.startsWith('assets/')).length, 0);
     assert.equal((await getExportRecord(liveKey(id)))?.status, 'partial');
@@ -66,7 +66,7 @@ test('Live Save: unavailable bytes write readable partial Markdown, remain retry
 });
 
 test('Live Save: local attachments survive source failure, while deleted attachments remain retryable', async t => {
-    const host = v2LiveSaveHost(t), id = 'source-regressed', url = 'https://example.test/dynamic.png';
+    const host = v2LiveSaveHost(t), id = 'source-regressed', url = 'https://lh3.googleusercontent.com/dynamic.png';
     await seedLiveDetail(id, [png('fresh-image', url)]);
     host.source(url, Uint8Array.of(12, 34, 56));
     const first = await runLiveSave(liveKey(id));
@@ -92,7 +92,7 @@ test('Live Save: local attachments survive source failure, while deleted attachm
 });
 
 test('Live Save: an L4 folder-sidecar write error preserves a written Markdown file but never commits a successful record', async t => {
-    const host = v2LiveSaveHost(t), id = 'disk-fails', url = 'https://example.test/disk.png';
+    const host = v2LiveSaveHost(t), id = 'disk-fails', url = 'https://lh3.googleusercontent.com/disk.png';
     await seedLiveDetail(id, [png('image', url)]);
     host.source(url, Uint8Array.of(1, 2, 3, 4));
     host.failWrite('assets/');

@@ -42,7 +42,7 @@ async function seed(id: string, options: { doc?: boolean; image?: boolean } = {}
         document: { contentMarkdown: 'embedded doc body' },
     }] : options.image ? [{
         id: 'image', kind: 'image' as const, name: 'image.png',
-        sourceUri: 'https://example.test/image.png', mediaType: 'image/png',
+        sourceUri: 'https://lh3.googleusercontent.com/image.png', mediaType: 'image/png',
     }] : [];
     await ingestDetail(account.id, id, {
         savedAt: 100, quality: { status: 'complete' }, assets,

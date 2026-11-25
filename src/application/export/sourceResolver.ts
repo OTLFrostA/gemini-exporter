@@ -9,6 +9,7 @@ import { collectDocumentResources } from '../../l3b/ast/resourceReferences.js';
 import { composeDomainDocument } from '../../l3b/compose/composeDomainDocument.js';
 import { folderFileExists } from '../../l4/delivery/index.js';
 import type { ExportPathPlan } from '../../l4/packaging/index.js';
+import { isSourcePlatform } from '../../shared/platformHosts.js';
 import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 import type { PreparedResources, ResourceResult } from '../../shared/resources/resourceResult.js';
 import type { createSemaphore } from '../../shared/utils/concurrency.js';
@@ -139,6 +140,7 @@ export async function prepareSourceResources(params: {
         diagnose,
     } = params;
     const { key, account } = source;
+    const platform = isSourcePlatform(account.providerId) ? account.providerId : undefined;
     const reused = new Set<string>();
     if (directory && plan) {
         const checks = [...source.requiredIds].flatMap(id => {
@@ -177,7 +179,7 @@ export async function prepareSourceResources(params: {
             });
             return options.importedResources?.has(key, asset.id)
                 ? options.importedResources.acquire(key, asset, abort,
-                    () => providerFor(account.providerId).acquireResource(key, asset, abort, observe), observe)
+                    () => providerFor(account.providerId).acquireResource(key, asset, abort, observe), observe, platform)
                 : providerFor(account.providerId).acquireResource(key, asset, abort, observe);
         }, abort ?? signal),
         signal,

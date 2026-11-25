@@ -44,7 +44,7 @@ test('non-Markdown settings disable Live Save without resetting the user prefere
 });
 test('missing source bytes produce visible placeholders, a partial record and unchanged source facts', async t => {
     const host = v2LiveSaveHost(t), key = liveKey('missing');
-    await seedLiveDetail(key.conversationId, [{ id: 'image', kind: 'image', sourceUri: 'https://example.test/missing.png' }]);
+    await seedLiveDetail(key.conversationId, [{ id: 'image', kind: 'image', sourceUri: 'https://lh3.googleusercontent.com/missing.png' }]);
     const before = await getDetail(key);
     const result = await runLiveSave(key);
     assert.equal(result?.exported, 1); assert.equal(result?.partial, 1);
@@ -57,7 +57,7 @@ test('same authored asset names receive distinct physical paths with exact binar
     const host = v2LiveSaveHost(t), key = liveKey('collision');
     const raw = Uint8Array.of(99, 1, 2, 3, 88);
     const bytes = [raw.subarray(1, 4), Uint8Array.of(4, 5, 6)];
-    const assets = bytes.map((_, index) => ({ id: 'image-' + index, kind: 'image' as const, name: 'same.png', sourceUri: 'https://example.test/' + index }));
+    const assets = bytes.map((_, index) => ({ id: 'image-' + index, kind: 'image' as const, name: 'same.png', sourceUri: 'https://lh3.googleusercontent.com/' + index }));
     await seedLiveDetail(key.conversationId, assets);
     assets.forEach((asset, index) => host.source(asset.sourceUri, bytes[index]));
     const before = await getDetail(key);
@@ -71,7 +71,7 @@ test('same authored asset names receive distinct physical paths with exact binar
 });
 test('a multi-image turn completes every image once without retaining resource bytes in Domain', async t => {
     const host = v2LiveSaveHost(t);
-    const assets = Array.from({ length: 9 }, (_, index) => ({ id: 'image-' + index, kind: 'image' as const, name: index + '.png', sourceUri: 'https://example.test/' + index }));
+    const assets = Array.from({ length: 9 }, (_, index) => ({ id: 'image-' + index, kind: 'image' as const, name: index + '.png', sourceUri: 'https://lh3.googleusercontent.com/' + index }));
     await seedLiveDetail('many', assets);
     assets.forEach((asset, index) => host.source(asset.sourceUri, Uint8Array.of(index + 1)));
     const result = await runLiveSave(liveKey('many'));
