@@ -7,14 +7,13 @@ import {
     type RuntimeDiagnosticSnapshot,
 } from '../../shared/diagnostics/diagnostic.js';
 import { isJsonValue } from '../../shared/utils/jsonTypes.js';
+import { isDiagnosticSource, isDiagnosticSeverity, isRuntimeDiagnosticEvent } from '../../shared/diagnostics/runtimeDiagnosticSnapshot.js';
 import { assertExtensionSender, object } from './contentSender.js';
 
 export type { DiagnosticEventSource, RuntimeDiagnosticEvent, RuntimeDiagnosticSnapshot };
 
 const SESSION_KEY = 'gemini_exporter_diag_buffer_v1';
 const MAX_EVENTS = 500;
-const VALID_SOURCES = new Set<string>(['background', 'content', 'popup', 'options']);
-const VALID_SEVERITIES = new Set<string>(['info', 'warning', 'error']);
 
 const swStartedAt = Date.now();
 let events: RuntimeDiagnosticEvent[] = [];
@@ -22,19 +21,6 @@ let droppedCount = 0;
 let loadedFromSession = false;
 let loadPromise: Promise<void> | null = null;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
-
-function isValidEvent(value: unknown): value is RuntimeDiagnosticEvent {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-    const at = Reflect.get(value, 'at');
-    const source = Reflect.get(value, 'source');
-    const severity = Reflect.get(value, 'severity');
-    const code = Reflect.get(value, 'code');
-    const message = Reflect.get(value, 'message');
-    return typeof at === 'number' && Number.isFinite(at)
-        && typeof source === 'string' && VALID_SOURCES.has(source)
-        && typeof severity === 'string' && VALID_SEVERITIES.has(severity)
-        && typeof code === 'string' && typeof message === 'string';
-}
 
 async function ensureLoaded(): Promise<void> {
     if (loadedFromSession) return;
@@ -48,7 +34,7 @@ async function ensureLoaded(): Promise<void> {
                     const persistedEvents = Reflect.get(raw, 'events');
                     const persistedDropped = Reflect.get(raw, 'droppedCount');
                     if (Array.isArray(persistedEvents)) {
-                        const valid = persistedEvents.filter(isValidEvent);
+                        const valid = persistedEvents.filter(isRuntimeDiagnosticEvent);
                         // Prepend persisted events before any events recorded during boot
                         const merged = [...valid, ...events];
                         if (merged.length > MAX_EVENTS) {
@@ -165,11 +151,11 @@ export function handleDiagnosticMessage(
             assertExtensionSender(sender);
             if (action === 'recordDiagnosticEvent') {
                 const req = object(message);
-                const rawSource = typeof req.source === 'string' && VALID_SOURCES.has(req.source)
-                    ? req.source as DiagnosticEventSource
+                const rawSource = isDiagnosticSource(req.source)
+                    ? req.source
                     : (sender.tab ? 'content' : 'options');
-                const rawSeverity = typeof req.severity === 'string' && VALID_SEVERITIES.has(req.severity)
-                    ? req.severity as DiagnosticSeverity
+                const rawSeverity = isDiagnosticSeverity(req.severity)
+                    ? req.severity
                     : 'info';
                 const code = typeof req.code === 'string' && req.code ? req.code.slice(0, 120) : 'RUNTIME_EVENT';
                 const msg = typeof req.message === 'string' ? req.message : String(req.message ?? '');
