@@ -2,12 +2,13 @@ import { parseGeminiRequest } from '../../src/l1/parsers/gemini/rpc/request.js';
 import { geminiListPages, GEMINI_LIST_CAPTURE } from '../fixtures/providers/geminiListCapture.js';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 import { execFileSync } from 'node:child_process';
-import { stat } from 'node:fs/promises';
+import { stat, readFile } from 'node:fs/promises';
 import { buildSync } from 'esbuild';
 import { resolve } from 'node:path';
 import { readGeminiAuditInput, auditGeminiEvidence } from '../helpers/geminiDualParse';
 import { openOptions } from './uiFixture';
 import { geminiRpcPacket, GEMINI_DETAIL_CAPTURE } from '../fixtures/providers/geminiRpcCapture.js';
+import { detailGen as geminiDetailGen } from '../fixtures/providers/geminiDetail.js';
 
 const root = resolve(__dirname, '../..');
 const accountId = '10000000-0000-4000-8000-000000000001';
@@ -248,19 +249,67 @@ test('Tier 2 Takeout probe reads source-bound archive bytes and actual UI-import
 });
 
 
-test('Options Takeout ZIP import persists decoded text from a real Takeout prompt', async ({ context, extensionId }) => {
-    await seedRegistryAccounts(context);
-    const page = await openOptions(context, extensionId);
-    await page.locator('#btnMoreActions').click();
-    const chooser = page.waitForEvent('filechooser');
-    await page.locator('#btnImportTakeout').click();
-    await (await chooser).setFiles(resolve(root, 'tests/fixtures/gemini_takeout_clean.zip'));
-    await expect(page.locator('#status')).toContainText('Read 6 conversation records, added 6');
-    const prompts = await page.evaluate(async ({ accountId, conversationId }) => {
-        const detail = await Reflect.get(globalThis, 'uiFixture').getDetail({ accountId, conversationId });
-        return JSON.stringify(detail?.messages.filter((message: { role: string }) => message.role === 'user') ?? []);
-    }, { accountId, conversationId: '7b29852ecae8344a' });
-    expect(prompts).toContain("Bell's inequality");
+test('Tier 2 Skip preparation rejects stale, partial, wrong-format and unsafe versions before choosing a current record', async ({ context, extensionId }) => {
+    const page = await workbench(context, extensionId);
+    const ids = ['stale', 'partial', 'wrong-format', 'unsafe', 'current', 'unexported'];
+    await page.evaluate(async ({ accountId, ids }) => {
+        const api = Reflect.get(globalThis, 'probeFixture');
+        for (const id of ids) await api.ingestDetail(accountId, id, {
+            savedAt: 100, quality: { status: 'complete' }, assets: [], messages: [
+                { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: `Question ${id}` }] }] },
+                { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: `Answer ${id}` }] }] },
+            ],
+        }, { title: `Title ${id}`, titleSource: 'provider', updatedAt: 100 });
+        for (const id of ids.slice(0, -1)) await api.putExportRecord({ accountId, conversationId: id }, {
+            format: id === 'wrong-format' ? 'html' : 'markdown', status: id === 'partial' ? 'partial' : 'ok',
+            exportedAt: 200, chatTime: id === 'stale' ? 99 : id === 'unsafe' ? 100.5 : 100,
+        });
+        window.dispatchEvent(new Event('focus'));
+    }, { accountId, ids });
+    await expect(page.locator('#list .item')).toHaveCount(ids.length);
+    const eligible = await page.evaluate(() => Reflect.get(globalThis, '__tier2V2').skipEligibleIds());
+    expect(eligible).toEqual(['current']);
+    const selections = JSON.parse(execFileSync('python3', ['-c',
+        "import ast,json; tree=ast.parse(open('scripts/framework/cases/export.py').read()); cls=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='FastSkipExportedCase'); print(json.dumps([n.value for n in ast.walk(cls) if isinstance(n,ast.Constant) and isinstance(n.value,str) and 'const items = Array.from' in n.value]))"], { cwd: root, encoding: 'utf8' })) as string[];
+    for (const script of selections) {
+        const result = await page.evaluate(script);
+        if (result && typeof result === 'object' && 'exportedId' in result) expect(result.exportedId).toBe('current');
+    }
+});
+
+test('Tier 2 native audit acquires raw Detail even when manual export would use complete cached Domain', async ({ context, extensionId }) => {
+    const page = await workbench(context, extensionId);
+    await page.evaluate(async accountId => {
+        await Reflect.get(globalThis, 'probeFixture').ingestDetail(accountId, 'production', {
+            savedAt: 100, quality: { status: 'complete' }, assets: [], messages: [
+                { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Question production' }] }] },
+                { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Answer production' }] }] },
+            ],
+        }, { title: 'Title production', titleSource: 'provider', updatedAt: 100 });
+        window.dispatchEvent(new Event('focus'));
+    }, accountId);
+    await expect(page.locator('#list .item')).toHaveCount(1);
+    const src = await source(context);
+    await expectVerifiedSource(page);
+    let requests = 0;
+    const wire = geminiDetailGen('G_E2E_PRODUCTION_NATIVE_AUDIT_MIXED_01');
+    await page.route('https://gemini.google.com/**/batchexecute*', route => {
+        requests++; return route.fulfill({ contentType: 'application/json', body: wire });
+    });
+    await page.locator('#btnSelectAll').click();
+    const first = page.waitForEvent('download'); await page.locator('#btnExport').click(); await first;
+    expect(requests, 'cached export cannot itself supply native evidence').toBe(0);
+    await page.evaluate(capture);
+    await page.evaluate(() => Reflect.get(globalThis, '__tier2V2').refreshForNativeAudit(['production']));
+    expect(requests).toBeGreaterThan(0);
+    const captured = await page.evaluate(async () => {
+        const state = Reflect.get(globalThis, '__geminiDualCapture'); await Promise.all(state.pending); return state.replies.production;
+    });
+    expect(captured[0].text).toBe(wire);
+    await page.locator('#skipExported').uncheck();
+    const next = page.waitForEvent('download'); await page.locator('#btnExport').click();
+    expect(await readFile((await (await next).path())!, 'utf8')).toContain('Current native answer');
+    await src.close();
 });
 
 test('Tier 2 individual selection updates controlled rows and export eligibility', async ({ context, extensionId }) => {

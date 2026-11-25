@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit",
     "test": "node scripts/check-zero-any.cjs && node scripts/check-architecture.cjs && npm run type-check && npm run test:unit -- --skip-typecheck && node build.js && npm run test:release-fonts && playwright test",
     "test:unit": "python3 tests/run_tests.py",
+    "test:harness": "python3 scripts/run_harness_tests.py",
     "test:changed": "python3 scripts/run_changed_tests.py",
     "test:gemini-dual": "node -r ./tests/ts_register.js scripts/check_gemini_dual_parse.ts",
     "test:gemini-remaining": "node -r ./tests/ts_register.js --test tests/gemini_remaining_recovery.test.ts",

@@ -1,20 +1,44 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkBundledFonts } from '../scripts/release-gate-checks/check-bundled-fonts.js';
 
 const fonts = 'src/l4/format/pdf/sandbox/fonts';
+
+/**
+ * Hardlink approved font/license files into an isolated directory to avoid writing
+ * 174 MB of CJK font copies to /tmp on every unit run. Any test that mutates an
+ * asset's bytes must call `detachCopy()` first so the repo inode is never touched.
+ */
 function fixture(t: test.TestContext): string {
     const root = mkdtempSync(join(tmpdir(), 'font-release-gate-'));
     t.after(() => rmSync(root, { recursive: true, force: true }));
-    cpSync(fonts, join(root, fonts), { recursive: true });
+    const targetDir = join(root, fonts);
+    mkdirSync(targetDir, { recursive: true });
+    for (const entry of readdirSync(fonts, { withFileTypes: true })) {
+        if (!entry.isFile()) continue;
+        const src = join(process.cwd(), fonts, entry.name);
+        const dst = join(targetDir, entry.name);
+        try {
+            linkSync(src, dst);
+        } catch {
+            copyFileSync(src, dst);
+        }
+    }
     return root;
 }
 
-test('release gate accepts the exact licensed offline font fallback', t => {
-    const result = checkBundledFonts(fixture(t));
+function detachCopy(root: string, assetName: string): string {
+    const target = join(root, fonts, assetName);
+    unlinkSync(target);
+    copyFileSync(join(process.cwd(), fonts, assetName), target);
+    return target;
+}
+
+test('release gate accepts the exact licensed offline font fallback', () => {
+    const result = checkBundledFonts(process.cwd());
     assert.deepEqual(result.failures, []);
     assert.equal(result.fontFiles.length, 5);
     assert.equal(result.totalBytes, 21749580);
@@ -22,8 +46,8 @@ test('release gate accepts the exact licensed offline font fallback', t => {
 
 test('release gate rejects modified bytes under an approved font name', t => {
     const root = fixture(t);
-    appendFileSync(join(root, fonts, 'NotoSansCJKsc-Regular.otf'), 'modified');
-    assert.match(checkBundledFonts(root).failures.join('\n'), /SHA256 mismatch:.*NotoSansCJKsc/);
+    appendFileSync(detachCopy(root, 'DejaVuSansMono.ttf'), 'modified');
+    assert.match(checkBundledFonts(root).failures.join('\n'), /SHA256 mismatch:.*DejaVuSansMono/);
 });
 
 test('release gate rejects missing required fallback and renamed font files', t => {
@@ -37,7 +61,7 @@ test('release gate rejects missing required fallback and renamed font files', t 
 test('release gate rejects missing or modified license texts', t => {
     const root = fixture(t);
     rmSync(join(root, fonts, 'OFL-NotoSansCJK.txt'));
-    appendFileSync(join(root, fonts, 'OFL-NotoSansMono.txt'), 'modified');
+    appendFileSync(detachCopy(root, 'OFL-NotoSansMono.txt'), 'modified');
     const failures = checkBundledFonts(root).failures.join('\n');
     assert.match(failures, /Missing approved asset:.*OFL-NotoSansCJK/);
     assert.match(failures, /SHA256 mismatch:.*OFL-NotoSansMono/);

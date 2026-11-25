@@ -1,11 +1,10 @@
-import { test, expect } from './fixtures';
+import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import * as path from 'node:path';
 
-test('Tier 2 prompt target preserves a Canvas document and ignores the hidden Quill clipboard', async ({ context }) => {
+test('Tier 2 prompt target preserves a Canvas document and ignores the hidden Quill clipboard', async ({ page }) => {
     const selector = execFileSync('python3', ['-c', 'from scripts.framework.selectors import GeminiSelectors; print(GeminiSelectors.EDITOR)'],
         { cwd: path.resolve(__dirname, '../..'), encoding: 'utf8' }).trim();
-    const page = await context.newPage();
     await page.setContent(`<div class="ProseMirror" contenteditable="true" aria-label="Canvas editor">Saved document contents</div>
         <rich-textarea><div class="ql-editor" contenteditable="true" role="textbox">Previous prompt</div>
         <div class="ql-clipboard" contenteditable="true" style="display:none">Clipboard</div></rich-textarea>`);

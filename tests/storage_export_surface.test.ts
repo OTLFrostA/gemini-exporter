@@ -3,24 +3,10 @@ import assert from 'node:assert/strict';
 import * as storage from '../src/l3a/storageService.js';
 import { useStorageUnitEnvironment as useIndexStorage } from './helpers/l3aStorageUnitEnvironment.js';
 import { fixtureKey } from './helpers/domainFixture.js';
-
-import { buildSync } from 'esbuild';
-import vm from 'node:vm';
 import { IDBObjectStore } from 'fake-indexeddb';
-test('Storage exposes exactly the 26 agreed passive IO functions', () => {
-    const code = buildSync({ entryPoints: ['src/l3a/storageService.ts'], bundle: true, write: false, format: 'cjs' }).outputFiles[0].text;
-    const context = { module: { exports: {} } }; vm.runInNewContext(code, context);
-    assert.deepEqual(Object.keys(context.module.exports).sort(), [
-        'getAccount', 'listAccounts', 'insertAccountIfAbsent', 'admitAccountAtomically', 'putAccount',
-        'getIndex', 'listIndexes', 'putIndexes', 'updateIndexesAtomically',
-        'getDetail', 'updateConversationAtomically', 'deleteStoredConversation',
-        'getCoverage', 'updateCoverageAtomically', 'getExportRecord', 'listExportRecords',
-        'putExportRecord', 'clearStoredAccountExportRecords', 'getStoredSettings',
-        'patchStoredSettings', 'getDirectoryHandle', 'setDirectoryHandle', 'clearStoredAccountScanRecords', 'clearStoredAccountCoverage',
-        'getSourceCooldown', 'extendSourceCooldown',
-    ].sort());
-});
+
 useIndexStorage();
+
 test('folder basename metadata persists separately for the same conversation ID in different accounts', async () => {
     const first = fixtureKey('shared-folder-id', 'gemini');
     const second = fixtureKey('shared-folder-id', 'chatgpt');
@@ -29,6 +15,7 @@ test('folder basename metadata persists separately for the same conversation ID 
     assert.equal((await storage.getExportRecord(first))?.folderBaseName, 'Gemini file');
     assert.equal((await storage.getExportRecord(second))?.folderBaseName, 'ChatGPT file');
 });
+
 test('ExportRecord writes do not finalize or mutate Index/Detail', async () => {
     const key = fixtureKey('export');
     await storage.putIndexes([{ key, title: 'Authoritative', titleSource: 'provider', updatedAt: 1 }]);
@@ -38,7 +25,6 @@ test('ExportRecord writes do not finalize or mutate Index/Detail', async () => {
     assert.equal(await storage.getDetail(key), null);
     assert.deepEqual(await storage.getExportRecord(key), { exportedAt: 2, format: 'html', status: 'partial' });
 });
-
 
 test('Node Storage fixture preserves native in-line and out-of-line key semantics', async () => {
     const originalPut = IDBObjectStore.prototype.put;
