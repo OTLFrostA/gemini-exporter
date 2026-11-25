@@ -1,5 +1,6 @@
 // Use the installed Markdown grammar, independently of the product renderer.
 // Formatting nodes contribute their authored children; code/math keep source.
+import { DOMParser } from '@xmldom/xmldom';
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { gfm } from 'micromark-extension-gfm';
 import { gfmFromMarkdown } from 'mdast-util-gfm';
@@ -24,6 +25,24 @@ const visibleLiteral = text => visibleReference.includes(compact(text));
 const spacedDollarText = node => node.type === 'inlineMath'
     && (node.value.startsWith(' ') || node.value.endsWith(' '));
 const dollarSource = node => evidence.text.slice(node.position.start.offset, node.position.end.offset);
+// A merged GFM table is exported as an HTML block. Read its cells in physical
+// order and preserve spans and empty cells for independent grid comparison.
+const htmlTables = [];
+function recordHtmlTable(root) {
+    const rows = Array.from(root.getElementsByTagName('tr'), row =>
+        Array.from(row.childNodes).filter(cell => cell.nodeName === 'td' || cell.nodeName === 'th').map(cell => {
+            const text = cell.textContent;
+            const colSpan = cell.getAttribute('colspan'), rowSpan = cell.getAttribute('rowspan');
+            return colSpan || rowSpan ? { text, ...(colSpan && { colSpan }), ...(rowSpan && { rowSpan }) } : text;
+        }));
+    htmlTables.push(rows);
+}
+function htmlTableText(value) {
+    // CommonMark may put consecutive tables in one HTML block.
+    const wrapper = new DOMParser().parseFromString('<div>' + value + '</div>', 'text/html').documentElement;
+    for (const table of wrapper.getElementsByTagName('table')) recordHtmlTable(table);
+    return wrapper.textContent;
+}
 function authored(node) {
     const chunks = [];
     function add(text, verbatim = false, boundary = false) {
@@ -38,6 +57,7 @@ function authored(node) {
         else if (['code', 'inlineCode'].includes(current.type)) add(current.value, true);
         else if (spacedDollarText(current)) add(dollarSource(current));
         else if (['math', 'inlineMath'].includes(current.type)) add(current.value.replace(/\\\\\s*\[[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:ex|em|pt|pc|px|cm|mm|in)\]/g, '\\\\').replace(/\\Vert\{\}/g, '\\|').replace(/\\vert\{\}/g, '|'), true);
+        else if (current.type === 'html' && /^<table>[\s\S]*<\/table>$/i.test(current.value.trim())) add(htmlTableText(current.value), true);
         else if (current.type === 'html') add(/^<br\s*\/?>$/i.test(current.value) ? '' : current.value, true);
         else current.children?.forEach(visit);
         if (['paragraph', 'heading', 'tableCell', 'code', 'math'].includes(current.type)) add('', true, true);
@@ -141,5 +161,5 @@ function collectSegments(node) {
     } else node.children?.forEach(collectSegments);
 }
 if (evidence.segments) collectSegments(tree);
-process.stdout.write(JSON.stringify({ text: authored(tree), codeBlocks, executionBlocks,
+process.stdout.write(JSON.stringify({ text: authored(tree), htmlTables, codeBlocks, executionBlocks,
     ...(evidence.segments ? { segments } : {}) }));

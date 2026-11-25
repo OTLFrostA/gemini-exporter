@@ -86,13 +86,16 @@ def assert_turn_content(text: str, evidence: List[Dict[str, Any]]) -> Tuple[bool
         if not prompt or prompt not in normalized_answer(user['content'], markdown=True, visible_reference=turn.get('prompt', '')):
             return False, f"第 {idx + 1} 轮真实用户 Prompt 缺失"
         response = normalized_answer(turn.get('response', ''))
-        actual = normalized_answer(model['content'], markdown=True, visible_reference=turn.get('response', ''))
+        rendered = markdown_answer_evidence(model['content'], turn.get('response', ''))
+        if 'html_tables' in turn and rendered['htmlTables'] != turn['html_tables']:
+            return False, f"第 {idx + 1} 轮导出表格的单元格或跨度不匹配"
+        actual = normalized_answer(rendered['text'])
         execution = lambda events: [{key: event[key].replace('\r\n', '\n').strip('\n') for key in ('code', 'stdout')} for event in events]
-        if execution(turn.get('execution_blocks', [])) != execution(markdown_answer_evidence(model['content'])['executionBlocks']):
+        if execution(turn.get('execution_blocks', [])) != execution(rendered['executionBlocks']):
             return False, f"第 {idx + 1} 轮代码执行记录与实际网页证据不匹配"
         if 'code_blocks' in turn:
             code = lambda blocks: [value.replace('\r\n', '\n').strip('\n') for value in blocks]
-            if code(turn['code_blocks']) != code(markdown_answer_evidence(model['content'])['codeBlocks']):
+            if code(turn['code_blocks']) != code(rendered['codeBlocks']):
                 return False, f"第 {idx + 1} 轮代码不匹配（包含缩进和换行）"
         if response or actual:
             if response != actual:
