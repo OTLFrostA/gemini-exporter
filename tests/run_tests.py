@@ -198,9 +198,7 @@ def run_javascript_unit_tests(test_files):
     if pure_standard_files:
         std_shards = min(max_workers, max(1, (len(pure_standard_files) + 24) // 25))
         for i in range(std_shards):
-            shard = pure_standard_files[i::std_shards]
-            if shard:
-                batches.append(shard)
+            batches.append(pure_standard_files[i::std_shards])
 
     failures = []
     if max_workers == 1:
