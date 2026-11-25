@@ -25,11 +25,6 @@ from scripts.framework.actions import CDPActions
 from scripts.framework.runner import FrameworkRunner, DEFAULT_SCENARIOS, DESIGNATED_HISTORICAL_CHATS
 from scripts.framework.pipeline import ProcessLock, ProcessLockError
 
-try:
-    from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
-except ImportError:
-    from cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
-
 CDP_DEFAULT_PORT = 9222
 
 
