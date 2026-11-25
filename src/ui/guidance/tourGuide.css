@@ -305,7 +305,6 @@
 .platform-permission-choice input { width: 16px; height: 16px; margin: 0; accent-color: var(--tour-accent); }
 .platform-permission-choice:has(input:focus-visible) { outline: 2px solid var(--tour-accent); outline-offset: 4px; border-radius: 2px; }
 .platform-permission-state { font-size: 11px; color: var(--tour-muted); }
-.platform-permission-state[data-authorized="true"] { color: var(--ok, #10b981); }
 .platform-permission-row details { font-size: 11px; color: var(--tour-muted); margin: 4px 0 0 25px; }
 .platform-permission-row summary { cursor: pointer; }
 .platform-permission-row ul { margin: 4px 0; padding-left: 16px; overflow-wrap: anywhere; }
