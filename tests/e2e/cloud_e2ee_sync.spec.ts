@@ -38,7 +38,8 @@ test('Vault Options status does not load stored CryptoKey handles', async ({ con
     const fingerprintLabel = await label.innerText();
     await setupPage.close();
 
-    await context.addInitScript(() => {
+    const page = await context.newPage();
+    await page.addInitScript(() => {
         if (location.protocol !== 'chrome-extension:') return;
         const get = IDBObjectStore.prototype.get;
         let keyringReads = 0;
@@ -46,9 +47,10 @@ test('Vault Options status does not load stored CryptoKey handles', async ({ con
             if (this.name === 'localKeys') keyringReads++;
             return get.call(this, query);
         };
-        Object.defineProperty(window, 'vaultKeyringReads', { get: () => keyringReads });
+        Object.defineProperty(window, 'vaultKeyringReads', { configurable: true, get: () => keyringReads });
     });
-    const page = await openOptions(context, extensionId);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
     await page.locator('#btnCloudVaultSetup').click();
     await expect(page.locator('#vaultKeyLockedRow')).toBeVisible();
     await expect(page.locator('#vaultKeyFingerprintLabel')).toHaveText(fingerprintLabel);

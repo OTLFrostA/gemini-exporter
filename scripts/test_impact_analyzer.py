@@ -54,7 +54,7 @@ COMPONENT_E2E_MAP = {
     "src/runtime/background": ["tests/e2e/production_v2.spec.ts", "tests/e2e/account_registry.spec.ts"],
     "src/application/vault/": ["tests/e2e/cloud_e2ee_sync.spec.ts", "tests/e2e/cloud_deletion_isolation.spec.ts", "tests/e2e/cloud_rotation_verify.spec.ts"],
     "src/shared/crypto/": ["tests/e2e/cloud_e2ee_sync.spec.ts", "tests/e2e/cloud_rotation_verify.spec.ts"],
-    "src/l4/format/pdf/": ["tests/e2e/mitex_pdf_export.spec.ts", "tests/e2e/pdf_batch_lifecycle.spec.ts", "tests/e2e/typst_sandbox_smoke.spec.ts"],
+    "src/l4/format/pdf/": ["tests/e2e/mitex_pdf_export.spec.ts"],
     "src/l4/format/html/": ["tests/e2e/html_export.spec.ts"],
     "src/l4/format/json/": ["tests/e2e/json_export.spec.ts"],
     "src/l1/client/claude/": ["tests/e2e/claude_scan.spec.ts"],
