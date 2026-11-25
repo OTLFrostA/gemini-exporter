@@ -2,7 +2,7 @@ import { DEFAULT_ACCOUNT_KEY, readAccount, type Account } from './accountRegistr
 import type { ConversationKey } from './conversationKey.js';
 import type { DomainConversationDetail, ConversationDetail } from './conversationDetail.js';
 import { selectConversationDetail } from './conversationDetail.js';
-import { acceptDetailFacts, restoreDomainDetail } from './runtimeValidation.js';
+import { acceptDetailFacts } from './runtimeValidation.js';
 import CoverageAdmission from './coverageAdmission.js';
 import type { PageObservationHead } from './pageObservation.js';
 import { restoreConversationIndex, type DomainConversationIndex, type ConversationIndex, mergeConversationIndex } from './conversationIndex.js';
