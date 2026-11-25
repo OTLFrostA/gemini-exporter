@@ -12,11 +12,29 @@ async function source(page: import('@playwright/test').Page, allow: boolean) {
     const list = chatgptListGen('C_E2E_CHATGPT_SCAN_01');
     const session = chatgptSessionGen('C_E2E_CHATGPT_SCAN_02');
     const detail = chatgptDetailGen('C_E2E_CHATGPT_EXPORT_DETAIL_01');
-    await page.evaluate(({ allow, list, session, detail }) => {
+    const calls: string[] = [];
+    await page.route('https://chatgpt.com/**', async route => {
+        const url = new URL(route.request().url());
+        calls.push(url.pathname);
+        if (url.pathname.endsWith('/api/auth/session')) {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session) });
+            return;
+        }
+        if (url.pathname === '/backend-api/conversation/gpt-chat') {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(detail) });
+            return;
+        }
+        if (url.pathname === '/backend-api/conversations') {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(list) });
+            return;
+        }
+        await route.fulfill({ status: 404, contentType: 'text/plain', body: 'Unexpected ChatGPT fixture endpoint: ' + url.pathname });
+    });
+    await page.evaluate(({ allow }) => {
         let granted = false;
         const query = chrome.tabs.query.bind(chrome.tabs);
         const nativeContains = chrome.permissions.contains.bind(chrome.permissions);
-        // The source tab and permission grant are simulated in this HTTP-boundary test.
+        // Optional permission UI and source tab presence are browser boundaries; HTTP runs through Chromium's real fetch().
         Object.defineProperty(chrome.tabs, 'get', { configurable: true, value: async () =>
             ({ id: 99, url: 'https://chatgpt.com/' }) });
         Object.defineProperty(chrome.tabs, 'sendMessage', { configurable: true, value: async () => ({ ok: true }) });
@@ -32,25 +50,13 @@ async function source(page: import('@playwright/test').Page, allow: boolean) {
         Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async (options: chrome.tabs.QueryInfo) =>
             Array.isArray(options.url) && options.url.includes('https://chatgpt.com/*')
                 ? [{ id: 99, url: 'https://chatgpt.com/' }] : query(options) });
-        const original = window.fetch.bind(window);
-        const calls: string[] = [];
-        Reflect.set(window, 'chatgptHttpCalls', calls);
-        window.fetch = async (input, init) => {
-            const url = String(input);
-            if (!url.startsWith('https://chatgpt.com/')) return original(input, init);
-            calls.push(new URL(url).pathname);
-            if (url.endsWith('/api/auth/session')) return new Response(JSON.stringify(session));
-            const path = new URL(url).pathname;
-            if (path === '/backend-api/conversation/gpt-chat') return new Response(JSON.stringify(detail));
-            if (path === '/backend-api/conversations') return new Response(JSON.stringify(list));
-            throw new Error('Unexpected ChatGPT fixture endpoint: ' + path);
-        };
-    }, { allow, list, session, detail });
+    }, { allow });
+    return calls;
 }
 
 test('Connect ChatGPT selects its verified account and Sync All commits only its history', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
-    await source(page, true);
+    const calls = await source(page, true);
     await expect(page.locator('header #btnConnectChatGPT, header #btnConnectClaude')).toHaveCount(0);
     await page.locator('#btnPlatformPermissions').click(); await waitForAuthorization(page);
     await expect(page.getByRole('checkbox', { name: 'Gemini', exact: true })).toHaveCount(0);
@@ -74,19 +80,19 @@ test('Connect ChatGPT selects its verified account and Sync All commits only its
             geminiRows: (await Promise.all(accounts.filter((a: { providerId: string }) => a.providerId === 'gemini')
                 .map((a: { id: string }) => api.listIndexes(a.id)))).flat().length };
     }, id)).toEqual({ provider: 'chatgpt', conversations: 1, geminiRows: 0 });
-    expect(await page.evaluate(() => Reflect.get(window, 'chatgptHttpCalls'))).toContain('/backend-api/conversations');
+    expect(calls).toContain('/backend-api/conversations');
     await expect(page.locator('#btnImportTakeout')).toBeEnabled();
     await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();
 
     // Physical export through Options -> Application -> ChatGPTProvider.fetchConversationDetail
     await page.locator('#btnSelectAll').click();
     await expectProviderDownloads(page, 'chatgpt', 'gpt-chat', 'Derive Euler-Lagrange equation.', 'Stationary action requires');
-    expect(await page.evaluate(() => Reflect.get(window, 'chatgptHttpCalls'))).toContain('/backend-api/conversation/gpt-chat');
+    expect(calls).toContain('/backend-api/conversation/gpt-chat');
 });
 
 test('Declining ChatGPT site access leaves the registry and history untouched', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
-    await source(page, false);
+    const calls = await source(page, false);
     await page.locator('#btnTourGuide').click(); await waitForAuthorization(page);
     await expect(page.getByRole('checkbox', { name: 'Gemini', exact: true })).toHaveCount(0);
     await page.getByRole('checkbox', { name: 'Claude', exact: true }).uncheck();
@@ -98,6 +104,6 @@ test('Declining ChatGPT site access leaves the registry and history untouched', 
     await page.locator('#tourCloseBtn').click();
     expect(await page.evaluate(async () => (await Reflect.get(window, 'uiFixture').listAccounts())
         .filter((a: { providerId: string }) => a.providerId === 'chatgpt'))).toEqual([]);
-    expect(await page.evaluate(() => Reflect.get(window, 'chatgptHttpCalls'))).toEqual([]);
+    expect(calls).toEqual([]);
     await expect(page.locator('#btnSyncAll')).toBeEnabled();
 });

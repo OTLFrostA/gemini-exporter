@@ -71,3 +71,62 @@ for(const format of ['html','markdown','json'] as const)test(`Popup ${format} ph
     await expect(popup.locator('#status')).not.toContainText('Attachment');
     await expect(popup.locator('#status')).not.toContainText('Download location unavailable');
 });
+
+test('Popup discovers active Gemini conversation through real content script IPC without stubbing sendMessage', async ({ context, extensionId }) => {
+    const convId = 'real-tab-popup-conv';
+    const options = await openOptions(context, extensionId);
+    await seedConversations(options, [{ id: convId, title: 'Live Tab Conversation', body: 'Real tab content script answer' }]);
+
+    await context.route('https://gemini.google.com/**', async route => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'text/html; charset=utf-8',
+            body: `<!doctype html><html><head><title>Live Tab Conversation - Google Gemini</title><script>window.WIZ_global_data={qDCSke:"10000000001",SNlM0e:"test",cfb2h:"build"};</script></head><body><h1>Gemini Chat</h1></body></html>`,
+        });
+    });
+
+    const geminiTab = await context.newPage();
+    await geminiTab.goto(`https://gemini.google.com/app/${convId}`);
+    await expect(geminiTab.locator('#geminiExportBadge')).toBeVisible();
+    await expect.poll(async () => {
+        return options.evaluate(async (targetUrl) => {
+            const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+            const tab = tabs.find(t => t.url === targetUrl);
+            if (!tab?.id) return null;
+            return new Promise<unknown>(resolve => {
+                chrome.tabs.sendMessage(tab.id!, { action: 'getAccountContext' }, reply => {
+                    if (chrome.runtime.lastError) { resolve(null); return; }
+                    resolve(reply ?? null);
+                });
+            });
+        }, `https://gemini.google.com/app/${convId}`);
+    }, { timeout: 10000 }).toMatchObject({
+        ok: true,
+        conversationId: convId,
+        accountContext: { providerId: 'gemini' },
+    });
+
+    // Open Popup with ONLY chrome.tabs.query pointing to the real Gemini tab; chrome.tabs.sendMessage is 100% real!
+    const realTabId = await options.evaluate(async (targetUrl) => {
+        const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+        return tabs.find(t => t.url === targetUrl)?.id ?? -1;
+    }, `https://gemini.google.com/app/${convId}`);
+    expect(realTabId).toBeGreaterThanOrEqual(0);
+
+    const popup = await context.newPage();
+    await popup.addInitScript(({ tabId, url }) => {
+        Object.defineProperty(chrome.tabs, 'query', {
+            configurable: true,
+            value: async () => [{ id: tabId, active: true, url }],
+        });
+    }, { tabId: realTabId, url: `https://gemini.google.com/app/${convId}` });
+    await popup.goto(`chrome-extension://${extensionId}/src/ui/popup/popup.html`);
+
+    await expect(popup.locator('#currentChatTitle')).toHaveText('Live Tab Conversation');
+    const downloadPromise = popup.waitForEvent('download');
+    await popup.locator('#btnCurrent').click();
+    const download = await downloadPromise;
+    const text = await readFile((await download.path())!, 'utf8');
+    expect(text).toContain('Real tab content script answer');
+    await geminiTab.close();
+});
