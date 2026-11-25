@@ -9,7 +9,6 @@ import {
     extractDocumentsMeta,
     type GeminiDocumentReader,
     filterNewImages,
-    isInternalChipUrl,
     type ImageAttachment,
     type UserFileAttachment,
     type DeepResearchDocMeta,
@@ -293,7 +292,7 @@ function parseCandidateResponse(
     }
     if (docDetails.length) {
         for (const d of docDetails) {
-            if (d.contentMarkdown || (d.url && !isInternalChipUrl(d.url))) {
+            if (d.contentMarkdown) {
                 attachments.push({
                     type: "file",
                     id: d.id,
