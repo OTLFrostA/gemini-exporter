@@ -257,7 +257,7 @@ test('handleGetImageBlob - bare /gg/<token> requests =s0 rendition and downloads
     const requestedUrls: string[] = [];
     try {
         const nativeBytes = Buffer.alloc(230904, 0x42); // 1408x768 native payload
-        (global as any).fetch = async (input: any, init?: RequestInit) => {
+        (global as any).fetch = async (input: any) => {
             const url = String(input);
             requestedUrls.push(url);
             return {
