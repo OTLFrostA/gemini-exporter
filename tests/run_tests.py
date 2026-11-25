@@ -42,7 +42,7 @@ def test_javascript_syntax():
         for p in [r"C:\Program Files\nodejs", r"C:\Program Files\nodejs\npx.cmd"]:
             if p not in env.get("PATH", ""):
                 env["PATH"] = p + os.pathsep + env.get("PATH", "")
-        npx_bin = shutil.which("npx", path=env["PATH"]) or r"C:\Program Files\nodejs\npx.cmd" or "npx"
+        npx_bin = shutil.which("npx", path=env["PATH"]) or r"C:\Program Files\nodejs\npx.cmd"
         res = subprocess.run(f'"{npx_bin}" tsc --noEmit', cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8", errors="replace", shell=True, env=env)
 
     assert res.returncode == 0, f"TypeScript syntax check failed (tsc --noEmit):\n{res.stdout}\n{res.stderr}"
