@@ -33,7 +33,6 @@ export const requestResourceAuthorization = async uri => {
  h.resourceAccess=true;return true;
 };
 export const hasPlatformAccess = async platform => h[platform+'Access'] ?? (platform==='gemini');
-export const preparePlatformTab = async () => {};
 export const installApplicationHost = () => {};
 export const installProviderHost = () => {};
 export const requestPlatformAuthorization = async platforms => {
@@ -70,10 +69,6 @@ export const readAccountContextReply = response => {
  if (!isRecord(rawContext) || typeof rawContext.accountId !== 'string' || typeof rawContext.providerId !== 'string') return { ok: false };
  return { ok: true, accountContext: { accountId: rawContext.accountId, providerId: rawContext.providerId, ...(typeof rawContext.slot === 'string' ? { slot: rawContext.slot } : {}) }, conversationId };
 };
-export const readBoundAccountContext = (response, expected) => {
- const r = readAccountContextReply(response);
- return r.ok && r.accountContext && (expected === undefined || r.accountContext.providerId === expected) ? r.accountContext : null;
-};
 export const PLATFORM_HOSTS = {
  gemini:{name:'Gemini',signInUrl:'https://gemini.google.com/',conversationUrlPrefix:'https://gemini.google.com/app/',pages:['https://gemini.google.com/*'],attachments:['https://*.googleusercontent.com/*']},
  chatgpt:{name:'ChatGPT',signInUrl:'https://chatgpt.com/',conversationUrlPrefix:'https://chatgpt.com/c/',pages:['https://chatgpt.com/*','https://chat.openai.com/*'],attachments:['https://images.openai.com/*']},
@@ -81,7 +76,6 @@ export const PLATFORM_HOSTS = {
  claude:{name:'Claude',signInUrl:'https://claude.ai/',conversationUrlPrefix:'https://claude.ai/chat/',pages:['https://claude.ai/*'],attachments:[]}
 };
 export const platformDisplayName = p => PLATFORM_HOSTS[p].name;
-export const platformSignInUrl = p => PLATFORM_HOSTS[p].signInUrl;
 export const platformConversationUrl = (p, id) => PLATFORM_HOSTS[p].conversationUrlPrefix + encodeURIComponent(id);
 export const platformForPageUrl = url => {
  if(!url) return null;
@@ -95,7 +89,6 @@ export const DIRECT_WRITE_THRESHOLD = 20;
 export const DISCORD_URL = 'https://discord.gg/e3FgrXUZ8f';
 export const REVIEW_URL = 'https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf/reviews';
 export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB?source=extension';
-export const UNINSTALL_FEEDBACK_URL = 'https://tally.so/r/Y56ZBB?source=uninstall';
 export const indexActivityTime = i => i.updatedAt === undefined ? i.activityAt : i.activityAt === undefined ? i.updatedAt : Math.max(i.updatedAt,i.activityAt);
 export const compareConversationIndexes = (a,b) => (indexActivityTime(b) ?? -Infinity) - (indexActivityTime(a) ?? -Infinity);
 export const resourceIssueKind = f => f.code === 'RESOURCE_SOURCE_EXPIRED' ? 'expired' : f.code === 'RESOURCE_ACCESS_RESTRICTED' ? 'restricted' : f.code === 'RESOURCE_PROCESSING_FAILED' ? 'processing' : 'download';
@@ -110,7 +103,6 @@ export const listAccounts = async () => h.accounts;
 export const listIndexes = async id => {if(h.holdRefresh && h.exports.length) await new Promise(resolve=>h.finishRefresh=resolve); if(h.failRefresh && h.exports.length)throw new Error('Refresh rejected');if(h.failRead)throw new Error('Injected load failure');return h.indexes.filter(x=>x.key.accountId===id);};
 export const listExportRecords = async id => h.records[id]||{};
 export const getIndex = async key => h.indexes.find(x=>x.key.accountId===key.accountId&&x.key.conversationId===key.conversationId)||null;
-export const getDetail = async () => ({ messages: [] });
 export const getAccount = async id => h.accounts.find(a=>a.id===id)||null;
 export const getOrCreateAccount = async (providerId, providerAccountId) => {
  h.events.push('create');
@@ -144,8 +136,6 @@ export const clearLocalScanRecords = async id => {h.clears.push(['scan',id]);h.i
 export const createSourceResourceContext = () => ({ retainParsed(){},retain(){},has(){return false;},release(){},releaseConversation(){},async acquire(){throw Error('No resource');} });
 export const importOpenAI = async (file,id,progress,resources) => {h.imports.push(id);if(h.failImport)throw new Error('Invalid ZIP');progress?.(100);h.indexes.push(...(h.importIndexes??[]).filter(row=>!h.indexes.some(old=>old.key.accountId===row.key.accountId&&old.key.conversationId===row.key.conversationId)));return h.openaiResult ?? {read:2,imported:2,added:0,skipped:0,missingAssets:0,status:'ok'};};
 export const importTakeout = async (file,id,progress) => {h.imports.push(id);if(h.holdImport)await new Promise(resolve=>h.finishImport=resolve);if(h.failImport)throw new Error('Invalid ZIP');progress?.(100);h.indexes.push(...(h.importIndexes??[]).filter(row=>!h.indexes.some(old=>old.key.accountId===row.key.accountId&&old.key.conversationId===row.key.conversationId)));return h.takeoutResult ?? {imported:2,added:0,status:'partial'};};
-export const getDirectoryHandle = async () => h.directory;
-export const setDirectoryHandle = async handle => {h.directory=handle;};
 // Browser Runtime directory-capability v2 public ports, backed by the test's
 // simulated permission handle; do not load the real controller in a UI test.
 export const getStoredDirHandle = async () => h.directory;
@@ -174,7 +164,6 @@ export const requestDirHandle = async () => {
  await saveStoredDirHandle(handle);h.activeDirectory=handle;h.pendingDirectory=null;return handle;
 };
 export const getDirHandle = () => h.activeDirectory ?? null;
-export const setDirHandle = handle => { h.activeDirectory=handle;h.pendingDirectory=null; };
 export const registerCleanup = fn => {
  h.cleanups.push(fn);
  return () => { const index=h.cleanups.indexOf(fn);if(index>=0)h.cleanups.splice(index,1); };
