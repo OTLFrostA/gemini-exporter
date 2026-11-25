@@ -12,6 +12,7 @@ export class ConversationViewState {
     indexes: DomainConversationIndex[] = [];
     records: Record<string, ExportRecord> = {};
     selected = new Set<string>();
+    selectionAnchor: string | null = null;
     search = '';
     filter = 'all';
     private revision = 0;
@@ -22,6 +23,7 @@ export class ConversationViewState {
         this.revision++;
         this.accountId = id;
         this.indexes = []; this.records = {}; this.selected.clear();
+        this.selectionAnchor = null;
     }
     /** Return whether committed view facts changed; stale reads never request a repaint. */
     async refresh(changedAccountId?: string): Promise<boolean> {
@@ -47,7 +49,7 @@ export class ConversationViewState {
             const changed = accountsChanged || accountChanged
                 || JSON.stringify(indexes) !== JSON.stringify(this.indexes)
                 || JSON.stringify(records) !== JSON.stringify(this.records);
-            if (accountChanged) { this.accountId = id; this.selected.clear(); }
+            if (accountChanged) this.selectAccount(id);
             this.accounts = accounts;
             this.indexes = indexes; this.records = records;
             const available = new Set(indexes.map(row => row.key.conversationId));

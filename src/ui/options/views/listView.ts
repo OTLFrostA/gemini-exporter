@@ -9,13 +9,11 @@ import { ConversationList } from './conversationList.js';
 // Only this adapter touches the legacy workbench's DOM and mutable selection.
 // React exclusively owns #list's descendants; Application owns all export facts.
 const roots = new WeakMap<HTMLElement, Root>();
-const anchors = new WeakMap<HTMLElement, string>();
 
 export function unmountList(): void {
     const list = elementById('list');
     roots.get(list)?.unmount();
     roots.delete(list);
-    anchors.delete(list);
 }
 
 export function renderList(
@@ -42,7 +40,7 @@ export function renderList(
         rows, totalCount: state.indexes.length, disabled, provider, developerMode: isDeveloperMode(),
         onSelect: (id: string, selected: boolean, shiftKey = false) => {
             if (disabled) return;
-            const anchor = anchors.get(list);
+            const anchor = state.selectionAnchor;
             if (shiftKey && !guidedSelection && anchor) {
                 const orderedIds = rows.map(row => row.index.key.conversationId);
                 const start = orderedIds.indexOf(anchor);
@@ -61,7 +59,7 @@ export function renderList(
             } else {
                 state.selected.delete(id);
             }
-            anchors.set(list, id);
+            state.selectionAnchor = id;
             renderList(state, disabled, preparedKeys, failedKeys, guidedSelection);
             // The legacy tour observes selection intent, including row-title clicks.
             list.dispatchEvent(new Event('conversation-selection-change'));

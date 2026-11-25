@@ -212,6 +212,7 @@ test('Cross-context diagnostic export captures background/popup events, settings
             severity: 'error',
             code: 'POPUP_DIAG_TEST_EVENT',
             message: 'Simulated popup failure for diagnostic capture',
+            error: { name: 'Error', message: 'outer', code: 'TEST', stack: 'Error: outer', cause: { name: 'Error', message: 'inner' } },
             details: { providerId: 'claude', blockType: 'artifact_v9', cookie: 'secret-session' },
         });
     });
@@ -234,6 +235,7 @@ test('Cross-context diagnostic export captures background/popup events, settings
         source: 'popup',
         severity: 'error',
         message: 'Simulated popup failure for diagnostic capture',
+        error: { name: 'Error', message: 'outer', code: 'TEST', stack: 'Error: outer', cause: { name: 'Error', message: 'inner' } },
         details: { providerId: 'claude', blockType: 'artifact_v9', cookie: '<redacted-credential>' },
     });
 });

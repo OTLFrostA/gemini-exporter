@@ -567,7 +567,8 @@ test__s11('conversationsStore - canonical keys retain source identity; UI does n
 test__s11('conversationsStore - in-memory view state is per instance and account changes clear selection', async () => {
     const first = view(), second = view(); await first.refresh();
     first.selectVisible(); assert.equal(first.selected.size, 1); assert.equal(second.selected.size, 0);
-    first.selectAccount(B); assert.equal(first.accountId, B); assert.deepEqual(first.indexes, []);
+    first.selectionAnchor = 'one';
+    first.selectAccount(B); assert.equal(first.selectionAnchor, null); assert.equal(first.accountId, B); assert.deepEqual(first.indexes, []);
     assert.deepEqual(first.records, {}); assert.equal(first.selected.size, 0);
 });
 test__s11('conversationsStore - export records use exact current Conversation IDs', async () => {
@@ -648,8 +649,10 @@ test__s11('other-account invalidation refreshes account choices without reading 
     assert.equal(await state.refresh(B), true);
     assert.equal(rowReads, 1);
     assert.equal(state.accounts[1].displayName, 'Renamed account');
+    state.selectionAnchor = 'one';
     registry = [accounts[1]];
     assert.equal(await state.refresh(B), true);
+    assert.equal(state.selectionAnchor, null);
     assert.equal(rowReads, 2);
     assert.equal(state.accountId, B);
 });

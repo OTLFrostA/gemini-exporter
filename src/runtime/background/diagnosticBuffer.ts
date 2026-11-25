@@ -6,6 +6,7 @@ import {
     type RuntimeDiagnosticEvent,
     type RuntimeDiagnosticSnapshot,
 } from '../../shared/diagnostics/diagnostic.js';
+import { isJsonValue } from '../../shared/utils/jsonTypes.js';
 import { assertExtensionSender, object } from './contentSender.js';
 
 export type { DiagnosticEventSource, RuntimeDiagnosticEvent, RuntimeDiagnosticSnapshot };
@@ -91,6 +92,14 @@ export function recordBackgroundDiagnostic(input: {
     error?: unknown;
     tabUrl?: string;
 }): void {
+    appendEvent({
+        ...input,
+        error: input.error === undefined ? undefined : serializeErrorForDiagnostic(input.error),
+    });
+}
+
+function appendEvent(input: Pick<RuntimeDiagnosticEvent, 'severity' | 'code' | 'message' | 'error' | 'tabUrl'>
+    & { source?: DiagnosticEventSource; details?: unknown }): void {
     const entry: RuntimeDiagnosticEvent = {
         at: Date.now(),
         source: input.source ?? 'background',
@@ -98,7 +107,7 @@ export function recordBackgroundDiagnostic(input: {
         code: input.code,
         message: input.message.slice(0, 600),
         ...(input.details !== undefined ? { details: diagnosticSnapshot(input.details, { maxDepth: 4, maxKeys: 24, maxArray: 10, maxStringLength: 320 }) } : {}),
-        ...(input.error !== undefined ? { error: serializeErrorForDiagnostic(input.error) } : {}),
+        ...(input.error !== undefined ? { error: input.error } : {}),
         ...(input.tabUrl ? { tabUrl: input.tabUrl.slice(0, 300) } : {}),
     };
     events.push(entry);
@@ -164,13 +173,13 @@ export function handleDiagnosticMessage(
                     : 'info';
                 const code = typeof req.code === 'string' && req.code ? req.code.slice(0, 120) : 'RUNTIME_EVENT';
                 const msg = typeof req.message === 'string' ? req.message : String(req.message ?? '');
-                recordBackgroundDiagnostic({
+                appendEvent({
                     source: rawSource,
                     severity: rawSeverity,
                     code,
                     message: msg,
                     ...(req.details !== undefined ? { details: req.details } : {}),
-                    ...(req.error !== undefined ? { error: req.error } : {}),
+                    ...(isJsonValue(req.error) ? { error: req.error } : {}),
                     ...(typeof sender.tab?.url === 'string' ? { tabUrl: sender.tab.url } : {}),
                 });
                 respond({ ok: true });

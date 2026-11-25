@@ -14,7 +14,7 @@ All production modules under `src/` are partitioned into 11 strict architectural
 entrypoints ──► ui, runtime
 ui          ──► application, runtime, l2, shared
 runtime     ──► application, l1, l2, l3a, migration, shared
-application ──► l1 (port/registry only), l2, l3a, l3b, l4, shared
+application ──► l1 (provider ports, archive decoding, source resources and contracts), l2, l3a, l3b, l4, shared
 migration   ──► l2, l3a, shared
 l4          ──► l3b, l2, shared
 l3b         ──► l2, shared
@@ -123,7 +123,7 @@ The optional Encrypted Vault is a self-contained Application workflow supporting
 | `node scripts/check-architecture.cjs` | 11-layer DAG allowlist, no `application -> l1/client/<platform>`, 0 file/layer/submodule cycles across `src/`. |
 | `node scripts/check-zero-any.cjs` | Zero explicit `any` across all `src/**/*.{ts,tsx}` + 18 scoped non-`src/` files, plus type-aware unsafe-any lint (`check-domain-trust-lint.cjs`). |
 | `tests/arch/*` | Compiler-based zero-cast/zero-`!` trust boundary (`.ts` + `.tsx`), semantic layer rules, storage write guards, and circular dependency checks. |
-| `npm run test:v2:unit-isolation` | Strict runtime `Module._compile` guard (`v2UnitRealModuleGuard.cjs`) verifying all 10 module owners pass with frozen v2 contract mocks. |
+| `npm run test:v2:unit-isolation` | Strict runtime `Module._compile` guard (`v2UnitRealModuleGuard.cjs`) verifying all 10 module owners pass with real DAG-permitted pure collaborators and typed doubles at I/O boundaries. |
 | `npm run test:changed` | Dependency-aware incremental runner: runs `check-architecture.cjs` + `check-zero-any.cjs` + `tsc --noEmit` + affected unit suites + `build.js` + feature-mapped Playwright E2E specs. |
 | `npm test` | Full CI release gate: zero-any, architecture DAG, `tsc --noEmit`, full unit suite (`--skip-typecheck`), production bundle build, bundled font verification, and full Playwright E2E suite. |
 

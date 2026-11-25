@@ -74,3 +74,17 @@ test('arch-gate: detects sub-module directory cycles even without file-level cyc
     });
 });
 
+
+test('arch-gate: distinguishes real imports from comments and string contents', () => {
+    withTempSrc({
+        'l2/bad.ts': "const marker = 'x//y'; import '../l3a/store.js';",
+        'l2/load.cjs': "require('../l3a/store.js');",
+        'l2/quiet.ts': `const text = "import '../l3a/store.js'"; /* import '../l3a/store.js'; */`,
+        'l3a/store.ts': 'export const value = 1;',
+    }, dir => {
+        assert.deepEqual(analyzeArchitecture(dir).layerViolations, [
+            'l2/bad.ts -> l3a/store.ts (forbidden l2 -> l3a)',
+            'l2/load.cjs -> l3a/store.ts (forbidden l2 -> l3a)',
+        ]);
+    });
+});
