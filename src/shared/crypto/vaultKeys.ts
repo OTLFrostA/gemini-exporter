@@ -106,6 +106,12 @@ export async function deriveServerAuthToken(keyring: Pick<VaultKeyring, 'keyFing
     return bytesToHex(new Uint8Array(await crypto.subtle.sign('HMAC', keyring.authKey, proof)));
 }
 
+/** Separate credential for destructive operations. Hand out the verifier at vault creation. */
+export async function deriveVaultPurgeProof(keyring: Pick<VaultKeyring, 'keyFingerprint' | 'authKey'>): Promise<string> {
+    const context = encodeLengthPrefixedTuple(['ge-vault-purge-proof-v2', keyring.keyFingerprint]);
+    return bytesToHex(new Uint8Array(await crypto.subtle.sign('HMAC', keyring.authKey, context)));
+}
+
 /**
  * Compute the deterministic 64-char hex blind record identifier for a conversation.
  * Does not expose the underlying provider, account or conversation identifiers.

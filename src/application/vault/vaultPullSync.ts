@@ -63,6 +63,7 @@ export function createVaultPullSync(ctx: {
                     const feed = await request(() => activeClient.listChanges({
                         serverUrl: session.serverUrl,
                         sessionToken: session.sessionToken,
+                        generation: session.generation,
                         sinceSeq: cursor,
                         limit: CLOUD_CHANGE_PAGE_SIZE,
                         signal,
@@ -100,6 +101,7 @@ export function createVaultPullSync(ctx: {
                             const blob = await request(() => activeClient.getEncryptedRecord({
                                 serverUrl: session.serverUrl,
                                 sessionToken: session.sessionToken,
+                                generation: session.generation,
                                 blindRecordId: meta.blindRecordId,
                                 signal,
                             }));

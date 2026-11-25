@@ -45,6 +45,18 @@ export function createVaultPushSync(ctx: {
     const { connection, suppression, now, trackBackground, isSyncNowActive } = ctx;
     let activeFlush: Promise<CloudFlushResult> | null = null;
 
+    const retryEntry = async (entry: CloudOutboxEntry, error: unknown): Promise<void> => {
+        const issue = operationIssue(error, 'CLOUD_SERVER_ERROR');
+        const nowMs = now();
+        const delayMs = calculateBackoff(entry.attempts, {
+            initialDelayMs: 2_000,
+            maxDelayMs: 5 * 60_000,
+            jitterMs: 500,
+            retryAfterMs: issue.retryAt ? Math.max(0, issue.retryAt - nowMs) : undefined,
+        });
+        await recordCloudOutboxFailure(entry, nowMs + delayMs, issue.code, issue.message);
+    };
+
     const pushSingleConversation = async (
         session: ActiveCloudSession,
         keyring: VaultKeyring,
@@ -85,6 +97,7 @@ export function createVaultPushSync(ctx: {
                     const backedUp = await activeClient.getEncryptedRecord({
                         serverUrl: session.serverUrl,
                         sessionToken: session.sessionToken,
+                        generation: session.generation,
                         blindRecordId: synced.blindRecordId,
                         signal,
                     });
@@ -114,6 +127,7 @@ export function createVaultPushSync(ctx: {
                     putOutcome = await activeClient.putEncryptedRecord({
                         serverUrl: session.serverUrl,
                         sessionToken: session.sessionToken,
+                        generation: session.generation,
                         blindRecordId: sealed.blindRecordId,
                         expectedRevision,
                         envelope: sealed.envelope,
@@ -156,6 +170,7 @@ export function createVaultPushSync(ctx: {
                 const remote = await activeClient.getEncryptedRecord({
                     serverUrl: session.serverUrl,
                     sessionToken: session.sessionToken,
+                    generation: session.generation,
                     blindRecordId: sealed.blindRecordId,
                     signal,
                 });
@@ -192,6 +207,10 @@ export function createVaultPushSync(ctx: {
                 currentSource = mergedLocal;
             } catch (error) {
                 if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;
+                if (error instanceof OperationError && error.code === 'CLOUD_VAULT_RESET') {
+                    await connection.verifyVaultKeyCompatibility(session, keyring, signal);
+                    throw error;
+                }
                 if (error instanceof OperationError && error.code === 'CLOUD_KEY_MISMATCH') {
                     await connection.markSessionKeyMismatch(session, true);
                     throw error;
@@ -202,14 +221,7 @@ export function createVaultPushSync(ctx: {
                         || error.code === 'DIRECTORY_PERMISSION_REQUIRED')) {
                     throw error;
                 }
-                const issue = operationIssue(error, 'CLOUD_SERVER_ERROR');
-                const delayMs = calculateBackoff(entry.attempts, {
-                    initialDelayMs: 2_000,
-                    maxDelayMs: 5 * 60_000,
-                    jitterMs: 500,
-                    retryAfterMs: issue.retryAt ? Math.max(0, issue.retryAt - now()) : undefined,
-                });
-                await recordCloudOutboxFailure(entry, now() + delayMs, issue.code, issue.message);
+                await retryEntry(entry, error);
                 return 'retry';
             }
         }
@@ -227,8 +239,9 @@ export function createVaultPushSync(ctx: {
                     return { uploaded: 0, skippedUnchanged: 0, oversizedSkipped: 0, retriedLater: 0 };
                 }
                 const includeDetail = settings.cloudSyncIncludeDetail === true;
-                const session = await connection.requireActiveSession();
+                let session = await connection.requireActiveSession();
                 const keyring = await connection.resolveKeyring(session);
+                let generationChecked = session.backend === 'local-folder';
                 let uploaded = 0;
                 let skippedUnchanged = 0;
                 let oversizedSkipped = 0;
@@ -240,6 +253,20 @@ export function createVaultPushSync(ctx: {
                     const due = (await listDueCloudOutbox(now(), 25))
                         .filter(entry => !retriedEnqueueIds.has(entry.enqueueId));
                     if (due.length === 0) break;
+
+                    if (!generationChecked) {
+                        try {
+                            session = (await connection.verifyVaultKeyCompatibility(session, keyring, signal)).session;
+                        } catch (error) {
+                            if (signal?.aborted || (!(error instanceof TypeError)
+                                && !(error instanceof OperationError && error.code === 'CLOUD_RATE_LIMITED'))) {
+                                throw error;
+                            }
+                            for (const entry of due) await retryEntry(entry, error);
+                            return { uploaded, skippedUnchanged, oversizedSkipped, retriedLater: due.length };
+                        }
+                        generationChecked = true;
+                    }
 
                     for (const entry of due) {
                         signal?.throwIfAborted();
@@ -327,7 +354,8 @@ export function createVaultPushSync(ctx: {
         return subscribe(keys => {
             if (suppression.isSuppressed() || keys.length === 0) return;
             const task = (async () => {
-                const [settings, session] = await Promise.all([getSettings(), getCloudSyncSession()]);
+                const session = await getCloudSyncSession();
+                const settings = await getSettings();
                 if (!settings.cloudSyncEnabled || !session) return;
                 const eligible: ConversationKey[] = [];
                 for (const key of keys) {
@@ -335,7 +363,7 @@ export function createVaultPushSync(ctx: {
                     if (acc && acc.providerAccountId !== DEFAULT_ACCOUNT_KEY && index) eligible.push(key);
                 }
                 if (eligible.length === 0) return;
-                await enqueueCloudOutboxKeys(eligible, now());
+                await enqueueCloudOutboxKeys(eligible, now(), session);
                 await withVaultOperation(() => flushOutbox());
             })().catch(error => {
                 console.warn('[CloudSync] Auto-enqueue or background flush failed:', error);

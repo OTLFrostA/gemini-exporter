@@ -36,6 +36,7 @@ export function toStoredCloudSession(session: CloudSyncSessionState | ActiveClou
         ownerSubject: session.ownerSubject,
         expiresAt: session.expiresAt,
         pulledSeq: session.pulledSeq,
+        ...(session.generation !== undefined ? { generation: session.generation } : {}),
         ...(session.folderName ? { folderName: session.folderName } : {}),
         ...(session.sealedCredentials ? { sealedCredentials: session.sealedCredentials } : {}),
         ...(session.keyMismatch ? { keyMismatch: true } : {}),

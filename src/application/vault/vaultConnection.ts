@@ -1,6 +1,7 @@
 import { OperationError } from '../../shared/errors/operationError.js';
 import {
     deriveServerAuthToken,
+    deriveVaultPurgeProof,
     openSessionSecrets,
     sealSessionSecrets,
     type VaultKeyring,
@@ -10,6 +11,7 @@ import type { DirectoryHandle } from '../../shared/types/directoryHandle.js';
 import {
     activateVaultKeyring,
     clearCloudSyncSession,
+    commitCloudVaultReset,
     clearSyncedCloudRecordsForOwner,
     countCloudOutbox,
     countOversizedCloudRecords,
@@ -36,6 +38,7 @@ import {
 import { getSettings, updateSettings } from '../settings/index.js';
 import { portableVaultSubject } from './cloudArchiveCodec.js';
 import {
+    sha256Utf8Hex,
     toStoredCloudSession,
     withVaultOperation,
     type ActiveCloudSession,
@@ -86,6 +89,7 @@ export function createVaultConnection(deps: {
             serverUrl,
             keyFingerprint: keyring.keyFingerprint,
             mode,
+            ...(mode === 'create' ? { purgeVerifierHash: await sha256Utf8Hex(await deriveVaultPurgeProof(keyring)) } : {}),
             authToken: await deriveServerAuthToken(keyring),
             ...(accessCode ? { accessCode } : {}),
         });
@@ -166,6 +170,13 @@ export function createVaultConnection(deps: {
         return updated;
     };
 
+    const pauseAfterCloudReset = async (session: ActiveCloudSession, generation: number): Promise<void> => {
+        // Pause first so a transient database error still prevents queued uploads.
+        await updateSettings({ cloudSyncEnabled: false });
+        const { keyMismatch: _cleared, ...stored } = toStoredCloudSession(session);
+        await commitCloudVaultReset({ ...stored, generation });
+    };
+
     const verifyVaultKeyCompatibility = async (
         session: ActiveCloudSession,
         keyring: VaultKeyring,
@@ -179,6 +190,20 @@ export function createVaultConnection(deps: {
                 'CLOUD_KEY_MISMATCH',
                 'This vault is encrypted with a different Master Key. Import the original Recovery Key to unlock it.',
             );
+        }
+        if (session.backend === 'cloud-server') {
+            if (session.generation !== undefined
+                && (status.generation === undefined || status.generation < session.generation)) {
+                throw new OperationError('CLOUD_SERVER_ERROR', 'The Cloud Vault server no longer supports the last known generation');
+            }
+            if (status.generation !== undefined && status.generation > (session.generation ?? 0)) {
+                await pauseAfterCloudReset(session, status.generation);
+                throw new OperationError('CLOUD_VAULT_RESET', 'The cloud vault was reset. Local history is preserved and automatic backup is paused.');
+            }
+            if (status.generation !== undefined && session.generation === undefined) {
+                session = { ...session, generation: status.generation };
+                await putCloudSyncSession(toStoredCloudSession(session));
+            }
         }
         return { session: await markSessionKeyMismatch(session, false), status };
     };
@@ -235,9 +260,9 @@ export function createVaultConnection(deps: {
                 if (initialized.origin === 'generated') {
                     await activateVaultKeyring(initialized, 'imported');
                 }
-                const pulledSeq = existingSession?.ownerSubject === auth.ownerSubject
-                    && existingSession.serverUrl === normalizedUrl
-                    ? existingSession.pulledSeq : 0;
+                const sameVault = existingSession?.ownerSubject === auth.ownerSubject
+                    && existingSession.serverUrl === normalizedUrl;
+                const pulledSeq = sameVault ? existingSession.pulledSeq : 0;
                 const sealedCredentials = await sealSessionSecrets(
                     initialized,
                     { sessionToken: auth.sessionToken, ...(trimmedCode ? { accessCode: trimmedCode } : {}) },
@@ -251,6 +276,7 @@ export function createVaultConnection(deps: {
                     sealedCredentials,
                     expiresAt: auth.expiresAt,
                     pulledSeq,
+                    ...(sameVault ? { generation: existingSession.generation } : {}),
                     enabledSinceAt: existingSession?.enabledSinceAt ?? now(),
                 };
                 await putCloudSyncSession(session);
@@ -318,8 +344,21 @@ export function createVaultConnection(deps: {
         resetVaultWithCurrentKey: () => withVaultOperation(async () => {
             const session = await requireActiveSession();
             requireCompatibleKey(session, await getInitializedVaultKeyMetadata());
-            const activeClient = clientForSession(session);
-            await activeClient.purgeVault(session.serverUrl, session.sessionToken);
+            if (session.backend === 'cloud-server') {
+                const keyring = await resolveKeyring(session);
+                const verified = await verifyVaultKeyCompatibility(session, keyring);
+                if (verified.status.generation === undefined) {
+                    throw new OperationError('CLOUD_SERVER_ERROR', 'Upgrade the Cloud Vault server to authorize a safe purge');
+                }
+                const generation = await remoteClient.purgeVault(session.serverUrl, session.sessionToken, undefined, {
+                    generation: verified.status.generation,
+                    proof: await deriveVaultPurgeProof(keyring),
+                });
+                if (generation === undefined) throw new OperationError('CLOUD_SERVER_ERROR', 'Cloud Vault purge could not be confirmed');
+                await pauseAfterCloudReset(verified.session, generation);
+                return;
+            }
+            await localClient.purgeVault(session.serverUrl, session.sessionToken);
             await clearSyncedCloudRecordsForOwner(session.ownerSubject);
             const { keyMismatch: _cleared, ...cleanSession } = toStoredCloudSession(session);
             await putCloudSyncSession({ ...cleanSession, pulledSeq: 0 });

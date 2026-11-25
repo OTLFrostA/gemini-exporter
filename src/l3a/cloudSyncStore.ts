@@ -17,6 +17,7 @@ export interface CloudSyncSessionState {
     readonly sealedCredentials?: Uint8Array<ArrayBuffer>;
     readonly keyMismatch?: boolean;
     readonly pulledSeq: number;
+    readonly generation?: number;
     readonly enabledSinceAt?: number;
 }
 
@@ -165,6 +166,8 @@ function parseSessionState(raw: unknown): CloudSyncSessionState | null {
         || typeof raw.serverUrl !== 'string' || !raw.serverUrl
         || typeof raw.ownerSubject !== 'string' || !raw.ownerSubject
         || typeof raw.expiresAt !== 'number' || !Number.isSafeInteger(raw.expiresAt)
+        || (raw.generation !== undefined && (typeof raw.generation !== 'number'
+            || !Number.isSafeInteger(raw.generation) || raw.generation < 0))
         || typeof raw.pulledSeq !== 'number' || !Number.isSafeInteger(raw.pulledSeq) || raw.pulledSeq < 0) {
         return null;
     }
@@ -184,6 +187,7 @@ function parseSessionState(raw: unknown): CloudSyncSessionState | null {
         ownerSubject: raw.ownerSubject,
         expiresAt: raw.expiresAt,
         pulledSeq: raw.pulledSeq,
+        ...(raw.generation !== undefined ? { generation: raw.generation } : {}),
         ...(typeof raw.folderName === 'string' && raw.folderName ? { folderName: raw.folderName } : {}),
         ...(sealedCredentials ? { sealedCredentials } : {}),
         ...(raw.keyMismatch === true ? { keyMismatch: true } : {}),
@@ -259,6 +263,20 @@ export function putCloudSyncSession(session: CloudSyncSessionState): Promise<voi
     });
 }
 
+export function commitCloudVaultReset(session: CloudSyncSessionState): Promise<void> {
+    const safeSession = parseSessionState({ ...session, pulledSeq: 0 });
+    if (!safeSession || safeSession.backend !== 'cloud-server' || safeSession.generation === undefined) {
+        return Promise.reject(new Error('Invalid cloud vault reset state'));
+    }
+    return inCloudStores(['session', 'outbox', 'syncedRecords'], 'readwrite', (tx, done) => {
+        const range = IDBKeyRange.bound([safeSession.ownerSubject], [safeSession.ownerSubject, []]);
+        tx.objectStore('syncedRecords').delete(range);
+        tx.objectStore('outbox').clear();
+        tx.objectStore('session').put(safeSession);
+        done(undefined);
+    });
+}
+
 export function clearCloudSyncSession(): Promise<void> {
     return inCloudStores(['session', 'outbox'], 'readwrite', (tx, done) => {
         tx.objectStore('session').delete('active');
@@ -268,32 +286,53 @@ export function clearCloudSyncSession(): Promise<void> {
 }
 
 /** Enqueue changed ConversationKeys into the durable outbox, resetting retry schedule to immediate. */
-export function enqueueCloudOutboxKeys(keys: readonly ConversationKey[], nowMs = Date.now()): Promise<void> {
+export function enqueueCloudOutboxKeys(
+    keys: readonly ConversationKey[],
+    nowMs = Date.now(),
+    expectedSession?: Pick<CloudSyncSessionState, 'backend' | 'ownerSubject' | 'serverUrl' | 'generation'>,
+): Promise<void> {
     if (keys.length === 0) return Promise.resolve();
     const dedup = new Map<string, ConversationKey>();
     for (const key of keys) {
         dedup.set(JSON.stringify([key.accountId, key.conversationId]), key);
     }
     const unique = [...dedup.values()];
-    return inCloudStores(['outbox'], 'readwrite', (tx, done) => {
-        const store = tx.objectStore('outbox');
-        let remaining = unique.length;
-        for (const key of unique) {
-            const getReq = store.get([key.accountId, key.conversationId]);
-            getReq.onsuccess = () => {
-                const prev = parseOutboxEntry(getReq.result);
-                const next: CloudOutboxEntry = {
-                    accountId: key.accountId,
-                    conversationId: key.conversationId,
-                    enqueueId: crypto.randomUUID(),
-                    queuedAt: prev?.queuedAt ?? nowMs,
-                    attempts: 0,
-                    nextRetryAt: 0,
+    return inCloudStores(expectedSession ? ['outbox', 'session'] : ['outbox'], 'readwrite', (tx, done) => {
+        const enqueue = () => {
+            const store = tx.objectStore('outbox');
+            let remaining = unique.length;
+            for (const key of unique) {
+                const getReq = store.get([key.accountId, key.conversationId]);
+                getReq.onsuccess = () => {
+                    const prev = parseOutboxEntry(getReq.result);
+                    const next: CloudOutboxEntry = {
+                        accountId: key.accountId,
+                        conversationId: key.conversationId,
+                        enqueueId: crypto.randomUUID(),
+                        queuedAt: prev?.queuedAt ?? nowMs,
+                        attempts: 0,
+                        nextRetryAt: 0,
+                    };
+                    store.put(next);
+                    if (--remaining === 0) done(undefined);
                 };
-                store.put(next);
-                if (--remaining === 0) done(undefined);
-            };
+            }
+        };
+        if (!expectedSession) {
+            enqueue();
+            return;
         }
+        const request = tx.objectStore('session').get('active');
+        request.onsuccess = () => {
+            const current = parseSessionState(request.result);
+            if (current?.backend === expectedSession.backend && current.ownerSubject === expectedSession.ownerSubject
+                && current.serverUrl === expectedSession.serverUrl
+                && (current.generation ?? 0) === (expectedSession.generation ?? 0)) {
+                enqueue();
+            } else {
+                done(undefined);
+            }
+        };
     });
 }
 

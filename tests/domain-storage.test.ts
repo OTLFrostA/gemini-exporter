@@ -461,7 +461,7 @@ test__s7('batch Storage exposes exactly the three agreed passive IO functions', 
 
 test__s7('vault Storage exposes exactly the agreed passive IO functions', () => {
     assert.deepEqual(exportKeys('src/l3a/vaultStorageService.ts'), [
-        'clearCloudSyncSession', 'clearSyncedCloudRecordsForOwner', 'countCloudOutbox',
+        'clearCloudSyncSession', 'clearSyncedCloudRecordsForOwner', 'commitCloudVaultReset', 'countCloudOutbox',
         'countOversizedCloudRecords', 'enqueueCloudOutboxKeys', 'getCloudSyncSession',
         'getStoredLocalVaultHandle', 'getSyncedCloudRecord', 'getSyncedCloudRecordByBlindId',
         'listDueCloudOutbox', 'putCloudSyncSession', 'putLocalVaultConnection',

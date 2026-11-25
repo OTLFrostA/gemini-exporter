@@ -43,7 +43,7 @@ export function createVaultKeyRotation(ctx: {
         keyring: VaultKeyring,
         includeDetail: boolean,
     ): Promise<CloudSyncedRecordState[]> => {
-        const target = { serverUrl: session.serverUrl, sessionToken: session.sessionToken };
+        const target = { serverUrl: session.serverUrl, sessionToken: session.sessionToken, generation: session.generation };
         const written = new Map<string, { state: CloudSyncedRecordState; ciphertextSha256: string }>();
         const oversizedRecords: CloudSyncedRecordState[] = [];
         for (const account of await listAccounts()) {
@@ -160,6 +160,7 @@ export function createVaultKeyRotation(ctx: {
                         expiresAt: auth.expiresAt,
                         sealedCredentials: nextSealed,
                         pulledSeq: 0,
+                        generation: undefined,
                     };
                     const nextActiveSession: ActiveCloudSession = {
                         ...nextStoredSession,
@@ -169,7 +170,8 @@ export function createVaultKeyRotation(ctx: {
                     const verified = await stageCloudBackup(nextActiveSession, candidateKeyring, settings.cloudSyncIncludeDetail === true);
                     const activeSession = await rotationRequest(connection.requireActiveSession);
                     const latest = await rotationRequest(() => connection.remoteClient.getVaultStatus(activeSession.serverUrl, activeSession.sessionToken));
-                    if (latest.headSeq !== source.status.headSeq || latest.recordCount !== source.status.recordCount
+                    if (latest.headSeq !== source.status.headSeq || latest.generation !== source.status.generation
+                        || latest.recordCount !== source.status.recordCount
                         || latest.keyFingerprint !== source.status.keyFingerprint) throw unverifiedBackup();
                     await persistActivatedVaultKeyring(candidateKeyring, 'imported', nextStoredSession, session.ownerSubject, verified);
                     return {
@@ -194,6 +196,7 @@ export function createVaultKeyRotation(ctx: {
                         expiresAt: auth.expiresAt,
                         sealedCredentials: nextSealed,
                         pulledSeq: 0,
+                        generation: auth.ownerSubject === session.ownerSubject ? session.generation : undefined,
                     },
                     session.ownerSubject,
                 );

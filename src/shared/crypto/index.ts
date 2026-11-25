@@ -9,6 +9,7 @@ export {
     type VaultKeyring,
     deriveVaultKeyring,
     deriveServerAuthToken,
+    deriveVaultPurgeProof,
     deriveBlindRecordId,
     encodeLengthPrefixedTuple,
     bytesToHex,

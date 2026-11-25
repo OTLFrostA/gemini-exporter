@@ -16,6 +16,8 @@ export async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string>
 interface MockTenant {
     keyFingerprint?: string;
     authVerifier?: string;
+    purgeVerifierHash?: string;
+    generation: number;
     usedBytes: number;
     nextSeq: number;
     records: Map<string, { meta: CloudRecordMeta; blobKey: string }>;
@@ -27,6 +29,7 @@ interface MockTenant {
  */
 export function createMockCloudVaultHttp(options: {
     readonly serverAccessCode?: string;
+    readonly protectedPurge?: boolean;
 } = {}): {
     readonly handler: (request: Request) => Promise<Response>;
     readonly inspectRawBlobs: () => ReadonlyMap<string, Uint8Array>;
@@ -35,12 +38,13 @@ export function createMockCloudVaultHttp(options: {
 } {
     const tenants = new Map<string, MockTenant>();
     const sessions = new Map<string, string>();
+    const grants = new Map<string, { ownerSubject: string; generation: number }>();
     const blobs = new Map<string, Uint8Array<ArrayBuffer>>();
 
     const ensureTenant = (ownerSubject: string): MockTenant => {
         let t = tenants.get(ownerSubject);
         if (!t) {
-            t = { usedBytes: 0, nextSeq: 1, records: new Map() };
+            t = { usedBytes: 0, generation: 0, nextSeq: 1, records: new Map() };
             tenants.set(ownerSubject, t);
         }
         return t;
@@ -49,8 +53,8 @@ export function createMockCloudVaultHttp(options: {
     const corsHeaders = (origin: string | null): Record<string, string> => (origin ? {
         'Access-Control-Allow-Origin': origin,
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Expected-Revision, X-Content-SHA256, X-Vault-Key-Fingerprint',
-        'Access-Control-Expose-Headers': 'ETag, X-Record-Revision, X-Record-Change-Seq, X-Content-SHA256, Retry-After',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Expected-Revision, X-Content-SHA256, X-Vault-Key-Fingerprint, X-Vault-Generation, X-Vault-Purge-Token',
+        'Access-Control-Expose-Headers': 'ETag, X-Record-Revision, X-Record-Change-Seq, X-Content-SHA256, X-Vault-Generation, Retry-After',
     } : {});
 
     return {
@@ -90,7 +94,7 @@ export function createMockCloudVaultHttp(options: {
             const method = request.method.toUpperCase();
 
             if (method === 'POST' && path === '/v2/auth/key') {
-                const body = (await request.json()) as { keyFingerprint?: string; authToken?: string; accessCode?: string; mode?: string };
+                const body = (await request.json()) as { keyFingerprint?: string; authToken?: string; accessCode?: string; mode?: string; purgeVerifierHash?: string };
                 if (options.serverAccessCode && body.accessCode !== options.serverAccessCode) {
                     return new Response(
                         JSON.stringify({ error: { code: 'ACCESS_CODE_REQUIRED', message: 'Valid server access code is required' } }),
@@ -112,6 +116,7 @@ export function createMockCloudVaultHttp(options: {
                 if (!t.authVerifier) {
                     t.authVerifier = verifier;
                     t.keyFingerprint = body.keyFingerprint;
+                    t.purgeVerifierHash = body.purgeVerifierHash;
                 } else if (t.authVerifier !== verifier) {
                     return new Response(
                         JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'Invalid authToken' } }),
@@ -135,6 +140,12 @@ export function createMockCloudVaultHttp(options: {
                 );
             }
             const tenant = ensureTenant(ownerSubject);
+            if (options.protectedPurge && path !== '/v2/vault/status'
+                && Number(request.headers.get('X-Vault-Generation') ?? '0') !== tenant.generation) {
+                return Response.json({ error: { code: 'VAULT_GENERATION_MISMATCH' } }, { status: 409, headers });
+            }
+            const generation = options.protectedPurge ? { generation: tenant.generation } : {};
+
 
             if (method === 'GET' && path === '/v2/vault/status') {
                 const status: CloudVaultStatusResponse = {
@@ -143,6 +154,7 @@ export function createMockCloudVaultHttp(options: {
                     usedBytes: tenant.usedBytes,
                     quotaBytes: CLOUD_DEFAULT_USER_QUOTA_BYTES,
                     headSeq: tenant.nextSeq - 1,
+                    ...generation,
                     ...(tenant.keyFingerprint ? { keyFingerprint: tenant.keyFingerprint } : {}),
                 };
                 return new Response(JSON.stringify(status), { status: 200, headers });
@@ -161,16 +173,36 @@ export function createMockCloudVaultHttp(options: {
                     items,
                     nextSince: items.length > 0 ? items[items.length - 1]!.changeSeq : since,
                     headSeq: tenant.nextSeq - 1,
+                    ...generation,
                     hasMore,
                 };
                 return new Response(JSON.stringify(feed), { status: 200, headers });
             }
 
+            if (options.protectedPurge && method === 'POST' && path === '/v2/vault/purge-authorization') {
+                const hash = await sha256Hex(new TextEncoder().encode(await request.text()));
+                if (!tenant.purgeVerifierHash || hash !== tenant.purgeVerifierHash) {
+                    return new Response(null, { status: 401, headers });
+                }
+                const purgeToken = `gep2.mock.${crypto.randomUUID()}`;
+                grants.set(purgeToken, { ownerSubject, generation: tenant.generation });
+                return Response.json({ purgeToken }, { headers });
+            }
+
             if (method === 'DELETE' && path === '/v2/vault') {
+                if (options.protectedPurge) {
+                    const token = request.headers.get('X-Vault-Purge-Token') ?? '';
+                    const grant = grants.get(token);
+                    if (!grant || grant.ownerSubject !== ownerSubject || grant.generation !== tenant.generation) {
+                        return new Response(null, { status: 403, headers });
+                    }
+                    grants.delete(token);
+                    tenant.generation++;
+                }
                 for (const r of tenant.records.values()) blobs.delete(r.blobKey);
                 tenant.records.clear();
                 tenant.usedBytes = 0;
-                return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
+                return new Response(JSON.stringify({ ok: true, ...(options.protectedPurge ? { generation: tenant.generation } : {}) }), { status: 200, headers });
             }
 
             const recPrefix = '/v2/vault/records/';
@@ -188,6 +220,7 @@ export function createMockCloudVaultHttp(options: {
                             'X-Record-Revision': String(rec.meta.revision),
                             'X-Record-Change-Seq': String(rec.meta.changeSeq),
                             'X-Content-SHA256': rec.meta.sha256,
+                            ...(options.protectedPurge ? { 'X-Vault-Generation': String(tenant.generation) } : {}),
                         },
                     });
                 }

@@ -16,6 +16,7 @@ export interface CloudAuthKeyRequest {
     readonly authToken: string;
     readonly mode: CloudAuthKeyMode;
     readonly accessCode?: string;
+    readonly purgeVerifierHash?: string;
 }
 
 export interface CloudAuthSessionResponse {
@@ -30,6 +31,7 @@ export interface CloudVaultStatusResponse {
     readonly usedBytes: number;
     readonly quotaBytes: number;
     readonly headSeq: number;
+    readonly generation?: number;
     /** 32-char hex HKDF fingerprint of the Master Key currently locking this vault, if initialized. */
     readonly keyFingerprint?: string;
 }
@@ -47,6 +49,7 @@ export interface CloudChangesResponse {
     readonly items: readonly CloudRecordMeta[];
     readonly nextSince: number;
     readonly headSeq: number;
+    readonly generation?: number;
     readonly hasMore: boolean;
 }
 

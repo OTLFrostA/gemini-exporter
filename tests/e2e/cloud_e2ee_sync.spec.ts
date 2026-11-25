@@ -106,6 +106,7 @@ test('Cloud Vault displays the key once, pairs isolated profiles manually, and s
     // 1. Boot mock zero-knowledge Cloud Vault HTTP contract double
     const serverStore = createMockCloudVaultHttp({
         serverAccessCode: SERVER_INVITE_CODE,
+        protectedPurge: true,
     });
     const serverHandler = serverStore.handler;
     let serveStaleRevision = false;
@@ -307,6 +308,14 @@ test('Cloud Vault displays the key once, pairs isolated profiles manually, and s
         expect(serverStore.inspectTenantCount()).toBe(2);
         expect(authRequests.map(entry => entry.mode)).toEqual(['create', 'create', 'unlock', 'unlock', 'create']);
         expect(authRequests.some(entry => entry.rawKeyInRequest)).toBe(false);
+
+        await page.locator('#btnCloudResetVault').click();
+        await expect(page.locator('#btnCloudResetVault')).toContainText('Confirm Clear Cloud Backup');
+        await page.locator('#btnCloudResetVault').click();
+        await expect(page.locator('#cloudModalFeedback')).toContainText('Automatic backup is paused');
+        expect(serverStore.inspectRawBlobs().size).toBe(2);
+        await page.locator('#btnCloudModalClose').click();
+        await expect(page.locator('#list')).toContainText('From the paired browser');
     } finally {
         await peer.close();
     }
