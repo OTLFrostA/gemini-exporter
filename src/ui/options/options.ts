@@ -3,6 +3,7 @@ import { installDomainStorage } from '../../runtime/api/domainStorage.js';
 import { installProviderHost } from '../../runtime/api/providerHost.js';
 import { observeDomainChanges } from '../../runtime/api/domainChanges.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
+import { installGlobalErrorDiagnosticCapture } from '../../runtime/api/runtimeDiagnostics.js';
 import * as Directory from '../../runtime/capabilities/dirHandleController.js';
 import { resolveScanTarget } from '../../runtime/capabilities/tabService.js';
 import { OperationError } from '../../shared/errors/operationError.js';
@@ -40,6 +41,7 @@ import { renderWorkbench, resolveSourceMessage, resolveUiMessage } from './views
 installDomainStorage();
 installApplicationHost();
 installProviderHost();
+installGlobalErrorDiagnosticCapture('options');
 
 type Action = 'export' | 'takeout' | 'cleanup';
 
@@ -81,6 +83,7 @@ async function initWorkbench(): Promise<void> {
 
     const logController = createDiagnosticLogController({
         state,
+        getSettings: () => settings,
         onShowTakeout: showTakeout,
         onError: error => statusError(error),
     });

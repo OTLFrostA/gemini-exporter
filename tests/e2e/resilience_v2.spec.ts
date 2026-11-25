@@ -198,3 +198,42 @@ test('MV3 Service Worker stop and restart recovers readiness and content-script 
     await expect(page.locator('#list')).toContainText('量子纠缠物理原理深度解析');
     await geminiTab.close();
 });
+
+test('Cross-context diagnostic export captures background/popup events, settings, and account summary', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    await seedConversations(page, [{ id: 'diag-conv-1', title: 'Diag Test Chat' }]);
+    await page.locator('#devToggle').check();
+
+    // Send a cross-context diagnostic event from Popup/extension origin into the Background ring buffer
+    const recorded = await page.evaluate(async () => {
+        return chrome.runtime.sendMessage({
+            action: 'recordDiagnosticEvent',
+            source: 'popup',
+            severity: 'error',
+            code: 'POPUP_DIAG_TEST_EVENT',
+            message: 'Simulated popup failure for diagnostic capture',
+            details: { providerId: 'claude', blockType: 'artifact_v9', cookie: 'secret-session' },
+        });
+    });
+    expect(recorded).toEqual({ ok: true });
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#btnExportDiag').click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe('gemini-exporter-ui-diagnostics.json');
+
+    const diag = JSON.parse(await readFile((await download.path())!, 'utf8'));
+    expect(diag.schemaVersion).toBe(3);
+    expect(diag.diagnosticRevision).toBe(3);
+    expect(diag.settings).toMatchObject({ developerMode: true });
+    expect(diag.accountSummary.totalAccounts).toBeGreaterThanOrEqual(1);
+    expect(diag.accountSummary.activeAccountStats.totalIndexes).toBe(1);
+    expect(diag.runtimeEvents).toBeTruthy();
+    const match = diag.runtimeEvents.events.find((e: { code: string }) => e.code === 'POPUP_DIAG_TEST_EVENT');
+    expect(match).toMatchObject({
+        source: 'popup',
+        severity: 'error',
+        message: 'Simulated popup failure for diagnostic capture',
+        details: { providerId: 'claude', blockType: 'artifact_v9', cookie: '<redacted-credential>' },
+    });
+});

@@ -2,7 +2,8 @@ import type { BlockNode } from '../../../l2/content/blocks.js';
 import type { ImageInline } from '../../../l2/content/inline.js';
 import type { DomainAsset, DomainMessage } from '../../../l2/conversationDetail.js';
 import { isDurableSourceUri } from '../../../l2/sourceUri.js';
-import type { Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
+import { diagnosticSnapshot, type Diagnostic } from '../../../shared/diagnostics/diagnostic.js';
+import type { JsonValue } from '../../../shared/utils/jsonTypes.js';
 import type { SourceConversationParseResult } from '../parsingResult.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../shared/markdown/index.js';
 import { contentQuality } from '../qualityEvidence.js';
@@ -44,9 +45,9 @@ function contentOf(message: ClaudeSourceMessage, ctx: MarkdownParseContext, tool
     const id = message.uuid;
     const content: BlockNode[] = [], reasoning: BlockNode[] = [];
     let incomplete = message.truncated || ['user_canceled', 'error', 'max_tokens', 'tool_use', 'pause_turn', 'model_context_window_exceeded'].includes(message.stopReason ?? '');
-    const missing = (code: string, message: string) => {
+    const missing = (code: string, message: string, details?: JsonValue) => {
         incomplete = true;
-        ctx.diagnostics.push({ severity: 'warning', code, message, sourceRef: ctx.sourceRef });
+        ctx.diagnostics.push({ severity: 'warning', code, message, sourceRef: ctx.sourceRef, ...(details !== undefined ? { details } : {}) });
     };
     if (incomplete) missing('claude.message.truncated', 'Message was truncated or canceled');
     const unresolved: { file: ClaudeSourceFile; name: string; generated: boolean }[] = [];
@@ -62,7 +63,7 @@ function contentOf(message: ClaudeSourceMessage, ctx: MarkdownParseContext, tool
     if (message.content) {
         for (const block of message.content) {
             if (block.kind === 'invalid') {
-                missing('claude.content.invalid', 'Invalid content block');
+                missing('claude.content.invalid', 'Invalid content block', block.raw !== undefined ? { raw: block.raw } : undefined);
             } else if (block.kind === 'text') {
                 content.push(...markdown(block.text, id, ctx));
             } else if (block.kind === 'thinking') {
@@ -70,15 +71,15 @@ function contentOf(message: ClaudeSourceMessage, ctx: MarkdownParseContext, tool
             } else if (block.kind === 'tool_use') {
                 const parsed = parseToolUse(block, tools, text => markdown(text, id, ctx));
                 content.push(...parsed.blocks);
-                for (const issue of parsed.issues) missing('claude.tool_use.unsupported', issue);
+                for (const issue of parsed.issues) missing('claude.tool_use.unsupported', issue, { toolName: block.name, input: diagnosticSnapshot(block.input) });
             } else if (block.kind === 'tool_result') {
                 const parsed = parseToolResult(block, text => markdown(text, id, ctx));
                 content.push(...parsed.blocks);
-                for (const issue of parsed.issues) missing('claude.tool_result.unsupported', issue);
+                for (const issue of parsed.issues) missing('claude.tool_result.unsupported', issue, { toolName: block.name, isError: block.isError, parts: diagnosticSnapshot(block.parts) });
             } else if (block.kind === 'redacted_thinking') {
                 missing('claude.content.redacted_thinking', 'Redacted thinking content is unavailable');
             } else if (block.kind === 'unsupported') {
-                missing('claude.content.unsupported', 'Unsupported content block: ' + block.sourceType);
+                missing('claude.content.unsupported', 'Unsupported content block: ' + block.sourceType, { sourceType: block.sourceType, ...(block.raw !== undefined ? { raw: block.raw } : {}) });
             }
         }
     } else if (message.text !== undefined) {

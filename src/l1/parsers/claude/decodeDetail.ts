@@ -1,3 +1,5 @@
+import { diagnosticSnapshot } from '../../../shared/diagnostics/diagnostic.js';
+import type { JsonValue } from '../../../shared/utils/jsonTypes.js';
 import { claudeTimestamp } from './parseList.js';
 import { record } from './toolValues.js';
 
@@ -34,8 +36,8 @@ type ClaudeContentBlock =
     | ({ kind: 'tool_use' } & ClaudeToolUse)
     | ({ kind: 'tool_result' } & ClaudeToolResult)
     | { kind: 'redacted_thinking' }
-    | { kind: 'invalid' }
-    | { kind: 'unsupported'; sourceType: string };
+    | { kind: 'invalid'; raw?: JsonValue }
+    | { kind: 'unsupported'; sourceType: string; raw?: JsonValue };
 
 export interface ClaudeSourceMessage {
     uuid: string;
@@ -99,7 +101,7 @@ function decodeResultPart(raw: unknown): ClaudeResultPart {
 }
 function decodeBlock(raw: unknown): ClaudeContentBlock {
     const source = record(raw);
-    if (!source) return { kind: 'invalid' };
+    if (!source) return { kind: 'invalid', raw: diagnosticSnapshot(raw) };
     if (source.type === 'text' && typeof source.text === 'string')
         return { kind: 'text', text: source.text };
     if (source.type === 'thinking' && typeof source.thinking === 'string')
@@ -118,7 +120,7 @@ function decodeBlock(raw: unknown): ClaudeContentBlock {
             parts: Array.isArray(rawParts) ? rawParts.map((part: unknown) => decodeResultPart(part)) : null };
     }
     if (source.type === 'redacted_thinking') return { kind: 'redacted_thinking' };
-    return { kind: 'unsupported', sourceType: String(source.type) };
+    return { kind: 'unsupported', sourceType: String(source.type), raw: diagnosticSnapshot(source) };
 }
 function decodeMessage(raw: unknown): ClaudeSourceMessage {
     const source = record(raw);

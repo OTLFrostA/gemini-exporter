@@ -296,4 +296,35 @@ test('errors - getErrorMessage safely normalizes all error types', () => {
     assert.strictEqual(getErrorMessage(404), '404');
 
 });
+
+test('diagnostics - diagnosticSnapshot preserves rich data while bounding depth, length, circular refs and credentials', () => {
+    const { diagnosticSnapshot, serializeErrorForDiagnostic } = require('../src/shared/diagnostics/diagnostic.js');
+    const { OperationError } = require('../src/shared/errors/operationError.js');
+
+    const cyclic: Record<string, unknown> = {
+        type: 'new_card_v2',
+        authorization: 'Bearer secret-token',
+        cookie: 'SID=secret',
+        longText: 'x'.repeat(500),
+        bytes: new Uint8Array([1, 2, 3, 4]),
+        nested: { items: [1, 2, 3] },
+    };
+    cyclic.self = cyclic;
+
+    const snap = diagnosticSnapshot(cyclic) as Record<string, unknown>;
+    assert.strictEqual(snap.type, 'new_card_v2');
+    assert.strictEqual(snap.authorization, '<redacted-credential>');
+    assert.strictEqual(snap.cookie, '<redacted-credential>');
+    assert.strictEqual(snap.bytes, '<Uint8Array byteLength=4>');
+    assert.strictEqual(snap.self, '<Circular>');
+    assert.ok(typeof snap.longText === 'string' && snap.longText.includes('[truncated, total 500 chars]'));
+
+    const root = new Error('root cause');
+    const op = new OperationError('SOURCE_RESPONSE_INVALID', 'Unexpected wire schema', undefined, { cause: root });
+    const serialized = serializeErrorForDiagnostic(op) as Record<string, unknown>;
+    assert.strictEqual(serialized.code, 'SOURCE_RESPONSE_INVALID');
+    assert.strictEqual(serialized.message, 'Unexpected wire schema');
+    assert.ok(typeof serialized.stack === 'string' && serialized.stack.includes('Unexpected wire schema'));
+    assert.strictEqual((serialized.cause as Record<string, unknown>).message, 'root cause');
+});
 });

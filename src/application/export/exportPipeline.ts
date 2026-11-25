@@ -1,5 +1,5 @@
 import { OperationError, operationIssue, operationError } from '../../shared/errors/operationError.js';
-import type { Diagnostic } from '../../shared/diagnostics/diagnostic.js';
+import { serializeErrorForDiagnostic, type Diagnostic } from '../../shared/diagnostics/diagnostic.js';
 import { createSemaphore } from '../../shared/utils/concurrency.js';
 import { sanitizeFileName } from '../../shared/utils/pathUtils.js';
 import { ConfirmedSourceEmptyError } from '../../l1/client/sourceErrors.js';
@@ -95,8 +95,12 @@ export async function executeExportWithSession(
     };
     const fail = (keys: readonly ConversationKey[], _error?: unknown): void => {
         const issue = operationIssue(_error);
+        const errorDetails = _error !== undefined ? { error: serializeErrorForDiagnostic(_error) } : undefined;
         for (const key of keys) {
-            const diagnostic: ExportDiagnostic = { key, stage: 'export', code: 'EXPORT_FAILED', severity: 'error', issue, message: issue.message };
+            const diagnostic: ExportDiagnostic = {
+                key, stage: 'export', code: 'EXPORT_FAILED', severity: 'error', issue, message: issue.message,
+                ...(errorDetails ? { details: errorDetails } : {}),
+            };
             diagnose(diagnostic);
             if (!failed.some(item => item.accountId === key.accountId && item.conversationId === key.conversationId)) {
                 failed.push(key);

@@ -2,6 +2,7 @@ import { runExport, type UIExportRequest } from './exportController.js';
 import type { ExportDiagnostic, ExportItemUpdate, ExportResult } from '../../../application/export/types.js';
 import type { ConversationKey } from '../../../l2/conversationKey.js';
 import type { SourceResourceContext } from '../../../application/resources.js';
+import type { JsonValue } from '../../../shared/utils/jsonTypes.js';
 import type { UiMessage } from '../state/foregroundTask.js';
 import type { ExportIssueCollector } from '../state/exportIssues.js';
 import { createBackoffNotice } from '../../shared/backoffNotice.js';
@@ -18,6 +19,7 @@ export interface ExportRunDiagnostic {
     issues: ExportIssueCollector;
     result?: ExportResult;
     error?: string;
+    errorDetail?: JsonValue;
 }
 interface ExportSessionOptions {
     signal: AbortSignal;
@@ -96,6 +98,14 @@ export async function runExportSession(run: ExportRunDiagnostic, options: Export
         return { result, deliveredCount: delivered.size };
     } catch (error) {
         run.error = error instanceof Error ? error.message : String(error);
+        run.errorDetail = error instanceof Error
+            ? {
+                name: error.name || 'Error',
+                message: error.message || '',
+                ...(typeof Reflect.get(error, 'code') === 'string' ? { code: String(Reflect.get(error, 'code')) } : {}),
+                ...(typeof error.stack === 'string' ? { stack: error.stack.split('\n').slice(0, 16).join('\n') } : {}),
+            }
+            : { name: typeof error, message: String(error) };
         throw error;
     } finally { active = false; stopBackoffTicker(); run.finishedAt = Date.now(); }
 }
