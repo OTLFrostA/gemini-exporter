@@ -32,7 +32,6 @@ const ALLOWED_LAYER_DEPS = {
 };
 
 const CONCRETE_PLATFORM_CLIENT_RE = /^l1\/client\/(?:gemini|chatgpt|claude|grok)\//;
-const IMPORT_RE = /(?:import|export)\s+(?:type\s+)?(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/gm;
 
 function walkSourceFiles(dir, out = []) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -74,10 +73,50 @@ function resolveRelativeImport(srcRoot, fromFile, spec) {
     return null;
 }
 
-function stripComments(source) {
-    return source
-        .replace(/\/\*[\s\S]*?\*\//g, ' ')
-        .replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+/** Use the compiler's syntax tree so erased type edges and literal module loads are visible. */
+function readDependencies(srcRoot, files) {
+    const { API } = require('typescript/unstable/sync');
+    const { SyntaxKind } = require('typescript/unstable/ast');
+    const api = new API({ cwd: srcRoot });
+    try {
+        const snapshot = api.updateSnapshot({ openFiles: files });
+        const dependencies = new Map();
+        for (const file of files) {
+            const source = snapshot.getDefaultProjectForFile(file)?.program.getSourceFile(file);
+            if (!source) throw new Error(`Cannot inspect architecture dependencies of ${file}`);
+            const imports = new Set();
+            function visit(node) {
+                let specifier;
+                switch (node.kind) {
+                    case SyntaxKind.ImportDeclaration:
+                    case SyntaxKind.ExportDeclaration:
+                        specifier = node.moduleSpecifier;
+                        break;
+                    case SyntaxKind.ExternalModuleReference:
+                        specifier = node.expression;
+                        break;
+                    case SyntaxKind.ImportType:
+                        specifier = node.argument.literal;
+                        break;
+                    case SyntaxKind.CallExpression:
+                        if (node.expression.kind === SyntaxKind.ImportKeyword ||
+                            (node.expression.kind === SyntaxKind.Identifier && node.expression.text === 'require')) {
+                            specifier = node.arguments[0];
+                        }
+                        break;
+                }
+                if (specifier?.kind === SyntaxKind.StringLiteral ||
+                    specifier?.kind === SyntaxKind.NoSubstitutionTemplateLiteral) imports.add(specifier.text);
+                node.forEachChild(visit);
+            }
+            visit(source);
+            dependencies.set(file, imports);
+        }
+        snapshot.dispose();
+        return dependencies;
+    } finally {
+        api.close();
+    }
 }
 
 function tarjanScc(graph) {
@@ -124,6 +163,7 @@ function tarjanScc(graph) {
 
 function analyzeArchitecture(srcRoot) {
     const files = walkSourceFiles(srcRoot).sort();
+    const dependencies = readDependencies(srcRoot, files);
     const fileGraph = new Map();
     const layerGraph = new Map();
     const subModuleGraph = new Map();
@@ -144,11 +184,7 @@ function analyzeArchitecture(srcRoot) {
         if (!layerGraph.has(srcLayer)) layerGraph.set(srcLayer, new Set());
         if (!subModuleGraph.has(srcSubModule)) subModuleGraph.set(srcSubModule, new Set());
 
-        const text = stripComments(fs.readFileSync(file, 'utf8'));
-        IMPORT_RE.lastIndex = 0;
-        let match;
-        while ((match = IMPORT_RE.exec(text)) !== null) {
-            const spec = match[1] || match[2];
+        for (const spec of dependencies.get(file)) {
             const target = resolveRelativeImport(srcRoot, file, spec);
             if (!target || target === rel) continue;
             fileGraph.get(rel).add(target);

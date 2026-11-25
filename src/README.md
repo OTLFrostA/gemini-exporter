@@ -73,7 +73,7 @@ When developer mode is enabled, `GEMINI_SOURCE_REPLAY_EVIDENCE` retains the comp
 decoded `hNvQHb` payload once per affected Detail page for offline replay, without
 entering Domain or persistent conversation state.
 
-Diagnostic revision 4 includes the current browser online state and granted extension
+Diagnostic revision 3 includes the current browser online state and granted extension
 permissions, ChatGPT branch-coverage reasons and candidate admission outcomes,
 before/after persisted Detail versions, and resource request phases, origins,
 response status/type, elapsed time and exception names. Request routing evidence
