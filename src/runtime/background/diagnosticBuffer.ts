@@ -8,8 +8,6 @@ import {
 } from '../../shared/diagnostics/diagnostic.js';
 import { assertExtensionSender, object } from './contentSender.js';
 
-export type { DiagnosticEventSource, RuntimeDiagnosticEvent, RuntimeDiagnosticSnapshot };
-
 const SESSION_KEY = 'gemini_exporter_diag_buffer_v1';
 const MAX_EVENTS = 500;
 const VALID_SOURCES = new Set<string>(['background', 'content', 'popup', 'options']);
