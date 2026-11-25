@@ -43,15 +43,13 @@ export async function launchExtensionContext(grantGemini = true): Promise<Browse
     return context;
 }
 
-export async function getActiveServiceWorker(context: BrowserContext, anchor?: Page, extensionId?: string): Promise<Worker> {
+async function getActiveServiceWorker(context: BrowserContext, anchor: Page, extensionId: string): Promise<Worker> {
     let [worker] = context.serviceWorkers();
-    if (!worker && anchor && extensionId) {
+    if (!worker) {
         const pending = context.waitForEvent('serviceworker', { timeout: 10000 });
         await anchor.goto(`chrome-extension://${extensionId}/manifest.json`).catch(() => {});
         worker = context.serviceWorkers()[0] || await pending;
         await anchor.goto('about:blank').catch(() => {});
-    } else if (!worker) {
-        worker = await context.waitForEvent('serviceworker', { timeout: 10000 });
     }
     return worker;
 }
