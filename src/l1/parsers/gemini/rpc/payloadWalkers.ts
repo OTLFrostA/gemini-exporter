@@ -78,7 +78,7 @@ interface JspbErrorInfoSchema {
     ERROR_SLOT: number;
 }
 
-export interface GeminiJspbSchema {
+interface GeminiJspbSchema {
     TURN: JspbTurnSchema;
     MODEL_PAYLOAD: JspbModelPayloadSchema;
     CANDIDATE: JspbCandidateSchema;
@@ -187,7 +187,7 @@ export function deepWalk(root: unknown, visitor: (node: object, depth: number) =
     walk(root, 0);
 }
 
-export function safeStructureClean(str?: string | null): string {
+function safeStructureClean(str?: string | null): string {
     if (!str) return '';
     let out = '';
     let inString = false;
@@ -383,7 +383,7 @@ export function extractConversationId(inner: unknown, turns?: unknown[]): string
     return foundId ?? 'c_unknown';
 }
 
-export function smartSummarizePrompt(rawText?: string | null): string {
+function smartSummarizePrompt(rawText?: string | null): string {
     if (!rawText) return '';
     let s = cleanTitle(rawText).trim();
     s = s.replace(/^(请问一下|请问|我想问一下|我想问|你能帮我|帮我|你能|请教一下|请教|都说|那么|那个|如果说|如果|我发现|为什么)\s*[,，:：]?\s*/i, '');
