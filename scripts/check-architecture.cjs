@@ -149,7 +149,6 @@ function analyzeArchitecture(srcRoot) {
         let match;
         while ((match = IMPORT_RE.exec(text)) !== null) {
             const spec = match[1] || match[2];
-            if (!spec) continue;
             const target = resolveRelativeImport(srcRoot, file, spec);
             if (!target || target === rel) continue;
             fileGraph.get(rel).add(target);
