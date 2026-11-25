@@ -6,8 +6,6 @@ import {
     type RuntimeDiagnosticSnapshot,
 } from '../../shared/diagnostics/diagnostic.js';
 
-export type { DiagnosticEventSource, RuntimeDiagnosticEvent, RuntimeDiagnosticSnapshot } from '../../shared/diagnostics/diagnostic.js';
-
 /** Fire-and-forget cross-context diagnostic event reporting to the Background ring buffer. */
 export function reportRuntimeDiagnostic(
     source: DiagnosticEventSource,
