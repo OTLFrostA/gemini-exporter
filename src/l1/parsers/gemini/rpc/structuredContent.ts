@@ -417,7 +417,7 @@ export function decodeGeminiStructuredPayload(raw: unknown, issues?: DecodeIssue
 
 /** Extract top-level decoded/rejected block slots for a selected candidate when a valid
  * document sequence contains both decodable siblings and unsupported nodes. */
-export function extractSelectedPartialSlots(turnDocument: unknown, candidateIndex = 0): GeminiPartialStructuredSlot[] | null {
+export function extractSelectedPartialSlots(turnDocument: unknown, candidateIndex: number): GeminiPartialStructuredSlot[] | null {
     if (turnDocument == null || emptyDocumentPlaceholder(turnDocument)) return null;
     const selected = isWireArray(turnDocument) ? turnDocument[candidateIndex]
         : candidateIndex === 0 ? turnDocument : undefined;
