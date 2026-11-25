@@ -200,6 +200,16 @@ test('code header prefers filename, shows meta', () => {
     assert.ok(!bareHtml.includes('class="gem-code-meta"'));
 });
 
+test('HTML preserves Gemini execution identifiers on code and stdout blocks', () => {
+    const blocks = domainFixture([msg([
+        { type: 'code', language: 'python?code_reference&code_event_index=1', code: 'print(42)' },
+        { type: 'code', language: 'text?code_stdout&code_event_index=1', code: '42' },
+    ])]);
+    const { html } = renderDocumentHtml(composeDomainDocument(blocks, fixtureAccountFor(blocks)), resources);
+    assert.ok(html.includes('class="language-python?code_reference&amp;code_event_index=1"'));
+    assert.ok(html.includes('class="language-text?code_stdout&amp;code_event_index=1"'));
+});
+
 test('table honors column alignment', () => {
     const cell = (s: string) => ({ children: [text(s)] });
     const b = domainFixture([msg([{

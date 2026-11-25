@@ -221,7 +221,7 @@ export function renderDocumentHtml(document: DocumentAst, resources: ResourceBin
             }
             case 'quote': return `<blockquote class="gem-blockquote">${blocks(node.blocks)}</blockquote>`;
             case 'code': {
-                const langClass = (node.language || 'text').replace(/[^\w+-]+/g, '') || 'text';
+                const langClass = (node.language || 'text').replace(/[^\w+?&=-]+/g, '') || 'text';
                 return `<div class="gem-code-block"><div class="gem-code-header"><span class="gem-code-lang">${escapeHtml(codeHeader(node, 'html'))}</span>${node.meta ? `<span class="gem-code-meta"> · ${escapeHtml(node.meta)}</span>` : ''}
 <button class="gem-copy-btn" onclick="copyCode(this)" title="${isEn ? 'Copy Code' : '复制代码'}" data-copied="${isEn ? 'Copied ✓' : '已复制 ✓'}">${COPY_SVG}<span class="copy-text">${isEn ? 'Copy' : '复制'}</span></button></div><pre><code class="language-${escapeHtml(langClass)}">${escapeHtml(node.code)}</code></pre></div>`;
             }

@@ -405,17 +405,24 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 const read = (\n{_AUTHORED_RESPONSE}\n);
                 const users = [...document.querySelectorAll('user-query')];
                 const models = [...document.querySelectorAll('model-response')];
+                const turns = [];
+                if (users.length === models.length) {{
+                    for (const [index, model] of models.entries()) {{
+                        // Gemini defers rendering offscreen turns in long conversations.
+                        model.scrollIntoView({{block: 'start', behavior: 'instant'}});
+                        const query = users[index].querySelector('.query-text') || users[index];
+                        const lines = [...query.querySelectorAll('.query-text-line')];
+                        const prompt = lines.length ? lines.map(line => read(line).text).join('\\n') : read(query).text;
+                        const answer = read(model);
+                        turns.push({{prompt, response: answer.text, has_images: answer.hasImages,
+                            code_blocks: answer.codeBlocks, execution_blocks: answer.executionBlocks,
+                            pdf_segments: answer.pdfSegments}});
+                    }}
+                }}
                 return {{
                     chat_id: location.pathname.split('/app/')[1]?.split('/')[0] || '',
                     streaming: !!document.querySelector({json.dumps(GeminiSelectors.STREAMING_INDICATORS)}),
-                    turns: users.length !== models.length ? [] : models.map((model, index) => {{
-                        const answer = read(model);
-                        return {{
-                            prompt: read(users[index].querySelector('.query-text') || users[index]).text,
-                            response: answer.text, has_images: answer.hasImages, code_blocks: answer.codeBlocks,
-                            execution_blocks: answer.executionBlocks, pdf_segments: answer.pdfSegments,
-                        }};
-                    }}),
+                    turns,
                 }};
             }})()
             """) or {}

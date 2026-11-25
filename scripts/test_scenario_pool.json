@@ -1,47 +1,5 @@
 [
   {
-    "id": "mechanics_damped_oscillator_energy_audit",
-    "title": "Damped oscillator: energy decay and sampling checks",
-    "domain": "mechanics_damped_oscillator",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Create an original schematic of a horizontal spring-mass-damper system, with displacement, velocity and force arrows clearly labelled as schematic. Give a Markdown table of explicitly synthetic SI parameters and initial conditions for an underdamped example.",
-      "Derive the homogeneous damped oscillator solution in LaTeX and its mechanical energy derivative. Distinguish underdamped, critically damped and overdamped regimes; state parameter units and sign assumptions.",
-      "Write complete runnable standard-library Python for the analytic displacement and velocity in all three regimes, including the critical limit. Include executable tests for initial conditions, zero damping and invalid mass or negative damping.",
-      "Compare the analytic solution with step-refined numerical integration in a Markdown error table. Audit whether the discrete energy is monotone and explain how numerical error can imitate physical energy injection. Use only synthetic data.",
-      "Write a Chinese-English reproducibility report containing equations, full code and negative tests. Explain aliasing when recording oscillations and why the schematic image cannot verify force balance or identify physical damping parameters."
-    ]
-  },
-  {
-    "id": "compilers_dominator_fixed_point_certificate",
-    "title": "Control-flow graphs: dominators and independent certificates",
-    "domain": "compilers_control_flow_dominators",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a synthetic directed control-flow graph with a named entry, a branch, a join, a loop and an unreachable node. Provide Markdown tables of nodes and edges. Define precisely which nodes participate in dominance.",
-      "Express the dominator fixed-point equations in LaTeX over entry-reachable nodes. Explain initialization and prove termination and correctness, distinguishing a fixed point from a path-based dominance claim.",
-      "Write complete runnable standard-library Python to validate the graph and compute dominator sets by fixed-point iteration. Include executable tests and deterministic ordering.",
-      "Trace each iteration for the synthetic graph in a Markdown table. Derive immediate dominators and explain the strict-dominator ordering that makes them unique for reachable non-entry nodes.",
-      "Implement an independent certificate checker using reachability after vertex removal instead of the fixed-point recurrence. Reject missing nodes, invented nodes, incorrect entry dominance and false dominance claims.",
-      "Enumerate all tiny directed graphs up to a clearly bounded size and compare the fixed-point solver with the independent checker. Provide full deterministic Python, finite bounds and an honest complexity estimate.",
-      "Add executable tests for self-loops, duplicate edges, an entry with incoming edges, disconnected cycles, unknown endpoints and a one-node graph. State the policy for unreachable nodes and show how the checker enforces it.",
-      "Write a Chinese-English audit including definitions, proof, complete solver/checker code and negative tests. Explain why dominance alone does not prove variable liveness, correct SSA construction or semantic equivalence of compiler optimizations."
-    ]
-  },
-  {
     "id": "optics_jones_polarization_power_audit",
     "title": "Polarization optics: Jones vectors and power conservation",
     "domain": "optics_polarization_jones_calculus",
@@ -417,6 +375,47 @@
       "Write an independent decoder and verifier that checks prefix freedom, Kraft inequality, encoded bit count, and exact decode-encode round trips.",
       "Provide negative tests for truncated streams, invalid bits, unseen symbols, zero or negative frequencies, tied frequencies, and a single-symbol alphabet. State the single-symbol convention explicitly.",
       "Explain metadata costs, why Huffman coding is not encryption, and when arithmetic coding can improve efficiency. End with a bilingual checklist for reproducible interoperability."
+    ]
+  },
+  {
+    "id": "cartography_equal_area_distortion_lab",
+    "title": "Cartography lab: separating area and shape distortion",
+    "domain": "cartography_projection_distortion",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Create an original diagram with two simplified world map panels illustrating equal-area and conformal projections. Use synthetic graticules and clearly label the illustration as schematic. Add a Markdown table of sample latitudes for a separate quantitative exercise.",
+      "For spherical Mercator and cylindrical equal-area with a standard parallel at the equator, give the forward equations in LaTeX and derive the local east-west and north-south scale factors. State the valid latitude ranges and limits.",
+      "Write a runnable standard-library Python script that computes scale factors at the sample latitudes in degrees. Include tests for equatorial scale, symmetry, equal-area preservation, and invalid polar inputs.",
+      "Give a Markdown table showing the two directional scales and their product for each projection and latitude. Explain the difference between local angular distortion, local area distortion, and the area of a finite region.",
+      "Write a bilingual Chinese-English teaching note with the equations and code, and explain which claims are demonstrated by the calculations and which cannot be inferred from a schematic map image alone."
+    ]
+  },
+  {
+    "id": "measurement_repeatability_variance_components",
+    "title": "Measurement science: repeatability under a crossed study",
+    "domain": "metrology_variance_components",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Design a fully synthetic crossed repeatability study with three calibration blocks, two operators, and two repeats. Show every synthetic reading in a Markdown table with explicit units and precision.",
+      "Give a LaTeX random-effects model with part, operator, part-operator interaction, and repeat error. Explain exchangeability and state the assumptions under which the variance components are identifiable.",
+      "Compute the balanced ANOVA mean squares for the example and tabulate the degrees of freedom and expected mean squares. Keep the reported table consistent with the original readings.",
+      "Write a complete standard-library Python implementation of the sums of squares and method-of-moments estimates. Preserve signed intermediate estimates and use a clearly stated policy for negative final estimates.",
+      "Add runnable tests for a constant fixture, a repeat-error-only fixture, and a missing-cell error. Include one worked manual calculation that checks an intermediate mean square.",
+      "Compare repeatability standard deviation with reproducibility standard deviation and total observed standard deviation. Show how the interpretation changes if operator should be a fixed factor.",
+      "Give a sensitivity table for swapping operator labels, increasing one reading, and rounding every observation to the nearest unit. Explain how rounding can obscure real within-cell variation.",
+      "Produce a bilingual Chinese-English lab report with the equations, tested code, and limits of inference from a very small synthetic experiment."
     ]
   }
 ]
