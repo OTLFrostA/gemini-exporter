@@ -13,16 +13,24 @@ function compileUnderOwner(owner, source) {
         env: { ...process.env, V2_UNIT_OWNER: owner, NODE_OPTIONS: '--require=' + guard },
     });
 }
-test('strict v2 unit guard allows a real module owned by the suite', () => {
+test('v2 sociable unit guard allows a real module owned by the suite', () => {
     const result = compileUnderOwner('l2', './src/l2/streamCoverage.js');
     assert.equal(result.status, 0, result.stderr);
 });
-test('strict v2 unit guard rejects a real external implementation, even if imported directly', () => {
-    const result = compileUnderOwner('l3b', './src/l2/streamCoverage.js');
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /Unit isolation violation: l3b compiled real l2 implementation/);
+test('v2 sociable unit guard allows downstream owners to load pure L2 domain helpers', () => {
+    const result = compileUnderOwner('l3b', './src/l2/content/tableLayout.js');
+    assert.equal(result.status, 0, result.stderr);
 });
-test('strict v2 unit guard does not treat Shared pure helpers as a foreign business owner', () => {
+test('v2 sociable unit guard rejects upward or forbidden host-layer implementations', () => {
+    const l2Leak = compileUnderOwner('l2', './src/l3a/storageService.js');
+    assert.notEqual(l2Leak.status, 0);
+    assert.match(l2Leak.stderr, /Unit isolation violation: l2 compiled forbidden l3a implementation/);
+
+    const l3bLeak = compileUnderOwner('l3b', './src/l4/format/markdown/renderMarkdown.js');
+    assert.notEqual(l3bLeak.status, 0);
+    assert.match(l3bLeak.stderr, /Unit isolation violation: l3b compiled forbidden l4 implementation/);
+});
+test('v2 sociable unit guard allows Shared pure helpers across all owners', () => {
     const result = compileUnderOwner('l2', './src/shared/utils/retryUtils.js');
     assert.equal(result.status, 0, result.stderr);
 });

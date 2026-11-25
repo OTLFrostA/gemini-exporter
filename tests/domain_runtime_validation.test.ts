@@ -175,3 +175,13 @@ test('canonicalization never launders extra undefined fields into a trusted grap
         { ...source.detail, messages: [{ ...source.detail.messages[0], content: [{ type: 'paragraph', children: [], unexpected: undefined }] }] },
     ]) assert.throws(() => restoreDomainSnapshot({ index: source.index, detail }), TypeError);
 });
+
+test('source identity semantics remain separate from nonempty storage identity', () => {
+    const base = valid();
+    const emptyId = {
+        index: { ...base.index, key: { ...base.index.key, conversationId: '' } },
+        detail: { ...base.detail, key: { ...base.detail.key, conversationId: '' } },
+    };
+    assert.throws(() => validateParserDomain(emptyId), /index|key/);
+    assert.throws(() => restoreDomainSnapshot(emptyId), /index|key/);
+});

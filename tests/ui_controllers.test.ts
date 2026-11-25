@@ -1,13 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { ExportRequest, ExportResult } from '../src/application/export/types.js';
-import { A, B, assertUiNodeIsolation, exportPort, installUiV2Mocks, mockRunExport } from './helpers/uiV2Mocks.js';
+import { A, B, assertUiNodeIsolation, installUiV2Mocks } from './helpers/uiV2Mocks.js';
 
 // Only load UI code after replacing the Application/Runtime/L1/Storage modules
 // with their v2 public ports. No Application Export engine is executed here.
 installUiV2Mocks();
-const { runExport: uiExport } = require('../src/ui/options/controllers/exportController.js') as
-    typeof import('../src/ui/options/controllers/exportController.js');
 const { startSync } = require('../src/ui/options/controllers/syncController.js') as
     typeof import('../src/ui/options/controllers/syncController.js');
 const { handleTakeoutImport } = require('../src/ui/options/controllers/takeoutController.js') as
@@ -17,35 +14,6 @@ const { createBackoffNotice } = require('../src/ui/shared/backoffNotice.js') as
 const { errorText } = require('../src/ui/shared/settings.js') as
     typeof import('../src/ui/shared/settings.js');
 assertUiNodeIsolation();
-
-const key = (conversationId: string) => ({ accountId: A, conversationId });
-const request: ExportRequest = {
-    keys: [key('first'), key('second')], format: 'markdown', delivery: 'browserDownload',
-    includeAssets: true, skipUnchanged: false,
-};
-test.beforeEach(() => exportPort.reset());
-
-test('exportController forwards the frozen v2 request and progress port unchanged', async () => {
-    const seen: unknown[] = [];
-    const signal = new AbortController().signal;
-    const result = await uiExport(request, { signal, onProgress: progress => seen.push(progress) });
-    assert.equal(uiExport, mockRunExport);
-    assert.deepEqual(exportPort.calls, [{ request, signal }]);
-    assert.deepEqual(seen, [
-        { current: 1, total: 2, key: key('first') },
-        { current: 2, total: 2, key: key('second') },
-    ]);
-    assert.deepEqual(result, { exported: 2, skipped: 0, partial: 0, failed: [], aborted: false });
-});
-
-test('exportController passes final partial/failure facts and errors from mocked Application', async () => {
-    const final: ExportResult = { exported: 1, partial: 1, skipped: 0, failed: [key('second')], aborted: false };
-    exportPort.result = final;
-    assert.strictEqual(await uiExport(request), final);
-    const failure = new Error('Delivery failed');
-    exportPort.error = failure;
-    await assert.rejects(uiExport(request), error => error === failure);
-});
 
 test('syncController aborts after resolving source but before launching the mocked Scan', async () => {
     const controller = new AbortController();

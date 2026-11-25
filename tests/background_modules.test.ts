@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { assertRuntimeUnitBoundary, v2Settings, mockLiveSaveEffective } from './helpers/runtimeV2ContractMocks.js';
+import { assertRuntimeUnitBoundary, mockGetSettings, mockLiveSaveEffective } from './helpers/runtimeV2ContractMocks.js';
 
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
@@ -134,9 +134,9 @@ test('disabled and non-Markdown Live Save never check directory or invoke an exp
         { enabledDisk: false, defaultFormat: 'markdown', includeAssets: true },
         { enabledDisk: true, defaultFormat: 'pdf', includeAssets: false },
         { enabledDisk: true, defaultFormat: 'markdown', includeAssets: true, exportDelivery: 'browserDownload' },
-    ]) {
+    ] as const) {
         const live = load('src/runtime/background/liveSaveHandler.ts', {
-            'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }), isLiveSaveEffective: mockLiveSaveEffective },
+            'src/application/settings/index.js': { getSettings: async () => mockGetSettings(settings), isLiveSaveEffective: mockLiveSaveEffective },
             'src/l3a/storageService.js': { getDirectoryHandle: () => assert.fail('No directory lookup for inactive Live Save') },
             'src/application/export/runMarkdownExport.js': { runMarkdownExport: () => assert.fail('Unexpected second writer') },
             'src/runtime/background/keepAlive.js': { startKeepAlive: () => assert.fail('No keepalive for inactive export') },
@@ -146,10 +146,10 @@ test('disabled and non-Markdown Live Save never check directory or invoke an exp
 });
 
 test('missing or ungranted directory fails without mutating user Settings or prompting', async () => {
-    const settings = { enabledDisk: true, defaultFormat: 'markdown', includeAssets: true };
+    const settings = { enabledDisk: true, defaultFormat: 'markdown' as const, includeAssets: true };
     for (const handle of [null, { queryPermission: async () => 'granted' }, { queryPermission: async () => 'prompt', requestPermission: () => assert.fail('Worker must not request user permission') }]) {
         const live = load('src/runtime/background/liveSaveHandler.ts', {
-            'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, ...settings }), isLiveSaveEffective: mockLiveSaveEffective },
+            'src/application/settings/index.js': { getSettings: async () => mockGetSettings(settings), isLiveSaveEffective: mockLiveSaveEffective },
             'src/l3a/storageService.js': { getDirectoryHandle: async () => handle },
             'src/application/export/runMarkdownExport.js': { runMarkdownExport: () => assert.fail('Export must not run') },
             'src/runtime/background/keepAlive.js': { startKeepAlive: () => assert.fail('KeepAlive must not start') },
@@ -163,7 +163,7 @@ test('Live Save calls the single Application Export with fixed Markdown/Folder a
     const result = { exported: 1, skipped: 0, partial: 0, failed: [], aborted: false };
     const steps: string[] = [];
     const live = load('src/runtime/background/liveSaveHandler.ts', {
-        'src/application/settings/index.js': { getSettings: async () => ({ ...v2Settings, enabledDisk: true, includeAssets: false }), isLiveSaveEffective: mockLiveSaveEffective },
+        'src/application/settings/index.js': { getSettings: async () => mockGetSettings({ enabledDisk: true, includeAssets: false }), isLiveSaveEffective: mockLiveSaveEffective },
         'src/l3a/storageService.js': { getDirectoryHandle: async () => ({ queryPermission: async (request: unknown) => {
             assert.deepEqual(request, { mode: 'readwrite' });
             return 'granted';

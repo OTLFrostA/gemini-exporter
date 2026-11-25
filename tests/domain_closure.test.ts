@@ -274,3 +274,19 @@ test('existing raw provider fixtures preserve Domain, AST and all backend output
         assert.deepEqual(input, original, input.id);
     }
 });
+
+test('source validation rejects reasoning/citation aliases before document composition', async () => {
+    const plain = (text: string) => [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text }] }];
+    const clean = {
+        index: { key: fixtureKey('conversation-1', 'gemini'), titleSource: 'derived' as const, title: 'Example' },
+        detail: {
+            key: fixtureKey('conversation-1', 'gemini'), quality: { status: 'unknown' as const }, assets: [],
+            messages: [{ role: 'assistant' as const, content: plain('Answer [1]'), reasoning: plain('Domain reasoning'), citations: [{ id: 'citation-0', url: 'https://example.com', title: 'Domain citation' }] }],
+        },
+    };
+    const leaked = { index: { ...clean.index }, detail: { ...clean.detail, messages: [{ ...clean.detail.messages[0], thoughts: 'Wrong thoughts', thinking: 'Wrong thinking', sources: ['https://wrong.example.com'] }] } };
+    await assert.rejects(composeFixture(leaked), /Invalid persisted Domain contract: messages/);
+    const document = (await composeFixture(clean)).document;
+    assert.equal(document.messages[0].blocks[0].type, 'disclosure');
+    assert.equal(document.messages[0].sources?.[0].href, 'https://example.com');
+});

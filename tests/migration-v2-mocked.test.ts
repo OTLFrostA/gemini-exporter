@@ -24,13 +24,6 @@ let failOn: string | null = null;
 const previousChrome = globalThis.chrome;
 const previousIndexedDB = globalThis.indexedDB;
 
-const readAccountRegistry: typeof import('../src/l2/accountRegistry.js').readAccountRegistry =
-    value => value as Account[];
-const restoreConversationIndex: typeof import('../src/l2/conversationIndex.js').restoreConversationIndex =
-    value => value as DomainConversationIndex;
-const conversationKey: typeof import('../src/l2/conversationKey.js').conversationKey =
-    (accountId, conversationId) => ({ accountId, conversationId });
-
 const putAccount: typeof import('../src/l3a/storageService.js').putAccount =
     async account => { if (failOn === 'account') throw new Error('mock v2 account write failed'); recorded.accounts.push(account); };
 const putIndexes: typeof import('../src/l3a/storageService.js').putIndexes =
@@ -43,7 +36,7 @@ const setDirectoryHandle: typeof import('../src/l3a/storageService.js').setDirec
     async handle => { if (failOn === 'handle') throw new Error('mock v2 handle write failed'); recorded.handles.push(handle!); };
 const storage = { putAccount, putIndexes, putExportRecord, patchStoredSettings, setDirectoryHandle } satisfies Partial<typeof import('../src/l3a/storageService.js')>;
 
-// Import real Migration once; only its imported L2/L3a public v2 ports are mocked.
+// Import real Migration and real L2 validators; only L3a persistence writes are intercepted.
 type Loader = { _load(request: string, parent?: NodeModule | null, isMain?: boolean): unknown };
 const loader = Module as unknown as Loader;
 const originalLoad = loader._load;
@@ -52,11 +45,10 @@ loader._load = (request, parent, isMain) => {
     if (caller.includes('/src/migration/')) {
         if (request === './sourceVersions.js') return { repairSourceVersions: async () => {} };
         if (request === './releasedV17.js') return { upgradeReleasedV17: async () => { throw new Error('No released-1.7 fixture in this isolated UUID test'); } };
-        if (request === '../l2/accountRegistry.js') return { readAccountRegistry };
-        if (request === '../l2/conversationIndex.js') return { restoreConversationIndex };
-        if (request === '../l2/conversationKey.js') return { conversationKey };
         if (request === '../l3a/storageService.js') return storage;
-        if (request.startsWith('../')) throw new Error('Unmocked Migration external v2 port: ' + request);
+        if (request.startsWith('../') && !request.startsWith('../l2/') && !request.startsWith('../shared/')) {
+            throw new Error('Unmocked Migration external v2 port: ' + request);
+        }
     }
     return originalLoad.call(loader, request, parent, isMain);
 };

@@ -101,7 +101,7 @@ async function resetWorkerExtensionState(
             for (const info of dbs) {
                 const name = info.name;
                 if (!name) continue;
-                if (name !== 'gemini_exporter_v2' && name !== 'gemini_exporter_vault_v2') {
+                if (name !== 'gemini_exporter_v2' && name !== 'gemini_exporter_cloud_v2') {
                     await new Promise<void>(resolve => {
                         const del = indexedDB.deleteDatabase(name);
                         del.onsuccess = () => resolve();

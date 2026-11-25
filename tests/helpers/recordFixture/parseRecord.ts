@@ -15,7 +15,6 @@ import { convertHtmlToMarkdown } from '../../../src/l1/parsers/shared/html/htmlT
 const parseImportedBody = (body: string, context: MarkdownParseContext): BlockNode[] =>
     parseMarkdownToBlocks(convertHtmlToMarkdown(body), '', context);
 import { parseGeminiBody, parseSourceReasoning } from '../../../src/l1/parsers/gemini/shared/contentAdapter.js';
-import { supplementLegacyGeneratedMedia } from './generatedMediaReconciliation.js';
 import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordAttachment } from './conversationRecord.js';
 import type { ConversationParseContext } from '../../../src/l1/parsers/contracts.js';
 import type { DomainFixture } from '../domainFixture.js';
@@ -113,8 +112,6 @@ function flattenLegacyTurns(conversation: ConversationRecordInput): Conversation
 /** Provider evidence accepted only while constructing Domain. */
 export interface ConversationRecordParseContext extends ConversationParseContext {
     account: import('../../../src/l2/accountRegistry.js').Account;
-    /** Detached Takeout/provider generated-media evidence, reconciled before returning Domain. */
-    generatedMedia?: readonly unknown[];
     /** Migration coverage correction is applied before final schema validation. */
     qualityStatusOverride?: ContentQuality['status'];
 }
@@ -151,7 +148,6 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
             ...(message.images ? { images: message.images.map(copyAttachment) } : {}),
         }];
     });
-    if (options.generatedMedia) supplementLegacyGeneratedMedia({ id: conversation.id, messages: legacyMessages }, conversation.id ?? '', options.generatedMedia, { appendMarkdownRef: false });
     const providerId = options.providerId;
     const parseContent = (body: unknown, structured?: unknown): BlockNode[] => {
         const context = { diagnostics: parserDiagnostics, sourceRef: { providerId, locator: 'content' } };

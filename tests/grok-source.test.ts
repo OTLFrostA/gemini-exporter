@@ -1,22 +1,32 @@
-import { getDetail, listIndexes } from '../src/l3a/storageService.js';
-import { getOrCreateAccount } from '../src/runtime/api/accountRegistry.js';
-import { GrokProvider } from '../src/l1/client/grok/grokProvider.js';
-import { indexStorage } from './helpers/indexStorage.js';
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { detailGen as grokDetailGen, metadataGen, treeGen, responsesGen } from './fixtures/providers/grokDetail.js';
-import { listGen as grokListGen } from './fixtures/providers/grokList.js';
-import { userGen as grokUserGen } from './fixtures/providers/grokUser.js';
-import { parseGrokConversation } from '../src/l1/parsers/grok/parseConversation.js';
-import { compatibleGrokBodies } from '../src/l1/parsers/grok/wireCompatibility.js';
-import { parseGrokList } from '../src/l1/parsers/grok/parseList.js';
-import { grokAccount } from '../src/l1/parsers/grok/source.js';
-import { preprocessGrokMarkdown } from '../src/l1/parsers/grok/markdownCompatibility.js';
-import { readGrokSource, validGrokRead } from '../src/l1/client/grok/grokSource.js';
-import { grokRequest } from '../src/l1/sniffer/grok/observation.js';
-import { contentComposer } from '../src/l3b/compose/composeContent.js';
-import { renderDocumentMarkdown } from '../src/l4/format/markdown/renderMarkdown.js';
-import { renderDocumentHtml } from '../src/l4/format/html/renderHtml.js';
+import { describe as __suiteDescribe } from 'node:test';
+import { getDetail } from "../src/l3a/storageService.js";
+import { listIndexes } from "../src/l3a/storageService.js";
+import { getOrCreateAccount } from "../src/runtime/api/accountRegistry.js";
+import { GrokProvider } from "../src/l1/client/grok/grokProvider.js";
+import { indexStorage } from "./helpers/indexStorage.js";
+import test from "node:test";
+import assert from "node:assert/strict";
+import { detailGen as grokDetailGen } from "./fixtures/providers/grokDetail.js";
+import { metadataGen } from "./fixtures/providers/grokDetail.js";
+import { treeGen } from "./fixtures/providers/grokDetail.js";
+import { responsesGen } from "./fixtures/providers/grokDetail.js";
+import { listGen as grokListGen } from "./fixtures/providers/grokList.js";
+import { userGen as grokUserGen } from "./fixtures/providers/grokUser.js";
+import { parseGrokConversation } from "../src/l1/parsers/grok/parseConversation.js";
+import { compatibleGrokBodies } from "../src/l1/parsers/grok/wireCompatibility.js";
+import { parseGrokList } from "../src/l1/parsers/grok/parseList.js";
+import { grokAccount } from "../src/l1/parsers/grok/source.js";
+import { preprocessGrokMarkdown } from "../src/l1/parsers/grok/markdownCompatibility.js";
+import { readGrokSource } from "../src/l1/client/grok/grokSource.js";
+import { validGrokRead } from "../src/l1/client/grok/grokSource.js";
+import { grokRequest } from "../src/l1/sniffer/grok/observation.js";
+import { contentComposer } from "../src/l3b/compose/composeContent.js";
+import { renderDocumentMarkdown } from "../src/l4/format/markdown/renderMarkdown.js";
+import { renderDocumentHtml } from "../src/l4/format/html/renderHtml.js";
+import { readFileSync } from "node:fs";
+import { sources } from "../scripts/audit-provider-fixtures.cjs";
+
+__suiteDescribe("grok-source", () => {
 const fixture = () => grokDetailGen('GR_DETAIL_TEXT_01');
 
 test('Grok parser preserves TeX inside a longer fence containing shorter backticks', () => {
@@ -490,4 +500,17 @@ test('Grok tab execution caches current-user verification per Cookie snapshot an
         if (savedDoc) Object.defineProperty(globalThis, 'document', savedDoc); else Reflect.deleteProperty(globalThis, 'document');
         if (savedFetch) Object.defineProperty(globalThis, 'fetch', savedFetch); else Reflect.deleteProperty(globalThis, 'fetch');
     }
+});
+});
+
+__suiteDescribe("grok_rpc_fixture_closure", () => {
+test('Grok source and browser mocks use matching native endpoint generators', () => {
+    for (const file of sources(__dirname)) {
+        if (file.includes('/fixtures/providers/') || file.endsWith('grok_rpc_fixture_closure.test.ts')) continue;
+        const source = readFileSync(file, 'utf8');
+        if (!/\b(?:GrokProvider|parseGrokList|readGrokSource|grokDetailGen)\b/.test(source)) continue;
+        assert.doesNotMatch(source, /grok(?:Image)?Detail\.json|parseGrokList\(\s*\{/, file);
+        assert.doesNotMatch(source, /return\s+(?:\[\s*\{\s*result\s*:\s*)?\{\s*(?:conversations|userId|responseNodes|responses)\s*:/, file);
+    }
+});
 });

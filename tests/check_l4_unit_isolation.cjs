@@ -26,7 +26,7 @@ function resolveImport(parent, specifier) {
         return;
     }
     const rel = toRelative(target);
-    if (rel.startsWith('src/') && !rel.startsWith('src/l4/') && !rel.startsWith('src/shared/')) {
+    if (rel.startsWith('src/') && !/^src\/(?:l4|l3b|l2|shared)\//.test(rel)) {
         issues.push(toRelative(parent) + ': runtime import of external module ' + rel);
         return;
     }

@@ -1,11 +1,7 @@
 import type { GlobalSettings } from '../../src/application/settings/index.js';
 import type { DomainConversationIndex } from '../../src/l2/conversationIndex.js';
+import { isLiveSaveEffective, normalizeGlobalSettings } from '../../src/shared/types/settings.js';
 
-/**
- * Runtime unit tests must treat L2 as a contract, not load L2's real validators.
- * These tiny ports accept only test fixture Accounts and ConversationKeys; the
- * real L2 validation/merge/selection is covered by L2's own tests.
- */
 export function mockAccountRegistry(knownAccountIds: readonly string[]): Pick<typeof import('../../src/l2/accountRegistry.js'), 'isAccountId'> {
     return {
         isAccountId: (value: unknown): value is string =>
@@ -32,29 +28,29 @@ export function mockConversationKey(knownAccountIds: readonly string[]): Pick<ty
     };
 }
 
-/** Fail fast when a Runtime unit accidentally loads another owner's real code. */
+/** Fail fast when a Runtime unit accidentally loads a forbidden external owner's code. */
 export function assertRuntimeUnitBoundary(resolvedPath: string, root: string): void {
     const relative = resolvedPath.slice(root.length + 1).replace(/\\/g, '/');
-    if (/^src\/(?:l1|l2|l3a|l3b|l4|application|ui|migration)\//.test(relative)) {
+    if (/^src\/(?:l1|l3a|l3b|l4|application|ui|migration)\//.test(relative)) {
         throw new Error(`Runtime unit must mock external v2 module: ${relative}`);
     }
 }
 
-/** Runtime-unit stand-in for the public Application Live Save predicate. */
-export function mockLiveSaveEffective(settings: GlobalSettings, directoryAvailable: boolean): boolean {
-    const destination = settings.exportDelivery ?? (settings.enabledDisk ? 'folderWriter' : 'browserDownload');
-    return settings.enabledDisk && settings.defaultFormat === 'markdown'
-        && destination === 'folderWriter' && directoryAvailable;
-}
+/** Runtime-unit stand-in delegating to the real Live Save predicate. */
+export const mockLiveSaveEffective = isLiveSaveEffective;
 
-// Frozen Application Settings defaults; tests supply only scenario-specific patches.
+// Application Settings defaults aligned with real getSettings().
 export const v2Settings = {
     defaultFormat: 'markdown' as const,
     skipExported: true,
-    includeAssets: true,
+    includeAssets: false,
     enabledDisk: false,
     developerMode: false,
 } satisfies GlobalSettings;
+
+export function mockGetSettings(patch: Partial<GlobalSettings> = {}): GlobalSettings {
+    return normalizeGlobalSettings({ ...v2Settings, ...patch });
+}
 
 // Frozen L2 Index DTO shape; Runtime Count only uses the returned array length.
 export function v2IndexFixtures(accountId: string): DomainConversationIndex[] {
