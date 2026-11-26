@@ -393,11 +393,8 @@
           <div class="drive-controls">
             <span id="driveConnectionStatus" role="status"></span>
             <button type="button" id="driveConnect" class="ghost small" data-ui-en="Connect / refresh" data-ui-zh="连接 / 刷新">连接 / 刷新</button>
-            <label for="driveFolder" data-ui-en="Destination folder" data-ui-zh="目标文件夹">目标文件夹</label>
-            <select id="driveFolder" class="page-select"></select>
-            <label for="driveNewFolderName" data-ui-en="New folder name" data-ui-zh="新文件夹名称">新文件夹名称</label>
-            <input id="driveNewFolderName" type="text">
-            <button id="driveCreateFolder" type="button" class="ghost small" data-ui-en="Create in selected folder" data-ui-zh="在所选位置新建文件夹">在所选位置新建文件夹</button>
+            <button id="driveChooseFolder" type="button" class="ghost small" data-ui-en="Choose destination folder…" data-ui-zh="选择目标文件夹…">选择目标文件夹…</button>
+            <span id="driveFolder"></span>
             <a id="openDriveExport" target="_blank" rel="noopener noreferrer" hidden></a>
           </div>
         </div>

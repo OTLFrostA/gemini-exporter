@@ -4,10 +4,10 @@ import { text } from '../../shared/settings.js';
 
 export function mountDriveDeliveryPanel() {
     el('driveDeliveryCard').hidden = !isDriveDeliveryConfigured();
-    const folder = control('select', 'driveFolder');
-    const name = control('input', 'driveNewFolderName');
+    const choose = control('button', 'driveChooseFolder');
+    const folder = el('driveFolder');
     const reconnect = control('button', 'driveConnect');
-    const create = control('button', 'driveCreateFolder');
+    let parent = 'root';
     const link = control('a', 'openDriveExport');
     const status = el('driveConnectionStatus');
     const lifetime = new AbortController();
@@ -17,19 +17,19 @@ export function mountDriveDeliveryPanel() {
 
     function updateControls() {
         reconnect.disabled = pending || exporting;
-        folder.disabled = name.disabled = create.disabled = !session || pending || exporting;
+        choose.disabled = !session || pending || exporting;
     }
     async function connect() {
         if (pending) return;
         pending = true;
         session = undefined;
         link.hidden = true;
-        folder.replaceChildren(new Option(text('My Drive', '我的云端硬盘'), 'root'));
+        parent = 'root';
+        folder.textContent = text('My Drive', '我的云端硬盘');
         status.textContent = text('Connecting to Google Drive…', '正在连接 Google Drive…');
         updateControls();
         try {
             const connected = await connectDriveDelivery(lifetime.signal);
-            for (const item of await connected.listFolders()) folder.add(new Option(item.name, item.id));
             session = connected;
             status.textContent = connected.email;
         } catch (error) {
@@ -38,18 +38,20 @@ export function mountDriveDeliveryPanel() {
     }
     control('input', 'driveDeliveryRadio').addEventListener('click', () => { if (!session) void connect(); });
     reconnect.addEventListener('click', () => { void connect(); });
-    create.addEventListener('click', async () => {
+    choose.addEventListener('click', async () => {
         if (!session || pending) return;
-        if (!name.value.trim()) { name.focus(); return; }
         pending = true;
         updateControls();
         try {
-            const item = await session.createFolder(folder.value, name.value.trim());
-            folder.add(new Option(item.name, item.id));
-            folder.value = item.id;
-            name.value = '';
+            const item = await session.chooseFolder();
+            if (item) {
+                parent = item.id;
+                folder.textContent = item.name;
+            }
             status.textContent = session.email;
         } catch (error) {
+            parent = '';
+            folder.textContent = text('Choose a folder', '请选择文件夹');
             status.textContent = error instanceof Error ? error.message : String(error);
         } finally { pending = false; updateControls(); }
     });
@@ -60,12 +62,12 @@ export function mountDriveDeliveryPanel() {
         dispose: () => lifetime.abort(),
         writer(signal: AbortSignal) {
             const connected = session;
-            if (!connected || pending) throw new Error(text('Connect Google Drive and choose a folder first.', '请先连接 Google Drive 并选择目标文件夹。'));
-            const parent = folder.value;
-            const destination = folder.selectedOptions[0].text;
+            if (!connected || pending || !parent) throw new Error(text('Connect Google Drive and choose a folder first.', '请先连接 Google Drive 并选择目标文件夹。'));
+            const selectedParent = parent;
+            const destination = folder.textContent;
             link.hidden = true;
             return async (fileName: string, data: Blob) => {
-                link.href = await connected.upload(parent, fileName, data, signal);
+                link.href = await connected.upload(selectedParent, fileName, data, signal);
                 link.textContent = text('Open in Drive', '在 Drive 中打开') + ' · ' + destination + ' / ' + fileName;
                 link.hidden = false;
             };

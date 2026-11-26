@@ -1,5 +1,7 @@
 import { isRecord } from '../../shared/utils/typeGuards.js';
 
+import { pickDriveFolder } from './driveFolderPicker.js';
+
 const api = 'https://www.googleapis.com';
 const scope = 'https://www.googleapis.com/auth/drive.file';
 const folderType = 'application/vnd.google-apps.folder';
@@ -28,38 +30,21 @@ export async function connectDriveDelivery(signal: AbortSignal) {
     if (!isRecord(account) || !isRecord(account.user) || typeof account.user.emailAddress !== 'string'
         || !account.user.emailAddress) throw new Error('Google Drive account unavailable');
     const email = account.user.emailAddress;
-    const folderFields = 'id,name,capabilities(canAddChildren)';
-    function readFolder(value: unknown) {
-        if (!isRecord(value) || !isFileId(value.id) || typeof value.name !== 'string') throw new Error('Invalid Drive folder');
-        return { id: value.id, name: value.name };
-    }
     return {
         email,
-        async listFolders() {
-            const folders = [];
-            const query = new URLSearchParams({ q: "trashed = false and mimeType = '" + folderType + "'",
-                fields: 'nextPageToken,files(' + folderFields + ')', orderBy: 'name', pageSize: '100', spaces: 'drive' });
-            for (;;) {
-                const page: unknown = await (await request(api + '/drive/v3/files?' + query)).json();
-                if (!isRecord(page) || !Array.isArray(page.files)) throw new Error('Invalid Drive folder list');
-                for (const file of page.files) {
-                    if (isRecord(file) && isRecord(file.capabilities) && file.capabilities.canAddChildren === true)
-                        folders.push(readFolder(file));
-                }
-                if (typeof page.nextPageToken !== 'string' || !page.nextPageToken) return folders;
-                query.set('pageToken', page.nextPageToken);
-            }
-        },
-        async createFolder(parent: string, name: string) {
-            const response = await request(api + '/drive/v3/files?fields=id,name', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, mimeType: folderType, parents: [parent] }),
-            });
-            return readFolder(await response.json());
+        async chooseFolder() {
+            const id = await pickDriveFolder(token, signal);
+            if (!id) return;
+            const fields = 'id,name,mimeType,trashed,capabilities(canAddChildren)';
+            const file: unknown = await (await request(api + '/drive/v3/files/' + id + '?supportsAllDrives=true&fields=' + fields)).json();
+            if (!isRecord(file) || file.id !== id || typeof file.name !== 'string' || file.mimeType !== folderType
+                || file.trashed !== false || !isRecord(file.capabilities) || file.capabilities.canAddChildren !== true)
+                throw new Error('Choose a writable Drive folder');
+            return { id, name: file.name };
         },
         async upload(parent: string, name: string, data: Blob, uploadSignal: AbortSignal) {
             if (!data.size) throw new Error('Empty export file');
-            const response = await request(api + '/upload/drive/v3/files?uploadType=resumable&fields=id', {
+            const response = await request(api + '/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true&fields=id', {
                 method: 'POST', signal: uploadSignal, headers: { 'Content-Type': 'application/json', 'X-Upload-Content-Type': data.type },
                 body: JSON.stringify({ name, mimeType: data.type.split(';')[0], parents: [parent] }),
             });
@@ -72,7 +57,7 @@ export async function connectDriveDelivery(signal: AbortSignal) {
             const result: unknown = await saved.json();
             if (!isRecord(result) || !isFileId(result.id)) throw new Error('Google Drive did not confirm the file ID');
             const fields = 'id,name,size,mimeType,parents,trashed';
-            const file: unknown = await (await request(api + '/drive/v3/files/' + result.id + '?fields=' + fields,
+            const file: unknown = await (await request(api + '/drive/v3/files/' + result.id + '?supportsAllDrives=true&fields=' + fields,
                 { signal: uploadSignal })).json();
             if (!isRecord(file) || file.id !== result.id || file.name !== name || file.size !== String(data.size)
                 || file.mimeType !== data.type.split(';')[0] || file.trashed !== false || !Array.isArray(file.parents)

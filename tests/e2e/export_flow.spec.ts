@@ -279,7 +279,7 @@ test('manual Drive export authorizes on selection and verifies the file in the c
     const uploads: Buffer[] = [];
     let uploadSessions = 0;
     let metadataReads = 0;
-    let destination = 'existing';
+    const destination = 'existing';
     let filename = '';
     let storedSize = 0;
     let mimeType = '';
@@ -290,12 +290,9 @@ test('manual Drive export authorizes on selection and verifies the file in the c
         const url = new URL(req.url());
         expect(req.headers().authorization).toBe('Bearer fixture');
         if (url.pathname.endsWith('/about')) return route.fulfill({ json: { user: { emailAddress: 'drive@example.test' } } });
-        if (url.pathname === '/drive/v3/files' && req.method() === 'GET') {
-            return route.fulfill({ json: { files: [{ name: 'Existing', id: 'existing', capabilities: { canAddChildren: true } }] } });
-        }
-        if (url.pathname === '/drive/v3/files') {
-            expect(req.postDataJSON()).toMatchObject({ name: 'Reports', parents: ['existing'] });
-            return route.fulfill({ json: { id: 'new-folder', name: 'Reports' } });
+        if (url.pathname === '/drive/v3/files/existing' || url.pathname === '/drive/v3/files/locked') {
+            return route.fulfill({ json: { id: url.pathname.split('/').pop(), name: 'Reports', trashed: false,
+                mimeType: 'application/vnd.google-apps.folder', capabilities: { canAddChildren: url.pathname.endsWith('existing') } } });
         }
         if (url.pathname === '/drive/v3/files/confirmed-file') {
             metadataReads++;
@@ -322,16 +319,29 @@ test('manual Drive export authorizes on selection and verifies the file in the c
     await page.locator('#driveDeliveryRadio').check();
     await expect(page.locator('#driveConnectionStatus')).toHaveText('drive@example.test');
     await expect(page.locator('#skipExported')).toBeDisabled();
-    await page.locator('#driveFolder').selectOption('existing');
+    await page.route('**/drive-picker.json', route => route.fulfill({ json: { proof: 'test-pair' } }));
+    let pickerResult = { action: 'pick', id: 'locked' };
+    await context.route('http://127.0.0.1:43191/picker', route => route.fulfill({ contentType: 'text/html', body:
+        `<script>onmessage = e => { const ch = new MessageChannel(); ch.port1.onmessage = m => {
+            if (m.data.token === 'fixture') ch.port1.postMessage(${JSON.stringify(pickerResult)});
+        }; opener.postMessage({ proof: 'test-pair' }, e.origin, [ch.port2]); onmessage = null; };</script>` }));
+    await page.locator('#driveChooseFolder').click();
+    await expect(page.locator('#driveConnectionStatus')).toContainText('writable');
     await page.locator('#list .item').filter({ hasText: 'chosen' }).locator('input').check();
+    await page.locator('#btnExport').click();
+    await expect(page.locator('#status')).toContainText('Operation failed');
+    expect(uploadSessions).toBe(0);
+    pickerResult = { action: 'pick', id: 'existing' };
+    await page.locator('#driveChooseFolder').click();
+    await expect(page.locator('#driveFolder')).toHaveText('Reports');
     await page.locator('#btnExport').click();
     await expect(page.locator('#exportFailureCard')).toBeVisible();
     expect(metadataReads).toBe(1);
     await expect(page.locator('#openDriveExport')).toBeHidden();
-    await page.locator('#driveNewFolderName').fill('Reports');
-    await page.locator('#driveCreateFolder').click();
-    await expect(page.locator('#driveFolder')).toHaveValue('new-folder');
-    destination = 'new-folder';
+    pickerResult = { action: 'cancel', id: '' };
+    await page.locator('#driveChooseFolder').click();
+    await expect(page.locator('#driveChooseFolder')).toBeEnabled();
+    await expect(page.locator('#driveFolder')).toHaveText('Reports');
     expect(uploadSessions).toBe(1);
     returnEmpty = false;
     await page.locator('#btnExport').click();
