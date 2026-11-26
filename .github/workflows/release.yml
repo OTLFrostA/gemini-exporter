@@ -86,10 +86,11 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
           VERSION: ${{ steps.release.outputs.version }}
           LOCKED_SHA: ${{ steps.release.outputs.sha }}
+          DRIVE_WEB_CLIENT_ID: ${{ vars.DRIVE_WEB_CLIENT_ID }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$LOCKED_SHA"
-          npm run package
+          npm run package -- --chrome-web-store
           ZIP_NAME="gemini-exporter-${TAG}.zip"
           test -s "$ZIP_NAME"
 
@@ -97,6 +98,14 @@ jobs:
           unzip -p "$ZIP_NAME" manifest.json > /tmp/release-manifest.json
           ZIP_VERSION=$(jq -er '.version' /tmp/release-manifest.json)
           test "$ZIP_VERSION" = "$VERSION"
+          jq -e '
+            (has("oauth2") | not)
+            and (.permissions | index("identity") != null)
+            and (.host_permissions | index("https://www.googleapis.com/*") != null)
+          ' /tmp/release-manifest.json > /dev/null
+          ZIP_EXTENSION_ID=$(jq -er '.key' /tmp/release-manifest.json | base64 -d | sha256sum | cut -c1-32 | tr '0123456789abcdef' 'abcdefghijklmnop')
+          test "$ZIP_EXTENSION_ID" = "ldpbiafkgjlaooeplkiooljccpalpkgf"
+          unzip -p "$ZIP_NAME" drive-account-client.json | jq -e --arg client "$DRIVE_WEB_CLIENT_ID" '. == $client' > /dev/null
           unzip -Z1 "$ZIP_NAME" > /tmp/release-zip-files.txt
           for required in manifest.json dist/background/background.js dist/content/content.js dist/content/hook.js dist/ui/options.js dist/ui/popup.js dist/ui/sandbox/typst-compile.js; do
             grep -Fxq "$required" /tmp/release-zip-files.txt || { echo "ZIP missing required file: $required" >&2; exit 1; }

@@ -1,4 +1,4 @@
-export const driveScope = 'https://www.googleapis.com/auth/drive.file';
+const driveScope = 'https://www.googleapis.com/auth/drive.file';
 
 let accountClient: Promise<string> | undefined;
 
@@ -16,19 +16,19 @@ function loadAccountClient(): Promise<string> {
     return accountClient;
 }
 
-export function preloadDriveAccountClient(): void {
-    void loadAccountClient().catch(() => {});
+export async function isDriveDeliveryConfigured(): Promise<boolean> {
+    if (typeof chrome.identity?.launchWebAuthFlow !== 'function') return false;
+    return loadAccountClient().then(() => true, () => false);
 }
 
-// Use the registered chromiumapp.org callback of the test Web OAuth client.
 export async function authorizeDriveAccount(mode: 'switch' | 'connect' | 'restore', email?: string) {
     const client = await loadAccountClient();
-    const redirect = chrome.identity.getRedirectURL('drive-picker');
+    const redirect = chrome.identity.getRedirectURL('drive-auth');
     const state = crypto.randomUUID();
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     url.search = new URLSearchParams({
         client_id: client, redirect_uri: redirect, response_type: 'token', scope: driveScope, state,
-        ...(mode === 'switch' ? { prompt: 'select_account' } : { login_hint: email ?? '' }),
+        ...(email ? { login_hint: email } : { prompt: 'select_account' }),
         ...(mode === 'restore' ? { prompt: 'none' } : {}),
     }).toString();
     const result = await chrome.identity.launchWebAuthFlow({ url: url.href, interactive: mode !== 'restore' });

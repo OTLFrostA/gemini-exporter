@@ -1,8 +1,8 @@
 import { readDriveExportAccount, saveDriveExportAccount } from '../../l3a/storageService.js';
-import { authorizeDriveAccount, driveScope } from './driveAccountAuthorization.js';
+import { authorizeDriveAccount } from './driveAccountAuthorization.js';
 import { isRecord } from '../../shared/utils/typeGuards.js';
 
-export { preloadDriveAccountClient } from './driveAccountAuthorization.js';
+export { isDriveDeliveryConfigured } from './driveAccountAuthorization.js';
 
 const driveFolderName = 'Gemini Exporter';
 
@@ -11,32 +11,17 @@ export class DriveAuthorizationExpired extends Error {}
 const folderType = 'application/vnd.google-apps.folder';
 const isFileId = (id: unknown): id is string => typeof id === 'string' && /^[\w-]+$/.test(id);
 
-export function isDriveDeliveryConfigured(): boolean {
-    const oauth = chrome.runtime.getManifest().oauth2;
-    return !!oauth?.client_id && oauth.scopes?.length === 1 && oauth.scopes[0] === driveScope
-        && typeof chrome.identity?.getAuthToken === 'function';
-}
-
 export async function connectDriveDelivery(signal: AbortSignal, mode: 'switch' | 'connect' | 'restore') {
-    if (!isDriveDeliveryConfigured()) throw new Error('Google Drive OAuth is not configured');
     const preferred = mode === 'switch' ? undefined : await readDriveExportAccount();
-    const useWebAccount = mode === 'switch' || !!preferred;
-    let token: string;
-    if (useWebAccount) {
-        token = await authorizeDriveAccount(mode, preferred);
-    } else {
-        const auth = await chrome.identity.getAuthToken({ interactive: mode === 'connect', scopes: [driveScope] });
-        if (!auth.token || (auth.grantedScopes && !auth.grantedScopes.includes(driveScope))) throw new Error('Google Drive authorization required');
-        token = auth.token;
-    }
+    if (mode === 'restore' && !preferred) throw new Error('Connect a Google Drive account first');
+    signal.throwIfAborted();
+    const token = await authorizeDriveAccount(mode, preferred);
+    signal.throwIfAborted();
     async function request(url: string, init: RequestInit = {}) {
         const headers = new Headers(init.headers);
         headers.set('Authorization', 'Bearer ' + token);
         const response = await fetch(url, { ...init, headers, signal: init.signal ?? signal, redirect: 'error', credentials: 'omit' });
-        if (response.status === 401) {
-            if (!useWebAccount) await chrome.identity.removeCachedAuthToken({ token }).catch(() => {});
-            throw new DriveAuthorizationExpired('Google Drive authorization expired');
-        }
+        if (response.status === 401) throw new DriveAuthorizationExpired('Google Drive authorization expired');
         if (!response.ok) throw new Error('Google Drive HTTP ' + response.status);
         return response;
     }
@@ -45,8 +30,9 @@ export async function connectDriveDelivery(signal: AbortSignal, mode: 'switch' |
     if (!isRecord(account) || !isRecord(account.user) || typeof account.user.emailAddress !== 'string'
         || !account.user.emailAddress) throw new Error('Google Drive account unavailable');
     const email = account.user.emailAddress;
-    if (mode !== 'switch' && preferred && preferred !== email) throw new Error('Google returned a different Drive account');
-    if (mode === 'switch') await saveDriveExportAccount(email);
+    if (preferred && preferred.toLowerCase() !== email.toLowerCase()) throw new Error('Google returned a different Drive account');
+    signal.throwIfAborted();
+    if (!preferred) await saveDriveExportAccount(email);
     const lockPrefix = 'drive-export:' + email.toLowerCase() + ':';
     const quote = (value: string) => "'" + value.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
     async function findChild(parent: string, name: string, folder: boolean, uploadSignal: AbortSignal): Promise<string | undefined> {

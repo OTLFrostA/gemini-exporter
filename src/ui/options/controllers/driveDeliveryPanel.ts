@@ -1,11 +1,10 @@
-import { DriveAuthorizationExpired, connectDriveDelivery, isDriveDeliveryConfigured, preloadDriveAccountClient } from '../../../runtime/capabilities/googleDriveDelivery.js';
+import { DriveAuthorizationExpired, connectDriveDelivery, isDriveDeliveryConfigured } from '../../../runtime/capabilities/googleDriveDelivery.js';
 import { elementById as el, requiredElement as control } from '../../shared/elements.js';
 import { text } from '../../shared/settings.js';
 
 export function mountDriveDeliveryPanel() {
     const configured = isDriveDeliveryConfigured();
-    el('driveDeliveryCard').hidden = !configured;
-    if (configured) preloadDriveAccountClient();
+    void configured.then(enabled => { el('driveDeliveryCard').hidden = !enabled; });
     const reconnect = control('button', 'driveConnect');
     const switchAccount = control('button', 'driveSwitch');
     const destination = control('a', 'driveDestination');
@@ -84,7 +83,7 @@ export function mountDriveDeliveryPanel() {
     renderStatus();
     updateControls();
     return {
-        restoreConnection() { if (configured) void connect('restore'); },
+        restoreConnection() { void configured.then(enabled => { if (enabled) return connect('restore'); }); },
         renderLanguage() { renderStatus(); },
         setExporting(value: boolean) { exporting = value; updateControls(); },
         dispose: () => lifetime.abort(),
