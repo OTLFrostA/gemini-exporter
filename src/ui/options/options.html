@@ -27,8 +27,8 @@
   .sub{color:var(--muted);font-size:12px;margin-top:4px}
   .row{display:flex;gap:14px;flex:1;overflow:hidden;}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:0;display:flex;flex-direction:column;}
-  .card-left{flex:0 0 365px !important;width:365px !important;min-width:365px !important;max-width:365px !important;gap:10px;overflow:hidden;}
-  .card-left-scroll{display:flex;flex-direction:column;flex:1;min-height:0;gap:12px;overflow-y:auto;scrollbar-gutter:stable;padding-right:2px;}
+  .card-left{flex:0 0 365px !important;width:365px !important;min-width:365px !important;max-width:365px !important;gap:8px;overflow:hidden;}
+  .card-left-scroll{display:flex;flex-direction:column;flex:1;min-height:0;gap:8px;overflow-y:auto;scrollbar-gutter:stable;padding-right:2px;}
   .card-left-scroll > *{flex-shrink:0;}
   .export-action-dock{display:flex;flex-direction:column;gap:6px;flex:none;padding-top:10px;border-top:1px solid var(--border);background:var(--card);}
   .header-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
@@ -82,7 +82,7 @@
   .cleanup-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
   .cleanup-actions .destructive{background:var(--card-inner);color:var(--destructive-text,#ff8a8a);border:1px solid currentColor}
   .cleanup-actions button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-  .export-preferences{display:flex;flex-direction:column;gap:10px;background:var(--card-inner);padding:12px;border-radius:10px;border:1px solid var(--border)}
+  .export-preferences{display:flex;flex-direction:column;gap:8px;background:var(--card-inner);padding:10px 12px;border-radius:10px;border:1px solid var(--border)}
   .export-format-row{display:flex;align-items:center;gap:12px;font-size:13px;min-height:32px}
   .export-format-row select{flex:1;min-width:0;height:32px;padding:4px 8px}
   /* Keep select semantics, but paint the picker in the page's top layer so it
@@ -111,8 +111,8 @@
   #driveDestination{align-self:flex-start;font-size:11px;line-height:1.4;color:var(--muted);text-decoration:none}
   #driveDestination[href]{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
   #driveDestination[href]:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-  .delivery-choices{display:flex;flex-direction:column;gap:8px}
-  .delivery-card{min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card-inner);transition:border-color .15s ease,background .15s ease}
+  .delivery-choices{display:flex;flex-direction:column;gap:6px}
+  .delivery-card{min-width:0;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card-inner);transition:border-color .15s ease,background .15s ease}
   .delivery-card:has(.delivery-choice input:checked){border-color:var(--accent);background:var(--card)}
   .delivery-card:has(.delivery-choice input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
   .delivery-choice{display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer}
@@ -121,20 +121,21 @@
   .delivery-copy{display:flex;flex-direction:column;gap:2px;min-width:0}
   .delivery-title{font-size:13px;font-weight:600}
   .delivery-description{font-size:11px;color:var(--muted)}
-  .local-card-details{margin:8px 0 0 26px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;transition:opacity .15s ease}
+  .delivery-card:not(:has(input[value="folderWriter"]:checked)) .local-card-details{display:none}
+  .local-card-details{margin:6px 0 0 26px;padding-top:6px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;transition:opacity .15s ease}
   .local-card-details.is-disabled{opacity:.45}
-  .settings-dir-box{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;min-height:42px;padding:0}
+  .settings-dir-box{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;min-height:36px;padding:0}
   .dir-meta{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
   .dir-setting-title{font-size:13px;font-weight:600}
   .dir-meta .stat{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .dir-meta small{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .settings-divider{height:1px;background:var(--border);flex:none}
-  .live-save-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:42px;cursor:pointer}
-  .live-save-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .live-save-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px;cursor:pointer}
+  .live-save-copy{display:flex;flex-direction:column;gap:2px;min-width:0}
   .live-save-title{font-size:13px;font-weight:600}
   .live-save-hint{font-size:11px;color:var(--muted)}
   #liveSaveStatus{font-size:11px;color:var(--muted);line-height:1.4}
-  .cloud-vault-card{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card-inner);display:flex;flex-direction:column;gap:6px}
+  .cloud-vault-card{padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card-inner);display:flex;flex-direction:column;gap:4px}
   .cloud-vault-header{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:28px}
   .cloud-vault-title{font-size:12px;font-weight:600;color:var(--text)}
   .cloud-vault-controls{display:flex;align-items:center;gap:8px;flex:none}

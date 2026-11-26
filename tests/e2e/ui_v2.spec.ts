@@ -227,12 +227,19 @@ test('UI v2: radio delivery gates aligned folder picker and Live Save without lo
     await expect(page.locator('.delivery-card:visible')).toContainText(['Browser download', 'Save to local folder']);
     await expect(browser).toBeChecked();
     await expect(folder).not.toBeChecked();
-    await expect(details).toBeVisible();
+    await expect(details).toBeHidden();
     await expect(details).toHaveClass(/is-disabled/);
-    await expect(details).toHaveCSS('opacity', '0.45');
     await expect(picker).toBeDisabled();
     await expect(live).toBeDisabled();
     await expect(page.locator('#skipExported')).toBeChecked();
+
+    await folder.check();
+    await expect(folder).toBeChecked();
+    await expect(details).toBeVisible();
+    await expect(details).not.toHaveClass(/is-disabled/);
+    await expect(picker).toBeEnabled();
+    await expect(live).toBeDisabled(); // A folder must be authorized before enabling Live Save.
+    await expect.poll(async () => (await read(page, 'settings')).exportDelivery).toBe('folderWriter');
 
     // Both dependent settings use the same left indentation.
     const offsets = await page.evaluate(() => {
@@ -240,13 +247,6 @@ test('UI v2: radio delivery gates aligned folder picker and Live Save without lo
         return [left('dirBox'), left('liveSaveControls')];
     });
     expect(Math.abs(offsets[0] - offsets[1])).toBeLessThan(2);
-
-    await folder.check();
-    await expect(folder).toBeChecked();
-    await expect(details).not.toHaveClass(/is-disabled/);
-    await expect(picker).toBeEnabled();
-    await expect(live).toBeDisabled(); // A folder must be authorized before enabling Live Save.
-    await expect.poll(async () => (await read(page, 'settings')).exportDelivery).toBe('folderWriter');
 
     await picker.click();
     await expect(page.locator('#dirLabel')).toHaveText('Chosen folder');
@@ -260,6 +260,7 @@ test('UI v2: radio delivery gates aligned folder picker and Live Save without lo
     await expect.poll(async () => (await read(page, 'exports'))[0]?.delivery).toBe('folderWriter');
     await browser.check();
     await expect(browser).toBeChecked();
+    await expect(details).toBeHidden();
     await expect(details).toHaveClass(/is-disabled/);
     await expect(picker).toBeDisabled();
     await expect(live).toBeDisabled();

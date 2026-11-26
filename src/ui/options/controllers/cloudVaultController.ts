@@ -182,7 +182,7 @@ export function mountCloudVaultPanel(callbacks: {
 
         if (!connected) {
             summaryEl.textContent = text(
-                'Sync encrypted local database across devices (not readable document export)',
+                'Encrypted cross-device DB sync (not readable export)',
                 '跨设备加密同步本地数据库（非可读文档导出）',
             );
         } else if (snap?.backend === 'local-folder' && snap.folderPermissionRequired) {
