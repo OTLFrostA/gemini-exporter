@@ -69,6 +69,16 @@
   color: #64748b;
   border-color: #d6dfeb;
 }
+:root[data-theme="light"] .badge.status-exported {
+  color: #047857;
+  border-color: #9ed5c2;
+  background: #e0f8ed;
+}
+:root[data-theme="light"] .badge.status-updated {
+  color: #a16207;
+  border-color: #ecd29b;
+  background: #fff6e0;
+}
 :root[data-theme="light"] .tab-group { background: #edf1f8; }
 :root[data-theme="light"] .tab-btn:hover { background: rgba(49, 65, 104, 0.08); }
 :root[data-theme="light"] .tab-btn.active {
@@ -100,13 +110,13 @@
   background: #e0f8ed;
 }
 :root[data-theme="light"] #list .status-updated,
-:root[data-theme="light"] #list .status-unavailable {
+:root[data-theme="light"] #list .status-unavailable,
+:root[data-theme="light"] #list .status-partial {
   color: #a16207;
   border-color: #ecd29b;
   background: #fff6e0;
 }
-:root[data-theme="light"] #list .status-failed,
-:root[data-theme="light"] #list .status-partial {
+:root[data-theme="light"] #list .status-failed {
   color: #b42336;
   border-color: #e7b0b8;
   background: #fff0f2;
@@ -267,7 +277,8 @@
 
 /* Nested settings blend into their parent rather than stacking heavy outlines. */
 :root[data-theme="dark"] .export-preferences,
-:root[data-theme="dark"] .delivery-card {
+:root[data-theme="dark"] .delivery-card,
+:root[data-theme="dark"] .cloud-vault-card {
   background: #202023;
   border-color: #303035;
 }
@@ -291,19 +302,29 @@
   border-color: #303035;
   color: #8f8f97;
 }
+:root[data-theme="dark"] .badge.status-exported {
+  color: #8fceaa;
+  border-color: #315142;
+  background: #1f3328;
+}
+:root[data-theme="dark"] .badge.status-updated {
+  color: #e1bd85;
+  border-color: #5d4d36;
+  background: #342d22;
+}
 :root[data-theme="dark"] #list .status-exported {
   color: #8fceaa;
   border-color: #315142;
   background: #1f3328;
 }
 :root[data-theme="dark"] #list .status-updated,
-:root[data-theme="dark"] #list .status-unavailable {
+:root[data-theme="dark"] #list .status-unavailable,
+:root[data-theme="dark"] #list .status-partial {
   color: #e1bd85;
   border-color: #5d4d36;
   background: #342d22;
 }
-:root[data-theme="dark"] #list .status-failed,
-:root[data-theme="dark"] #list .status-partial {
+:root[data-theme="dark"] #list .status-failed {
   color: #e5a3aa;
   border-color: #604249;
   background: #35252a;

@@ -182,8 +182,8 @@ export function mountCloudVaultPanel(callbacks: {
 
         if (!connected) {
             summaryEl.textContent = text(
-                'Choose a local folder or connect a Cloud Vault server to enable auto E2EE backup',
-                '选择本地文件夹或连接云同步服务器开启自动加密备份',
+                'Sync encrypted local database across devices (not readable document export)',
+                '跨设备加密同步本地数据库（非可读文档导出）',
             );
         } else if (snap?.backend === 'local-folder' && snap.folderPermissionRequired) {
             summaryEl.textContent = text(

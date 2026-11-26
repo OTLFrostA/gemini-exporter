@@ -69,7 +69,7 @@ function FailureCard({ groups, failedCount, dismissed, developerMode, task, read
     </div>;
 }
 
-export function TaskPanel({ failureHost, scanHost: _scanHost, ...props }: TaskPanelProps & { failureHost: HTMLElement; scanHost: HTMLElement }) {
+export function TaskPanel({ failureHost, ...props }: TaskPanelProps & { failureHost: HTMLElement }) {
     const { task, feedback, showTask = true, percent, scanning, scanMessage, scanSlow, onCancel } = props;
     const exporting = task.kind === 'export';
     const determinateTask = exporting || task.kind === 'takeout';

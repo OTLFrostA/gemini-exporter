@@ -86,12 +86,23 @@ export function renderWorkbench(input: WorkbenchRenderInput): void {
     document.body.classList.toggle('dev-mode', settings?.developerMode ?? false);
 
     const controls = [
-        ['select', ['accountIdSelect', 'chatFilterSelect']],
-        ['input', ['chatSearchInput', 'btnSelectAll']],
+        ['select', ['accountIdSelect']],
+        ['input', ['btnSelectAll']],
         ['button', ['btnSetDir', 'btnExport', 'btnClearExported', 'btnClearScan',
             'btnSyncAll', 'btnForceFullScan', 'btnImportTakeout', 'btnTourGuide', 'btnPlatformPermissions']],
     ] as const;
     for (const [tag, ids] of controls) for (const id of ids) control(tag, id).disabled = busy || !settings;
+    // Allow read-only searching and filtering while long batch exports are running.
+    control('input', 'chatSearchInput').disabled = !settings;
+    control('select', 'chatFilterSelect').disabled = !settings;
+    const clearSearchBtn = document.getElementById('btnClearSearch') as HTMLButtonElement | null;
+    if (clearSearchBtn) {
+        const clearLabel = text('Clear search', '清空搜索');
+        clearSearchBtn.setAttribute('aria-label', clearLabel);
+        clearSearchBtn.title = clearLabel;
+        clearSearchBtn.hidden = !state.search;
+        clearSearchBtn.disabled = !settings;
+    }
     const exportSettingsDisabled = busy || !settings || settingsSaving;
     control('select', 'format').disabled = exportSettingsDisabled;
     for (const id of ['skipExported', 'includeAssets']) {
