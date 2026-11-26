@@ -28,10 +28,14 @@ export interface TaskPanelProps {
 }
 
 function FailureCard({ groups, failedCount, dismissed, developerMode, task, ready, onRetry, onDismiss, onCopy }: TaskPanelProps) {
-    const visibleGroups = groups.filter(group => developerMode || !(
-        ['resource', 'resource_refresh'].includes(group.diagnostic.stage)
-        || group.category.startsWith('RESOURCE_')
-        || /(?:^|_)(?:ASSET|IMAGE)(?:_|$)/.test(group.diagnostic.code)));
+    const visibleGroups = groups.filter(group => developerMode || (
+        group.severity === 'error'
+        && !['resource', 'resource_refresh', 'source_parse', 'detail', 'source_refresh'].includes(group.diagnostic.stage)
+        && !group.category.startsWith('RESOURCE_')
+        && !/(?:^|_)(?:ASSET|IMAGE)(?:_|$)/.test(group.diagnostic.code)
+        && group.category !== 'DETAIL_NOT_COMPLETE'
+        && group.category !== 'SOURCE_REFRESH_FAILED'
+    ));
     const hasErrors = failedCount > 0 || visibleGroups.some(group => group.severity === 'error');
     const title = hasErrors
         ? failedCount ? text(`${englishCount(failedCount, 'conversation')} failed · Issue groups: ${visibleGroups.length}`,

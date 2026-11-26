@@ -25,26 +25,32 @@ extensionTest('one failed Workbench export uses singular labels in its diagnosti
     await expect(card.locator('#exportFailureList summary')).toHaveText(/ · 1 conversation · 1 occurrence$/);
 });
 
-test('attachment diagnostics stay recorded but are visible only in developer mode', async ({ page }) => {
+test('non-fatal resource, parser, and completeness diagnostics stay recorded but are visible only in developer mode', async ({ page }) => {
     await mount(page, 'options', { holdExport: true });
     await page.locator('#btnSelectAll').click();
     await page.locator('#btnExport').click();
     await page.evaluate(() => {
         const h = Reflect.get(window, 'harness');
-        for (const [stage, code] of [['resource', 'RESOURCE_DOWNLOAD_FAILED'], ['render', 'HTML_ASSET_UNRESOLVED']])
+        for (const [stage, code] of [
+            ['resource', 'RESOURCE_DOWNLOAD_FAILED'],
+            ['render', 'HTML_ASSET_UNRESOLVED'],
+            ['source_parse', 'GEMINI_DOCUMENT_BINDING_FALLBACK'],
+            ['source_parse', 'GEMINI_SOURCE_ANNOTATION_FALLBACK'],
+            ['detail', 'DETAIL_NOT_COMPLETE'],
+        ])
             h.exportOptions.onDiagnostic({ key: h.exports[0].keys[0], stage, code, severity: 'warning', message: code });
         h.finishExport();
     });
     await expect(page.locator('#exportFailureCard')).toBeHidden();
     await page.locator('#devToggle').check();
-    await expect(page.locator('#exportFailureList > details')).toHaveCount(2);
+    await expect(page.locator('#exportFailureList > details')).toHaveCount(5);
     const downloaded = page.waitForEvent('download');
     await page.locator('#btnExportDiag').click();
     const filePath = await (await downloaded).path();
     if (!filePath) throw new Error('Diagnostic download missing');
     const { readFile } = await import('node:fs/promises');
     const report = JSON.parse(await readFile(filePath, 'utf8'));
-    expect(report.exportRuns[0].diagnostics).toHaveLength(2);
+    expect(report.exportRuns[0].diagnostics).toHaveLength(5);
     await page.locator('#devToggle').uncheck();
     await expect(page.locator('#exportFailureCard')).toBeHidden();
     await page.locator('#btnExport').click();
@@ -137,6 +143,7 @@ test('partial exports aggregate warnings, preserve all counts beyond log limits,
 for (const theme of ['light', 'dark'] as const) {
     test(`warnings use a warm notice and mixed failures stay red in ${theme} theme`, async ({ page }, testInfo) => {
         await mount(page, 'options', { holdExport: true, settings: { theme } });
+        await page.locator('#devToggle').check();
         await page.locator('#btnSelectAll').click();
         await page.locator('#btnExport').click();
         const warn = async () => page.evaluate(() => {

@@ -213,6 +213,7 @@ export async function executeExportWithSession(
                         await providerFor(account.providerId).fetchConversationDetail(
                             candidateKey.accountId, candidateKey.conversationId, signal,
                             diagnostic => { diagnostics.push(diagnostic); },
+                            { preserveLocalOnNotFound: Boolean(before) },
                         );
                         return { before, needsSourceReaders: refreshNeed.needsSourceReaders, diagnostics };
                     } catch (error) {
@@ -267,12 +268,14 @@ export async function executeExportWithSession(
                             if (prefetched.error !== undefined) throw prefetched.error;
                         } else {
                             await providerFor(account.providerId).fetchConversationDetail(key.accountId, key.conversationId, signal,
-                                diagnostic => diagnose({ key, stage: 'source_parse', ...diagnostic }));
+                                diagnostic => diagnose({ key, stage: 'source_parse', ...diagnostic }),
+                                { preserveLocalOnNotFound: Boolean(before) });
                         }
                         verifiedRemoteAccounts.add(key.accountId);
                         scheduleLookaheadDetailPrefetch(index);
                     } catch (error) {
-                        if (cancelled(error) || (error instanceof Error && error.message === 'conversation_not_found')) throw error;
+                        if (cancelled(error)) throw error;
+                        if (error instanceof Error && error.message === 'conversation_not_found' && !before) throw error;
                         if (error instanceof ConfirmedSourceEmptyError) {
                             result.skipped++;
                             diagnose({ key, stage: 'source_refresh', code: 'SOURCE_CONVERSATION_EMPTY', message: error.message });
