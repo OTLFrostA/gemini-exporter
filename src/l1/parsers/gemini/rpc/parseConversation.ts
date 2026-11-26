@@ -157,6 +157,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
                     { diagnostics: contentDiagnostics, sourceRef, sourceCitations, recoverLiteralMath: context.bodyRepresentation !== 'structured',
                         candidateText: message.candidateText,
                         sourceAttributions: message.sourceAttributions,
+                        uncitedPageMetadata: message.uncitedPageMetadata,
                         groundingCitationMarkers: message.groundingCitationMarkers,
                         ...(partialSlots ? { partialSlots } : {}),
                         onStructuredFallback: () => { unrepresentedContent = true; } }),

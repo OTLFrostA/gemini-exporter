@@ -41,15 +41,20 @@ export type GeminiSourceFailure = {
 };
 export interface GeminiStructuredContext extends MarkdownParseContext {
     onSourceFallback?: (failure: GeminiSourceFailure) => void;
+    uncitedPageMetadata?: true;
 }
 
 function textInlines(node: GeminiTextNode, sources: GeminiSourceCitations, context?: GeminiStructuredContext): InlineNode[] | null {
-    const strict = convertGeminiInlines(node.text, node.annotations, sources);
+    const annotations = context?.uncitedPageMetadata && !sources.get('0')?.length
+        ? node.annotations?.filter(a => !(a.type === 'source' && a.start === 0 && a.end === 0
+            && a.sourceIds.length === 1 && a.sourceIds[0] === '0'))
+        : node.annotations;
+    const strict = convertGeminiInlines(node.text, annotations, sources);
     if (strict !== null || !context?.onSourceFallback) return strict;
-    const rejected = (node.annotations ?? []).filter((annotation): annotation is Extract<GeminiAnnotation, { type: 'source' }> => annotation.type === 'source'
+    const rejected = (annotations ?? []).filter((annotation): annotation is Extract<GeminiAnnotation, { type: 'source' }> => annotation.type === 'source'
         && convertGeminiInlines(node.text, [annotation], sources) === null);
     if (!rejected.length) return null;
-    const children = convertGeminiInlines(node.text, node.annotations?.filter(annotation =>
+    const children = convertGeminiInlines(node.text, annotations?.filter(annotation =>
         !rejected.some(source => source === annotation)), sources);
     if (children === null) return null;
     // Preserve valid formatting and known source identities at paragraph/cell

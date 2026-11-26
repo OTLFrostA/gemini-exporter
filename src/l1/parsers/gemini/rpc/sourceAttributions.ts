@@ -10,6 +10,23 @@ export function isGeminiSourceId(value: unknown): value is string {
 
 function wireArray(value: unknown): value is unknown[] { return Array.isArray(value); }
 
+/** A selected answer can carry an opened page without displaying a citation.
+ * The observed response pairs this metadata with an unbound [0, 0] marker. */
+export function hasUncitedPageMetadata(candidate: unknown[]): boolean {
+    const metadata = candidate[2];
+    if (!wireArray(metadata) || metadata.length !== 5 || metadata[1] != null
+        || metadata[2] != null || metadata[3] != null) return false;
+    const [records, , , , context] = metadata;
+    if (!wireArray(records) || records.length !== 1 || !wireArray(context)
+        || context.length !== 3 || context[0] != null || context[1] != null || context[2] !== 8) return false;
+    const record = records[0];
+    if (!wireArray(record) || record.length !== 4 || record[0] != null || record[1] != null || record[3] !== 3) return false;
+    const descriptor = record[2];
+    return wireArray(descriptor) && descriptor.length === 20 && isHttpUrl(descriptor[0])
+        && descriptor.slice(1, 19).every(value => value == null)
+        && typeof descriptor[19] === 'string' && Boolean(descriptor[19].trim()) && !isHttpUrl(descriptor[19]);
+}
+
 function verifiedQuote(header: unknown, markdown: string | undefined): GeminiSourceAttribution['quote'] {
     if (markdown === undefined || !wireArray(header) || header.length !== 4 || typeof header[0] !== 'string'
         || !header[0] || header[1] != null || header[2] != null || !wireArray(header[3]) || header[3].length !== 2) return;

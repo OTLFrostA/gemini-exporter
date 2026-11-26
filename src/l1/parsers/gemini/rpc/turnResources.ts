@@ -1,5 +1,6 @@
 import { GEMINI_JSPB_SCHEMA, type DecodedGeminiTurn, type DecodedGeminiCandidate } from './extractors.js';
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
+import { hasUncitedPageMetadata } from './sourceAttributions.js';
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence, GeminiMessageEvidence } from './detailEvidence.js';
 import {
     createDocumentReader,
@@ -78,7 +79,7 @@ export function decodeGeminiCandidateResources(
     );
     const filteredImages = filterNewImages(candImages, dedupSet);
 
-    const { generatedFiles, nativeDocuments } = decodeCandidateArtifacts(cand, convId);
+    const { generatedFiles, nativeDocuments } = decodeCandidateArtifacts(cand, convId, [answerBody, rawAnswerDocument]);
     let docsMeta: DeepResearchDocMeta[] = extractDocumentsMeta(candidateBlock);
     if (nativeDocuments.length || !docsMeta.length) {
         // The conversation envelope contains documents from other turns too.
@@ -330,6 +331,7 @@ function parseCandidateResponse(
         candidateText: candidate.text,
         structuredImages,
         ...(sourceAttributions.length ? { sourceAttributions } : {}),
+        ...(hasUncitedPageMetadata(candidate.source) ? { uncitedPageMetadata: true } : {}),
         ...(groundingCitationMarkers.length ? { groundingCitationMarkers } : {}),
         ...(groundingReferences.length ? { groundingReferences } : {})
     };

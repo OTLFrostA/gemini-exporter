@@ -151,6 +151,23 @@ test('zero-width source ID zero cannot be inferred from a source record position
     assertDomainClosure(result.conversation.detail);
 });
 
+test('uncited page metadata suppresses only the unbound zero-width page marker', () => {
+    const metadata = [[[null, null, [target, ...Array(18).fill(null), 'Weekly Ad'], 3]],
+        null, null, null, [null, null, 8]];
+    const raw = [[[citationText('Native body.', [[0, 0, [null, null, null, [[null, null, '0']]]]])]]];
+    const result = parse(raw, metadata);
+    assert.equal(result.conversation.detail.quality.status, 'complete');
+    const assistant = result.conversation.detail.messages.find(message => message.role === 'assistant');
+    assert.ok(assistant);
+    assert.deepEqual(assistant.content, [{ type: 'paragraph', children: [{ type: 'text', text: 'Native body.' }] }]);
+    assert.equal(assistant.citations?.length ?? 0, 0);
+    assertDomainClosure(result.conversation.detail);
+
+    sourceDiagnostic(parse(raw, [...metadata.slice(0, 4), [null, null, 9]]));
+    sourceDiagnostic(parse(rawBody('0', 4), metadata));
+    sourceDiagnostic(parse(rawBody('spp_other', 0), metadata));
+});
+
 test('direct-citation binding rejects foreign candidates, conflicting targets and malformed entries', () => {
     sourceDiagnostic(parse(rawBody('cit_owned'), undefined, [['rc_other', [['Other body.']], [[directCitation('cit_owned')]]]]));
     sourceDiagnostic(parse(rawBody('cit_owned'), [[directCitation('cit_other')]]));
@@ -178,6 +195,8 @@ function quotedEntry(id: string, quote: string, candidateText: string, start = c
 
 test('verified Markdown positions recover partial code quotes and disambiguate repeated snippets by a whole paragraph', () => {
     const cases = [
+        { markdown: '说明：这家店的**标签（Tags）**支持 `财务`。', native: '说明：这家店的标签（Tags）支持 财务。',
+            quote: '这家店的**标签（Tags）**支持 `财务`。', start: 3, end: 21 },
         { markdown: 'Prefix `alpha beta` suffix.', native: 'Prefix alpha beta suffix.', quote: 'beta`', start: 13, end: 17 },
         { markdown: 'Prefix `alpha beta` suffix.', native: 'Prefix alpha beta suffix.', quote: 'beta` suffix.', start: 13, end: 25 },
         { markdown: '**Prefix** `alpha beta` suffix.', native: 'Prefix alpha beta suffix.', quote: '**Prefix** `alpha beta`', start: 0, end: 17 },
@@ -386,6 +405,32 @@ test('cleaning a research-prompt title cannot discard its strict document identi
     assert.equal(result.conversation.detail.assets[0].document?.id, 'owned-research-id');
     assert.equal(result.conversation.detail.assets[0].document?.contentMarkdown, undefined);
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_DOCUMENT_BINDING_FALLBACK'));
+});
+
+test('Deep Research packets require an exact chip ID in the selected answer', () => {
+    const id = 'im_0123456789abcdef';
+    const body = '# Research report\n\nThis is the exact report body.';
+    const chip = (chipId: string) => Object.assign(Array(25).fill(null), { 24: [[
+        ['http://googleusercontent.com/immersive_entry_chip/0'], chipId, 'agency-placeholder-task-id',
+        'Research report', null, [1700000000, 0], null, 3,
+    ]] });
+    const packet = Object.assign([id, null, 'Research report', 'agency-placeholder-task-id', body], { 10: 3 });
+    const textNode = citationText('See the report.');
+    const selected = [[textNode, chip(id)]];
+    const other = [[textNode, chip('im_fedcba9876543210')]];
+
+    const matched = parse([selected], undefined, [], [packet]);
+    assert.equal(matched.conversation.detail.quality.status, 'complete');
+    assert.equal(matched.conversation.detail.assets.length, 1);
+    assert.equal(matched.conversation.detail.assets[0].document?.contentMarkdown, body);
+    assert.ok(!matched.diagnostics.some(d => d.code === 'GEMINI_DOCUMENT_BINDING_FALLBACK'));
+    assertDomainClosure(matched.conversation.detail);
+
+    const siblingOnly = parse([other, selected], undefined, [['rc_sibling', [['Another answer.']]]], [packet]);
+    assert.equal(siblingOnly.conversation.detail.quality.status, 'partial');
+    assert.equal(siblingOnly.conversation.detail.assets.length, 1);
+    assert.equal(siblingOnly.conversation.detail.assets[0].document?.contentMarkdown, undefined);
+    assert.ok(siblingOnly.diagnostics.some(d => d.code === 'GEMINI_DOCUMENT_BINDING_FALLBACK'));
 });
 
 test('one owned document packet cannot hide another chip whose body is missing', () => {
