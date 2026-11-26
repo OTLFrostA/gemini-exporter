@@ -73,13 +73,19 @@ export function mountAccountDiscovery(host: HTMLElement, next: HTMLButtonElement
         const state = row.state;
         row.button.dataset.connectionState = state.kind;
         row.button.setAttribute('aria-busy', String(state.kind === 'loading'));
-        row.button.disabled = state.kind === 'loading' || state.kind === 'success';
-        row.label.textContent = state.kind === 'loading' ? text(`Connecting ${name}…`, `正在连接 ${name}…`)
+        row.button.disabled = state.kind === 'success';
+        row.label.textContent = state.kind === 'loading' ? text(`Connecting ${name}… · Cancel`, `正在连接 ${name}… · 点击取消`)
             : state.kind === 'success' ? text(`${name} · Identified: ${state.account.displayName || state.account.email || state.account.providerAccountId}`,
                 `${name} · 成功识别：${state.account.displayName || state.account.email || state.account.providerAccountId}`)
                 : state.kind === 'error' ? text(`${name} · ${state.message} · Retry`, `${name} · ${state.message} · 重试`)
                     : text(`Connect ${name}`, `连接 ${name}`);
         update();
+    };
+    const cancel = (row: PlatformRow) => {
+        if (!active || row.state.kind !== 'loading') return;
+        stopAttempt(row);
+        row.state = { kind: 'idle' };
+        render(row);
     };
     const current = (row: PlatformRow, attempt: Attempt) => active && row.state.kind === 'loading' && row.state.attempt === attempt;
     const fail = (row: PlatformRow, attempt: Attempt, message: string) => {
@@ -200,7 +206,10 @@ export function mountAccountDiscovery(host: HTMLElement, next: HTMLButtonElement
             button.append(icon, label);
             button.setAttribute('aria-live', 'polite');
             const row: PlatformRow = { platform, button, label, state: { kind: 'idle' } };
-            button.addEventListener('click', () => start(row, row.state.kind === 'idle'));
+            button.addEventListener('click', () => {
+                if (row.state.kind === 'loading') cancel(row);
+                else start(row, row.state.kind === 'idle');
+            });
             rows.set(platform, row);
             choices.append(button);
             render(row);
@@ -212,7 +221,6 @@ export function mountAccountDiscovery(host: HTMLElement, next: HTMLButtonElement
         if (document.hidden) return;
         for (const row of rows.values()) {
             if (row.state.kind === 'loading') void probe(row, row.state.attempt);
-            else if (row.state.kind === 'error') start(row, false);
         }
         checkInitial();
     };
