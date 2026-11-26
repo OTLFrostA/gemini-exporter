@@ -2,6 +2,8 @@ import { readDriveExportAccount, saveDriveExportAccount } from '../../l3a/storag
 import { authorizeDriveAccount, driveScope } from './driveAccountAuthorization.js';
 import { isRecord } from '../../shared/utils/typeGuards.js';
 
+export { preloadDriveAccountClient } from './driveAccountAuthorization.js';
+
 export const driveFolderName = 'Gemini Exporter';
 
 const api = 'https://www.googleapis.com';
@@ -17,7 +19,7 @@ export function isDriveDeliveryConfigured(): boolean {
 
 export async function connectDriveDelivery(signal: AbortSignal, mode: 'switch' | 'connect' | 'restore') {
     if (!isDriveDeliveryConfigured()) throw new Error('Google Drive OAuth is not configured');
-    const preferred = await readDriveExportAccount();
+    const preferred = mode === 'switch' ? undefined : await readDriveExportAccount();
     const useWebAccount = mode === 'switch' || !!preferred;
     let token: string;
     if (useWebAccount) {

@@ -7,6 +7,7 @@ import path from 'node:path';
 const mock = `
 const h = globalThis.harness;
 export class DriveAuthorizationExpired extends Error {}
+export const preloadDriveAccountClient = () => {};
 export const driveFolderName = 'Gemini Exporter';
 export const isDriveDeliveryConfigured = () => false;
 export const connectDriveDelivery = async () => { throw new Error('Drive is disabled in the UI fixture'); };

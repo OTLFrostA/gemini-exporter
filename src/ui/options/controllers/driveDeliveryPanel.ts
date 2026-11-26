@@ -1,9 +1,11 @@
-import { DriveAuthorizationExpired, driveFolderName, connectDriveDelivery, isDriveDeliveryConfigured } from '../../../runtime/capabilities/googleDriveDelivery.js';
+import { DriveAuthorizationExpired, driveFolderName, connectDriveDelivery, isDriveDeliveryConfigured, preloadDriveAccountClient } from '../../../runtime/capabilities/googleDriveDelivery.js';
 import { elementById as el, requiredElement as control } from '../../shared/elements.js';
 import { text } from '../../shared/settings.js';
 
 export function mountDriveDeliveryPanel() {
-    el('driveDeliveryCard').hidden = !isDriveDeliveryConfigured();
+    const configured = isDriveDeliveryConfigured();
+    el('driveDeliveryCard').hidden = !configured;
+    if (configured) preloadDriveAccountClient();
     const reconnect = control('button', 'driveConnect');
     const switchAccount = control('button', 'driveSwitch');
     const link = control('a', 'openDriveExport');
@@ -26,7 +28,9 @@ export function mountDriveDeliveryPanel() {
         if (pending || exporting) return;
         pending = true;
         link.hidden = true;
-        status.textContent = text('Connecting to Google Drive…', '正在连接 Google Drive…');
+        status.textContent = mode === 'switch'
+            ? text('Opening Google account chooser…', '正在打开 Google 账号选择窗口…')
+            : text('Connecting to Google Drive…', '正在连接 Google Drive…');
         updateControls();
         try {
             session = await connectDriveDelivery(lifetime.signal, mode);
@@ -45,7 +49,7 @@ export function mountDriveDeliveryPanel() {
     status.textContent = text('Connect to Google Drive.', '连接 Google Drive。');
     updateControls();
     return {
-        restoreConnection() { if (isDriveDeliveryConfigured()) void connect('restore'); },
+        restoreConnection() { if (configured) void connect('restore'); },
         setExporting(value: boolean) { exporting = value; updateControls(); },
         dispose: () => lifetime.abort(),
         writer(signal: AbortSignal) {

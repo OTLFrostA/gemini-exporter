@@ -289,6 +289,11 @@ test('manual Drive export authorizes on selection and verifies the file in the r
             },
         } });
     });
+    let accountConfigReads = 0;
+    await page.route('**/drive-account-client.json', route => {
+        accountConfigReads++;
+        return route.fulfill({ json: '123-web.apps.googleusercontent.com' });
+    });
     await page.reload();
     const uploads: Buffer[] = [];
     let uploadSessions = 0;
@@ -378,7 +383,7 @@ test('manual Drive export authorizes on selection and verifies the file in the r
     const zip = await require(path.resolve(__dirname, '../../lib/jszip.min.js')).loadAsync(uploads[1]);
     expect(Object.keys(zip.files).filter(name => name.endsWith('.md'))).toHaveLength(2);
     await expect(page.locator('#driveConnect')).toBeHidden();
-    await page.route('**/drive-account-client.json', route => route.fulfill({ json: '123-web.apps.googleusercontent.com' }));
+    expect(accountConfigReads).toBe(2);
     await page.evaluate(() => sessionStorage.setItem('cancelSwitch', '1'));
     await page.locator('#driveSwitch').click();
     await expect(page.locator('#driveConnectionStatus')).toContainText('Export account: drive@example.test · Account switch did not complete.');
@@ -386,13 +391,15 @@ test('manual Drive export authorizes on selection and verifies the file in the r
     await page.locator('#driveSwitch').click();
     await expect(page.locator('#driveConnectionStatus')).toHaveText('Export account: second@example.test');
     expect(await page.evaluate(() => sessionStorage.getItem('driveWebPrompt'))).toBe('select_account');
+    expect(accountConfigReads).toBe(2);
     await page.reload();
     await expect(page.locator('#driveConnectionStatus')).toHaveText('Export account: second@example.test');
     expect(await page.evaluate(() => sessionStorage.getItem('driveWebPrompt'))).toBe('none');
+    folders.add('Bearer second');
     await page.locator('#btnSelectAll').check();
     await page.locator('#btnExport').click();
     await expect(page.locator('#openDriveExport')).toHaveAttribute('href', /authuser=second%40example.test$/);
-    expect(createdFolders).toBe(2);
+    expect(createdFolders).toBe(1);
     expireNext = true;
     await page.locator('#btnExport').click();
     await expect(page.locator('#driveConnect')).toBeVisible();

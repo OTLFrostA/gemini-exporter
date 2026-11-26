@@ -1,11 +1,28 @@
 export const driveScope = 'https://www.googleapis.com/auth/drive.file';
 
+let accountClient: Promise<string> | undefined;
+
+function loadAccountClient(): Promise<string> {
+    accountClient ??= (async () => {
+        const config = await fetch(chrome.runtime.getURL('drive-account-client.json'));
+        const client: unknown = config.ok ? await config.json() : null;
+        if (typeof client !== 'string' || !/^[\w-]+\.apps\.googleusercontent\.com$/.test(client))
+            throw new Error('Drive account switching is not configured');
+        return client;
+    })().catch(error => {
+        accountClient = undefined;
+        throw error;
+    });
+    return accountClient;
+}
+
+export function preloadDriveAccountClient(): void {
+    void loadAccountClient().catch(() => {});
+}
+
 // Use the registered chromiumapp.org callback of the test Web OAuth client.
 export async function authorizeDriveAccount(mode: 'switch' | 'connect' | 'restore', email?: string) {
-    const config = await fetch(chrome.runtime.getURL('drive-account-client.json'));
-    const client: unknown = config.ok ? await config.json() : null;
-    if (typeof client !== 'string' || !/^[\w-]+\.apps\.googleusercontent\.com$/.test(client))
-        throw new Error('Drive account switching is not configured');
+    const client = await loadAccountClient();
     const redirect = chrome.identity.getRedirectURL('drive-picker');
     const state = crypto.randomUUID();
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
