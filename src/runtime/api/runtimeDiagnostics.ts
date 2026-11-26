@@ -5,6 +5,8 @@ import {
     type DiagnosticSeverity,
     type RuntimeDiagnosticSnapshot,
 } from '../../shared/diagnostics/diagnostic.js';
+import { isRecord } from '../../shared/utils/typeGuards.js';
+import { isRuntimeDiagnosticSnapshot } from '../../shared/diagnostics/runtimeDiagnosticSnapshot.js';
 
 export type { DiagnosticEventSource, RuntimeDiagnosticEvent, RuntimeDiagnosticSnapshot } from '../../shared/diagnostics/diagnostic.js';
 
@@ -66,10 +68,8 @@ export async function fetchRuntimeDiagnosticSnapshot(): Promise<RuntimeDiagnosti
     if (typeof chrome === 'undefined' || typeof chrome.runtime?.sendMessage !== 'function') return null;
     try {
         const response: unknown = await chrome.runtime.sendMessage({ action: 'getDiagnosticSnapshot' });
-        if (!response || typeof response !== 'object' || Reflect.get(response, 'ok') !== true) return null;
-        const snapshot = Reflect.get(response, 'snapshot');
-        if (!snapshot || typeof snapshot !== 'object') return null;
-        return snapshot as RuntimeDiagnosticSnapshot;
+        if (!isRecord(response) || response.ok !== true) return null;
+        return isRuntimeDiagnosticSnapshot(response.snapshot) ? response.snapshot : null;
     } catch {
         return null;
     }

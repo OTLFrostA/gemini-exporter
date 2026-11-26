@@ -2,6 +2,7 @@ import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium, type Browser } from 'playwright';
 import { sendTabMessage, sendToGeminiTab, sendToAITab, resolveAccountTab, type AccountTab } from '../src/runtime/capabilities/tabService.js';
+import { fetchRuntimeDiagnosticSnapshot } from '../src/runtime/api/runtimeDiagnostics.js';
 import { startSync } from '../src/ui/options/controllers/syncController.js';
 import type { ScanResult } from '../src/application/sync/scanController.js';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -36,6 +37,35 @@ function replaceGlobal(key: string, value: unknown) {
         else Reflect.deleteProperty(globalThis, key);
     };
 }
+
+test('diagnostic IPC accepts complete snapshots and returns null for malformed replies', async () => {
+    const event = { at: 42, source: 'popup', severity: 'error', code: 'TEST', message: 'outer',
+        details: [null, { count: 2 }], error: { message: 'inner' }, tabUrl: 'about:blank' };
+    const snapshot = { swStartedAt: 41, droppedCount: 0, events: [event] };
+    let reply: unknown;
+    const restore = replaceGlobal('chrome', { runtime: { sendMessage: async () => reply } });
+    try {
+        for (const valid of [snapshot, { ...snapshot, events: [] }]) {
+            reply = { ok: true, snapshot: valid };
+            assert.deepEqual(await fetchRuntimeDiagnosticSnapshot(), valid);
+        }
+        for (const invalid of [
+            { events: 'invalid' }, { ...snapshot, events: 'invalid' }, { ...snapshot, swStartedAt: -1 },
+            { ...snapshot, droppedCount: 0.5 }, { events: [] },
+            ...[null, { ...event, at: '42' }, { ...event, source: 'other' }, { ...event, severity: 'fatal' },
+                { ...event, message: null }, { ...event, code: 42 }, { ...event, tabUrl: false },
+                { ...event, details: [undefined] }, { ...event, error: NaN },
+            ].map(badEvent => ({ ...snapshot, events: [event, badEvent] })),
+        ]) {
+            reply = { ok: true, snapshot: invalid };
+            assert.equal(await fetchRuntimeDiagnosticSnapshot(), null);
+        }
+        reply = { ok: false, snapshot };
+        assert.equal(await fetchRuntimeDiagnosticSnapshot(), null);
+    } finally {
+        restore();
+    }
+});
 
 test('live tab transport returns opaque replies and handles missing or failed responses', async () => {
     const reply = { arbitrary: ['not a known response'] };
