@@ -217,3 +217,15 @@ test('unproven Imagen envelopes and incomplete/ambiguous panels still reject', (
     valid[0][0][0][8] = 'unknown body';
     assert.equal(decodeGeminiStructuredPayload(valid), null, 'do not hide another populated wire field');
 });
+
+test('multi-slot null-prefixed numeric rendering trailers decode cleanly without fallback', () => {
+    const sixSlotTrailer = [[[textNode('supported', 3)], [null, null, null, null, null, 1]]];
+    const decoded = decodeGeminiStructuredPayload(sixSlotTrailer);
+    assert.ok(decoded, '6-slot rendering trailer [null, null, null, null, null, 1] should decode');
+    const content = parseGeminiBody(fallback, decoded);
+    assert.ok(JSON.stringify(content).includes(JSON.stringify({ type: 'inlineCode', code: 'supported' })));
+    assert.ok(!JSON.stringify(content).includes(fallback));
+    // Non-null interior elements or non-integer trailing values must still reject.
+    assert.equal(decodeGeminiStructuredPayload([[[textNode('bad', 3)], [null, 'unexpected', null, null, null, 1]]]), null);
+    assert.equal(decodeGeminiStructuredPayload([[[textNode('bad', 3)], [null, null, null, null, null, 'bad']]]), null);
+});

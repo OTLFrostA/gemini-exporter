@@ -393,11 +393,11 @@ function unwrapRawNodeSequence(raw: unknown): unknown[] | null {
     if (nodeArray.length === 1 && isWireArray(nodeArray[0])) {
         const envelope = nodeArray[0];
         const layout = envelope[1];
-        // The body sequence may carry a separate numeric rendering trailer.
+        // The body sequence may carry a separate numeric rendering trailer (e.g. 5 or 6 slots ending in an integer).
         if (envelope.length === 2 && isWireArray(envelope[0])
-            && isWireArray(layout) && layout.length === 5
-            && layout.slice(0, 4).every(value => value === null)
-            && isNonNegativeSafeInt(layout[4])) {
+            && isWireArray(layout) && layout.length >= 2
+            && layout.slice(0, -1).every(value => value === null)
+            && isNonNegativeSafeInt(layout[layout.length - 1])) {
             nodeArray = envelope[0];
         } else if (nodeArray[0].length === 1 && isWireArray(nodeArray[0][0])) {
             nodeArray = nodeArray[0][0];

@@ -174,13 +174,36 @@ test('stale refresh failure exports old Detail as partial with its actual versio
     const result = await runExport(request());
     assert.equal(result.partial, 1); assert.equal(records.get(address(key()))?.chatTime, 90);
 });
-test('confirmed remote Detail deletion fails the Key instead of exporting its stale local snapshot', async () => {
+test('confirmed remote Detail deletion preserves local snapshot and exports normally when local history exists', async () => {
     seed('first', { savedAt: 90 });
     records.set(address(key()), previous);
-    provider.fetchConversationDetail = async () => { events.push('refresh'); throw new Error('conversation_not_found'); };
+    const seenOptions: unknown[] = [];
+    provider.fetchConversationDetail = async (_accountId, _conversationId, _signal, _onDiagnostic, options) => {
+        events.push('refresh');
+        seenOptions.push(options);
+        throw new Error('conversation_not_found');
+    };
+    const result = await runExport(request());
+    assert.equal(result.exported, 1);
+    assert.equal(result.partial, 1);
+    assert.deepEqual(result.failed, []);
+    assert.deepEqual(seenOptions, [{ preserveLocalOnNotFound: true }]);
+    assert.deepEqual(events, ['refresh', 'delivery', 'record:first']);
+    assert.equal(records.get(address(key()))?.chatTime, 90);
+    assert.equal(deliveries.length, 1);
+});
+test('confirmed remote Detail deletion still fails the Key when no local Detail exists', async () => {
+    records.set(address(key()), previous);
+    const seenOptions: unknown[] = [];
+    provider.fetchConversationDetail = async (_accountId, _conversationId, _signal, _onDiagnostic, options) => {
+        events.push('refresh');
+        seenOptions.push(options);
+        throw new Error('conversation_not_found');
+    };
     const result = await runExport(request());
     assert.equal(result.exported, 0);
     assert.deepEqual(result.failed, [key()]);
+    assert.deepEqual(seenOptions, [{ preserveLocalOnNotFound: false }]);
     assert.deepEqual(events, ['refresh']);
     assert.equal(records.get(address(key())), previous);
     assert.equal(deliveries.length, 0);

@@ -104,7 +104,7 @@ export class GeminiProvider implements GeminiProviderContract {
         }
         return 'max_pages';
     }
-    async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void): Promise<void> {
+    async fetchConversationDetail(accountId: Account['id'], conversationId: ConversationKey['conversationId'], signal?: AbortSignal, onDiagnostic?: (diagnostic: Diagnostic) => void, options?: { preserveLocalOnNotFound?: boolean }): Promise<void> {
         signal?.throwIfAborted();
         const { account, slot } = await this.context(accountId);
         let parsed: Awaited<ReturnType<GeminiProviderClient['getConversationDetail']>>;
@@ -115,7 +115,9 @@ export class GeminiProvider implements GeminiProviderContract {
             signal?.throwIfAborted();
             if (error.sourceConversationId !== `c_${conversationId.replace(/^c_/, '')}`) throw error;
             if (await this.route(accountId) !== slot) throw new OperationError('ACCOUNT_CHANGED', 'Gemini account route changed');
-            await providerHost().ingestion.ingestDeletedConversation(accountId, conversationId.replace(/^c_/, ''));
+            if (!options?.preserveLocalOnNotFound) {
+                await providerHost().ingestion.ingestDeletedConversation(accountId, conversationId.replace(/^c_/, ''));
+            }
             throw new OperationError('CONVERSATION_NOT_FOUND', 'conversation_not_found');
         }
         signal?.throwIfAborted();
