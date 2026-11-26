@@ -5,14 +5,14 @@
 ## 配置一次
 
 1. 在 Google Cloud 项目中启用 **Google Drive API**。在 Google Auth Platform 配置 Branding 和 Audience。外部应用在 Testing 状态下，将测试用 Google 账号加入 Test users。
-2. 在 Clients 创建类型为 **Chrome Extension** 的 OAuth 客户端，Item ID 填 `kipakimegljfgbjchpljlmiahgnalfdj`。复制以 `.apps.googleusercontent.com` 结尾的公开客户端 ID。应用使用的 OAuth scope 为 `https://www.googleapis.com/auth/drive.file`。
-3. 为账号切换配置同项目的 Web application OAuth 客户端，授权重定向 URI 填 `https://kipakimegljfgbjchpljlmiahgnalfdj.chromiumapp.org/drive-picker`（沿用该测试扩展先前注册的回调地址）。在测试包目录配置两个公开客户端 ID。
+2. 创建或复用一个 **Web application** OAuth 客户端。在 **Authorized redirect URIs** 添加本地测试扩展的回调 `https://kipakimegljfgbjchpljlmiahgnalfdj.chromiumapp.org/drive-auth`。
+3. 在测试包目录中配置该客户端的公开 ID。
 
    ```sh
-   python3 configure_drive_test.py extension --client-id 'CHROME_CLIENT_ID' --account-client-id 'WEB_CLIENT_ID'
+   python3 configure_drive_test.py extension --client-id 'WEB_CLIENT_ID'
    ```
 
-4. 在独立的 Chrome 配置文件打开 `chrome://extensions`，开启开发者模式，选择「加载已解压的扩展程序」，指向 **extension** 目录。已加载的副本需点击重新加载。扩展卡片显示的 ID 应和第 2 步一致。
+4. 在 Chrome 的 `chrome://extensions` 中开启开发者模式，选择「加载已解压的扩展程序」并指向 **extension** 目录。已加载的副本点击重新加载。扩展 ID 应与第 2 步一致。
 
 ## 试跑
 
@@ -27,9 +27,8 @@
 
 ## Chrome 网上应用店发布
 
-1. 在启用了 Google Drive API 的应用项目中创建 **Chrome Extension** OAuth 客户端。Item ID 填商店扩展 ID `ldpbiafkgjlaooeplkiooljccpalpkgf`。
-2. 在同一个项目的 **Web application** OAuth 客户端中添加授权回调 `https://ldpbiafkgjlaooeplkiooljccpalpkgf.chromiumapp.org/drive-picker`，供「切换账号」使用。
-3. 在 Google Auth Platform 中将发布面向外部用户的应用设为 **In production**，并完成控制台提示的品牌验证要求。**Testing** 仅允许名单中的账号使用。
-4. 将两个公开客户端 ID 分别保存为 GitHub Actions 仓库变量 `DRIVE_CHROME_CLIENT_ID` 和 `DRIVE_WEB_CLIENT_ID`。标签发布流程将这些值、`identity` 权限和 `drive.file` scope 写入发布 ZIP 并检查成品。缺少配置时打包失败。
+1. 在同一个 **Web application** OAuth 客户端中添加商店版回调 `https://ldpbiafkgjlaooeplkiooljccpalpkgf.chromiumapp.org/drive-auth`。
+2. 在 Google Auth Platform 中将面向外部用户的应用设为 **In production**，并完成控制台提示的验证要求。**Testing** 仅允许名单中的账号使用。
+3. 将公开客户端 ID 保存为 GitHub Actions 仓库变量 `DRIVE_WEB_CLIENT_ID`。标签发布流程将客户端 ID、`identity` 权限和 Drive API 主机权限写入发布 ZIP 并检查成品。缺少配置时打包失败。
 
-客户端 ID 随商店包分发。用户安装后在「导出到」选择 Google Drive，首次使用时授权自己的账号。商店包依赖商店为它分配的扩展 ID，本地解压测试使用上述专用配置。
+首次连接、切换账号和恢复授权共用这个客户端，OAuth scope 为 `https://www.googleapis.com/auth/drive.file`。安装后，用户在「导出到」选择 Google Drive，并在 Google 授权窗口选择自己的账号。对于之前只通过 Chrome 默认账号授权的测试用户，新版首次连接时需要补做一次 Web OAuth 授权。

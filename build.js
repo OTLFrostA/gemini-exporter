@@ -154,15 +154,11 @@ async function build() {
 }
 
 function chromeWebStoreFiles() {
-    const chromeClient = process.env.DRIVE_CHROME_CLIENT_ID;
     const webClient = process.env.DRIVE_WEB_CLIENT_ID;
-    const clientPattern = /^\d+-[A-Za-z0-9-]+\.apps\.googleusercontent\.com$/;
-    if (!chromeClient || !webClient || !clientPattern.test(chromeClient) || !clientPattern.test(webClient)
-        || chromeClient === webClient || chromeClient.split('-')[0] !== webClient.split('-')[0]) {
-        throw new Error('Chrome Web Store packaging requires distinct DRIVE_CHROME_CLIENT_ID and DRIVE_WEB_CLIENT_ID from the same Google Cloud project.');
+    if (!webClient || !/^\d+-[A-Za-z0-9-]+\.apps\.googleusercontent\.com$/.test(webClient)) {
+        throw new Error('Chrome Web Store packaging requires DRIVE_WEB_CLIENT_ID.');
     }
     const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
-    manifest.oauth2 = { client_id: chromeClient, scopes: ['https://www.googleapis.com/auth/drive.file'] };
     manifest.permissions = [...new Set([...manifest.permissions, 'identity'])];
     manifest.host_permissions = [...new Set([...manifest.host_permissions, 'https://www.googleapis.com/*'])];
     return { 'manifest.json': manifest, 'drive-account-client.json': webClient };

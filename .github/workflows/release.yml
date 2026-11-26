@@ -86,7 +86,6 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
           VERSION: ${{ steps.release.outputs.version }}
           LOCKED_SHA: ${{ steps.release.outputs.sha }}
-          DRIVE_CHROME_CLIENT_ID: ${{ vars.DRIVE_CHROME_CLIENT_ID }}
           DRIVE_WEB_CLIENT_ID: ${{ vars.DRIVE_WEB_CLIENT_ID }}
         run: |
           set -euo pipefail
@@ -99,8 +98,8 @@ jobs:
           unzip -p "$ZIP_NAME" manifest.json > /tmp/release-manifest.json
           ZIP_VERSION=$(jq -er '.version' /tmp/release-manifest.json)
           test "$ZIP_VERSION" = "$VERSION"
-          jq -e --arg client "$DRIVE_CHROME_CLIENT_ID" '
-            .oauth2 == {client_id: $client, scopes: ["https://www.googleapis.com/auth/drive.file"]}
+          jq -e '
+            (has("oauth2") | not)
             and (.permissions | index("identity") != null)
             and (.host_permissions | index("https://www.googleapis.com/*") != null)
           ' /tmp/release-manifest.json > /dev/null

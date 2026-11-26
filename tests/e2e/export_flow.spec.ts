@@ -279,24 +279,25 @@ test('manual Drive export authorizes on selection and verifies the file in the r
         }, { title: 'other', titleSource: 'provider', updatedAt: 100 });
     }, accountId);
     await page.addInitScript(() => {
-        const manifest = chrome.runtime.getManifest();
-        const scopes = ['https://www.googleapis.com/auth/drive.file'];
-        chrome.runtime.getManifest = () => ({ ...manifest, oauth2: { client_id: 'test', scopes } });
+        const scope = 'https://www.googleapis.com/auth/drive.file';
         Object.defineProperty(chrome, 'identity', { configurable: true, value: {
-            getRedirectURL: () => 'https://test.chromiumapp.org/drive-picker',
+            getRedirectURL: (path: string) => 'https://test.chromiumapp.org/' + path,
             launchWebAuthFlow: async (flow: chrome.identity.WebAuthFlowDetails) => {
                 const query = new URL(flow.url).searchParams;
+                const prompt = query.get('prompt');
+                const hint = query.get('login_hint');
+                if (query.get('client_id') !== '123-web.apps.googleusercontent.com' || query.get('scope') !== scope
+                    || query.get('redirect_uri') !== 'https://test.chromiumapp.org/drive-auth'
+                    || (prompt === 'none') === flow.interactive) throw new Error('Unexpected authorization request');
                 if (sessionStorage.getItem('cancelSwitch')) throw new Error('Cancelled');
-                if (query.get('scope') !== scopes[0] || (query.get('prompt') !== 'select_account'
-                    && query.get('login_hint') !== 'second@example.test')) throw new Error('Unexpected account request');
-                sessionStorage.setItem('driveWebPrompt', query.get('prompt') ?? '');
+                const email = prompt === 'select_account'
+                    ? sessionStorage.getItem('chooseDriveAccount') ?? 'drive@example.test' : hint;
+                if (email !== 'drive@example.test' && email !== 'second@example.test') throw new Error('Missing account selection');
+                sessionStorage.setItem('driveAuthMode', String(flow.interactive));
+                sessionStorage.setItem('driveWebPrompt', prompt ?? '');
                 return query.get('redirect_uri') + '#' + new URLSearchParams({
-                    state: query.get('state') ?? '', access_token: 'second', scope: scopes[0],
+                    state: query.get('state') ?? '', access_token: email === 'second@example.test' ? 'second' : 'fixture', scope,
                 });
-            },
-            getAuthToken: async (details: chrome.identity.TokenDetails) => {
-                sessionStorage.setItem('driveAuthMode', String(details.interactive));
-                return { token: 'fixture', grantedScopes: scopes };
             },
         } });
     });
@@ -435,7 +436,10 @@ test('manual Drive export authorizes on selection and verifies the file in the r
     await page.locator('#driveSwitch').click();
     await expect(page.locator('#driveConnectionStatus')).toContainText('Export account: drive@example.test · Account switch did not complete.');
     await expect(driveDestination).toHaveAttribute('href', firstFolderUrl);
-    await page.evaluate(() => sessionStorage.removeItem('cancelSwitch'));
+    await page.evaluate(() => {
+        sessionStorage.removeItem('cancelSwitch');
+        sessionStorage.setItem('chooseDriveAccount', 'second@example.test');
+    });
     await page.locator('#driveSwitch').click();
     await expect(page.locator('#driveConnectionStatus')).toHaveText('Export account: second@example.test');
     const secondFolderUrl = 'https://drive.google.com/drive/folders/second-folder?authuser=second%40example.test';
