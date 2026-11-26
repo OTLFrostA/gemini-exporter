@@ -272,6 +272,17 @@ test('manual Drive export authorizes on selection and verifies the file in the r
         const scopes = ['https://www.googleapis.com/auth/drive.file'];
         chrome.runtime.getManifest = () => ({ ...manifest, oauth2: { client_id: 'test', scopes } });
         Object.defineProperty(chrome, 'identity', { configurable: true, value: {
+            getRedirectURL: () => 'https://test.chromiumapp.org/drive-picker',
+            launchWebAuthFlow: async (flow: chrome.identity.WebAuthFlowDetails) => {
+                const query = new URL(flow.url).searchParams;
+                if (sessionStorage.getItem('cancelSwitch')) throw new Error('Cancelled');
+                if (query.get('scope') !== scopes[0] || (query.get('prompt') !== 'select_account'
+                    && query.get('login_hint') !== 'second@example.test')) throw new Error('Unexpected account request');
+                sessionStorage.setItem('driveWebPrompt', query.get('prompt') ?? '');
+                return query.get('redirect_uri') + '#' + new URLSearchParams({
+                    state: query.get('state') ?? '', access_token: 'second', scope: scopes[0],
+                });
+            },
             getAuthToken: async (details: chrome.identity.TokenDetails) => {
                 sessionStorage.setItem('driveAuthMode', String(details.interactive));
                 return { token: 'fixture', grantedScopes: scopes };
@@ -283,7 +294,9 @@ test('manual Drive export authorizes on selection and verifies the file in the r
     let uploadSessions = 0;
     let metadataReads = 0;
     const destination = 'export-folder';
+    const folders = new Set<string>();
     let createdFolders = 0;
+    let expireNext = false;
     let filename = '';
     let storedSize = 0;
     let mimeType = '';
@@ -292,26 +305,30 @@ test('manual Drive export authorizes on selection and verifies the file in the r
     await page.route('https://www.googleapis.com/**', async route => {
         const req = route.request();
         const url = new URL(req.url());
-        expect(req.headers().authorization).toBe('Bearer fixture');
-        if (url.pathname.endsWith('/about')) return route.fulfill({ json: { user: { emailAddress: 'drive@example.test' } } });
+        const auth = req.headers().authorization;
+        expect(['Bearer fixture', 'Bearer second']).toContain(auth);
+        const targetId = auth === 'Bearer second' ? 'second-folder' : destination;
+        if (expireNext) { expireNext = false; return route.fulfill({ status: 401 }); }
+        if (url.pathname.endsWith('/about')) return route.fulfill({ json: { user: { emailAddress: auth === 'Bearer second' ? 'second@example.test' : 'drive@example.test' } } });
         if (url.pathname === '/drive/v3/files') {
             if (req.method() === 'GET') {
                 expect(url.searchParams.get('q')).toContain("'root' in parents and trashed = false and name = 'Gemini Exporter'");
-                return route.fulfill({ json: { files: createdFolders ? [{ id: destination, capabilities: { canAddChildren: true } }] : [] } });
+                return route.fulfill({ json: { files: folders.has(auth) ? [{ id: targetId, capabilities: { canAddChildren: true } }] : [] } });
             }
             expect(req.postDataJSON()).toEqual({ name: 'Gemini Exporter', parents: ['root'], mimeType: 'application/vnd.google-apps.folder' });
+            folders.add(auth);
             createdFolders++;
-            return route.fulfill({ json: { id: destination } });
+            return route.fulfill({ json: { id: targetId } });
         }
         if (url.pathname === '/drive/v3/files/confirmed-file') {
             metadataReads++;
             return route.fulfill({ json: { id: 'confirmed-file', name: filename, mimeType,
-                size: String(returnEmpty ? 0 : storedSize), parents: [destination], trashed: false } });
+                size: String(returnEmpty ? 0 : storedSize), parents: [targetId], trashed: false } });
         }
         if (req.method() === 'POST') {
             uploadSessions++;
             const metadata = req.postDataJSON();
-            expect(metadata.parents).toEqual([destination]);
+            expect(metadata.parents).toEqual([targetId]);
             filename = metadata.name;
             mimeType = metadata.mimeType;
             return route.fulfill({ status: 200, headers: {
@@ -326,11 +343,11 @@ test('manual Drive export authorizes on selection and verifies the file in the r
         return route.fulfill({ json: { id: 'confirmed-file' } });
     });
     await page.locator('#driveDeliveryRadio').check();
-    await expect(page.locator('#driveConnectionStatus')).toHaveText('drive@example.test');
+    await expect(page.locator('#driveConnectionStatus')).toHaveText('Export account: drive@example.test');
     expect(await page.evaluate(() => sessionStorage.getItem('driveAuthMode'))).toBe('true');
     await expect(page.locator('#skipExported')).toBeEnabled();
     await page.reload();
-    await expect(page.locator('#driveConnectionStatus')).toHaveText('drive@example.test');
+    await expect(page.locator('#driveConnectionStatus')).toHaveText('Export account: drive@example.test');
     expect(await page.evaluate(() => sessionStorage.getItem('driveAuthMode'))).toBe('false');
     await expect(page.locator('#skipExported')).toBeChecked();
     await expect(page.locator('#skipExported')).toBeEnabled();
@@ -360,4 +377,26 @@ test('manual Drive export authorizes on selection and verifies the file in the r
     expect(uploads).toHaveLength(2);
     const zip = await require(path.resolve(__dirname, '../../lib/jszip.min.js')).loadAsync(uploads[1]);
     expect(Object.keys(zip.files).filter(name => name.endsWith('.md'))).toHaveLength(2);
+    await expect(page.locator('#driveConnect')).toBeHidden();
+    await page.route('**/drive-account-client.json', route => route.fulfill({ json: '123-web.apps.googleusercontent.com' }));
+    await page.evaluate(() => sessionStorage.setItem('cancelSwitch', '1'));
+    await page.locator('#driveSwitch').click();
+    await expect(page.locator('#driveConnectionStatus')).toContainText('Export account: drive@example.test · Account switch did not complete.');
+    await page.evaluate(() => sessionStorage.removeItem('cancelSwitch'));
+    await page.locator('#driveSwitch').click();
+    await expect(page.locator('#driveConnectionStatus')).toHaveText('Export account: second@example.test');
+    expect(await page.evaluate(() => sessionStorage.getItem('driveWebPrompt'))).toBe('select_account');
+    await page.reload();
+    await expect(page.locator('#driveConnectionStatus')).toHaveText('Export account: second@example.test');
+    expect(await page.evaluate(() => sessionStorage.getItem('driveWebPrompt'))).toBe('none');
+    await page.locator('#btnSelectAll').check();
+    await page.locator('#btnExport').click();
+    await expect(page.locator('#openDriveExport')).toHaveAttribute('href', /authuser=second%40example.test$/);
+    expect(createdFolders).toBe(2);
+    expireNext = true;
+    await page.locator('#btnExport').click();
+    await expect(page.locator('#driveConnect')).toBeVisible();
+    await page.locator('#driveConnect').click();
+    await expect(page.locator('#driveConnectionStatus')).toHaveText('Export account: second@example.test');
+    await expect(page.locator('#driveConnect')).toBeHidden();
 });

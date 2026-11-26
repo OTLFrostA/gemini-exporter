@@ -1,42 +1,51 @@
-import { driveFolderName, connectDriveDelivery, isDriveDeliveryConfigured } from '../../../runtime/capabilities/googleDriveDelivery.js';
+import { DriveAuthorizationExpired, driveFolderName, connectDriveDelivery, isDriveDeliveryConfigured } from '../../../runtime/capabilities/googleDriveDelivery.js';
 import { elementById as el, requiredElement as control } from '../../shared/elements.js';
 import { text } from '../../shared/settings.js';
 
 export function mountDriveDeliveryPanel() {
     el('driveDeliveryCard').hidden = !isDriveDeliveryConfigured();
     const reconnect = control('button', 'driveConnect');
+    const switchAccount = control('button', 'driveSwitch');
     const link = control('a', 'openDriveExport');
     const status = el('driveConnectionStatus');
     const lifetime = new AbortController();
     let session: Awaited<ReturnType<typeof connectDriveDelivery>> | undefined;
     let pending = false;
     let exporting = false;
+    let needsReconnect = false;
 
     function updateControls() {
-        reconnect.disabled = pending || exporting;
+        reconnect.hidden = !needsReconnect || pending;
+        switchAccount.hidden = !session && !needsReconnect;
+        reconnect.disabled = switchAccount.disabled = pending || exporting;
     }
-    async function connect(interactive: boolean) {
-        if (pending) return;
+    function accountLabel(email: string) {
+        return text('Export account: ', '导出账号：') + email;
+    }
+    async function connect(mode: 'switch' | 'connect' | 'restore') {
+        if (pending || exporting) return;
         pending = true;
-        session = undefined;
         link.hidden = true;
         status.textContent = text('Connecting to Google Drive…', '正在连接 Google Drive…');
         updateControls();
         try {
-            const connected = await connectDriveDelivery(lifetime.signal, interactive);
-            session = connected;
-            status.textContent = connected.email;
-        } catch (error) {
-            status.textContent = interactive ? (error instanceof Error ? error.message : String(error))
-                : text('Could not restore the connection. Click Connect to retry.', '未能恢复连接，点击「连接」重试。');
+            session = await connectDriveDelivery(lifetime.signal, mode);
+            needsReconnect = false;
+            status.textContent = accountLabel(session.email);
+        } catch {
+            needsReconnect = !session;
+            status.textContent = session
+                ? accountLabel(session.email) + text(' · Account switch did not complete.', ' · 未完成账号切换。')
+                : text('Drive connection unavailable. Reconnect to continue.', 'Drive 连接不可用，请重新连接。');
         } finally { pending = false; updateControls(); }
     }
-    control('input', 'driveDeliveryRadio').addEventListener('click', () => { if (!session) void connect(true); });
-    reconnect.addEventListener('click', () => { void connect(true); });
+    control('input', 'driveDeliveryRadio').addEventListener('click', () => { if (!session) void connect('connect'); });
+    reconnect.addEventListener('click', () => { void connect('connect'); });
+    switchAccount.addEventListener('click', () => { void connect('switch'); });
     status.textContent = text('Connect to Google Drive.', '连接 Google Drive。');
     updateControls();
     return {
-        restoreConnection() { if (isDriveDeliveryConfigured()) void connect(false); },
+        restoreConnection() { if (isDriveDeliveryConfigured()) void connect('restore'); },
         setExporting(value: boolean) { exporting = value; updateControls(); },
         dispose: () => lifetime.abort(),
         writer(signal: AbortSignal) {
@@ -44,7 +53,17 @@ export function mountDriveDeliveryPanel() {
             if (!connected || pending) throw new Error(text('Connect Google Drive first.', '请先连接 Google Drive。'));
             link.hidden = true;
             return async (fileName: string, data: Blob) => {
-                link.href = await connected.upload(fileName, data, signal);
+                try {
+                    link.href = await connected.upload(fileName, data, signal);
+                } catch (error) {
+                    if (error instanceof DriveAuthorizationExpired) {
+                        session = undefined;
+                        needsReconnect = true;
+                        status.textContent = text('Reconnect to continue: ', '请重新连接：') + connected.email;
+                        updateControls();
+                    }
+                    throw error;
+                }
                 link.textContent = text('Open in Drive', '在 Drive 中打开') + ' · ' + driveFolderName + ' / ' + fileName;
                 link.hidden = false;
             };

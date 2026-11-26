@@ -18,6 +18,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=Path, help='Unpacked copy of the packaged extension')
     parser.add_argument('--client-id', help='Public Chrome Extension OAuth client ID')
+    parser.add_argument('--account-client-id', help='Public Web OAuth client ID for choosing another Drive account')
     args = parser.parse_args()
     folder = args.directory.resolve()
     if (folder / 'package.json').exists() or not (folder / 'dist/ui/options.js').is_file():
@@ -34,6 +35,13 @@ def main():
         for field, permission in [('permissions', 'identity'), ('host_permissions', 'https://www.googleapis.com/*')]:
             if permission not in manifest[field]:
                 manifest[field].append(permission)
+    if args.account_client_id:
+        chrome_client = manifest.get('oauth2', {}).get('client_id', '')
+        if not re.fullmatch(r'\d+-[A-Za-z0-9-]+\.apps\.googleusercontent\.com', args.account_client_id) or (
+            args.account_client_id == chrome_client or args.account_client_id.split('-')[0] != chrome_client.split('-')[0]
+        ):
+            parser.error('Expected a distinct public Web client ID from the same project.')
+        (folder / 'drive-account-client.json').write_text(json.dumps(args.account_client_id), encoding='utf-8')
     temporary = manifest_path.with_suffix('.tmp')
     temporary.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     temporary.replace(manifest_path)

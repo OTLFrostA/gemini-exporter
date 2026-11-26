@@ -1,27 +1,40 @@
+import { readDriveExportAccount, saveDriveExportAccount } from '../../l3a/storageService.js';
+import { authorizeDriveAccount, driveScope } from './driveAccountAuthorization.js';
 import { isRecord } from '../../shared/utils/typeGuards.js';
 
 export const driveFolderName = 'Gemini Exporter';
 
 const api = 'https://www.googleapis.com';
-const scope = 'https://www.googleapis.com/auth/drive.file';
+export class DriveAuthorizationExpired extends Error {}
 const folderType = 'application/vnd.google-apps.folder';
 const isFileId = (id: unknown): id is string => typeof id === 'string' && /^[\w-]+$/.test(id);
 
 export function isDriveDeliveryConfigured(): boolean {
     const oauth = chrome.runtime.getManifest().oauth2;
-    return !!oauth?.client_id && oauth.scopes?.length === 1 && oauth.scopes[0] === scope
+    return !!oauth?.client_id && oauth.scopes?.length === 1 && oauth.scopes[0] === driveScope
         && typeof chrome.identity?.getAuthToken === 'function';
 }
 
-export async function connectDriveDelivery(signal: AbortSignal, interactive: boolean) {
+export async function connectDriveDelivery(signal: AbortSignal, mode: 'switch' | 'connect' | 'restore') {
     if (!isDriveDeliveryConfigured()) throw new Error('Google Drive OAuth is not configured');
-    const { token, grantedScopes } = await chrome.identity.getAuthToken({ interactive, scopes: [scope] });
-    if (!token || (grantedScopes && !grantedScopes.includes(scope))) throw new Error('Google Drive authorization required');
+    const preferred = await readDriveExportAccount();
+    const useWebAccount = mode === 'switch' || !!preferred;
+    let token: string;
+    if (useWebAccount) {
+        token = await authorizeDriveAccount(mode, preferred);
+    } else {
+        const auth = await chrome.identity.getAuthToken({ interactive: mode === 'connect', scopes: [driveScope] });
+        if (!auth.token || (auth.grantedScopes && !auth.grantedScopes.includes(driveScope))) throw new Error('Google Drive authorization required');
+        token = auth.token;
+    }
     async function request(url: string, init: RequestInit = {}) {
         const headers = new Headers(init.headers);
         headers.set('Authorization', 'Bearer ' + token);
         const response = await fetch(url, { ...init, headers, signal: init.signal ?? signal, redirect: 'error', credentials: 'omit' });
-        if (response.status === 401 && token) await chrome.identity.removeCachedAuthToken({ token }).catch(() => {});
+        if (response.status === 401) {
+            if (!useWebAccount) await chrome.identity.removeCachedAuthToken({ token }).catch(() => {});
+            throw new DriveAuthorizationExpired('Google Drive authorization expired');
+        }
         if (!response.ok) throw new Error('Google Drive HTTP ' + response.status);
         return response;
     }
@@ -30,6 +43,8 @@ export async function connectDriveDelivery(signal: AbortSignal, interactive: boo
     if (!isRecord(account) || !isRecord(account.user) || typeof account.user.emailAddress !== 'string'
         || !account.user.emailAddress) throw new Error('Google Drive account unavailable');
     const email = account.user.emailAddress;
+    if (mode !== 'switch' && preferred && preferred !== email) throw new Error('Google returned a different Drive account');
+    if (mode === 'switch') await saveDriveExportAccount(email);
     async function findOrCreateFolder(uploadSignal: AbortSignal): Promise<string> {
         const query = new URLSearchParams({
             q: `'root' in parents and trashed = false and name = '${driveFolderName}' and mimeType = '${folderType}'`,
