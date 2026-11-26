@@ -164,13 +164,14 @@ test('UI v2: Popup theme switch works while an export is running', async ({ page
     await expect(theme).toBeEnabled();
 });
 
-test('UI v2: Dev switch uses standard right ON and left OFF beside its left label in both themes', async ({ page }) => {
+test('UI v2: Dev switch uses left ON and right OFF beside its left label in both themes', async ({ page }) => {
     await mount(page, 'options', { settings: { theme: 'light', developerMode: false } });
     const toggle = page.locator('#devToggle');
     const label = page.locator('#labelDevMode');
     const knobX = () => toggle.evaluate(input =>
         Math.round(new DOMMatrixReadOnly(getComputedStyle(input, '::after').transform).m41));
 
+    // Only Dev is inverted: the label remains on the left next to the checked knob.
     expect(await label.evaluate(el => {
         const input = document.getElementById('devToggle');
         return !!input && el.getBoundingClientRect().right <= input.getBoundingClientRect().left;
@@ -181,14 +182,14 @@ test('UI v2: Dev switch uses standard right ON and left OFF beside its left labe
     for (const theme of ['light', 'dark']) {
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
         await expect(toggle).not.toBeChecked();
-        await expect.poll(knobX).toBe(0); // OFF: knob on left.
+        await expect.poll(knobX).toBe(14); // OFF: knob on right.
         await expect(toggle).toHaveCSS('background-image', 'none');
         await expect(page.locator('body')).not.toHaveClass(/dev-mode/);
 
         await expect(toggle).toBeEnabled();
         await label.click();
         await expect(toggle).toBeChecked();
-        await expect.poll(knobX).toBe(14); // ON: knob moves right, consistent with all toggles.
+        await expect.poll(knobX).toBe(0); // ON: knob moves left, towards Dev.
         if (theme === 'light') {
             // Keep the original light gradient; dark mode deliberately uses a flat indigo accent.
             await expect(toggle).toHaveCSS('background-image', /linear-gradient/);
@@ -202,7 +203,7 @@ test('UI v2: Dev switch uses standard right ON and left OFF beside its left labe
         await expect(toggle).toBeEnabled();
         await label.click();
         await expect(toggle).not.toBeChecked();
-        await expect.poll(knobX).toBe(0);
+        await expect.poll(knobX).toBe(14);
         await expect(page.locator('body')).not.toHaveClass(/dev-mode/);
         await expect.poll(async () => (await read(page, 'settings')).developerMode).toBe(false);
 
