@@ -41,8 +41,9 @@
   .list-empty-icon{width:32px;height:32px;opacity:.55;color:var(--muted);}
   .list-empty-title{font-size:13px;font-weight:600;color:var(--text);}
   .list-empty-desc{font-size:12px;max-width:300px;line-height:1.5;}
-  #scanStatusHost{display:flex;flex-direction:column;gap:4px;}
-  #scanStatusHost:not(:has(> :not([hidden]))){display:none;}
+  .search-clear-btn{flex:none;width:18px;height:18px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--muted);font-size:14px;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
+  .search-clear-btn:hover{background:var(--card);color:var(--text);}
+  .skip-hint{font-size:11px;color:var(--muted);opacity:.85;}
   .card-right{flex:1 1 0 !important;min-width:0 !important;overflow:hidden;}
   .label{font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:.02em}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
@@ -61,8 +62,8 @@
   #exportFailureList details[data-severity="warning"] > summary{color:var(--warn);}
   #exportFailureList details[data-severity="error"] > summary{color:var(--danger,#f87171);}
   button:disabled{opacity:.45;pointer-events:none}
-  .support-links{padding-top:6px;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;flex:none;}
-  .support-link{display:flex;align-items:center;gap:4px;min-height:38px;padding:6px 4px;border-radius:8px;color:var(--muted);text-decoration:none;cursor:pointer;transition:background .15s ease,color .15s ease;}
+  .support-links{padding-top:4px;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;flex:none;}
+  .support-link{display:flex;align-items:center;gap:4px;min-height:28px;padding:4px;border-radius:7px;color:var(--muted);text-decoration:none;cursor:pointer;transition:background .15s ease,color .15s ease;}
   .support-link:hover{background:var(--card-inner);color:var(--text);}
   .support-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .support-link-icon{width:16px;height:16px;flex:none;}
@@ -103,8 +104,11 @@
   .export-destination{display:flex;flex-direction:column;gap:8px}
   .settings-heading{font-size:12px;font-weight:600;color:var(--text)}
   #driveDeliveryCard:not(:has(input[type=radio]:checked)) .drive-controls{display:none}
-  .drive-controls{display:grid;gap:8px;margin-top:8px}
-  #driveDestination{justify-self:start;color:var(--muted);text-decoration:none}
+  .drive-controls{margin:8px 0 0 26px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+  #driveConnectionStatus{font-size:11px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere}
+  .drive-actions{display:flex;flex-wrap:wrap;gap:6px}
+  .drive-actions:not(:has(> :not([hidden]))){display:none}
+  #driveDestination{align-self:flex-start;font-size:11px;line-height:1.4;color:var(--muted);text-decoration:none}
   #driveDestination[href]{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
   #driveDestination[href]:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
   .delivery-choices{display:flex;flex-direction:column;gap:8px}
@@ -397,8 +401,10 @@
           </label>
           <div class="drive-controls">
             <span id="driveConnectionStatus" role="status"></span>
-            <button type="button" id="driveConnect" hidden class="ghost small" data-ui-en="Reconnect" data-ui-zh="重新连接">重新连接</button>
-            <button type="button" id="driveSwitch" hidden class="ghost small" data-ui-en="Switch account" data-ui-zh="切换账号">切换账号</button>
+            <div class="drive-actions">
+              <button type="button" id="driveConnect" hidden class="ghost small" data-ui-en="Reconnect" data-ui-zh="重新连接">重新连接</button>
+              <button type="button" id="driveSwitch" hidden class="ghost small" data-ui-en="Switch account" data-ui-zh="切换账号">切换账号</button>
+            </div>
             <a id="driveDestination" target="_blank" rel="noopener noreferrer" data-ui-en="Save to: My Drive / Gemini Exporter" data-ui-zh="保存到：我的云端硬盘 / Gemini Exporter">保存到：我的云端硬盘 / Gemini Exporter</a>
           </div>
         </div>
@@ -433,12 +439,6 @@
       </div>
     </div>
 
-    <div style="display:flex; gap:10px; margin-top:2px; height:40px;">
-      <button id="btnExport" class="primary" style="flex:1; height:40px; padding:0;" data-ui-en="Export selected" data-ui-zh="导出选中">导出选中</button>
-    </div>
-    <div id="taskProgressPanel" style="position:sticky;bottom:0;z-index:2;background:var(--card);display:flex;flex-direction:column;gap:4px;flex:none;padding:4px 0;"></div>
-    <div id="exportFailureHost" style="display:contents;"></div>
-
     <div id="cloudVaultCard" class="cloud-vault-card">
       <div class="cloud-vault-header">
         <span class="cloud-vault-title" data-ui-en="🔒 E2EE Encrypted Vault" data-ui-zh="🔒 端到端加密保险箱">🔒 端到端加密保险箱</span>
@@ -447,7 +447,7 @@
           <button id="btnCloudVaultSetup" type="button" class="ghost small" data-ui-en="Manage" data-ui-zh="管理">管理</button>
         </div>
       </div>
-      <div id="cloudVaultSummary" class="cloud-vault-summary">选择本地文件夹或登录云端开启零知识自动加密备份</div>
+      <div id="cloudVaultSummary" class="cloud-vault-summary">跨设备加密同步本地数据库（非可读文档导出）</div>
     </div>
 
     <div id="logSection" class="dev-only" style="display:flex; flex-direction:column; gap:8px; flex:1; min-height:90px; overflow:hidden; margin-top:4px;">
@@ -467,6 +467,13 @@
     </div>
 
    </div>
+    <div class="export-action-dock">
+      <div id="exportFailureHost" style="display:contents;"></div>
+      <div id="taskProgressPanel" style="display:flex;flex-direction:column;gap:4px;flex:none;"></div>
+      <div style="display:flex; gap:10px; height:40px;">
+        <button id="btnExport" class="primary" style="flex:1; height:40px; padding:0;" data-ui-en="Export selected" data-ui-zh="导出选中">导出选中</button>
+      </div>
+    </div>
     <nav class="support-links" aria-label="Support" data-i18n-aria-label="supportLinksLabel">
       <a href="https://tally.so/r/Y56ZBB?source=extension" target="_blank" rel="noopener noreferrer" id="feedbackBox" class="support-link" data-i18n-title="btnFeedbackTip" title="前往表单提交反馈或新功能建议">
         <svg class="support-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8M8 13h6"/></svg>
@@ -496,6 +503,7 @@
       <div class="conversation-search">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
         <input id="chatSearchInput" type="text" placeholder="搜索标题 / ID..." data-i18n-placeholder="searchPlaceholder">
+        <button id="btnClearSearch" type="button" class="search-clear-btn" aria-label="清空搜索" title="清空搜索" hidden>×</button>
       </div>
       <select id="chatFilterSelect" class="page-select" data-i18n-title="filterSelectTip" title="按导出状态筛选会话">
         <option value="all" data-i18n="filterAll">全部</option>
@@ -519,10 +527,10 @@
       </div>
       <input type="file" id="takeoutFileInput" accept=".zip" hidden>
     </div>
-    <div id="scanStatusHost"></div>
     <div class="conversation-selection">
       <input id="btnSelectAll" type="checkbox" aria-label="全选当前可见会话">
       <span id="selectedStat" class="stat"></span>
+      <span id="skipSelectedHint" class="stat skip-hint" hidden></span>
     </div>
     <div id="hiddenSelectionNotice" class="hidden-selection-notice" hidden>
       <span id="hiddenSelectionText" role="status" aria-live="polite"></span>

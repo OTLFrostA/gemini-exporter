@@ -174,22 +174,26 @@ async function initWorkbench(): Promise<void> {
         foreground.kind === 'export' ? preparedExportKeys : undefined,
         new Set(failed.filter(key => key.accountId === state.accountId).map(key => key.conversationId)),
         TourGuide.isGuidedSelection(),
+        settings ? { skipExported: settings.skipExported, format: settings.defaultFormat } : undefined,
     );
-    const render = () => renderWorkbench({
-        state,
-        settings,
-        busy: isBusy(),
-        scanning: scanRunner.isScanning(),
-        scanAborted: scanRunner.isScanAborted(),
-        presentationSaving,
-        settingsSaving: settingsControls?.isSettingsSaving() ?? false,
-        themeSaving: settingsControls?.isThemeSaving() ?? false,
-        directoryAvailable,
-        folderSuggestionPending,
-        onCloudBusy: busy => cloudPanel?.setBusy(busy),
-        onRenderConversations: renderConversations,
-        onPaintTaskPanel: paintTaskPanel,
-    });
+    const render = () => {
+        renderWorkbench({
+            state,
+            settings,
+            busy: isBusy(),
+            scanning: scanRunner.isScanning(),
+            scanAborted: scanRunner.isScanAborted(),
+            presentationSaving,
+            settingsSaving: settingsControls?.isSettingsSaving() ?? false,
+            themeSaving: settingsControls?.isThemeSaving() ?? false,
+            directoryAvailable,
+            folderSuggestionPending,
+            onCloudBusy: busy => cloudPanel?.setBusy(busy),
+            onRenderConversations: renderConversations,
+            onPaintTaskPanel: paintTaskPanel,
+        });
+        drivePanel.renderLanguage();
+    };
 
     const resetAccountEphemeralState = () => {
         lastRequest = null;
@@ -441,6 +445,13 @@ async function initWorkbench(): Promise<void> {
     });
     control('input', 'chatSearchInput').addEventListener('input', () => {
         state.search = control('input', 'chatSearchInput').value; renderConversations();
+    });
+    document.getElementById('btnClearSearch')?.addEventListener('click', () => {
+        const search = control('input', 'chatSearchInput');
+        state.search = '';
+        search.value = '';
+        renderConversations();
+        search.focus();
     });
     control('select', 'chatFilterSelect').addEventListener('change', () => {
         state.filter = control('select', 'chatFilterSelect').value; renderConversations();

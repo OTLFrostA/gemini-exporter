@@ -22,6 +22,7 @@ export function renderList(
     preparedKeys?: ReadonlySet<string>,
     failedKeys?: ReadonlySet<string>,
     guidedSelection = false,
+    skipPreview?: { readonly skipExported: boolean; readonly format: string },
 ): void {
     const list = elementById('list');
     let root = roots.get(list);
@@ -60,7 +61,7 @@ export function renderList(
                 state.selected.delete(id);
             }
             state.selectionAnchor = id;
-            renderList(state, disabled, preparedKeys, failedKeys, guidedSelection);
+            renderList(state, disabled, preparedKeys, failedKeys, guidedSelection, skipPreview);
             // The legacy tour observes selection intent, including row-title clicks.
             list.dispatchEvent(new Event('conversation-selection-change'));
         },
@@ -75,13 +76,19 @@ export function renderList(
             if (searchInput) searchInput.value = '';
             const filterSelect = document.getElementById('chatFilterSelect') as HTMLSelectElement | null;
             if (filterSelect) filterSelect.value = 'all';
-            renderList(state, disabled, preparedKeys, failedKeys, guidedSelection);
+            renderList(state, disabled, preparedKeys, failedKeys, guidedSelection, skipPreview);
         },
     })));
-    updateStat(state, disabled);
+    updateStat(state, disabled, skipPreview);
 }
 
-function updateStat(state: ConversationViewState, disabled: boolean): void {
+function updateStat(
+    state: ConversationViewState,
+    disabled: boolean,
+    skipPreview?: { readonly skipExported: boolean; readonly format: string },
+): void {
+    const clearSearchBtn = document.getElementById('btnClearSearch') as HTMLButtonElement | null;
+    if (clearSearchBtn) clearSearchBtn.hidden = !state.search;
     const visible = state.visible();
     const selectedVisible = visible.filter(row => state.selected.has(row.key.conversationId)).length;
     const selectAll = requiredElement('input', 'btnSelectAll');
@@ -105,6 +112,27 @@ function updateStat(state: ConversationViewState, disabled: boolean): void {
     requiredElement('button', 'btnDeselectHidden').disabled = disabled;
     elementById('selectedStat').textContent =
         text(`${state.selected.size} of ${total} selected`, `已选 ${state.selected.size} / ${total}`);
+    const skipHint = document.getElementById('skipSelectedHint');
+    if (skipHint) {
+        let skippable = 0;
+        if (skipPreview?.skipExported && state.selected.size > 0) {
+            for (const index of state.indexes) {
+                const id = index.key.conversationId;
+                if (!state.selected.has(id)) continue;
+                const record = state.records[id];
+                if (record && record.status === 'ok' && record.format === skipPreview.format
+                    && record.chatTime !== undefined && index.updatedAt !== undefined
+                    && Number.isSafeInteger(record.chatTime) && Number.isSafeInteger(index.updatedAt)
+                    && record.chatTime >= index.updatedAt) {
+                    skippable++;
+                }
+            }
+        }
+        skipHint.hidden = skippable === 0;
+        skipHint.textContent = skippable > 0
+            ? text(`· ${skippable} unchanged will skip`, `· ${skippable} 条未更新将跳过`)
+            : '';
+    }
     const button = requiredElement('button', 'btnExport');
     button.disabled = !state.selected.size || disabled;
     button.textContent = state.selected.size > 0

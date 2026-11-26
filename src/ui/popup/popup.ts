@@ -15,7 +15,8 @@ import { hasPlatformAccess } from '../../runtime/capabilities/platformAuthorizat
 import { mountPlatformAuthorization } from '../shared/platformAuthorization.js';
 import { AUTHORIZATION_STEP } from '../guidance/tourSteps.js';
 import { conversationKey, type ConversationKey } from '../../l2/conversationKey.js';
-import { getIndex } from '../../application/conversations/catalogQueries.js';
+import { getIndex, listExportRecords } from '../../application/conversations/catalogQueries.js';
+import type { ExportRecord } from '../../application/export/types.js';
 import { updateSettings, type GlobalSettings } from '../../application/settings/index.js';
 import { ensureV2Ready } from '../../runtime/api/runtimeReady.js';
 import { installGlobalErrorDiagnosticCapture, reportRuntimeDiagnostic } from '../../runtime/api/runtimeDiagnostics.js';
@@ -68,10 +69,16 @@ async function initPopup(): Promise<void> {
     let settings: GlobalSettings;
     let key: ConversationKey | null = null;
     let indexTitle: string | null = null;
+    let indexUpdatedAt: number | undefined;
+    let currentExportRecord: ExportRecord | undefined;
     let identityLoaded = false;
     let busy = false, exporting = false, active = true;
+    let exportController: AbortController | null = null;
     const includeAssetsToggle = document.getElementById('popupIncludeAssets') as HTMLInputElement | null;
     const progressWrap = document.getElementById('popupProgWrap');
+    const cancelBtn = document.getElementById('btnPopupCancel') as HTMLButtonElement | null;
+    const deliveryHint = document.getElementById('popupDeliveryHint');
+    const chatBadge = document.getElementById('currentChatBadge');
     let themeToggle: ReturnType<typeof createOptimisticThemeToggle> | undefined;
     let permissionPlatform: SourcePlatform | null = null;
     let stopPermission: (() => void) | null = null;
@@ -102,15 +109,54 @@ async function initPopup(): Promise<void> {
                 includeAssetsToggle.checked = settings.includeAssets;
                 includeAssetsToggle.disabled = busy;
             }
+            if (deliveryHint) {
+                const nonBrowser = settings.exportDelivery === 'googleDrive' || settings.exportDelivery === 'folderWriter';
+                deliveryHint.hidden = !nonBrowser;
+                deliveryHint.textContent = nonBrowser
+                    ? text('Quick export saves via browser download', '快捷导出将通过浏览器下载')
+                    : '';
+            }
         } else if (includeAssetsToggle) {
             includeAssetsToggle.disabled = true;
         }
+        if (chatBadge) {
+            if (!identityLoaded || !key) {
+                chatBadge.hidden = true;
+            } else if (!currentExportRecord) {
+                chatBadge.hidden = false;
+                chatBadge.className = 'badge inactive';
+                chatBadge.textContent = text('Not exported', '未导出');
+            } else if (currentExportRecord.chatTime !== undefined && indexUpdatedAt !== undefined
+                && Number.isSafeInteger(currentExportRecord.chatTime) && Number.isSafeInteger(indexUpdatedAt)
+                && indexUpdatedAt > currentExportRecord.chatTime) {
+                chatBadge.hidden = false;
+                chatBadge.className = 'badge status-updated';
+                chatBadge.textContent = text('Updated', '有更新');
+            } else {
+                chatBadge.hidden = false;
+                chatBadge.className = 'badge status-exported';
+                chatBadge.textContent = text('Exported', '已导出');
+            }
+        }
         if (progressWrap) progressWrap.style.display = exporting ? 'block' : 'none';
+        if (cancelBtn) {
+            cancelBtn.hidden = !exporting;
+            cancelBtn.disabled = !exporting || (exportController?.signal.aborted ?? false);
+            cancelBtn.textContent = exportController?.signal.aborted
+                ? text('Cancelling…', '正在取消…')
+                : text('Cancel export', '取消导出');
+        }
         if (currentStatus) status.textContent = currentStatus();
     };
     const refresh = async () => { settings = await readSettings(); if (active) render(); };
     const stop = observeSettings(() => { void refresh().catch(e => { showError(e); }); });
-    window.addEventListener('pagehide', () => { active = false; stop(); stopPermission?.(); }, { once: true });
+    window.addEventListener('pagehide', () => { active = false; exportController?.abort(); stop(); stopPermission?.(); }, { once: true });
+    cancelBtn?.addEventListener('click', () => {
+        if (!exporting || !exportController || exportController.signal.aborted) return;
+        exportController.abort();
+        showStatus(() => text('Cancelling…', '正在取消…'));
+        render();
+    });
     el('btnOptions').addEventListener('click', () => {
         void readActiveSource().catch(() => null).then(source =>
             chrome.runtime.sendMessage({ action: 'openOptions', accountId: source?.accountId ?? null }))
@@ -144,7 +190,7 @@ async function initPopup(): Promise<void> {
         const format = settings.defaultFormat;
         // Local Font Access starts inside this gesture, before any await.
         const fonts = format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
-        busy = true; exporting = true; render();
+        busy = true; exporting = true; exportController = new AbortController(); render();
         const backoff = createBackoffNotice();
         const exportMessage = () => backoff.message() ?? text('Preparing export…', '正在准备导出…');
         showStatus(exportMessage);
@@ -154,6 +200,7 @@ async function initPopup(): Promise<void> {
             if (!current) { key = null; throw new OperationError('CURRENT_CONVERSATION_UNAVAILABLE', 'No trusted current conversation'); }
             const result = await runExport({ keys: [current], format, delivery: 'browserDownload',
                 includeAssets: latest.includeAssets, skipUnchanged: false }, {
+                signal: exportController.signal,
                 onDiagnostic: diagnostic => {
                     if (diagnostic.severity === 'error' || diagnostic.severity === 'warning') {
                         reportRuntimeDiagnostic('popup', {
@@ -167,6 +214,12 @@ async function initPopup(): Promise<void> {
                 },
             });
             if (!active) return;
+            if (result.exported > 0) {
+                try {
+                    const updatedRecords = await listExportRecords(current.accountId);
+                    currentExportRecord = updatedRecords[current.conversationId];
+                } catch { /* Keep previous badge on read error. */ }
+            }
             showStatus(() => result.rateLimitedUntil ? exportSummary(result) : result.aborted ? text('Cancelled', '已取消')
                 : result.failed.length || !result.exported ? text('Export failed. Try Options.', '导出失败，请在工作台重试。')
                 : result.partial ? exportSummary(result)
@@ -183,6 +236,7 @@ async function initPopup(): Promise<void> {
         })
             .finally(() => {
                 stopBackoffTicker();
+                exportController = null;
                 if (active) { busy = false; exporting = false; render(); }
             });
     });
@@ -192,10 +246,16 @@ async function initPopup(): Promise<void> {
         stopPermission = null;
         key = null;
         indexTitle = null;
+        indexUpdatedAt = undefined;
+        currentExportRecord = undefined;
         try {
             key = await readActiveKey(tab);
-            const index = key ? await getIndex(key) : null;
+            const [index, records] = key
+                ? await Promise.all([getIndex(key), listExportRecords(key.accountId).catch((): Record<string, ExportRecord> => ({}))])
+                : [null, {} as Record<string, ExportRecord>];
             indexTitle = index?.title || null;
+            indexUpdatedAt = index?.updatedAt;
+            currentExportRecord = key ? records[key.conversationId] : undefined;
             if (!key) showStatus(() => text('Open a supported conversation first', '请先打开受支持的对话'));
         } catch (error) {
             showError(error);

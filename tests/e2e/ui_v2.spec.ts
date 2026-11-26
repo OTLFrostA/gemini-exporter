@@ -93,7 +93,8 @@ test('UI v2: Popup five formats use one request, preserve enabledDisk, include a
         await expect(page.locator(hiddenOfProductScope)).toHaveCount(0);
     }
     await expect(page.locator('#btnCurrent')).toBeEnabled();
-    await expect(page.locator('button')).toHaveCount(8);
+    await expect(page.locator('button:visible')).toHaveCount(8);
+    await expect(page.locator('#btnPopupCancel')).toBeHidden();
     await expect(page.locator('#currentChatTitle')).toHaveText('<img src=x onerror=alert(1)>');
     for (const format of ['markdown','html','json','docx','pdf']) {
         await page.locator(`[data-format="${format}"]`).click();

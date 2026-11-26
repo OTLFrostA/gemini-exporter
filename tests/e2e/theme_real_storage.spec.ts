@@ -164,5 +164,6 @@ test('Light list status chips stay light for every export state', async ({ conte
     }
     expect(dark, 'light chips with dark backgrounds').toEqual([]);
     expect(await palette('unavailable')).toEqual(await palette('updated'));
-    expect(await palette('failed')).toEqual(await palette('partial'));
+    expect(await palette('partial')).toEqual(await palette('updated'));
+    expect(await palette('failed')).not.toEqual(await palette('partial'));
 });
