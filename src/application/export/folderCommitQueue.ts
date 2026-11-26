@@ -3,6 +3,7 @@ import { putExportRecord } from '../../l3a/storageService.js';
 import { putExportRecords } from '../../l3a/batchStorageService.js';
 import type { ExportArtifact } from '../../l4/artifacts.js';
 import { packageExportFiles } from '../../l4/packaging/index.js';
+import { assertExportPath } from '../../l4/shared/exportPath.js';
 import { startBrowserDownload, writeToFolder } from '../../l4/delivery/index.js';
 import { OperationError, operationError } from '../../shared/errors/operationError.js';
 import { resourceIssueKind } from '../../shared/resources/resourceResult.js';
@@ -35,13 +36,23 @@ export function createDeliveryCoordinator(hooks: DeliveryCoordinatorHooks) {
         catch (error) { console.warn('[Gemini Exporter] Body delivery listener failed', error); }
     };
 
-    const writeFolder = async (files: readonly ExportArtifact[], directory: FileSystemDirectoryHandle): Promise<void> => {
+    const uploadToDrive = async (files: readonly ExportArtifact[]): Promise<void> => {
+        if (!hooks.saveToDrive) throw new Error('Google Drive delivery unavailable');
+        for (const file of files) assertExportPath(file.fileName);
+        for (const { fileName, content, mimeType } of files) {
+            signal.throwIfAborted();
+            const data = new Blob([content instanceof Uint8Array ? new Uint8Array(content) : content], { type: mimeType });
+            await hooks.saveToDrive(fileName, data);
+        }
+    };
+
+    const writeFolder = async (files: readonly ExportArtifact[], directory: FileSystemDirectoryHandle | null): Promise<void> => {
         while (folderWrites.size >= MAX_FOLDER_WRITES) {
             signal.throwIfAborted();
             await Promise.race(folderWrites);
         }
         signal.throwIfAborted();
-        const writing = writeToFolder(files, directory);
+        const writing = directory ? writeToFolder(files, directory) : uploadToDrive(files);
         // Capacity waiters must not inherit another conversation's write failure.
         const settled = writing.catch(() => {});
         folderWrites.add(settled);
@@ -104,13 +115,6 @@ export function createDeliveryCoordinator(hooks: DeliveryCoordinatorHooks) {
         try { files = await packageExportFiles(groups.map(group => group.files), request.delivery); }
         catch (error) { throw operationError(error, 'PACKAGING_FAILED'); }
         if (!savingCancelled) signal.throwIfAborted();
-        if (request.delivery === 'googleDrive') {
-            if (!hooks.saveToDrive || files.length !== 1) throw new Error('Google Drive delivery unavailable');
-            const { fileName, content, mimeType } = files[0];
-            const data = new Blob([content instanceof Uint8Array ? new Uint8Array(content) : content], { type: mimeType });
-            await hooks.saveToDrive(fileName, data);
-            return;
-        }
         if (request.delivery !== 'browserDownload') throw new OperationError('DIRECTORY_UNAVAILABLE', 'Export directory unavailable');
         if (files.length !== 1) throw new Error('Browser delivery requires one final file');
         await startBrowserDownload(files[0]);

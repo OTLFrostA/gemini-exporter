@@ -58,7 +58,12 @@ export function mountDriveDeliveryPanel() {
             link.hidden = true;
             return async (fileName: string, data: Blob) => {
                 try {
-                    link.href = await connected.upload(fileName, data, signal);
+                    const href = await connected.upload(fileName, data, signal);
+                    if (!fileName.includes('/')) {
+                        link.href = href;
+                        link.textContent = text('Open in Drive', '在 Drive 中打开') + ' · ' + driveFolderName + ' / ' + fileName;
+                        link.hidden = false;
+                    }
                 } catch (error) {
                     if (error instanceof DriveAuthorizationExpired) {
                         session = undefined;
@@ -68,8 +73,6 @@ export function mountDriveDeliveryPanel() {
                     }
                     throw error;
                 }
-                link.textContent = text('Open in Drive', '在 Drive 中打开') + ' · ' + driveFolderName + ' / ' + fileName;
-                link.hidden = false;
             };
         },
     };

@@ -47,55 +47,77 @@ export async function connectDriveDelivery(signal: AbortSignal, mode: 'switch' |
     const email = account.user.emailAddress;
     if (mode !== 'switch' && preferred && preferred !== email) throw new Error('Google returned a different Drive account');
     if (mode === 'switch') await saveDriveExportAccount(email);
-    async function findOrCreateFolder(uploadSignal: AbortSignal): Promise<string> {
+    const lockPrefix = 'drive-export:' + email.toLowerCase() + ':';
+    const quote = (value: string) => "'" + value.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+    async function findChild(parent: string, name: string, folder: boolean, uploadSignal: AbortSignal): Promise<string | undefined> {
+        const typeFilter = folder ? 'mimeType = ' + quote(folderType)
+            : "not mimeType contains 'application/vnd.google-apps.'";
         const query = new URLSearchParams({
-            q: `'root' in parents and trashed = false and name = '${driveFolderName}' and mimeType = '${folderType}'`,
-            spaces: 'drive', fields: 'nextPageToken,files(id,capabilities(canAddChildren))', orderBy: 'createdTime',
+            q: `${quote(parent)} in parents and trashed = false and name = ${quote(name)} and ${typeFilter}`,
+            spaces: 'drive', fields: 'nextPageToken,files(id,capabilities(canAddChildren,canModifyContent))', orderBy: 'createdTime',
         });
         do {
             const page: unknown = await (await request(api + '/drive/v3/files?' + query, { signal: uploadSignal })).json();
             if (!isRecord(page) || !Array.isArray(page.files)) throw new Error('Invalid Drive directory listing');
-            for (const file of page.files) {
-                if (isRecord(file) && isFileId(file.id) && isRecord(file.capabilities) && file.capabilities.canAddChildren === true)
-                    return file.id;
+            for (const item of page.files) {
+                if (isRecord(item) && isFileId(item.id) && isRecord(item.capabilities)
+                    && item.capabilities[folder ? 'canAddChildren' : 'canModifyContent'] === true) return item.id;
             }
-            if (!page.nextPageToken) break;
-            if (typeof page.nextPageToken !== 'string') throw new Error('Invalid Drive directory listing');
+            if (page.nextPageToken === undefined) return;
+            if (typeof page.nextPageToken !== 'string' || !page.nextPageToken) throw new Error('Invalid Drive directory listing');
             query.set('pageToken', page.nextPageToken);
         } while (true);
-        const created: unknown = await (await request(api + '/drive/v3/files?fields=id', {
-            method: 'POST', signal: uploadSignal, headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: driveFolderName, mimeType: folderType, parents: ['root'] }),
-        })).json();
-        if (!isRecord(created) || !isFileId(created.id)) throw new Error('Google Drive did not confirm the export folder');
-        return created.id;
     }
+
+    function findOrCreateFolder(parent: string, name: string, uploadSignal: AbortSignal): Promise<string> {
+        return navigator.locks.request(lockPrefix + JSON.stringify([parent, name]), { signal: uploadSignal }, async () => {
+            const existing = await findChild(parent, name, true, uploadSignal);
+            if (existing) return existing;
+            const created: unknown = await (await request(api + '/drive/v3/files?fields=id', {
+                method: 'POST', signal: uploadSignal, headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, mimeType: folderType, parents: [parent] }),
+            })).json();
+            if (!isRecord(created) || !isFileId(created.id)) throw new Error('Google Drive did not confirm the export folder');
+            return created.id;
+        });
+    }
+
+    async function uploadFile(parent: string, name: string, data: Blob, uploadSignal: AbortSignal) {
+        const existing = await findChild(parent, name, false, uploadSignal);
+        const path = '/upload/drive/v3/files' + (existing ? '/' + existing : '');
+        const response = await request(api + path + '?uploadType=resumable&supportsAllDrives=true&fields=id', {
+            method: existing ? 'PATCH' : 'POST', signal: uploadSignal,
+            headers: { 'Content-Type': 'application/json', 'X-Upload-Content-Type': data.type },
+            body: JSON.stringify({ name, mimeType: data.type.split(';')[0], ...(existing ? {} : { parents: [parent] }) }),
+        });
+        const location = response.headers.get('Location');
+        if (!location) throw new Error('Google Drive did not return an upload session');
+        const session = new URL(location);
+        if (session.origin !== api || session.pathname !== path || session.username || session.password)
+            throw new Error('Unexpected Google Drive upload session');
+        const saved = await request(session.href, { method: 'PUT', body: data, signal: uploadSignal });
+        const result: unknown = await saved.json();
+        if (!isRecord(result) || !isFileId(result.id) || (existing && result.id !== existing)) throw new Error('Google Drive did not confirm the file ID');
+        const fields = 'id,name,size,mimeType,parents,trashed';
+        const file: unknown = await (await request(api + '/drive/v3/files/' + result.id + '?supportsAllDrives=true&fields=' + fields,
+            { signal: uploadSignal })).json();
+        if (!isRecord(file) || file.id !== result.id || file.name !== name || file.size !== String(data.size)
+            || file.mimeType !== data.type.split(';')[0] || file.trashed !== false || !Array.isArray(file.parents)
+            || file.parents.length !== 1 || file.parents[0] !== parent)
+            throw new Error('Google Drive could not verify the uploaded file and folder');
+        return 'https://drive.google.com/open?id=' + result.id + '&authuser=' + encodeURIComponent(email);
+    }
+
     return {
         email,
-        async upload(name: string, data: Blob, uploadSignal: AbortSignal) {
-            if (!data.size) throw new Error('Empty export file');
-            const parent = await navigator.locks.request('drive-export-folder:' + email.toLowerCase(),
-                { signal: uploadSignal }, () => findOrCreateFolder(uploadSignal));
-            const response = await request(api + '/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true&fields=id', {
-                method: 'POST', signal: uploadSignal, headers: { 'Content-Type': 'application/json', 'X-Upload-Content-Type': data.type },
-                body: JSON.stringify({ name, mimeType: data.type.split(';')[0], parents: [parent] }),
-            });
-            const location = response.headers.get('Location');
-            if (!location) throw new Error('Google Drive did not return an upload session');
-            const session = new URL(location);
-            if (session.origin !== api || session.pathname !== '/upload/drive/v3/files' || session.username || session.password)
-                throw new Error('Unexpected Google Drive upload session');
-            const saved = await request(session.href, { method: 'PUT', body: data, signal: uploadSignal });
-            const result: unknown = await saved.json();
-            if (!isRecord(result) || !isFileId(result.id)) throw new Error('Google Drive did not confirm the file ID');
-            const fields = 'id,name,size,mimeType,parents,trashed';
-            const file: unknown = await (await request(api + '/drive/v3/files/' + result.id + '?supportsAllDrives=true&fields=' + fields,
-                { signal: uploadSignal })).json();
-            if (!isRecord(file) || file.id !== result.id || file.name !== name || file.size !== String(data.size)
-                || file.mimeType !== data.type.split(';')[0] || file.trashed !== false || !Array.isArray(file.parents)
-                || file.parents.length !== 1 || file.parents[0] !== parent)
-                throw new Error('Google Drive could not verify the uploaded file and folder');
-            return 'https://drive.google.com/open?id=' + result.id + '&authuser=' + encodeURIComponent(email);
+        async upload(relativePath: string, data: Blob, uploadSignal: AbortSignal) {
+            const parts = relativePath.split('/');
+            const name = parts.pop();
+            if (!name) throw new Error('Missing Drive file name');
+            let parent = await findOrCreateFolder('root', driveFolderName, uploadSignal);
+            for (const part of parts) parent = await findOrCreateFolder(parent, part, uploadSignal);
+            return navigator.locks.request(lockPrefix + JSON.stringify([parent, name]), { signal: uploadSignal },
+                () => uploadFile(parent, name, data, uploadSignal));
         },
     };
 }

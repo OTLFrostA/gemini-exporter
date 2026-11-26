@@ -151,10 +151,12 @@ export async function executeExportWithSession(
         locale = language ?? (navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en');
         const directory = request.delivery === 'folderWriter' ? await getDirectoryHandle() : null;
         if (request.delivery === 'folderWriter' && !directory) throw new OperationError('DIRECTORY_UNAVAILABLE', 'Export directory unavailable');
+        const direct = !!directory || request.delivery === 'googleDrive';
+        const writeFiles = (files: ExportGroup['files']) => delivery.writeFolder(files, directory);
         const linked = request.format === 'markdown' || request.format === 'html' || request.format === 'json';
-        const folderPlanner = !linked && directory ? createExportPathPlanner(request.format) : undefined;
+        const folderPlanner = !linked && direct ? createExportPathPlanner(request.format) : undefined;
         const resourceScope = crypto.randomUUID();
-        const linkedPlanner = linked ? createExportPathPlanner(request.format, directory ? undefined : resourceScope) : undefined;
+        const linkedPlanner = linked ? createExportPathPlanner(request.format, direct ? undefined : resourceScope) : undefined;
         const bodies: { group: ExportGroup; hasAttachments: boolean }[] = [];
         const settledBodies = new Map<ExportGroup, ExportGroup>();
 
@@ -229,7 +231,7 @@ export async function executeExportWithSession(
 
         const pendingSlots: (PendingExport | undefined)[] = [];
         for (const [index, key] of request.keys.entries()) {
-            while (directory && queued.size >= MAX_PENDING_FOLDER_CONVERSATIONS) {
+            while (direct && queued.size >= MAX_PENDING_FOLDER_CONVERSATIONS) {
                 signal.throwIfAborted();
                 await Promise.race(queued.values());
             }
@@ -313,21 +315,21 @@ export async function executeExportWithSession(
                         options, providerFor, assetAcquireSemaphore, downloadedResources, diagnose,
                     });
 
-                const plan = linkedPlanner?.(conversation, new Map(), source.fileIds, source.folderBaseName, source.requiredIds, directory ? account : undefined);
+                const plan = linkedPlanner?.(conversation, new Map(), source.fileIds, source.folderBaseName, source.requiredIds, direct ? account : undefined);
                 const body = plan ? await renderGroup({ ...source, prepared: new Map(), reused: new Set() }, { ...plan, externalResourceIds: new Set() }) : undefined;
                 let bodyWritten: Promise<void> | undefined;
                 if (body) {
-                    if (directory) {
-                        bodyWritten = delivery.writeFolder(body.files, directory).then(() => delivery.bodyDelivered(key));
+                    if (direct) {
+                        bodyWritten = writeFiles(body.files).then(() => delivery.bodyDelivered(key));
                         void bodyWritten.catch(() => {});
                     } else {
                         bodies.push({ group: body, hasAttachments: source.requiredIds.size > 0 });
                         report({ key, status: 'prepared' });
                     }
-                    if (!source.requiredIds.size && !directory) continue;
+                    if (!source.requiredIds.size && !direct) continue;
                 }
 
-                if (body && !source.requiredIds.size && directory) {
+                if (body && !source.requiredIds.size && direct) {
                     const taskPromise: Promise<void> = Promise.resolve(bodyWritten).then(async () => {
                         await delivery.finalize([body]);
                     }).catch(error => {
@@ -348,7 +350,7 @@ export async function executeExportWithSession(
                     continue;
                 }
 
-                const pendingSlot = !body && !(folderPlanner && directory) ? pendingSlots.push(undefined) - 1 : -1;
+                const pendingSlot = !body && !folderPlanner ? pendingSlots.push(undefined) - 1 : -1;
                 type AcquiredOutcome =
                     | { readonly ok: true; readonly item: PendingExport; readonly finalPlan: ExportPathPlan | undefined; readonly sourceChanged: boolean }
                     | { readonly ok: false; readonly error: unknown };
@@ -380,7 +382,7 @@ export async function executeExportWithSession(
                             const initial = item.prepared;
                             if (body && plan && linkedPlanner && JSON.stringify(source.conversation) !== JSON.stringify(refreshedConversation)) {
                                 const revised = linkedPlanner(refreshedConversation, new Map(), refreshedSource.fileIds,
-                                    refreshedSource.folderBaseName, refreshedSource.requiredIds, directory ? account : undefined);
+                                    refreshedSource.folderBaseName, refreshedSource.requiredIds, direct ? account : undefined);
                                 finalPlan = {
                                     ...revised,
                                     fileName: plan.fileName,
@@ -421,7 +423,7 @@ export async function executeExportWithSession(
                             };
                             const files = [...(correction?.files ?? []), ...buildResourceFiles(availablePlan, prepared)];
                             if (nextRecord.attachmentIssues?.length) {
-                                const reportScope = directory
+                                const reportScope = direct
                                     ? `${sanitizeFileName(account.providerId.replace(/%/g, '_'))}/${sanitizeFileName(account.id.replace(/%/g, '_'))}`
                                     : resourceScope;
                                 files.push({
@@ -435,9 +437,9 @@ export async function executeExportWithSession(
                                 });
                             }
                             const group: ExportGroup = { key, record: nextRecord, files };
-                            if (directory) return group;
+                            if (direct) return group;
                             settledBodies.set(body, group);
-                        } else if (folderPlanner && directory) {
+                        } else if (folderPlanner) {
                             return renderGroup(item, folderPlanner(item.conversation, prepared, fileIds, item.folderBaseName));
                         } else if (pendingSlot >= 0) {
                             pendingSlots[pendingSlot] = item;
@@ -445,9 +447,9 @@ export async function executeExportWithSession(
                     });
                 const taskPromise: Promise<void> = preparedGroup.then(async group => {
                     await bodyWritten;
-                    if (group && directory) {
+                    if (group && direct) {
                         signal.throwIfAborted();
-                        if (group.files.length) await delivery.writeFolder(group.files, directory);
+                        if (group.files.length) await writeFiles(group.files);
                         await delivery.finalize([group]);
                     }
                 }).catch(error => {
@@ -477,7 +479,7 @@ export async function executeExportWithSession(
         await drainDownstream();
         signal.throwIfAborted();
         if (linked) {
-            if (!directory) await deliverBrowserBodies();
+            if (!direct) await deliverBrowserBodies();
             result.aborted = signal.aborted;
             return result;
         }

@@ -130,7 +130,7 @@ export function buildExportRecord(
         format: request.format,
         includeAssets: request.includeAssets,
         status: partial ? 'partial' : 'ok',
-        ...(request.delivery === 'folderWriter'
+        ...(request.delivery !== 'browserDownload'
             ? { folderBaseName: plan.fileName.replace(/\.[^.]+$/, '') }
             : item.folderBaseName ? { folderBaseName: item.folderBaseName } : {}),
         ...(conversation.detail.quality.sourceTurn ? { sourceTurn: conversation.detail.quality.sourceTurn } : {}),

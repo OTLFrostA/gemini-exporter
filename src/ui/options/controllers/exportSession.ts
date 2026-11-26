@@ -53,7 +53,7 @@ export async function runExportSession(run: ExportRunDiagnostic, options: Export
         const total = request.keys.length;
         // Browser batches reserve their last 10% for the final ZIP handoff.
         const percent = total ? Math.round(processed.size / total *
-            (request.delivery === 'folderWriter' ? 100 : 90)) : 100;
+            (request.delivery === 'browserDownload' ? 90 : 100)) : 100;
         options.onProgress(message, percent);
     };
     options.onStart(message);

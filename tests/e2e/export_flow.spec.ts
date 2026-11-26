@@ -267,6 +267,17 @@ test('manual Drive export authorizes on selection and verifies the file in the r
     const page = await openOptions(context, extensionId);
     await expect(page.locator('#driveDeliveryCard')).toBeHidden();
     await seedConversations(page, [{ id: 'chosen' }, { id: 'other' }]);
+    await page.evaluate(async id => {
+        const api = Reflect.get(globalThis, 'uiFixture');
+        await api.ingestDetail(id, 'other', {
+            savedAt: 100, quality: { status: 'complete' },
+            assets: [{ id: 'file', kind: 'file', name: 'report.md', document: { contentMarkdown: 'Drive attachment fixture' } }],
+            messages: [
+                { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Question other' }] }] },
+                { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Answer other' }] }, { type: 'file', assetId: 'file' }] },
+            ],
+        }, { title: 'other', titleSource: 'provider', updatedAt: 100 });
+    }, accountId);
     await page.addInitScript(() => {
         const manifest = chrome.runtime.getManifest();
         const scopes = ['https://www.googleapis.com/auth/drive.file'];
@@ -295,57 +306,81 @@ test('manual Drive export authorizes on selection and verifies the file in the r
         return route.fulfill({ json: '123-web.apps.googleusercontent.com' });
     });
     await page.reload();
-    const uploads: Buffer[] = [];
-    let uploadSessions = 0;
+    type DriveFile = { id: string; name: string; parent: string; mimeType: string; size: number };
+    const uploads: { file: DriveFile; body: Buffer }[] = [];
+    const files = new Map<string, DriveFile>();
+    const sessions = new Map<string, DriveFile>();
+    const folders = new Map<string, string>([['second-root/Gemini Exporter', 'second-folder']]);
+    let createdRootFolders = 0;
+    let patchedUploads = 0;
     let metadataReads = 0;
-    const destination = 'export-folder';
-    const folders = new Set<string>();
-    let createdFolders = 0;
     let expireNext = false;
-    let filename = '';
-    let storedSize = 0;
-    let mimeType = '';
     let returnEmpty = true;
     page.on('dialog', async dialog => { await dialog.dismiss(); throw new Error('Unexpected confirmation'); });
     await page.route('https://www.googleapis.com/**', async route => {
         const req = route.request();
         const url = new URL(req.url());
+        const method = req.method();
         const auth = req.headers().authorization;
         expect(['Bearer fixture', 'Bearer second']).toContain(auth);
-        const targetId = auth === 'Bearer second' ? 'second-folder' : destination;
+        const second = auth === 'Bearer second';
+        const accountRoot = second ? 'second-root' : 'first-root';
         if (expireNext) { expireNext = false; return route.fulfill({ status: 401 }); }
-        if (url.pathname.endsWith('/about')) return route.fulfill({ json: { user: { emailAddress: auth === 'Bearer second' ? 'second@example.test' : 'drive@example.test' } } });
-        if (url.pathname === '/drive/v3/files') {
-            if (req.method() === 'GET') {
-                expect(url.searchParams.get('q')).toContain("'root' in parents and trashed = false and name = 'Gemini Exporter'");
-                return route.fulfill({ json: { files: folders.has(auth) ? [{ id: targetId, capabilities: { canAddChildren: true } }] : [] } });
+        if (url.pathname.endsWith('/about')) return route.fulfill({ json: { user: { emailAddress: second ? 'second@example.test' : 'drive@example.test' } } });
+        if (url.pathname === '/drive/v3/files' && method === 'GET') {
+            const query = url.searchParams.get('q') ?? '';
+            const match = /^'([^']+)' in parents and trashed = false and name = '([^']+)'/.exec(query);
+            if (!match) throw new Error('Unexpected Drive query');
+            const [, parent, name] = match;
+            if (query.includes("mimeType = 'application/vnd.google-apps.folder'")) {
+                const id = folders.get((parent === 'root' ? accountRoot : parent) + '/' + name);
+                return route.fulfill({ json: { files: id ? [{ id, capabilities: { canAddChildren: true } }] : [] } });
             }
-            expect(req.postDataJSON()).toEqual({ name: 'Gemini Exporter', parents: ['root'], mimeType: 'application/vnd.google-apps.folder' });
-            folders.add(auth);
-            createdFolders++;
-            return route.fulfill({ json: { id: targetId } });
+            const existing = [...files.values()].find(file => file.parent === parent && file.name === name);
+            return route.fulfill({ json: { files: existing ? [{ id: existing.id, capabilities: { canModifyContent: true } }] : [] } });
         }
-        if (url.pathname === '/drive/v3/files/confirmed-file') {
+        if (url.pathname === '/drive/v3/files' && method === 'POST') {
+            const { name, parents, mimeType } = req.postDataJSON();
+            expect(mimeType).toBe('application/vnd.google-apps.folder');
+            if (parents[0] === 'root') {
+                expect(name).toBe('Gemini Exporter');
+                createdRootFolders++;
+            }
+            const id = 'folder-' + folders.size;
+            folders.set((parents[0] === 'root' ? accountRoot : parents[0]) + '/' + name, id);
+            return route.fulfill({ json: { id } });
+        }
+        if (url.pathname.startsWith('/drive/v3/files/') && method === 'GET') {
+            const file = files.get(url.pathname.split('/').at(-1) ?? '');
+            if (!file) throw new Error('Unknown uploaded file');
             metadataReads++;
-            return route.fulfill({ json: { id: 'confirmed-file', name: filename, mimeType,
-                size: String(returnEmpty ? 0 : storedSize), parents: [targetId], trashed: false } });
+            return route.fulfill({ json: { ...file, size: String(returnEmpty ? 0 : file.size), parents: [file.parent], trashed: false } });
         }
-        if (req.method() === 'POST') {
-            uploadSessions++;
-            const metadata = req.postDataJSON();
-            expect(metadata.parents).toEqual([targetId]);
-            filename = metadata.name;
-            mimeType = metadata.mimeType;
+        if (method === 'POST' || method === 'PATCH') {
+            const { name, parents, mimeType } = req.postDataJSON();
+            expect(name).not.toMatch(/\.zip$|\//);
+            const previous = method === 'PATCH' ? files.get(url.pathname.split('/').at(-1) ?? '') : undefined;
+            if (method === 'PATCH') {
+                expect(previous?.name).toBe(name);
+                patchedUploads++;
+            }
+            const parent = previous?.parent ?? parents[0];
+            const id = previous?.id ?? 'file-' + sessions.size;
+            const uploadId = String(sessions.size);
+            sessions.set(uploadId, { id, name, parent, mimeType, size: 0 });
             return route.fulfill({ status: 200, headers: {
-                location: 'https://www.googleapis.com/upload/drive/v3/files?upload_id=test',
+                location: 'https://www.googleapis.com' + url.pathname + '?upload_id=' + uploadId,
                 'access-control-expose-headers': 'Location',
             } });
         }
-        expect(req.method()).toBe('PUT');
-        const body = req.postDataBuffer()!;
-        storedSize = body.length;
-        if (!returnEmpty) uploads.push(body);
-        return route.fulfill({ json: { id: 'confirmed-file' } });
+        expect(method).toBe('PUT');
+        const file = sessions.get(url.searchParams.get('upload_id') ?? '');
+        const body = req.postDataBuffer();
+        if (!file || !body) throw new Error('Missing upload session or body');
+        file.size = body.length;
+        files.set(file.id, file);
+        if (!returnEmpty) uploads.push({ file, body });
+        return route.fulfill({ json: { id: file.id } });
     });
     await page.locator('#driveDeliveryRadio').check();
     await expect(page.locator('#driveConnectionStatus')).toHaveText('Export account: drive@example.test');
@@ -356,32 +391,41 @@ test('manual Drive export authorizes on selection and verifies the file in the r
     expect(await page.evaluate(() => sessionStorage.getItem('driveAuthMode'))).toBe('false');
     await expect(page.locator('#skipExported')).toBeChecked();
     await expect(page.locator('#skipExported')).toBeEnabled();
-    expect(createdFolders).toBe(0);
+    expect(createdRootFolders).toBe(0);
     await page.locator('#list .item').filter({ hasText: 'chosen' }).locator('input').check();
     await page.locator('#btnExport').click();
     await expect(page.locator('#exportFailureCard')).toBeVisible();
     expect(metadataReads).toBe(1);
     await expect(page.locator('#openDriveExport')).toBeHidden();
-    expect(uploadSessions).toBe(1);
+    expect(sessions.size).toBe(1);
     returnEmpty = false;
     await page.locator('#btnExport').click();
-    await expect(page.locator('#openDriveExport')).toHaveAttribute('href', 'https://drive.google.com/open?id=confirmed-file&authuser=drive%40example.test');
+    await expect(page.locator('#openDriveExport')).toHaveAttribute('href', 'https://drive.google.com/open?id=file-0&authuser=drive%40example.test');
     await expect(page.locator('#openDriveExport')).toContainText('Gemini Exporter / ');
     expect(uploads).toHaveLength(1);
-    expect(uploads[0].toString()).toContain('Answer chosen');
-    expect(uploads[0].toString()).not.toContain('Answer other');
+    expect(uploads[0].body.toString()).toContain('Answer chosen');
+    expect(uploads[0].body.toString()).not.toContain('Answer other');
     await expect(page.locator('#status')).toContainText('Uploaded to Drive: 1');
     await page.locator('#btnExport').click();
     await expect(page.locator('#status')).toContainText('Skipped: 1');
     expect(uploads).toHaveLength(1);
     await page.locator('#skipExported').uncheck();
+    await page.locator('#includeAssets').check();
     await page.locator('#btnSelectAll').check();
     await page.locator('#btnExport').click();
     await expect(page.locator('#status')).toContainText('Uploaded to Drive: 2');
-    expect(createdFolders).toBe(1);
-    expect(uploads).toHaveLength(2);
-    const zip = await require(path.resolve(__dirname, '../../lib/jszip.min.js')).loadAsync(uploads[1]);
-    expect(Object.keys(zip.files).filter(name => name.endsWith('.md'))).toHaveLength(2);
+    expect(createdRootFolders).toBe(1);
+    expect(uploads).toHaveLength(4);
+    const root = folders.get('first-root/Gemini Exporter');
+    const documents = uploads.slice(1).filter(({ file }) => file.parent === root);
+    expect(documents).toHaveLength(2);
+    expect(documents.every(({ file }) => file.name.endsWith('.md'))).toBe(true);
+    expect(documents.find(({ body }) => body.toString().includes('Answer chosen'))?.file.id).toBe('file-0');
+    const other = documents.find(({ body }) => body.toString().includes('Answer other'));
+    expect(other?.body.toString()).toContain(`files/gemini/${accountId}/other/report.md`);
+    const attachments = folders.get(folders.get(folders.get(folders.get(root + '/files') + '/gemini') + '/' + accountId) + '/other');
+    expect(uploads.find(({ file }) => file.parent === attachments)?.body.toString()).toBe('Drive attachment fixture');
+    expect(patchedUploads).toBe(2);
     await expect(page.locator('#driveConnect')).toBeHidden();
     expect(accountConfigReads).toBe(2);
     await page.evaluate(() => sessionStorage.setItem('cancelSwitch', '1'));
@@ -395,11 +439,12 @@ test('manual Drive export authorizes on selection and verifies the file in the r
     await page.reload();
     await expect(page.locator('#driveConnectionStatus')).toHaveText('Export account: second@example.test');
     expect(await page.evaluate(() => sessionStorage.getItem('driveWebPrompt'))).toBe('none');
-    folders.add('Bearer second');
     await page.locator('#btnSelectAll').check();
     await page.locator('#btnExport').click();
     await expect(page.locator('#openDriveExport')).toHaveAttribute('href', /authuser=second%40example.test$/);
-    expect(createdFolders).toBe(1);
+    await expect(page.locator('#status')).toContainText('Uploaded to Drive: 2');
+    expect(createdRootFolders).toBe(1);
+    expect(uploads.slice(4).filter(({ file }) => file.parent === 'second-folder')).toHaveLength(2);
     expireNext = true;
     await page.locator('#btnExport').click();
     await expect(page.locator('#driveConnect')).toBeVisible();
