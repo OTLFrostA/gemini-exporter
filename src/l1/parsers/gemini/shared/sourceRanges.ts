@@ -19,25 +19,35 @@ export function validGeminiTextRange(text: string, start: number, end: number): 
 
 /** Source quotes use the selected response's Markdown syntax. Restrict recovery
  * to one inline paragraph; never normalize code whitespace or punctuation. */
-function quoteText(markdown: string): string | null {
+function quoteTextCandidates(markdown: string): string[] {
     const root = parseMarkdownAst(markdown);
     const paragraph = root.children[0];
     if (root.children.length !== 1 || paragraph?.type !== 'paragraph'
-        || paragraph.position?.start.offset !== 0 || paragraph.position.end.offset !== markdown.length) return null;
-    const inlines = (nodes: readonly PhrasingContent[]): string | null => {
-        const parts: string[] = [];
+        || paragraph.position?.start.offset !== 0 || paragraph.position.end.offset !== markdown.length) return [];
+    const plain: string[] = [], gemini: string[] = [];
+    const inlines = (nodes: readonly PhrasingContent[]): boolean => {
         for (const node of nodes) {
-            if (node.type === 'text' || node.type === 'inlineCode') parts.push(node.value);
-            else if (node.type === 'strong' || node.type === 'emphasis' || node.type === 'delete' || node.type === 'link') {
-                const children = inlines(node.children);
-                if (children === null) return null;
-                parts.push(children);
-            } else if (node.type === 'break') parts.push('\n');
-            else return null;
+            if (node.type === 'text') {
+                plain.push(node.value);
+                // Gemini uses bold with a closing fullwidth parenthesis between Han
+                // characters. CommonMark leaves those delimiters in the text node.
+                const raw = markdown.slice(node.position?.start.offset, node.position?.end.offset);
+                gemini.push(raw === node.value
+                    ? node.value.replace(/(\p{Script=Han})\*\*([^*\r\n]+）)\*\*(?=\p{Script=Han})/gu, '$1$2')
+                    : node.value);
+            } else if (node.type === 'inlineCode' || node.type === 'break') {
+                const text = node.type === 'break' ? '\n' : node.value;
+                plain.push(text);
+                gemini.push(text);
+            } else if (node.type === 'strong' || node.type === 'emphasis' || node.type === 'delete' || node.type === 'link') {
+                if (!inlines(node.children)) return false;
+            } else return false;
         }
-        return parts.join('');
+        return true;
     };
-    return inlines(paragraph.children);
+    if (!inlines(paragraph.children)) return [];
+    const text = plain.join(''), geminiText = gemini.join('');
+    return geminiText === text ? [text] : [text, geminiText];
 }
 
 /** Replace only invalid coordinates. A quote must either have one exact match
@@ -84,19 +94,21 @@ export function recoverGeminiSourceRanges(
                 }
             }
         }
-        const quote = quoteText(verified.text);
-        if (!quote) continue;
-        const matches: Array<{ node: GeminiTextNode; start: number; end: number }> = [];
-        for (const node of nodes) {
-            let start = node.text.indexOf(quote);
-            while (start >= 0 && matches.length < 2) {
-                const end = start + quote.length;
-                if (validGeminiTextRange(node.text, start, end)) matches.push({ node, start, end });
-                start = node.text.indexOf(quote, start + 1);
+        for (const quote of quoteTextCandidates(verified.text)) {
+            if (!quote) continue;
+            const matches: Array<{ node: GeminiTextNode; start: number; end: number }> = [];
+            for (const node of nodes) {
+                let start = node.text.indexOf(quote);
+                while (start >= 0 && matches.length < 2) {
+                    const end = start + quote.length;
+                    if (validGeminiTextRange(node.text, start, end)) matches.push({ node, start, end });
+                    start = node.text.indexOf(quote, start + 1);
+                }
+                if (matches.length > 1) break;
             }
-            if (matches.length > 1) break;
+            if (matches.length === 1) anchors.set(source.sourceId, matches[0]);
+            if (matches.length) break;
         }
-        if (matches.length === 1) anchors.set(source.sourceId, matches[0]);
     }
     let recovered = 0;
     const visit = (children: GeminiStructuredNode[]): GeminiStructuredNode[] => children.map(node => {

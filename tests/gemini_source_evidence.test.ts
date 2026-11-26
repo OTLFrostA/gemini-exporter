@@ -151,6 +151,23 @@ test('zero-width source ID zero cannot be inferred from a source record position
     assertDomainClosure(result.conversation.detail);
 });
 
+test('uncited page metadata suppresses only the unbound zero-width page marker', () => {
+    const metadata = [[[null, null, [target, ...Array(18).fill(null), 'Weekly Ad'], 3]],
+        null, null, null, [null, null, 8]];
+    const raw = [[[citationText('Native body.', [[0, 0, [null, null, null, [[null, null, '0']]]]])]]];
+    const result = parse(raw, metadata);
+    assert.equal(result.conversation.detail.quality.status, 'complete');
+    const assistant = result.conversation.detail.messages.find(message => message.role === 'assistant');
+    assert.ok(assistant);
+    assert.deepEqual(assistant.content, [{ type: 'paragraph', children: [{ type: 'text', text: 'Native body.' }] }]);
+    assert.equal(assistant.citations?.length ?? 0, 0);
+    assertDomainClosure(result.conversation.detail);
+
+    sourceDiagnostic(parse(raw, [...metadata.slice(0, 4), [null, null, 9]]));
+    sourceDiagnostic(parse(rawBody('0', 4), metadata));
+    sourceDiagnostic(parse(rawBody('spp_other', 0), metadata));
+});
+
 test('direct-citation binding rejects foreign candidates, conflicting targets and malformed entries', () => {
     sourceDiagnostic(parse(rawBody('cit_owned'), undefined, [['rc_other', [['Other body.']], [[directCitation('cit_owned')]]]]));
     sourceDiagnostic(parse(rawBody('cit_owned'), [[directCitation('cit_other')]]));
@@ -178,6 +195,8 @@ function quotedEntry(id: string, quote: string, candidateText: string, start = c
 
 test('verified Markdown positions recover partial code quotes and disambiguate repeated snippets by a whole paragraph', () => {
     const cases = [
+        { markdown: '说明：这家店的**标签（Tags）**支持 `财务`。', native: '说明：这家店的标签（Tags）支持 财务。',
+            quote: '这家店的**标签（Tags）**支持 `财务`。', start: 3, end: 21 },
         { markdown: 'Prefix `alpha beta` suffix.', native: 'Prefix alpha beta suffix.', quote: 'beta`', start: 13, end: 17 },
         { markdown: 'Prefix `alpha beta` suffix.', native: 'Prefix alpha beta suffix.', quote: 'beta` suffix.', start: 13, end: 25 },
         { markdown: '**Prefix** `alpha beta` suffix.', native: 'Prefix alpha beta suffix.', quote: '**Prefix** `alpha beta`', start: 0, end: 17 },

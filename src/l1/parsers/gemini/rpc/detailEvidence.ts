@@ -69,6 +69,7 @@ export interface GeminiMessageEvidence {
     thoughts?: string;
     citations?: Citation[];
     sourceAttributions?: GeminiSourceAttribution[];
+    uncitedPageMetadata?: true;
     images?: Array<ImageAttachment & { type: string; isImage?: boolean; generation?: SourceGeneratedMediaIdentity }>;
     documents?: GeminiDocumentEvidence[];
     attachments?: GeminiAttachmentEvidence[];

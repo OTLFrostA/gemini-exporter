@@ -1,5 +1,6 @@
 import { GEMINI_JSPB_SCHEMA, type DecodedGeminiTurn, type DecodedGeminiCandidate } from './extractors.js';
 import { decodeCandidateArtifacts } from './candidateArtifacts.js';
+import { hasUncitedPageMetadata } from './sourceAttributions.js';
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence, GeminiMessageEvidence } from './detailEvidence.js';
 import {
     createDocumentReader,
@@ -330,6 +331,7 @@ function parseCandidateResponse(
         candidateText: candidate.text,
         structuredImages,
         ...(sourceAttributions.length ? { sourceAttributions } : {}),
+        ...(hasUncitedPageMetadata(candidate.source) ? { uncitedPageMetadata: true } : {}),
         ...(groundingCitationMarkers.length ? { groundingCitationMarkers } : {}),
         ...(groundingReferences.length ? { groundingReferences } : {})
     };

@@ -8,7 +8,7 @@ import type {
     ImageAttachment,
 } from './structuredTypes.js';
 import { preprocessGeminiMarkdown, normalizeGeminiTexAliases } from './markdownCompatibility.js';
-import { geminiStructuredToContent, type GeminiSourceCitations, type GeminiSourceFailure } from './structuredContentAdapter.js';
+import { geminiStructuredToContent, type GeminiSourceCitations, type GeminiSourceFailure, type GeminiStructuredContext } from './structuredContentAdapter.js';
 import type { InlineNode } from '../../../../l2/content/inline.js';
 import { normalizeTextUnderscores } from '../../../../shared/utils/latexCompatibility.js';
 import { hasRecoverableTableContent, recoverTableContent } from './tableContentRecovery.js';
@@ -17,7 +17,7 @@ import { recoverGeminiSourceRanges } from './sourceRanges.js';
 import { cleanGeminiBodyText, createCandidateMarkdownIndex } from './candidateMarkdown.js';
 import { recoverPartialStructuredBlocks } from './partialStructuredRecovery.js';
 
-interface GeminiBodyParseContext extends MarkdownParseContext {
+interface GeminiBodyParseContext extends MarkdownParseContext, Pick<GeminiStructuredContext, 'uncitedPageMetadata'> {
     sourceCitations?: GeminiSourceCitations;
     recoverLiteralMath?: boolean;
     onStructuredFallback?: (reason: 'source_annotations' | 'body') => void;
