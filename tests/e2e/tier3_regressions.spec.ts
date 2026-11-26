@@ -209,9 +209,9 @@ test('scan connection guidance follows the workbench language', async ({ context
             ? '请打开 Gemini、ChatGPT、Claude 或 Grok 并登录，再通过“新手引导”连接后同步会话。'
             : 'Open Gemini, ChatGPT, Claude or Grok and connect an account before scanning.');
         await expect(page.locator('#btnSyncAll')).toBeEnabled();
-        const sync = await page.locator('#btnSyncAll').boundingBox();
+        const panel = await page.locator('#taskProgressPanel').boundingBox();
         const message = await page.locator('#scanStatus').boundingBox();
-        expect(sync && message && message.x === sync.x && message.y - (sync.y + sync.height) <= 16).toBe(true);
+        expect(panel && message && message.y >= panel.y && message.y + message.height <= panel.y + panel.height + 2).toBe(true);
         await page.screenshot({ path: `tests/output/visual_audit/tier3_fixed_scan_guidance_${language}.png` });
     }
     await page.close();

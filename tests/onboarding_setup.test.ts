@@ -424,3 +424,26 @@ test('revoking an untouched platform does not turn it into a requested failed li
     await page.evaluate(({A})=>Reflect.get(window,'harness').finishPlatformDiscovery.gemini(A),{A});
     await page.getByRole('heading',{name:'Switch platforms and accounts',exact:true}).waitFor();
 });
+
+test('clicking a loading platform cancels connection immediately and focus never auto-restarts an errored platform', async () => {
+    await openAccountLesson({ chatgptAccess: true, accounts: [{ id: A, providerId: 'gemini', providerAccountId: 'gemini-user' }], connectedAccountIds: [A] });
+    await page.clock.install();
+    await page.evaluate(() => { Reflect.get(window, 'harness').holdDiscoveryPlatforms = ['chatgpt']; });
+
+    const chatgpt = page.locator('#btnConnectPlatform-chatgpt');
+    await chatgpt.click();
+    assert.equal(await chatgpt.getAttribute('data-connection-state'), 'loading');
+    assert.match(await chatgpt.innerText(), /Cancel/);
+
+    // Clicking while loading cancels immediately back to idle
+    await chatgpt.click();
+    assert.equal(await chatgpt.getAttribute('data-connection-state'), 'idle');
+    assert.match(await chatgpt.innerText(), /Connect ChatGPT/);
+
+    // Start again, let deadline expire into error, then verify window focus does NOT auto-restart it
+    await chatgpt.click();
+    await page.clock.fastForward(15001);
+    await page.locator('#btnConnectPlatform-chatgpt[data-connection-state=error]').waitFor();
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    assert.equal(await chatgpt.getAttribute('data-connection-state'), 'error');
+});
