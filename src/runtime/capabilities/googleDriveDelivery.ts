@@ -1,3 +1,4 @@
+import { readDriveExportFolder, saveDriveExportFolder } from '../../l3a/storageService.js';
 import { isRecord } from '../../shared/utils/typeGuards.js';
 
 import { pickDriveFolder } from './driveFolderPicker.js';
@@ -17,30 +18,46 @@ export async function connectDriveDelivery(signal: AbortSignal, interactive: boo
     if (!isDriveDeliveryConfigured()) throw new Error('Google Drive OAuth is not configured');
     const { token, grantedScopes } = await chrome.identity.getAuthToken({ interactive, scopes: [scope] });
     if (!token || (grantedScopes && !grantedScopes.includes(scope))) throw new Error('Google Drive authorization required');
-    async function request(url: string, init: RequestInit = {}) {
+    async function request(url: string, init: RequestInit = {}, credential = token) {
         const headers = new Headers(init.headers);
-        headers.set('Authorization', 'Bearer ' + token);
+        headers.set('Authorization', 'Bearer ' + credential);
         const response = await fetch(url, { ...init, headers, signal: init.signal ?? signal, redirect: 'error', credentials: 'omit' });
-        if (response.status === 401 && token) await chrome.identity.removeCachedAuthToken({ token }).catch(() => {});
+        if (response.status === 401 && credential === token && token) await chrome.identity.removeCachedAuthToken({ token }).catch(() => {});
         if (!response.ok) throw new Error('Google Drive HTTP ' + response.status);
         return response;
     }
-    const about = await request(api + '/drive/v3/about?fields=user(emailAddress)');
-    const account: unknown = await about.json();
-    if (!isRecord(account) || !isRecord(account.user) || typeof account.user.emailAddress !== 'string'
-        || !account.user.emailAddress) throw new Error('Google Drive account unavailable');
-    const email = account.user.emailAddress;
+    async function accountEmail(credential: string) {
+        const about = await request(api + '/drive/v3/about?fields=user(emailAddress)', {}, credential);
+        const account: unknown = await about.json();
+        if (!isRecord(account) || !isRecord(account.user) || typeof account.user.emailAddress !== 'string'
+            || !account.user.emailAddress) throw new Error('Google Drive account unavailable');
+        return account.user.emailAddress;
+    }
+    const email = await accountEmail(token);
+    async function writableFolder(id: string) {
+        const fields = 'id,name,mimeType,trashed,capabilities(canAddChildren)';
+        const file: unknown = await (await request(api + '/drive/v3/files/' + id + '?supportsAllDrives=true&fields=' + fields)).json();
+        if (!isRecord(file) || file.id !== id || typeof file.name !== 'string' || file.mimeType !== folderType
+            || file.trashed !== false || !isRecord(file.capabilities) || file.capabilities.canAddChildren !== true)
+            throw new Error('Choose a writable Drive folder');
+        return { id, name: file.name };
+    }
     return {
         email,
-        async chooseFolder(frame: HTMLIFrameElement, dialog: HTMLDialogElement) {
-            const id = await pickDriveFolder(token, signal, frame, dialog);
-            if (!id) return;
-            const fields = 'id,name,mimeType,trashed,capabilities(canAddChildren)';
-            const file: unknown = await (await request(api + '/drive/v3/files/' + id + '?supportsAllDrives=true&fields=' + fields)).json();
-            if (!isRecord(file) || file.id !== id || typeof file.name !== 'string' || file.mimeType !== folderType
-                || file.trashed !== false || !isRecord(file.capabilities) || file.capabilities.canAddChildren !== true)
-                throw new Error('Choose a writable Drive folder');
-            return { id, name: file.name };
+        async restoreFolder() {
+            const id: unknown = await readDriveExportFolder(email);
+            if (id === undefined) return;
+            if (!isFileId(id)) throw new Error('Invalid saved Drive folder');
+            return writableFolder(id);
+        },
+        async chooseFolder() {
+            const picked = await pickDriveFolder(email, signal);
+            if (!picked) return;
+            if (await accountEmail(picked.token) !== email) throw new Error('Choose a folder from the connected Google account');
+            const { id } = picked;
+            const folder = await writableFolder(id);
+            await saveDriveExportFolder(email, id);
+            return folder;
         },
         async upload(parent: string, name: string, data: Blob, uploadSignal: AbortSignal) {
             if (!data.size) throw new Error('Empty export file');

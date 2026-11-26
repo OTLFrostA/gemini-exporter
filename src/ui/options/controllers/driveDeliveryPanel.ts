@@ -31,7 +31,18 @@ export function mountDriveDeliveryPanel() {
         try {
             const connected = await connectDriveDelivery(lifetime.signal, interactive);
             session = connected;
-            status.textContent = connected.email;
+            try {
+                const saved = await connected.restoreFolder();
+                if (saved) {
+                    parent = saved.id;
+                    folder.textContent = saved.name;
+                }
+                status.textContent = connected.email;
+            } catch {
+                parent = '';
+                folder.textContent = text('Choose a folder', '请选择文件夹');
+                status.textContent = connected.email + ' · ' + text('Saved folder unavailable', '无法访问上次选择的文件夹');
+            }
         } catch (error) {
             status.textContent = interactive ? (error instanceof Error ? error.message : String(error))
                 : text('Could not restore the connection. Click Connect to retry.', '未能恢复连接，点击「连接」重试。');
@@ -44,18 +55,7 @@ export function mountDriveDeliveryPanel() {
         pending = true;
         updateControls();
         try {
-            const dialog = control('dialog', 'drivePickerDialog');
-            const frame = document.createElement('iframe');
-            frame.title = text('Choose a Google Drive folder', '选择 Google Drive 文件夹');
-            dialog.append(frame);
-            let item;
-            try {
-                dialog.showModal();
-                item = await session.chooseFolder(frame, dialog);
-            } finally {
-                dialog.close();
-                frame.remove();
-            }
+            const item = await session.chooseFolder();
             if (item) {
                 parent = item.id;
                 folder.textContent = item.name;

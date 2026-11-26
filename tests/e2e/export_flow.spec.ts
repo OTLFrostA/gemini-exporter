@@ -272,6 +272,20 @@ test('manual Drive export authorizes on selection and verifies the file in the c
         const scopes = ['https://www.googleapis.com/auth/drive.file'];
         chrome.runtime.getManifest = () => ({ ...manifest, oauth2: { client_id: 'test', scopes } });
         Object.defineProperty(chrome, 'identity', { configurable: true, value: {
+            getRedirectURL: () => 'https://test.chromiumapp.org/drive-picker',
+            launchWebAuthFlow: async ({ url }: chrome.identity.WebAuthFlowDetails) => {
+                const request = new URL(url);
+                if (request.origin !== 'https://accounts.google.com' || request.searchParams.get('trigger_onepick') !== 'true'
+                    || request.searchParams.get('allow_folder_selection') !== 'true') throw new Error('Invalid Picker request');
+                const params = new URLSearchParams({ state: request.searchParams.get('state') ?? '' });
+                const selection = sessionStorage.getItem('pickerResult') ?? 'locked';
+                if (selection === 'cancel') params.set('error', 'access_denied');
+                else {
+                    params.set('picked_file_ids', selection);
+                    params.set('access_token', 'picker-fixture');
+                }
+                return request.searchParams.get('redirect_uri') + '#' + params.toString();
+            },
             getAuthToken: async (details: chrome.identity.TokenDetails) => {
                 sessionStorage.setItem('driveAuthMode', String(details.interactive));
                 return { token: 'fixture', grantedScopes: scopes };
@@ -291,7 +305,8 @@ test('manual Drive export authorizes on selection and verifies the file in the c
     await page.route('https://www.googleapis.com/**', async route => {
         const req = route.request();
         const url = new URL(req.url());
-        expect(req.headers().authorization).toBe('Bearer fixture');
+        if (url.pathname.endsWith('/about')) expect(['Bearer fixture', 'Bearer picker-fixture']).toContain(req.headers().authorization);
+        else expect(req.headers().authorization).toBe('Bearer fixture');
         if (url.pathname.endsWith('/about')) return route.fulfill({ json: { user: { emailAddress: 'drive@example.test' } } });
         if (url.pathname === '/drive/v3/files/existing' || url.pathname === '/drive/v3/files/locked') {
             return route.fulfill({ json: { id: url.pathname.split('/').pop(), name: 'Reports', trashed: false,
@@ -328,26 +343,24 @@ test('manual Drive export authorizes on selection and verifies the file in the c
     expect(await page.evaluate(() => sessionStorage.getItem('driveAuthMode'))).toBe('false');
     await expect(page.locator('#skipExported')).toBeChecked();
     await expect(page.locator('#skipExported')).toBeEnabled();
-    await page.route('**/drive-picker.json', route => route.fulfill({ json: { proof: 'test-pair' } }));
-    let pickerResult = { action: 'pick', id: 'locked' };
-    await context.route('http://127.0.0.1:43191/picker', route => route.fulfill({ contentType: 'text/html', body:
-        `<script>onmessage = e => { const ch = new MessageChannel(); ch.port1.onmessage = m => {
-            if (m.data.token === 'fixture') ch.port1.postMessage(${JSON.stringify(pickerResult)});
-        }; parent.postMessage({ proof: 'test-pair' }, e.origin, [ch.port2]); onmessage = null; };</script>` }));
+    await page.route('**/drive-picker.json', route => route.fulfill({ json: { clientId: '123-web.apps.googleusercontent.com' } }));
     await page.locator('#driveChooseFolder').click();
     await expect(page.locator('#driveConnectionStatus')).toContainText('writable');
     await page.locator('#list .item').filter({ hasText: 'chosen' }).locator('input').check();
     await page.locator('#btnExport').click();
     await expect(page.locator('#status')).toContainText('Operation failed');
     expect(uploadSessions).toBe(0);
-    pickerResult = { action: 'pick', id: 'existing' };
+    await page.evaluate(() => sessionStorage.setItem('pickerResult', 'existing'));
     await page.locator('#driveChooseFolder').click();
     await expect(page.locator('#driveFolder')).toHaveText('Reports');
+    await page.reload();
+    await expect(page.locator('#driveFolder')).toHaveText('Reports');
+    await page.locator('#list .item').filter({ hasText: 'chosen' }).locator('input').check();
     await page.locator('#btnExport').click();
     await expect(page.locator('#exportFailureCard')).toBeVisible();
     expect(metadataReads).toBe(1);
     await expect(page.locator('#openDriveExport')).toBeHidden();
-    pickerResult = { action: 'cancel', id: '' };
+    await page.evaluate(() => sessionStorage.setItem('pickerResult', 'cancel'));
     await page.locator('#driveChooseFolder').click();
     await expect(page.locator('#driveChooseFolder')).toBeEnabled();
     await expect(page.locator('#driveFolder')).toHaveText('Reports');

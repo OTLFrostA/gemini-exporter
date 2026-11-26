@@ -20,3 +20,12 @@ export async function patchStoredSettings(patch: Partial<GlobalSettings>): Promi
         await chrome.storage.local.set({ [SETTINGS_KEY]: { ...current, ...patch } });
     });
 }
+
+export async function readDriveExportFolder(email: string): Promise<unknown> {
+    const key = 'driveExportFolder:' + email.toLowerCase();
+    return (await chrome.storage.local.get(key))[key];
+}
+
+export async function saveDriveExportFolder(email: string, id: string): Promise<void> {
+    await chrome.storage.local.set({ ['driveExportFolder:' + email.toLowerCase()]: id });
+}
