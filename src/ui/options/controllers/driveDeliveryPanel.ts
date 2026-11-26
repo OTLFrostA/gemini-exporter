@@ -43,7 +43,18 @@ export function mountDriveDeliveryPanel() {
         pending = true;
         updateControls();
         try {
-            const item = await session.chooseFolder();
+            const dialog = control('dialog', 'drivePickerDialog');
+            const frame = document.createElement('iframe');
+            frame.title = text('Choose a Google Drive folder', '选择 Google Drive 文件夹');
+            dialog.append(frame);
+            let item;
+            try {
+                dialog.showModal();
+                item = await session.chooseFolder(frame, dialog);
+            } finally {
+                dialog.close();
+                frame.remove();
+            }
             if (item) {
                 parent = item.id;
                 folder.textContent = item.name;

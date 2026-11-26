@@ -327,7 +327,7 @@ async function initWorkbench(): Promise<void> {
         if (isBusy() || folderSuggestionPending || !keys.length || !settings) return;
         const request: UIExportRequest = {
             keys, format: settings.defaultFormat, delivery: settings.exportDelivery ?? 'browserDownload',
-            includeAssets: settings.includeAssets, skipUnchanged: settings.exportDelivery !== 'googleDrive' && settings.skipExported,
+            includeAssets: settings.includeAssets, skipUnchanged: settings.skipExported,
         };
         const start = (delivery: UIExportRequest['delivery']) => {
             const fonts = request.format === 'pdf' ? warmLocalFontCache() : Promise.resolve();

@@ -104,7 +104,11 @@
   .settings-heading{font-size:12px;font-weight:600;color:var(--text)}
   #driveDeliveryCard:not(:has(input[type=radio]:checked)) .drive-controls{display:none}
   .drive-controls{display:grid;gap:8px;margin-top:8px}
-  .drive-controls input,.drive-controls select{max-width:100%;min-width:0}
+  #drivePickerDialog{width:min(940px,94vw);height:min(700px,90dvh);padding:0;border:1px solid var(--border);border-radius:12px;background:var(--card)}
+  #drivePickerDialog[open]{display:flex;flex-direction:column}
+  #drivePickerDialog::backdrop{background:rgba(0,0,0,.56)}
+  #drivePickerDialog form{align-self:flex-end;margin:4px 8px}
+  #drivePickerDialog iframe{width:100%;flex:1;min-height:0;border:0;background:white}
   .delivery-choices{display:flex;flex-direction:column;gap:8px}
   .delivery-card{min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card-inner);transition:border-color .15s ease,background .15s ease}
   .delivery-card:has(.delivery-choice input:checked){border-color:var(--accent);background:var(--card)}
@@ -636,5 +640,8 @@
 <!-- Load the JSZip global before the workbench bundle. -->
 <script src="/lib/jszip.min.js"></script>
 <script src="/dist/ui/options.js"></script>
+<dialog id="drivePickerDialog" aria-label="Google Drive">
+  <form method="dialog"><button type="submit" class="ghost small" data-ui-en="Close" data-ui-zh="关闭">关闭</button></form>
+</dialog>
 </body>
 </html>

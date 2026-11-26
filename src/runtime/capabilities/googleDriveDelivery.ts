@@ -32,8 +32,8 @@ export async function connectDriveDelivery(signal: AbortSignal) {
     const email = account.user.emailAddress;
     return {
         email,
-        async chooseFolder() {
-            const id = await pickDriveFolder(token, signal);
+        async chooseFolder(frame: HTMLIFrameElement, dialog: HTMLDialogElement) {
+            const id = await pickDriveFolder(token, signal, frame, dialog);
             if (!id) return;
             const fields = 'id,name,mimeType,trashed,capabilities(canAddChildren)';
             const file: unknown = await (await request(api + '/drive/v3/files/' + id + '?supportsAllDrives=true&fields=' + fields)).json();

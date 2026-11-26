@@ -36,7 +36,7 @@ class PickerHandler(BaseHTTPRequestHandler):
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Cross-Origin-Resource-Policy', 'same-origin')
         self.send_header('Referrer-Policy', 'strict-origin-when-cross-origin')
-        self.send_header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; script-src 'self' https://apis.google.com; connect-src 'self' https://*.google.com https://*.googleapis.com; style-src 'unsafe-inline'; frame-src https://*.google.com; img-src data: https://*.gstatic.com https://*.google.com")
+        self.send_header('Content-Security-Policy', "default-src 'none'; frame-ancestors chrome-extension://kipakimegljfgbjchpljlmiahgnalfdj; base-uri 'none'; script-src 'self' https://apis.google.com; connect-src 'self' https://*.google.com https://*.googleapis.com; style-src 'unsafe-inline'; frame-src https://*.google.com; img-src data: https://*.gstatic.com https://*.google.com")
         self.end_headers()
         self.wfile.write(body)
 

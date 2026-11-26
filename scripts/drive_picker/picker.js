@@ -2,10 +2,10 @@
 
 (async () => {
     const extension = 'chrome-extension://kipakimegljfgbjchpljlmiahgnalfdj';
-    const config = await (await fetch('/config')).json();
-    function ready(event) {
-        if (!window.opener || event.source !== window.opener || event.origin !== extension || event.data !== 'picker-ready') return;
+    async function ready(event) {
+        if (event.source !== window.parent || event.origin !== extension || event.data !== 'picker-ready') return;
         window.removeEventListener('message', ready);
+        const config = await (await fetch('/config')).json();
         const channel = new MessageChannel();
         const port = channel.port1;
         port.onmessage = ({ data }) => {
@@ -20,7 +20,8 @@
                         const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
                             .setIncludeFolders(true).setSelectFolderEnabled(true)
                             .setMimeTypes('application/vnd.google-apps.folder');
-                        new google.picker.PickerBuilder().addView(view).setOrigin(location.origin)
+                        new google.picker.PickerBuilder().addView(view).setOrigin(extension)
+                            .setSize(window.innerWidth, window.innerHeight)
                             .setDeveloperKey(config.key).setAppId(config.project).setOAuthToken(data.token)
                             .setCallback(result => {
                                 if (result.action === google.picker.Action.CANCEL) port.postMessage({ action: 'cancel' });
@@ -32,8 +33,7 @@
             script.src = 'https://apis.google.com/js/api.js';
             document.head.append(script);
         };
-        window.opener.postMessage({ proof: config.proof }, extension, [channel.port2]);
-        window.opener = null;
+        window.parent.postMessage({ proof: config.proof }, extension, [channel.port2]);
     }
     window.addEventListener('message', ready);
 })();

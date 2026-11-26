@@ -318,13 +318,14 @@ test('manual Drive export authorizes on selection and verifies the file in the c
     });
     await page.locator('#driveDeliveryRadio').check();
     await expect(page.locator('#driveConnectionStatus')).toHaveText('drive@example.test');
-    await expect(page.locator('#skipExported')).toBeDisabled();
+    await expect(page.locator('#skipExported')).toBeChecked();
+    await expect(page.locator('#skipExported')).toBeEnabled();
     await page.route('**/drive-picker.json', route => route.fulfill({ json: { proof: 'test-pair' } }));
     let pickerResult = { action: 'pick', id: 'locked' };
     await context.route('http://127.0.0.1:43191/picker', route => route.fulfill({ contentType: 'text/html', body:
         `<script>onmessage = e => { const ch = new MessageChannel(); ch.port1.onmessage = m => {
             if (m.data.token === 'fixture') ch.port1.postMessage(${JSON.stringify(pickerResult)});
-        }; opener.postMessage({ proof: 'test-pair' }, e.origin, [ch.port2]); onmessage = null; };</script>` }));
+        }; parent.postMessage({ proof: 'test-pair' }, e.origin, [ch.port2]); onmessage = null; };</script>` }));
     await page.locator('#driveChooseFolder').click();
     await expect(page.locator('#driveConnectionStatus')).toContainText('writable');
     await page.locator('#list .item').filter({ hasText: 'chosen' }).locator('input').check();
@@ -351,6 +352,10 @@ test('manual Drive export authorizes on selection and verifies the file in the c
     expect(uploads[0].toString()).toContain('Answer chosen');
     expect(uploads[0].toString()).not.toContain('Answer other');
     await expect(page.locator('#status')).toContainText('Uploaded to Drive: 1');
+    await page.locator('#btnExport').click();
+    await expect(page.locator('#status')).toContainText('Skipped: 1');
+    expect(uploads).toHaveLength(1);
+    await page.locator('#skipExported').uncheck();
     await page.locator('#btnSelectAll').check();
     await page.locator('#btnExport').click();
     await expect(page.locator('#status')).toContainText('Uploaded to Drive: 2');
