@@ -388,6 +388,32 @@ test('cleaning a research-prompt title cannot discard its strict document identi
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_DOCUMENT_BINDING_FALLBACK'));
 });
 
+test('Deep Research packets require an exact chip ID in the selected answer', () => {
+    const id = 'im_0123456789abcdef';
+    const body = '# Research report\n\nThis is the exact report body.';
+    const chip = (chipId: string) => Object.assign(Array(25).fill(null), { 24: [[
+        ['http://googleusercontent.com/immersive_entry_chip/0'], chipId, 'agency-placeholder-task-id',
+        'Research report', null, [1700000000, 0], null, 3,
+    ]] });
+    const packet = Object.assign([id, null, 'Research report', 'agency-placeholder-task-id', body], { 10: 3 });
+    const textNode = citationText('See the report.');
+    const selected = [[textNode, chip(id)]];
+    const other = [[textNode, chip('im_fedcba9876543210')]];
+
+    const matched = parse([selected], undefined, [], [packet]);
+    assert.equal(matched.conversation.detail.quality.status, 'complete');
+    assert.equal(matched.conversation.detail.assets.length, 1);
+    assert.equal(matched.conversation.detail.assets[0].document?.contentMarkdown, body);
+    assert.ok(!matched.diagnostics.some(d => d.code === 'GEMINI_DOCUMENT_BINDING_FALLBACK'));
+    assertDomainClosure(matched.conversation.detail);
+
+    const siblingOnly = parse([other, selected], undefined, [['rc_sibling', [['Another answer.']]]], [packet]);
+    assert.equal(siblingOnly.conversation.detail.quality.status, 'partial');
+    assert.equal(siblingOnly.conversation.detail.assets.length, 1);
+    assert.equal(siblingOnly.conversation.detail.assets[0].document?.contentMarkdown, undefined);
+    assert.ok(siblingOnly.diagnostics.some(d => d.code === 'GEMINI_DOCUMENT_BINDING_FALLBACK'));
+});
+
 test('one owned document packet cannot hide another chip whose body is missing', () => {
     const raw = [[[citationText('Two reports.'), Object.assign(Array(25).fill(null), { 24: [
         [['http://immersive_entry_chip/first'], 'c_coverage_first', null, 'First report', null, null, null, 1],

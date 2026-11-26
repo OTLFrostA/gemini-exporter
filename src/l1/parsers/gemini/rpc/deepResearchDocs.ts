@@ -65,7 +65,8 @@ export function extractDocumentsMeta(root: unknown): DeepResearchDocMeta[] {
             const rawContentId = fields[doc.CONTENT_ID];
             const contentId = !linkedDocument && typeof rawContentId === 'string' && rawContentId.length > 10
                 ? rawContentId : undefined;
-            pushMeta({ id, title: rawTitle, chipUrl, createdAt, contentId });
+            pushMeta({ id, title: rawTitle, chipUrl, createdAt, contentId,
+                ...(linkedDocument && fields[7] === 3 ? { source: 'strict' } : {}) });
         }
     });
     if (out.length > 0) return out;

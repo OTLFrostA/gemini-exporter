@@ -1,4 +1,5 @@
 import type { GeminiAttachmentEvidence, GeminiDocumentEvidence } from './detailEvidence.js';
+import { extractDocumentsMeta, type DeepResearchDocMeta } from './deepResearchDocs.js';
 
 function isUnknownArray(value: unknown): value is unknown[] {
     return Array.isArray(value);
@@ -9,15 +10,18 @@ interface DecodedCandidateArtifacts {
     nativeDocuments: GeminiDocumentEvidence[];
 }
 
-/** Interpret candidate[30] once. Packet kinds are exclusive; no flattened
- * metadata may become document prose, and native IDs must belong to this chat. */
-export function decodeCandidateArtifacts(candidate: unknown[], conversationId?: string): DecodedCandidateArtifacts {
+/** Interpret candidate[30] once. Document ownership comes from the chat ID or
+ * a matching Deep Research chip in the selected answer. */
+export function decodeCandidateArtifacts(
+    candidate: unknown[], conversationId?: string, selectedAnswer?: unknown,
+): DecodedCandidateArtifacts {
     const generatedFiles: GeminiAttachmentEvidence[] = [];
     const nativeDocuments: GeminiDocumentEvidence[] = [];
 
     const rawPackets: unknown = candidate[30];
     if (!isUnknownArray(rawPackets)) return { generatedFiles, nativeDocuments };
     const nativeIdPrefix = conversationId ? `c_${conversationId.replace(/^c_/, '')}_` : null;
+    let researchChips: DeepResearchDocMeta[] | undefined;
 
     for (const raw of rawPackets) {
         if (!isUnknownArray(raw)) continue;
@@ -39,16 +43,24 @@ export function decodeCandidateArtifacts(candidate: unknown[], conversationId?: 
             continue;
         }
 
-        if (!nativeIdPrefix || (kind !== 1 && kind !== 2 && kind !== 3)) continue;
+        if (kind !== 1 && kind !== 2 && kind !== 3) continue;
         const id = row[0];
         const title = row[2];
         const body = row[4];
-        if (typeof id !== 'string' || !id.startsWith(nativeIdPrefix)
+        if (typeof id !== 'string'
             || typeof title !== 'string' || !title.trim()
             || typeof body !== 'string' || !body.trim()) continue;
+        let chip: DeepResearchDocMeta | undefined;
+        if (!nativeIdPrefix || !id.startsWith(nativeIdPrefix)) {
+            if (kind !== 3 || !/^im_[0-9a-f]+$/.test(id) || selectedAnswer === undefined) continue;
+            researchChips ??= extractDocumentsMeta(selectedAnswer);
+            chip = researchChips.find(meta => meta.source === 'strict' && meta.id === id);
+            if (!chip) continue;
+        }
         nativeDocuments.push({
             id, title: title.trim(), contentMarkdown: body, type: 'file',
-            sections: [], links: [], url: '', chipUrl: ''
+            sections: [], links: [], url: '', chipUrl: chip?.chipUrl ?? '',
+            ...(chip?.createdAt !== undefined ? { createdAt: chip.createdAt } : {}),
         });
     }
 

@@ -78,7 +78,7 @@ export function decodeGeminiCandidateResources(
     );
     const filteredImages = filterNewImages(candImages, dedupSet);
 
-    const { generatedFiles, nativeDocuments } = decodeCandidateArtifacts(cand, convId);
+    const { generatedFiles, nativeDocuments } = decodeCandidateArtifacts(cand, convId, [answerBody, rawAnswerDocument]);
     let docsMeta: DeepResearchDocMeta[] = extractDocumentsMeta(candidateBlock);
     if (nativeDocuments.length || !docsMeta.length) {
         // The conversation envelope contains documents from other turns too.
