@@ -159,6 +159,8 @@ function chromeWebStoreFiles() {
         throw new Error('Chrome Web Store packaging requires DRIVE_WEB_CLIENT_ID.');
     }
     const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+    // The store public key gives the unpacked release ZIP the same ID as the signed item.
+    manifest.key = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt9t4PhILloNsEkD3hvMrQd28FxqMPc4VezsatwqinAvsSHYWqFmceqqnXULzh39Iqw+UUCPiHl4zN6QXCz8i5kSsCJ+37ow/DA34clTMsqOjvVVfdqg2/FleAJFOVserxHpkccG1SdnFo/dCDNxvyKsKCfL1l3wG6ep/snDT3K7x3ZpWvH9STRWc0U0VOxLeN+OWA99pPP3rKlIwhpokF6iIVLc7IqlMfoOgulBCQg+UK7LLO1FzyBVN0xoN5lQNuHLnwgoJoS7Tq9yvZmvQ+TmgteESpuO2O/Wiee2nN286lkp87O3NriNpAYXVhSZ4Ikpuf8Yaidxoex3YvDTHvwIDAQAB';
     manifest.permissions = [...new Set([...manifest.permissions, 'identity'])];
     manifest.host_permissions = [...new Set([...manifest.host_permissions, 'https://www.googleapis.com/*'])];
     return { 'manifest.json': manifest, 'drive-account-client.json': webClient };
