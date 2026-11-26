@@ -22,7 +22,9 @@ export class ExportIssueCollector {
         // Source termination is not an export problem, including legacy warning diagnostics.
         if (SOURCE_STATE_CODES.has(diagnostic.code) || diagnostic.severity === 'info' || ['EXPORT_CANCELLED', 'SOURCE_CONVERSATION_EMPTY'].includes(diagnostic.code)) return;
         if (!diagnostic.severity && !LEGACY_ISSUES.has(diagnostic.code)) return;
-        const category = diagnostic.issue?.code ?? (GENERIC_CODES.has(diagnostic.code) ? 'UNKNOWN_ERROR' : diagnostic.code);
+        const category = diagnostic.code === 'SOURCE_REFRESH_FAILED' && diagnostic.issue?.code === 'CONVERSATION_NOT_FOUND'
+            ? 'EXPORTED_FROM_LOCAL_DELETED_AT_SOURCE'
+            : diagnostic.issue?.code ?? (GENERIC_CODES.has(diagnostic.code) ? 'UNKNOWN_ERROR' : diagnostic.code);
         const httpStatus = diagnostic.issue?.httpStatus;
         const signature = JSON.stringify([category, httpStatus, category === 'UNKNOWN_ERROR' ? diagnostic.stage : null]);
         let entry = this.entries.get(signature);

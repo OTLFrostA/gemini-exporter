@@ -60,7 +60,19 @@
   .export-issues-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:4px;}
   #exportFailureTitle{flex:1 1 160px;min-width:0;color:var(--issue-color);font-weight:600;}
   #exportFailureList details[data-severity="warning"] > summary{color:var(--warn);}
+  #exportFailureList details[data-tier="note"] > summary{color:var(--muted);}
   #exportFailureList details[data-severity="error"] > summary{color:var(--danger,#f87171);}
+  #exportFailureList .issue-group{margin-top:4px;}
+  #exportFailureList .issue-group > summary{cursor:pointer;font-weight:500;padding:2px 0;}
+  #exportFailureList .issue-diagnostic-sample{margin:2px 0 4px 10px;font-size:10px;opacity:.75;overflow-wrap:anywhere;}
+  #exportFailureList .issue-conv-list{display:flex;flex-direction:column;gap:2px;margin:2px 0 4px 6px;}
+  #exportFailureList .issue-conv-btn{display:flex;align-items:center;gap:6px;width:100%;padding:3px 6px;border:0;border-radius:5px;background:transparent;color:var(--text);font-size:11px;font-weight:400;text-align:left;cursor:pointer;}
+  #exportFailureList .issue-conv-btn:hover,#exportFailureList .issue-conv-btn:focus-visible{background:color-mix(in srgb,var(--accent) 16%,transparent);outline:none;}
+  #exportFailureList .issue-conv-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #exportFailureList .issue-conv-jump{flex:none;opacity:.45;font-size:11px;transition:opacity .15s,transform .15s;}
+  #exportFailureList .issue-conv-btn:hover .issue-conv-jump{opacity:1;transform:translateX(2px);}
+  @keyframes item-locate-pulse{0%{background:color-mix(in srgb,var(--accent) 30%,transparent);box-shadow:inset 3px 0 var(--accent);}100%{background:transparent;box-shadow:none;}}
+  #list .item.item-locate-flash{animation:item-locate-pulse 1.8s ease-out;}
   button:disabled{opacity:.45;pointer-events:none}
   .support-links{padding-top:4px;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;flex:none;}
   .support-link{display:flex;align-items:center;gap:4px;min-height:28px;padding:4px;border-radius:7px;color:var(--muted);text-decoration:none;cursor:pointer;transition:background .15s ease,color .15s ease;}

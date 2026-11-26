@@ -31,19 +31,22 @@ test('non-fatal resource, parser, and completeness diagnostics stay recorded but
     await page.locator('#btnExport').click();
     await page.evaluate(() => {
         const h = Reflect.get(window, 'harness');
-        for (const [stage, code] of [
-            ['resource', 'RESOURCE_DOWNLOAD_FAILED'],
-            ['render', 'HTML_ASSET_UNRESOLVED'],
-            ['source_parse', 'GEMINI_DOCUMENT_BINDING_FALLBACK'],
-            ['source_parse', 'GEMINI_SOURCE_ANNOTATION_FALLBACK'],
-            ['detail', 'DETAIL_NOT_COMPLETE'],
-        ])
-            h.exportOptions.onDiagnostic({ key: h.exports[0].keys[0], stage, code, severity: 'warning', message: code });
+        const key = h.exports[0].keys[0];
+        h.exportOptions.onDiagnostic({ key, stage: 'source_parse', code: 'GEMINI_DOCUMENT_BINDING_FALLBACK', severity: 'warning', message: 'GEMINI_DOCUMENT_BINDING_FALLBACK' });
+        h.exportOptions.onDiagnostic({ key, stage: 'source_parse', code: 'GEMINI_SOURCE_ANNOTATION_FALLBACK', severity: 'warning', message: 'GEMINI_SOURCE_ANNOTATION_FALLBACK' });
+        h.exportOptions.onDiagnostic({ key, stage: 'source_refresh', code: 'SOURCE_REFRESH_FAILED', severity: 'warning', message: 'conversation_not_found', issue: { code: 'CONVERSATION_NOT_FOUND' } });
+        h.exportOptions.onDiagnostic({ key, stage: 'resource', code: 'RESOURCE_DOWNLOAD_FAILED', severity: 'warning', message: 'RESOURCE_DOWNLOAD_FAILED' });
+        h.exportOptions.onDiagnostic({ key, stage: 'detail', code: 'DETAIL_NOT_COMPLETE', severity: 'warning', message: 'DETAIL_NOT_COMPLETE' });
         h.finishExport();
     });
     await expect(page.locator('#exportFailureCard')).toBeHidden();
     await page.locator('#devToggle').check();
-    await expect(page.locator('#exportFailureList > details')).toHaveCount(5);
+    // DETAIL_NOT_COMPLETE is deduplicated in the card, and degraded groups sort above internal parser notes.
+    await expect(page.locator('#exportFailureList > details')).toHaveCount(4);
+    await expect(page.locator('#exportFailureList > details').nth(0)).toHaveAttribute('data-tier', 'degraded');
+    await expect(page.locator('#exportFailureList > details').nth(0).locator('summary')).toContainText('Deleted at source; exported from local history');
+    await expect(page.locator('#exportFailureList > details').nth(2)).toHaveAttribute('data-tier', 'note');
+    await expect(page.locator('#exportFailureList > details').nth(3)).toHaveAttribute('data-tier', 'note');
     const downloaded = page.waitForEvent('download');
     await page.locator('#btnExportDiag').click();
     const filePath = await (await downloaded).path();
@@ -51,6 +54,15 @@ test('non-fatal resource, parser, and completeness diagnostics stay recorded but
     const { readFile } = await import('node:fs/promises');
     const report = JSON.parse(await readFile(filePath, 'utf8'));
     expect(report.exportRuns[0].diagnostics).toHaveLength(5);
+    // Clicking a conversation item inside the issue group clears hiding filters and locates it in #list.
+    await page.locator('#chatSearchInput').fill('no-such-match');
+    await expect(page.locator('#list .item')).toHaveCount(0);
+    const firstGroup = page.locator('#exportFailureList > details').first();
+    await firstGroup.locator('summary').click();
+    await firstGroup.locator('.issue-conv-btn').first().click();
+    await expect(page.locator('#chatSearchInput')).toHaveValue('');
+    await expect(page.locator('#list .item')).toHaveCount(1);
+    await expect(page.locator('#list .item').first()).toHaveClass(/item-locate-flash/);
     await page.locator('#devToggle').uncheck();
     await expect(page.locator('#exportFailureCard')).toBeHidden();
     await page.locator('#btnExport').click();
