@@ -1,4 +1,4 @@
-import { DriveAuthorizationExpired, driveFolderName, connectDriveDelivery, isDriveDeliveryConfigured, preloadDriveAccountClient } from '../../../runtime/capabilities/googleDriveDelivery.js';
+import { DriveAuthorizationExpired, connectDriveDelivery, isDriveDeliveryConfigured, preloadDriveAccountClient } from '../../../runtime/capabilities/googleDriveDelivery.js';
 import { elementById as el, requiredElement as control } from '../../shared/elements.js';
 import { text } from '../../shared/settings.js';
 
@@ -8,7 +8,7 @@ export function mountDriveDeliveryPanel() {
     if (configured) preloadDriveAccountClient();
     const reconnect = control('button', 'driveConnect');
     const switchAccount = control('button', 'driveSwitch');
-    const link = control('a', 'openDriveExport');
+    const destination = control('a', 'driveDestination');
     const status = el('driveConnectionStatus');
     const lifetime = new AbortController();
     let session: Awaited<ReturnType<typeof connectDriveDelivery>> | undefined;
@@ -27,15 +27,20 @@ export function mountDriveDeliveryPanel() {
     async function connect(mode: 'switch' | 'connect' | 'restore') {
         if (pending || exporting) return;
         pending = true;
-        link.hidden = true;
         status.textContent = mode === 'switch'
             ? text('Opening Google account chooser…', '正在打开 Google 账号选择窗口…')
             : text('Connecting to Google Drive…', '正在连接 Google Drive…');
         updateControls();
         try {
-            session = await connectDriveDelivery(lifetime.signal, mode);
+            const connected = await connectDriveDelivery(lifetime.signal, mode);
+            session = connected;
+            destination.removeAttribute('href');
             needsReconnect = false;
-            status.textContent = accountLabel(session.email);
+            status.textContent = accountLabel(connected.email);
+            // Folder discovery is read-only and does not delay account selection or upload.
+            void connected.findExportFolderUrl().then(href => {
+                if (session === connected && href && !destination.hasAttribute('href')) destination.href = href;
+            }).catch(() => {});
         } catch {
             needsReconnect = !session;
             status.textContent = session
@@ -55,18 +60,14 @@ export function mountDriveDeliveryPanel() {
         writer(signal: AbortSignal) {
             const connected = session;
             if (!connected || pending) throw new Error(text('Connect Google Drive first.', '请先连接 Google Drive。'));
-            link.hidden = true;
             return async (fileName: string, data: Blob) => {
                 try {
                     const href = await connected.upload(fileName, data, signal);
-                    if (!fileName.includes('/')) {
-                        link.href = href;
-                        link.textContent = text('Open in Drive', '在 Drive 中打开') + ' · ' + driveFolderName + ' / ' + fileName;
-                        link.hidden = false;
-                    }
+                    if (session === connected) destination.href = href;
                 } catch (error) {
-                    if (error instanceof DriveAuthorizationExpired) {
+                    if (session === connected && error instanceof DriveAuthorizationExpired) {
                         session = undefined;
+                        destination.removeAttribute('href');
                         needsReconnect = true;
                         status.textContent = text('Reconnect to continue: ', '请重新连接：') + connected.email;
                         updateControls();

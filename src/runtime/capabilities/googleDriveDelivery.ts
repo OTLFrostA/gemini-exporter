@@ -4,7 +4,7 @@ import { isRecord } from '../../shared/utils/typeGuards.js';
 
 export { preloadDriveAccountClient } from './driveAccountAuthorization.js';
 
-export const driveFolderName = 'Gemini Exporter';
+const driveFolderName = 'Gemini Exporter';
 
 const api = 'https://www.googleapis.com';
 export class DriveAuthorizationExpired extends Error {}
@@ -105,19 +105,26 @@ export async function connectDriveDelivery(signal: AbortSignal, mode: 'switch' |
             || file.mimeType !== data.type.split(';')[0] || file.trashed !== false || !Array.isArray(file.parents)
             || file.parents.length !== 1 || file.parents[0] !== parent)
             throw new Error('Google Drive could not verify the uploaded file and folder');
-        return 'https://drive.google.com/open?id=' + result.id + '&authuser=' + encodeURIComponent(email);
     }
+
+    const folderUrl = (id: string) => 'https://drive.google.com/drive/folders/' + id + '?authuser=' + encodeURIComponent(email);
 
     return {
         email,
+        async findExportFolderUrl() {
+            const id = await findChild('root', driveFolderName, true, signal);
+            return id ? folderUrl(id) : undefined;
+        },
         async upload(relativePath: string, data: Blob, uploadSignal: AbortSignal) {
             const parts = relativePath.split('/');
             const name = parts.pop();
             if (!name) throw new Error('Missing Drive file name');
-            let parent = await findOrCreateFolder('root', driveFolderName, uploadSignal);
+            const exportFolder = await findOrCreateFolder('root', driveFolderName, uploadSignal);
+            let parent = exportFolder;
             for (const part of parts) parent = await findOrCreateFolder(parent, part, uploadSignal);
-            return navigator.locks.request(lockPrefix + JSON.stringify([parent, name]), { signal: uploadSignal },
+            await navigator.locks.request(lockPrefix + JSON.stringify([parent, name]), { signal: uploadSignal },
                 () => uploadFile(parent, name, data, uploadSignal));
+            return folderUrl(exportFolder);
         },
     };
 }

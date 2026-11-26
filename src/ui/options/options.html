@@ -104,6 +104,9 @@
   .settings-heading{font-size:12px;font-weight:600;color:var(--text)}
   #driveDeliveryCard:not(:has(input[type=radio]:checked)) .drive-controls{display:none}
   .drive-controls{display:grid;gap:8px;margin-top:8px}
+  #driveDestination{justify-self:start;color:var(--muted);text-decoration:none}
+  #driveDestination[href]{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+  #driveDestination[href]:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
   .delivery-choices{display:flex;flex-direction:column;gap:8px}
   .delivery-card{min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card-inner);transition:border-color .15s ease,background .15s ease}
   .delivery-card:has(.delivery-choice input:checked){border-color:var(--accent);background:var(--card)}
@@ -393,8 +396,7 @@
             <span id="driveConnectionStatus" role="status"></span>
             <button type="button" id="driveConnect" hidden class="ghost small" data-ui-en="Reconnect" data-ui-zh="重新连接">重新连接</button>
             <button type="button" id="driveSwitch" hidden class="ghost small" data-ui-en="Switch account" data-ui-zh="切换账号">切换账号</button>
-            <span data-ui-en="Save to: My Drive / Gemini Exporter" data-ui-zh="保存到：我的云端硬盘 / Gemini Exporter">保存到：我的云端硬盘 / Gemini Exporter</span>
-            <a id="openDriveExport" target="_blank" rel="noopener noreferrer" hidden></a>
+            <a id="driveDestination" target="_blank" rel="noopener noreferrer" data-ui-en="Save to: My Drive / Gemini Exporter" data-ui-zh="保存到：我的云端硬盘 / Gemini Exporter">保存到：我的云端硬盘 / Gemini Exporter</a>
           </div>
         </div>
         <div class="delivery-card">
