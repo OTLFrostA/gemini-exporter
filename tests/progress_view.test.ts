@@ -243,3 +243,39 @@ test('live failure details retain their expansion across progress and language c
     await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
     await page.waitForFunction(() => document.body.dataset.foregroundBusy === 'false');
 }));
+
+test('Latest-Wins status channel keeps final update until overwritten and prefers determinate progress during concurrent scan+export', () => withPage(async page => {
+    await mount(page, 'options', { holdScan: true, holdExport: true });
+
+    // 1. Scan finishes -> final scan status remains visible, #status stays hidden
+    await page.locator('#btnSyncAll').click();
+    await page.evaluate(() => Reflect.get(window, 'harness').finishScan());
+    await page.waitForFunction(() => document.body.dataset.scanning === 'false');
+    assert.equal(await page.locator('#scanStatus').isVisible(), true);
+    assert.equal(await page.locator('#status').isVisible(), false);
+
+    // 2. Subsequent Export overwrites the old scan status so only Export's progress/final result is visible
+    await page.locator('#btnSelectAll').click();
+    await page.locator('#btnExport').click();
+    await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishExport === 'function');
+    assert.equal(await page.locator('#scanStatus').isVisible(), false);
+    assert.equal(await page.locator('#progText').isVisible(), true);
+    await page.evaluate(() => Reflect.get(window, 'harness').finishExport());
+    await page.waitForFunction(() => document.body.dataset.foregroundBusy === 'false');
+    assert.equal(await page.locator('#scanStatus').isVisible(), false);
+    assert.equal(await page.locator('#status').isVisible(), true);
+
+    // 3. Concurrent Scan + Export shows both progress texts while keeping determinate export progress bar
+    await page.locator('#btnSyncAll').click();
+    await page.locator('#btnExport').click();
+    await page.waitForFunction(() => typeof Reflect.get(window, 'harness').finishExport === 'function');
+    assert.equal(await page.locator('#scanStatus').isVisible(), true);
+    assert.equal(await page.locator('#progText').isVisible(), true);
+    assert.doesNotMatch(await page.locator('#progWrap').getAttribute('class') ?? '', /indeterminate/);
+    await page.evaluate(() => {
+        const h = Reflect.get(window, 'harness');
+        h.finishScan();
+        h.finishExport();
+    });
+    await page.waitForFunction(() => document.body.dataset.busy === 'false');
+}));
