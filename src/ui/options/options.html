@@ -379,6 +379,16 @@
             </span>
           </label>
         </div>
+        <div class="delivery-card" id="driveDeliveryCard" hidden>
+          <label class="delivery-choice">
+            <input type="radio" name="delivery" value="googleDrive">
+            <span class="delivery-copy">
+              <span class="delivery-title">Google Drive</span>
+              <span class="delivery-description" data-ui-en="Upload this export to My Drive" data-ui-zh="将本次导出上传到我的云端硬盘">将本次导出上传到我的云端硬盘</span>
+            </span>
+          </label>
+          <a id="openDriveExport" target="_blank" rel="noopener noreferrer" hidden data-ui-en="Open in Drive" data-ui-zh="在 Drive 中打开">在 Drive 中打开</a>
+        </div>
         <div class="delivery-card">
           <label class="delivery-choice">
             <input type="radio" name="delivery" value="folderWriter">
@@ -415,18 +425,6 @@
     </div>
     <div id="taskProgressPanel" style="position:sticky;bottom:0;z-index:2;background:var(--card);display:flex;flex-direction:column;gap:4px;flex:none;padding:4px 0;"></div>
     <div id="exportFailureHost" style="display:contents;"></div>
-
-    <div id="driveExportCard" class="cloud-vault-card" hidden>
-      <div class="cloud-vault-header">
-        <span class="cloud-vault-title" data-ui-en="Google Drive document export (experimental)" data-ui-zh="Google Drive 文档导出（实验）">Google Drive 文档导出（实验）</span>
-        <div class="cloud-vault-controls">
-          <button id="btnDriveExportConnect" type="button" class="ghost small" data-ui-en="Connect" data-ui-zh="连接">连接</button>
-          <button id="btnDriveExportNow" type="button" class="ghost small" hidden data-ui-en="Export now" data-ui-zh="立即导出">立即导出</button>
-          <button id="btnDriveExportDisconnect" type="button" class="ghost small" hidden data-ui-en="Disconnect" data-ui-zh="断开">断开</button>
-        </div>
-      </div>
-      <div id="driveExportSummary" class="cloud-vault-summary" role="status" aria-live="polite"></div>
-    </div>
 
     <div id="cloudVaultCard" class="cloud-vault-card">
       <div class="cloud-vault-header">

@@ -262,3 +262,68 @@ test('physical archive bytes survive verified local deletion; missing bodies fai
     expect(await page.evaluate(id => Reflect.get(globalThis, 'uiFixture').readConversation({ accountId: id, conversationId: 'archive_local' }), accountId)).toBeNull();
     expect(await readFile((await file.path())!)).toEqual(bytes);
 });
+
+test('manual Drive export confirms the destination and uploads only the selected Markdown', async ({ context, extensionId }) => {
+    const page = await openOptions(context, extensionId);
+    await expect(page.locator('#driveDeliveryCard')).toBeHidden();
+    await seedConversations(page, [{ id: 'chosen' }, { id: 'other' }]);
+    await page.addInitScript(() => {
+        const manifest = chrome.runtime.getManifest();
+        const scopes = ['https://www.googleapis.com/auth/drive.file'];
+        chrome.runtime.getManifest = () => ({ ...manifest, oauth2: { client_id: 'test', scopes } });
+        Object.defineProperty(chrome, 'identity', { configurable: true, value: {
+            getAuthToken: async () => ({ token: 'fixture', grantedScopes: scopes }),
+        } });
+    });
+    await page.reload();
+    const uploads: Buffer[] = [];
+    let uploadSessions = 0;
+    let failWrite = true;
+    await page.route('https://www.googleapis.com/**', async route => {
+        const req = route.request();
+        expect(req.headers().authorization).toBe('Bearer fixture');
+        if (req.url().includes('/about?')) return route.fulfill({ json: { user: { emailAddress: 'drive@example.test' } } });
+        if (req.method() === 'POST') {
+            uploadSessions++;
+            return route.fulfill({ status: 200, headers: {
+            location: 'https://www.googleapis.com/upload/drive/v3/files?upload_id=test',
+            'access-control-expose-headers': 'Location',
+            } });
+        }
+        expect(req.method()).toBe('PUT');
+        if (failWrite) return route.fulfill({ status: 503 });
+        uploads.push(req.postDataBuffer()!);
+        return route.fulfill({ json: { id: 'confirmed-file' } });
+    });
+    await page.locator('input[value="googleDrive"]').check();
+    await page.locator('#list .item').filter({ hasText: 'chosen' }).locator('input').check();
+    page.once('dialog', async dialog => {
+        expect(dialog.message()).toContain('drive@example.test');
+        await dialog.dismiss();
+    });
+    await page.locator('#btnExport').click();
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    await expect(page.locator('#openDriveExport')).toBeHidden();
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#btnExport').click();
+    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
+    await expect(page.locator('#openDriveExport')).toBeHidden();
+    expect(uploadSessions).toBe(1);
+    await expect(page.locator('#exportFailureCard')).toBeVisible();
+    failWrite = false;
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#btnExport').click();
+    await expect(page.locator('#openDriveExport')).toHaveAttribute('href', 'https://drive.google.com/open?id=confirmed-file');
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0].toString()).toContain('Answer chosen');
+    expect(uploads[0].toString()).not.toContain('Answer other');
+    await expect(page.locator('#status')).toContainText('Uploaded to Drive: 1');
+    await page.locator('#skipExported').uncheck();
+    await page.locator('#btnSelectAll').check();
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#btnExport').click();
+    await expect(page.locator('#status')).toContainText('Uploaded to Drive: 2');
+    expect(uploads).toHaveLength(2);
+    const zip = await require(path.resolve(__dirname, '../../lib/jszip.min.js')).loadAsync(uploads[1]);
+    expect(Object.keys(zip.files).filter(name => name.endsWith('.md'))).toHaveLength(2);
+});

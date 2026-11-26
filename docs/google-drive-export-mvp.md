@@ -1,83 +1,26 @@
-# Google Drive document export — experimental MVP
+# 手动导出到 Google Drive（测试版）
 
-This is an opt-in **readable document export** to support the user's own
-cross-AI knowledge library, not the encrypted Vault, database backup, restore,
-or bidirectional sync. The checked-in public manifest intentionally has no
-OAuth client or new permission. The experimental card remains hidden until a
-development manifest configures the client.
+在 Options 中选择会话和格式，目标选择 **Google Drive**，点击导出并确认目标邮箱。单个独立文档使用原格式，多文件和外置附件沿用浏览器下载的 ZIP 打包规则。上传完成后，点击 **在 Drive 中打开**。每次操作在「我的云端硬盘」中新建文件。文件继承用户自己的 Drive 访问控制。上传的内容包括本次选中的对话，以及导出设置包含的附件。关闭 Options 会中断尚未完成的操作。
 
-## Try in an isolated development Chrome profile
+## 配置一次
 
-1. Enable Drive API in a dedicated Google Cloud project. Create a Chrome
-   Extension OAuth client for the actual ID of the unpacked development build.
-   Configure the consent screen and test users. Do not reuse the CWS analytics
-   client or commit secrets. Chrome Extension OAuth client IDs are public.
-2. In a disposable local copy of the manifest (never commit this test-only
-   permission expansion), append `identity` and `alarms` to permissions;
-   add `https://www.googleapis.com/*` to host_permissions; set
-   `oauth2: { "client_id": "<development-client-id>.apps.googleusercontent.com",
-   "scopes": ["https://www.googleapis.com/auth/drive.file"] }`.
-3. Build, load unpacked, select an identified source account in Options,
-   click Connect on the experimental Drive card, grant authorization, and
-   verify the actual source and destination in the confirmation. Cancel if
-   they are not correct. This creates a dedicated folder in My Drive.
-4. Click Export now or let the five-minute alarm run with Chrome open.
-   Open the created Markdown files in Drive. Check whether another AI's
-   independently authorized connector can discover/read the files.
-5. Add a reply to a source conversation, confirm it is fully captured locally,
-   rerun export, and verify the same file ID is updated. Try disconnect,
-   wrong Google account, OAuth revocation, worker termination and lost upload
-   responses. Use synthetic conversations, not personal history, for tests.
+1. 在 Google Cloud 项目中启用 **Google Drive API**。在 Google Auth Platform 配置 Branding 和 Audience。外部应用在 Testing 状态下，将测试用 Google 账号加入 Test users。
+2. 在 Clients 创建类型为 **Chrome Extension** 的 OAuth 客户端，Item ID 填 `kipakimegljfgbjchpljlmiahgnalfdj`。复制以 `.apps.googleusercontent.com` 结尾的公开客户端 ID。应用使用的 OAuth scope 为 `https://www.googleapis.com/auth/drive.file`。
+3. 在提供的测试包目录打开终端，替换下面的客户端 ID 并运行。测试脚本只修改解压副本的 manifest。
 
-## Scope and invariants
+   ```sh
+   python3 configure_drive_test.py extension --client-id 'YOUR_ID.apps.googleusercontent.com'
+   ```
 
-- Explicit opt-in for exactly one identified source Account UUID and one
-  verified Drive permission ID; every run checks the real Google account.
-  All complete locally collected conversations for that source are in scope.
-  Other source accounts may still be captured **locally** by existing capture
-  behavior but cannot be uploaded by this binding.
-- Standard readable Markdown via existing Domain admission, composition and
-  renderer. No original attachment bytes or resource acquisition, no source
-  RPC from the Drive exporter, no plaintext/credentials sent to developer
-  servers. Source links/text contained in the user's conversation are exported.
-  Incomplete/in-flight/stale local snapshots are skipped, not used to replace
-  a prior document. Missing history must first be captured using existing tools.
-- One app-created folder per connection. Local receipt keys are scoped by
-  folder and hashed local Account + conversation identity. Reserve and persist
-  the Drive file ID before upload; validate file ownership markers/parent before
-  PATCH. Receipt success follows confirmed write. Reconciliation reads current
-  local facts instead of claiming to be a durable change-event log. It retries
-  on subsequent alarms, including when a response or worker was interrupted.
-- Single-device writer, single active binding; run lock and per-document
-  connection lock serialize writes and disconnection. Existing Drive documents
-  remain after disconnect or source deletion. Reconnecting creates a new
-  folder; no cross-install mapping recovery. Independent Drive edits to
-  generated files can be overwritten when source content changes. Trashed or
-  moved known files are not silently recreated. No conflict merge.
-- 5 MiB multipart request limit, fixed Google origin, noninteractive background
-  OAuth, no server token store. Manual reconnect may be needed after
-  revocation; no upload while browser is shut down. Full scan every five
-  minutes is deliberately simple; add bounded incremental scheduling and
-  richer failure diagnostics before wide rollout. Only locally captured
-  complete conversations are eligible; skip count is not a complete-backup claim.
+4. 在独立的 Chrome 配置文件打开 `chrome://extensions`，开启开发者模式，选择「加载已解压的扩展程序」，指向 **extension** 目录。已加载的副本需点击重新加载。扩展卡片显示的 ID 应和第 2 步一致。
 
-## Release gates (not satisfied by this PR alone)
+## 试跑
 
-- Run full repository gates and actual development-client OAuth, two-account
-  isolation, alarm restart, create/patch failure and response-loss tests.
-- Verify format discovery with the intended AI connectors; consider native
-  Google Docs separately if Markdown indexing is insufficient.
-- Review permissions, bilingual disclosure and existing store/website privacy
-  practices. Production OAuth client and Google policy applicability remain
-  unverified. The Drive API terms distinguish export/document use from
-  potentially restricted backup use; present actual automatic export behavior
-  accurately and obtain clarification where required. Do not treat OAuth
-  verification as special-use permission.
-- No auto-merge or publication requested for the initial draft.
+- 用合成会话测试。首次验证时关闭「跳过已导出」，选一篇 Markdown，确认提示中的 Google 邮箱，然后在 Drive 打开生成的文件并核对正文。
+- 再选择两篇，或开启附件。下载 Drive 上的 ZIP 核对文件列表、格式和内容。PDF、DOCX、HTML、JSON 可用同一路径测试。
+- 在目标邮箱确认框点击取消，Drive 不应新增文件。上传失败时检查错误提示和 Drive 文件列表；如果服务端已接收文件但确认回复丢失，再次手动导出可能新建副本。
+- 「跳过已导出」沿用工作台原有的本地导出记录，跨目标生效。需要在不同目标各保存一份时取消勾选。
 
-References:
-https://developers.google.com/workspace/drive/api/terms
-https://developers.google.com/workspace/drive/api/guides/api-specific-auth
-https://developers.google.com/workspace/drive/api/guides/manage-uploads
-https://developer.chrome.com/docs/extensions/reference/api/identity
-https://developer.chrome.com/docs/extensions/reference/api/alarms
+## 从 PR 源码构建
+
+运行 `npm ci && npm run package`，在源码目录之外将生成的扩展 ZIP 解压到名为 `extension` 的子目录。从仓库复制 `scripts/configure_drive_test.py` 到其父目录，然后从上面第 3 步继续。正式 manifest 不含开发客户端或测试权限。

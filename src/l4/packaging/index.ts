@@ -119,7 +119,7 @@ export async function packageExportFiles(groups: readonly (readonly ExportArtifa
         if (paths.has(key)) throw new Error(`Duplicate export path: ${file.fileName}`);
         paths.add(key);
     }
-    if (!files.length || !(delivery === 'browserDownload' && (files.length > 1 || archiveName))) return files;
+    if (!files.length || !(delivery !== 'folderWriter' && (files.length > 1 || archiveName))) return files;
     const writer = new ZipWriter();
     for (const file of files) {
         if (writer.writeFile(file.fileName, file.content) !== file.fileName) throw new Error('ZIP writer changed planned path');

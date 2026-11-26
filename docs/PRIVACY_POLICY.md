@@ -24,7 +24,6 @@ All platform site access is optional and grouped separately for Gemini, ChatGPT,
 - **No Developer Data Collection**: We do not receive, sell, track or analyze your conversation contents or account credentials. The extension itself does store user preferences, local conversation facts and export records on your device for its functionality.
 - **Local Sandbox Execution**: Parsing, rendering, PDF compilation and ZIP packaging run on your device. The PDF engine (Typst) receives structured conversation data in a local sandboxed extension page, not on a remote server.
 - **PDF Rendering Is Local**: PDF rendering and compilation run locally in the browser and do not contact external PDF, font, telemetry, or rendering services. Network access used to retrieve the user's Gemini conversations or referenced attachments remains limited to the source services required for the requested export.
-- **Experimental Google Drive document export (development builds only)**: Off by default. After you explicitly authorize one source account and confirm the destination Google account, complete local conversations are rendered as readable Markdown and sent directly to your own Drive folder, using only the `drive.file` OAuth scope. These documents are not end-to-end encrypted; other apps you authorize in Drive may read them. Attachments are not uploaded by this experiment. Chrome manages OAuth credentials; the extension does not store raw access or refresh tokens. Disconnecting stops future export and leaves previously generated documents in Drive. The public build does not include an OAuth client for this feature.
 - **Optional Encrypted Vault**: Choose a local encrypted folder or configure a compatible cloud vault server. The vault encrypts conversation catalog records on your device and includes locally stored message bodies only when enabled. Original attachment files are not part of this backup. When you choose a cloud vault, its server receives encrypted records, sync metadata and authentication credentials for that vault, but not your GEK1 master key or plaintext conversation records.
 
 ---
@@ -107,7 +106,6 @@ Gemini、ChatGPT、Claude、Grok 的网站访问权限均为可选项，按平�
 - **不向开发者收集数据**：我们不接收、出售、追踪或分析对话正文及账号凭据；扩展会在您的本地设备上保存必要的用户设置、对话信息及导出记录。
 - **纯本地运算**：解析、渲染、PDF 编译和 ZIP 打包均在您的设备上完成。PDF 引擎（Typst）在本地沙箱扩展页面中接收结构化对话数据，不向远程服务器发送数据进行渲染。
 - **PDF 渲染为本地行为**：PDF 的排版与编译完全在浏览器本地完成，不会连接外部 PDF、字体、遥测或渲染服务。用户主动导出时，为读取 Gemini 对话及其关联附件，扩展仍可能访问完成该导出所需的 Google/Gemini 来源服务。
-- **实验性 Google Drive 文档导出（仅开发构建）**：默认关闭。明确授权一个来源账号、确认目标 Google 账号后，本地已完整采集的对话渲染为可阅读 Markdown，通过 `drive.file` 权限直接写入您自己的 Drive 文件夹。文档不采用端到端加密，您授权的其他应用可能读取；实验不上传附件。OAuth 凭据由 Chrome 管理，扩展不持久保存原始 access/refresh token。断开连接停止后续导出，已导出的文件保留在 Drive。公开构建尚未配置此功能的 OAuth 客户端。
 - **可选的端到端加密保险箱**：您可选择本地加密文件夹，或配置兼容的云同步服务器。会话目录在您的设备上加密；只有开启相应选项才会包含本地已保存的聊天正文，不包含原始附件文件。选择云同步时，服务器会收到加密记录、同步元数据和保险箱认证凭据，但不会收到您的 GEK1 主密钥或明文对话记录。
 
 ### 3. 权限申请合理性说明
@@ -140,3 +138,9 @@ PDF 在浏览器本地编译，提供内置字体，并可在获得授权时使�
 ### 7. 源码完全开源受监督
 本扩展源码在 GitHub 完全公开透明，欢迎任何人审计与监督：  
 👉 **<https://github.com/OTLFrostA/gemini-exporter>**
+
+### Experimental manual Google Drive delivery / 实验性手动 Google Drive 导出
+
+In the separately configured test build, choosing Google Drive and confirming the destination account sends the selected export file (including chosen attachments) directly to that account's My Drive. Chrome manages OAuth authorization with the per-file drive.file scope. Gemini Exporter does not grant sharing permissions or schedule uploads. Existing Drive files remain subject to the user's Drive settings.
+
+在单独配置的测试版中，用户选择 Google Drive 并确认目标账号后，本次导出的文件（含选择的附件）会直接上传到该账号的「我的云端硬盘」。Chrome 管理使用 drive.file 范围的 OAuth 授权。扩展不会变更文件分享权限或安排定时上传。Drive 上的文件由用户自己的 Drive 设置管理。

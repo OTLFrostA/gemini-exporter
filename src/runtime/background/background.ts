@@ -16,7 +16,6 @@ import { getAccount, listIndexes } from '../../l3a/storageService.js';
 import { isAccountId } from '../../l2/accountRegistry.js';
 import { readConversationKey } from '../../l2/conversationKey.js';
 import { runLiveSave } from './liveSaveHandler.js';
-import { initDriveExportBackground } from './driveExportHandler.js';
 import { updateSettings } from '../../application/settings/index.js';
 
 installDomainStorage();
@@ -30,7 +29,6 @@ initUninstallUrl();
 initTabActionListeners();
 initGeminiCredentialCapture();
 initCloudSyncBackground();
-initDriveExportBackground();
 const syncSourceAccess = () => { void syncAllPlatformContentScripts().catch(error => console.warn('[Platform injection]', error)); };
 syncSourceAccess();
 chrome.permissions?.onAdded?.addListener(syncSourceAccess);

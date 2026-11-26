@@ -1,3 +1,4 @@
+import { isDriveDeliveryConfigured, prepareDriveDelivery } from '../../runtime/capabilities/googleDriveDelivery.js';
 import { installApplicationHost } from '../../runtime/api/applicationHost.js';
 import { installDomainStorage } from '../../runtime/api/domainStorage.js';
 import { installProviderHost } from '../../runtime/api/providerHost.js';
@@ -22,7 +23,6 @@ import { showRatingPromptIfEligible } from '../shared/ratingPrompt.js';
 import { readSettings } from '../shared/readSettings.js';
 import { errorText, observeSettings, text } from '../shared/settings.js';
 import { mountCloudVaultPanel, type CloudVaultControllerHandle } from './controllers/cloudVaultController.js';
-import { mountDriveExportPanel } from './controllers/driveExportController.js';
 import { createDiagnosticLogController, type LogLevel } from './controllers/diagnosticLogController.js';
 import type { UIExportRequest } from './controllers/exportController.js';
 import { runExportSession, type ExportRunDiagnostic } from './controllers/exportSession.js';
@@ -47,6 +47,8 @@ installGlobalErrorDiagnosticCapture('options');
 type Action = 'export' | 'takeout' | 'cleanup';
 
 async function initWorkbench(): Promise<void> {
+    el('driveDeliveryCard').hidden = !isDriveDeliveryConfigured();
+    const driveLink = control('a', 'openDriveExport');
     const installationTour = consumeTourIntent();
     const state = new ConversationViewState();
     const importedResources = createSourceResourceContext();
@@ -252,6 +254,12 @@ async function initWorkbench(): Promise<void> {
         let tutorialExportSucceeded = false;
         let successfulExports = 0;
         await perform('export', async signal => {
+            driveLink.hidden = true;
+            driveLink.removeAttribute('href');
+            const upload = request.delivery === 'googleDrive'
+                ? await prepareDriveDelivery(signal, email => window.confirm(text(
+                    `Upload this export to ${email} in Google Drive?`, `将本次导出上传到 ${email} 的 Google Drive？`))) : null;
+            if (request.delivery === 'googleDrive' && !upload) return;
             lastRequest = { ...request, keys: request.keys.map(key => ({ ...key })) };
             const run: ExportRunDiagnostic = {
                 startedAt: Date.now(), request: lastRequest,
@@ -266,6 +274,10 @@ async function initWorkbench(): Promise<void> {
             const { result, deliveredCount } = await runExportSession(run, {
                 signal,
                 importedResources,
+                saveToDrive: upload ? async (name, data) => {
+                    driveLink.href = await upload(name, data);
+                    driveLink.hidden = false;
+                } : undefined,
                 titleFor,
                 prepare: async () => {
                     await fonts;
@@ -301,7 +313,7 @@ async function initWorkbench(): Promise<void> {
             preparedExportKeys.clear();
             percent = 100;
             failed = [...result.failed];
-            status(() => exportSummary(result) + (deliveredCount > result.exported
+            status(() => exportSummary(result, settings.developerMode, request.delivery) + (deliveredCount > result.exported
                 ? text(`; Documents already delivered: ${deliveredCount}`, `；已交付正文 ${deliveredCount} 条，文件已保留`)
                 : ''), failed.length || result.aborted || result.partial ? 'warn' : 'info');
         });
@@ -571,7 +583,6 @@ async function initWorkbench(): Promise<void> {
     logController.renderLog();
     await state.refresh();
     if (disposed) return;
-    mountDriveExportPanel(() => state.accountId);
     render();
     chrome.storage.onChanged.addListener(onOpenedAccountChange);
     await applyOpenedAccount((await chrome.storage.session.get('openOptionsAccountId')).openOptionsAccountId);

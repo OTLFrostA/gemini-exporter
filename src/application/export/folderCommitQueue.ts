@@ -7,12 +7,13 @@ import { startBrowserDownload, writeToFolder } from '../../l4/delivery/index.js'
 import { OperationError, operationError } from '../../shared/errors/operationError.js';
 import { resourceIssueKind } from '../../shared/resources/resourceResult.js';
 import type { ExportDiagnostic, ExportItemUpdate, ExportRecord, ExportRequest, ExportResult } from './types.js';
-import { keyIdentity, type ExportGroup } from './exportPolicy.js';
+import { keyIdentity, type ExportGroup, type ExportRunOptions } from './exportPolicy.js';
 
 const MAX_FOLDER_WRITES = 3;
 
 interface DeliveryCoordinatorHooks {
     readonly request: ExportRequest;
+    readonly saveToDrive?: ExportRunOptions['saveToDrive'];
     readonly result: ExportResult;
     readonly signal: AbortSignal;
     readonly report: (update: ExportItemUpdate) => void;
@@ -103,6 +104,13 @@ export function createDeliveryCoordinator(hooks: DeliveryCoordinatorHooks) {
         try { files = await packageExportFiles(groups.map(group => group.files), request.delivery); }
         catch (error) { throw operationError(error, 'PACKAGING_FAILED'); }
         if (!savingCancelled) signal.throwIfAborted();
+        if (request.delivery === 'googleDrive') {
+            if (!hooks.saveToDrive || files.length !== 1) throw new Error('Google Drive delivery unavailable');
+            const { fileName, content, mimeType } = files[0];
+            const data = new Blob([content instanceof Uint8Array ? new Uint8Array(content) : content], { type: mimeType });
+            await hooks.saveToDrive(fileName, data);
+            return;
+        }
         if (request.delivery !== 'browserDownload') throw new OperationError('DIRECTORY_UNAVAILABLE', 'Export directory unavailable');
         if (files.length !== 1) throw new Error('Browser delivery requires one final file');
         await startBrowserDownload(files[0]);

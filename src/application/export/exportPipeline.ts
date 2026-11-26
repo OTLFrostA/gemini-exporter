@@ -118,7 +118,7 @@ export async function executeExportWithSession(
     };
 
     const delivery = createDeliveryCoordinator({
-        request, result, signal, report, diagnose, fail, onBodyDelivered: options.onBodyDelivered,
+        request, result, signal, report, diagnose, fail, saveToDrive: options.saveToDrive, onBodyDelivered: options.onBodyDelivered,
     });
 
     const renderGroup = async (item: PendingExport, plan: ExportPathPlan): Promise<ExportGroup> => {
@@ -175,7 +175,7 @@ export async function executeExportWithSession(
                 fail(groups.map(group => group.key), error);
             }
         };
-        if (linked && !directory) saveCancelledFiles = async () => {
+        if (linked && request.delivery === 'browserDownload') saveCancelledFiles = async () => {
             await drainDownstream();
             await deliverBrowserBodies(true);
         };

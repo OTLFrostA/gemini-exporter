@@ -1,3 +1,4 @@
+import type { ExportRunOptions } from '../../../application/export/exportPolicy.js';
 import { runExport, type UIExportRequest } from './exportController.js';
 import type { ExportDiagnostic, ExportItemUpdate, ExportResult } from '../../../application/export/types.js';
 import type { ConversationKey } from '../../../l2/conversationKey.js';
@@ -25,6 +26,7 @@ interface ExportSessionOptions {
     signal: AbortSignal;
     importedResources: SourceResourceContext;
     prepare: () => Promise<void>;
+    saveToDrive?: ExportRunOptions['saveToDrive'];
     titleFor: (key: ConversationKey | undefined) => string | undefined;
     onStart: (message: UiMessage) => void;
     onProgress: (message: UiMessage, percent: number) => void;
@@ -51,7 +53,7 @@ export async function runExportSession(run: ExportRunDiagnostic, options: Export
         const total = request.keys.length;
         // Browser batches reserve their last 10% for the final ZIP handoff.
         const percent = total ? Math.round(processed.size / total *
-            (request.delivery === 'browserDownload' ? 90 : 100)) : 100;
+            (request.delivery === 'folderWriter' ? 100 : 90)) : 100;
         options.onProgress(message, percent);
     };
     options.onStart(message);
@@ -60,7 +62,7 @@ export async function runExportSession(run: ExportRunDiagnostic, options: Export
     try {
         await options.prepare();
         const result = await runExport(request, {
-            signal: options.signal, importedResources: options.importedResources,
+            signal: options.signal, saveToDrive: options.saveToDrive, importedResources: options.importedResources,
             onDiagnostic: diagnostic => {
                 if (!active) return;
                 if (backoff.observe(diagnostic)) paintProgress();
