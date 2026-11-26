@@ -855,9 +855,14 @@ test('starting an export leaves the button in place and the tutorial cutout foll
     assert.ok(Math.abs(before.y-after.y)<2,`Export button y: ${before.y} -> ${after.y}`);
     await page.waitForFunction(() => {
         const button=document.getElementById('btnExport')?.getBoundingClientRect();
+        const cancel=document.getElementById('btnCancel')?.getBoundingClientRect();
         const spotlight=document.querySelector('.tour-spotlight')?.getBoundingClientRect();
-        return button && spotlight && Math.abs(spotlight.top-Math.max(0,button.top-6))<2
-            && spotlight.left<=button.left && spotlight.right>=button.right && spotlight.bottom>=button.bottom;
+        if (!button || !spotlight) return false;
+        const top = cancel && cancel.height > 0 ? Math.min(button.top, cancel.top) : button.top;
+        const bottom = cancel && cancel.height > 0 ? Math.max(button.bottom, cancel.bottom) : button.bottom;
+        return Math.abs(spotlight.top-Math.max(0,top-6))<2
+            && Math.abs(spotlight.bottom-Math.min(window.innerHeight,bottom+6))<2
+            && spotlight.left<=button.left && spotlight.right>=button.right;
     });
     await page.evaluate(() => Reflect.get(window,'harness').finishExport());
     await page.getByRole('heading',{name:'Live Save',exact:true}).waitFor();
