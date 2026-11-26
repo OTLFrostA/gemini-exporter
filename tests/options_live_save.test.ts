@@ -13,10 +13,11 @@ test('Options restores directory capability and toggles only the Settings enable
     assert.equal(await page.locator('input[name="delivery"][value="browserDownload"]').isChecked(), true);
     assert.equal(await page.locator('#btnSetDir').isDisabled(), true);
     assert.equal(await page.locator('#liveSaveDiskToggle').isDisabled(), true);
-    assert.equal(await page.locator('.local-card-details #dirBox').isVisible(), true);
+    assert.equal(await page.locator('.local-card-details #dirBox').isVisible(), false);
     assert.equal(await page.locator('.local-card-details #liveSaveControls').count(), 1);
     assert.match(await page.locator('#dirLabel').textContent() ?? '', /MyVault/);
     await page.locator('input[name="delivery"][value="folderWriter"]').check();
+    assert.equal(await page.locator('.local-card-details #dirBox').isVisible(), true);
     await page.locator('#liveSaveDiskToggle').check(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
     assert.equal((await read(page, 'settings')).enabledDisk, true); assert.deepEqual((await read(page, 'patches')).at(-1), { enabledDisk: true });
     await page.locator('#liveSaveDiskToggle').uncheck(); await page.waitForFunction(() => document.body.dataset.busy !== 'true');
