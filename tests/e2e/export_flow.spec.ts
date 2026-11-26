@@ -263,7 +263,7 @@ test('physical archive bytes survive verified local deletion; missing bodies fai
     expect(await readFile((await file.path())!)).toEqual(bytes);
 });
 
-test('manual Drive export confirms the destination and uploads only the selected Markdown', async ({ context, extensionId }) => {
+test('manual Drive export authorizes on selection and verifies the file in the chosen folder', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
     await expect(page.locator('#driveDeliveryCard')).toBeHidden();
     await seedConversations(page, [{ id: 'chosen' }, { id: 'other' }]);
@@ -278,49 +278,70 @@ test('manual Drive export confirms the destination and uploads only the selected
     await page.reload();
     const uploads: Buffer[] = [];
     let uploadSessions = 0;
-    let failWrite = true;
+    let metadataReads = 0;
+    let destination = 'existing';
+    let filename = '';
+    let storedSize = 0;
+    let mimeType = '';
+    let returnEmpty = true;
+    page.on('dialog', async dialog => { await dialog.dismiss(); throw new Error('Unexpected confirmation'); });
     await page.route('https://www.googleapis.com/**', async route => {
         const req = route.request();
+        const url = new URL(req.url());
         expect(req.headers().authorization).toBe('Bearer fixture');
-        if (req.url().includes('/about?')) return route.fulfill({ json: { user: { emailAddress: 'drive@example.test' } } });
+        if (url.pathname.endsWith('/about')) return route.fulfill({ json: { user: { emailAddress: 'drive@example.test' } } });
+        if (url.pathname === '/drive/v3/files' && req.method() === 'GET') {
+            return route.fulfill({ json: { files: [{ name: 'Existing', id: 'existing', capabilities: { canAddChildren: true } }] } });
+        }
+        if (url.pathname === '/drive/v3/files') {
+            expect(req.postDataJSON()).toMatchObject({ name: 'Reports', parents: ['existing'] });
+            return route.fulfill({ json: { id: 'new-folder', name: 'Reports' } });
+        }
+        if (url.pathname === '/drive/v3/files/confirmed-file') {
+            metadataReads++;
+            return route.fulfill({ json: { id: 'confirmed-file', name: filename, mimeType,
+                size: String(returnEmpty ? 0 : storedSize), parents: [destination], trashed: false } });
+        }
         if (req.method() === 'POST') {
             uploadSessions++;
+            const metadata = req.postDataJSON();
+            expect(metadata.parents).toEqual([destination]);
+            filename = metadata.name;
+            mimeType = metadata.mimeType;
             return route.fulfill({ status: 200, headers: {
-            location: 'https://www.googleapis.com/upload/drive/v3/files?upload_id=test',
-            'access-control-expose-headers': 'Location',
+                location: 'https://www.googleapis.com/upload/drive/v3/files?upload_id=test',
+                'access-control-expose-headers': 'Location',
             } });
         }
         expect(req.method()).toBe('PUT');
-        if (failWrite) return route.fulfill({ status: 503 });
-        uploads.push(req.postDataBuffer()!);
+        const body = req.postDataBuffer()!;
+        storedSize = body.length;
+        if (!returnEmpty) uploads.push(body);
         return route.fulfill({ json: { id: 'confirmed-file' } });
     });
-    await page.locator('input[value="googleDrive"]').check();
+    await page.locator('#driveDeliveryRadio').check();
+    await expect(page.locator('#driveConnectionStatus')).toHaveText('drive@example.test');
+    await expect(page.locator('#skipExported')).toBeDisabled();
+    await page.locator('#driveFolder').selectOption('existing');
     await page.locator('#list .item').filter({ hasText: 'chosen' }).locator('input').check();
-    page.once('dialog', async dialog => {
-        expect(dialog.message()).toContain('drive@example.test');
-        await dialog.dismiss();
-    });
     await page.locator('#btnExport').click();
-    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
-    await expect(page.locator('#openDriveExport')).toBeHidden();
-    page.once('dialog', dialog => dialog.accept());
-    await page.locator('#btnExport').click();
-    await expect(page.locator('body')).toHaveAttribute('data-busy', 'false');
-    await expect(page.locator('#openDriveExport')).toBeHidden();
-    expect(uploadSessions).toBe(1);
     await expect(page.locator('#exportFailureCard')).toBeVisible();
-    failWrite = false;
-    page.once('dialog', dialog => dialog.accept());
+    expect(metadataReads).toBe(1);
+    await expect(page.locator('#openDriveExport')).toBeHidden();
+    await page.locator('#driveNewFolderName').fill('Reports');
+    await page.locator('#driveCreateFolder').click();
+    await expect(page.locator('#driveFolder')).toHaveValue('new-folder');
+    destination = 'new-folder';
+    expect(uploadSessions).toBe(1);
+    returnEmpty = false;
     await page.locator('#btnExport').click();
-    await expect(page.locator('#openDriveExport')).toHaveAttribute('href', 'https://drive.google.com/open?id=confirmed-file');
+    await expect(page.locator('#openDriveExport')).toHaveAttribute('href', 'https://drive.google.com/open?id=confirmed-file&authuser=drive%40example.test');
+    await expect(page.locator('#openDriveExport')).toContainText('Reports / ');
     expect(uploads).toHaveLength(1);
     expect(uploads[0].toString()).toContain('Answer chosen');
     expect(uploads[0].toString()).not.toContain('Answer other');
     await expect(page.locator('#status')).toContainText('Uploaded to Drive: 1');
-    await page.locator('#skipExported').uncheck();
     await page.locator('#btnSelectAll').check();
-    page.once('dialog', dialog => dialog.accept());
     await page.locator('#btnExport').click();
     await expect(page.locator('#status')).toContainText('Uploaded to Drive: 2');
     expect(uploads).toHaveLength(2);

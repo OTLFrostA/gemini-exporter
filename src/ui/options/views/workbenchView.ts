@@ -144,7 +144,8 @@ export function renderWorkbench(input: WorkbenchRenderInput): void {
 
     if (settings) {
         control('select', 'format').value = settings.defaultFormat;
-        control('input', 'skipExported').checked = settings.skipExported;
+        control('input', 'skipExported').checked = settings.exportDelivery !== 'googleDrive' && settings.skipExported;
+        control('input', 'skipExported').disabled ||= settings.exportDelivery === 'googleDrive';
         control('input', 'includeAssets').checked = settings.includeAssets;
         control('input', 'devToggle').checked = settings.developerMode;
         const en = !document.documentElement.lang.startsWith('zh');

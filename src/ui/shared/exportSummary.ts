@@ -15,7 +15,8 @@ export function exportSummary(result: ExportResult, developerMode = isDeveloperM
     const expired = count('expired'), unavailable = count('unavailable'), restricted = count('restricted'), download = count('download'), processing = count('processing'), unknown = count('unknown');
     const expiredConversations = result.expiredConversations ?? 0;
     const summary = [delivery === 'googleDrive'
-        ? text(`Uploaded to Drive: ${result.exported}`, `已上传到 Drive：${result.exported} 条会话`)
+        ? (result.exported ? text(`Uploaded to Drive: ${result.exported}`, `已上传到 Drive：${result.exported} 条会话`)
+            : text('No export confirmed in Drive', 'Drive 未确认导出文件'))
         : text(`Successfully downloaded: ${result.exported}`, `成功下载 ${result.exported} 条会话`),
         ...(expired ? [text(
             `${englishCount(expiredConversations, 'conversation')} ${expiredConversations === 1 ? 'contains' : 'contain'} unavailable source attachments (${englishCount(expired, 'attachment')})`,

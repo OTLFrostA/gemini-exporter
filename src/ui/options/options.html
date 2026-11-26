@@ -102,6 +102,9 @@
   .export-skip-row{display:flex;gap:8px;align-items:center;font-size:12px;min-height:24px;cursor:pointer}
   .export-destination{display:flex;flex-direction:column;gap:8px}
   .settings-heading{font-size:12px;font-weight:600;color:var(--text)}
+  #driveDeliveryCard:not(:has(input[type=radio]:checked)) .drive-controls{display:none}
+  .drive-controls{display:grid;gap:8px;margin-top:8px}
+  .drive-controls input,.drive-controls select{max-width:100%;min-width:0}
   .delivery-choices{display:flex;flex-direction:column;gap:8px}
   .delivery-card{min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card-inner);transition:border-color .15s ease,background .15s ease}
   .delivery-card:has(.delivery-choice input:checked){border-color:var(--accent);background:var(--card)}
@@ -381,13 +384,22 @@
         </div>
         <div class="delivery-card" id="driveDeliveryCard" hidden>
           <label class="delivery-choice">
-            <input type="radio" name="delivery" value="googleDrive">
+            <input type="radio" id="driveDeliveryRadio" name="delivery" value="googleDrive">
             <span class="delivery-copy">
               <span class="delivery-title">Google Drive</span>
               <span class="delivery-description" data-ui-en="Upload this export to My Drive" data-ui-zh="将本次导出上传到我的云端硬盘">将本次导出上传到我的云端硬盘</span>
             </span>
           </label>
-          <a id="openDriveExport" target="_blank" rel="noopener noreferrer" hidden data-ui-en="Open in Drive" data-ui-zh="在 Drive 中打开">在 Drive 中打开</a>
+          <div class="drive-controls">
+            <span id="driveConnectionStatus" role="status"></span>
+            <button type="button" id="driveConnect" class="ghost small" data-ui-en="Connect / refresh" data-ui-zh="连接 / 刷新">连接 / 刷新</button>
+            <label for="driveFolder" data-ui-en="Destination folder" data-ui-zh="目标文件夹">目标文件夹</label>
+            <select id="driveFolder" class="page-select"></select>
+            <label for="driveNewFolderName" data-ui-en="New folder name" data-ui-zh="新文件夹名称">新文件夹名称</label>
+            <input id="driveNewFolderName" type="text">
+            <button id="driveCreateFolder" type="button" class="ghost small" data-ui-en="Create in selected folder" data-ui-zh="在所选位置新建文件夹">在所选位置新建文件夹</button>
+            <a id="openDriveExport" target="_blank" rel="noopener noreferrer" hidden></a>
+          </div>
         </div>
         <div class="delivery-card">
           <label class="delivery-choice">

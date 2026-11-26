@@ -1,4 +1,4 @@
-import { isDriveDeliveryConfigured, prepareDriveDelivery } from '../../runtime/capabilities/googleDriveDelivery.js';
+import { mountDriveDeliveryPanel } from './controllers/driveDeliveryPanel.js';
 import { installApplicationHost } from '../../runtime/api/applicationHost.js';
 import { installDomainStorage } from '../../runtime/api/domainStorage.js';
 import { installProviderHost } from '../../runtime/api/providerHost.js';
@@ -47,8 +47,7 @@ installGlobalErrorDiagnosticCapture('options');
 type Action = 'export' | 'takeout' | 'cleanup';
 
 async function initWorkbench(): Promise<void> {
-    el('driveDeliveryCard').hidden = !isDriveDeliveryConfigured();
-    const driveLink = control('a', 'openDriveExport');
+    const drivePanel = mountDriveDeliveryPanel();
     const installationTour = consumeTourIntent();
     const state = new ConversationViewState();
     const importedResources = createSourceResourceContext();
@@ -221,6 +220,7 @@ async function initWorkbench(): Promise<void> {
         if (isBusy()) return;
         const taskController = new AbortController();
         foreground = { kind, phase: 'running', controller: taskController };
+        if (kind === 'export') drivePanel.setExporting(true);
         feedback = { kind: 'empty' }; percent = 0;
         render();
         try { await task(taskController.signal); }
@@ -229,7 +229,9 @@ async function initWorkbench(): Promise<void> {
             foreground = { kind, phase: 'refreshing', controller: taskController };
             paintTaskPanel();
             try { await refresh(); } catch (error) { statusError(error); }
-            foreground = { kind: 'idle' }; render();
+            foreground = { kind: 'idle' };
+            if (kind === 'export') drivePanel.setExporting(false);
+            render();
         }
     };
 
@@ -254,12 +256,7 @@ async function initWorkbench(): Promise<void> {
         let tutorialExportSucceeded = false;
         let successfulExports = 0;
         await perform('export', async signal => {
-            driveLink.hidden = true;
-            driveLink.removeAttribute('href');
-            const upload = request.delivery === 'googleDrive'
-                ? await prepareDriveDelivery(signal, email => window.confirm(text(
-                    `Upload this export to ${email} in Google Drive?`, `将本次导出上传到 ${email} 的 Google Drive？`))) : null;
-            if (request.delivery === 'googleDrive' && !upload) return;
+            const saveToDrive = request.delivery === 'googleDrive' ? drivePanel.writer(signal) : undefined;
             lastRequest = { ...request, keys: request.keys.map(key => ({ ...key })) };
             const run: ExportRunDiagnostic = {
                 startedAt: Date.now(), request: lastRequest,
@@ -274,10 +271,7 @@ async function initWorkbench(): Promise<void> {
             const { result, deliveredCount } = await runExportSession(run, {
                 signal,
                 importedResources,
-                saveToDrive: upload ? async (name, data) => {
-                    driveLink.href = await upload(name, data);
-                    driveLink.hidden = false;
-                } : undefined,
+                saveToDrive,
                 titleFor,
                 prepare: async () => {
                     await fonts;
@@ -333,7 +327,7 @@ async function initWorkbench(): Promise<void> {
         if (isBusy() || folderSuggestionPending || !keys.length || !settings) return;
         const request: UIExportRequest = {
             keys, format: settings.defaultFormat, delivery: settings.exportDelivery ?? 'browserDownload',
-            includeAssets: settings.includeAssets, skipUnchanged: settings.skipExported,
+            includeAssets: settings.includeAssets, skipUnchanged: settings.exportDelivery !== 'googleDrive' && settings.skipExported,
         };
         const start = (delivery: UIExportRequest['delivery']) => {
             const fonts = request.format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
@@ -559,6 +553,7 @@ async function initWorkbench(): Promise<void> {
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
         disposed = true;
+        drivePanel.dispose();
         if (foreground.kind !== 'idle') foreground.controller.abort();
         scanRunner.stopScan();
         settingsControls?.dispose();
