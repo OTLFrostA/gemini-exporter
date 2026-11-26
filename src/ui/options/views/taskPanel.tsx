@@ -1,7 +1,8 @@
 import { createPortal } from 'react-dom';
+import type { ConversationKey } from '../../../l2/conversationKey.js';
 import type { ForegroundTaskStatus, ScanEvidence, TaskFeedback } from '../state/foregroundTask.js';
 import { englishCount, text } from '../../shared/settings.js';
-import { failureGroupLabel } from './exportFailures.js';
+import { failureGroupLabel, failureGroupTier, prepareDisplayFailureGroups } from './exportFailures.js';
 import type { ExportIssueGroup } from '../state/exportIssues.js';
 import type { ConversationSourceSummary } from '../../shared/conversationSourceSummary.js';
 
@@ -25,17 +26,20 @@ export interface TaskPanelProps {
     onRetry: () => void;
     onDismiss: () => void;
     onCopy: () => void;
+    onSelectConversation?: (key: ConversationKey) => void;
 }
 
-function FailureCard({ groups, failedCount, dismissed, developerMode, task, ready, onRetry, onDismiss, onCopy }: TaskPanelProps) {
-    const visibleGroups = groups.filter(group => developerMode || (
+function FailureCard({ groups, failedCount, dismissed, developerMode, task, ready, onRetry, onDismiss, onCopy, onSelectConversation }: TaskPanelProps) {
+    const filteredGroups = groups.filter(group => developerMode || (
         group.severity === 'error'
         && !['resource', 'resource_refresh', 'source_parse', 'detail', 'source_refresh'].includes(group.diagnostic.stage)
         && !group.category.startsWith('RESOURCE_')
         && !/(?:^|_)(?:ASSET|IMAGE)(?:_|$)/.test(group.diagnostic.code)
         && group.category !== 'DETAIL_NOT_COMPLETE'
         && group.category !== 'SOURCE_REFRESH_FAILED'
+        && group.category !== 'EXPORTED_FROM_LOCAL_DELETED_AT_SOURCE'
     ));
+    const visibleGroups = prepareDisplayFailureGroups(filteredGroups);
     const hasErrors = failedCount > 0 || visibleGroups.some(group => group.severity === 'error');
     const title = hasErrors
         ? failedCount ? text(`${englishCount(failedCount, 'conversation')} failed · Issue groups: ${visibleGroups.length}`,
@@ -56,15 +60,27 @@ function FailureCard({ groups, failedCount, dismissed, developerMode, task, read
                     style={{ padding: '2px 6px', fontSize: 11, color: 'var(--text-muted)' }} onClick={onDismiss}>✕</button>
             </div>
         </div>
-        <div id="exportFailureList" style={{ maxHeight: 140, overflowY: 'auto', color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.4 }}>
-            {visibleGroups.map(group => <details key={JSON.stringify([group.category, group.httpStatus, group.category === 'UNKNOWN_ERROR' ? group.diagnostic.stage : null])} data-severity={group.severity}>
-                <summary>{failureGroupLabel(group)}</summary>
-                <div style={{ overflowWrap: 'anywhere' }}>{text('Example diagnostic: ', '示例诊断：')}
-                    {`[${group.diagnostic.stage} / ${group.diagnostic.code}] ${group.diagnostic.message}`}</div>
-                {group.conversations.map(({ key, title }) => <div key={`${key.accountId}/${key.conversationId}`}>
-                    {title ? `${title} (${key.conversationId})` : key.conversationId}
-                </div>)}
-            </details>)}
+        <div id="exportFailureList" style={{ maxHeight: 160, overflowY: 'auto', color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.4 }}>
+            {visibleGroups.map(group => {
+                const tier = failureGroupTier(group);
+                return <details key={JSON.stringify([group.category, group.httpStatus, group.category === 'UNKNOWN_ERROR' ? group.diagnostic.stage : null])}
+                    data-severity={group.severity} data-tier={tier} className="issue-group">
+                    <summary>{failureGroupLabel(group)}</summary>
+                    <div className="issue-diagnostic-sample">{text('Example diagnostic: ', '示例诊断：')}
+                        {`[${group.diagnostic.stage} / ${group.diagnostic.code}] ${group.diagnostic.message}`}</div>
+                    <div className="issue-conv-list">
+                        {group.conversations.map(({ key, title: convTitle }) => {
+                            const label = convTitle ? `${convTitle} (${key.conversationId})` : key.conversationId;
+                            return <button key={`${key.accountId}/${key.conversationId}`} type="button" className="issue-conv-btn"
+                                title={text(`Locate in list: ${label}`, `在右侧列表中定位：${label}`)}
+                                onClick={() => onSelectConversation?.(key)}>
+                                <span className="issue-conv-label">{label}</span>
+                                <span className="issue-conv-jump" aria-hidden="true">→</span>
+                            </button>;
+                        })}
+                    </div>
+                </details>;
+            })}
         </div>
     </div>;
 }

@@ -106,6 +106,36 @@ async function initWorkbench(): Promise<void> {
     const copyFailures = () => {
         void navigator.clipboard.writeText(copyExportFailures(currentIssues.groups())).catch(e => statusError(e));
     };
+    let locateFlashTimer: ReturnType<typeof setTimeout> | undefined;
+    const locateConversation = (target: UIExportRequest['keys'][number]) => {
+        void (async () => {
+            if (target.accountId !== state.accountId) {
+                if (isBusy() || scanRunner.isScanning() || !state.accounts.some(a => a.id === target.accountId)) return;
+                await select(target.accountId);
+            }
+            if (!state.visible().some(row => row.key.conversationId === target.conversationId)) {
+                const search = control('input', 'chatSearchInput');
+                const filter = control('select', 'chatFilterSelect');
+                state.search = '';
+                state.filter = 'all';
+                search.value = '';
+                filter.value = 'all';
+                renderConversations();
+            }
+            const list = el('list');
+            const row = [...list.querySelectorAll<HTMLElement>('.item')].find(
+                node => node.dataset.chatId === target.conversationId && node.dataset.accountId === target.accountId,
+            );
+            if (!row) return;
+            for (const prev of list.querySelectorAll('.item-locate-flash')) prev.classList.remove('item-locate-flash');
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            void row.offsetWidth;
+            row.classList.add('item-locate-flash');
+            clearTimeout(locateFlashTimer);
+            locateFlashTimer = setTimeout(() => row.classList.remove('item-locate-flash'), 1800);
+            row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.focus({ preventScroll: true });
+        })().catch(e => statusError(e));
+    };
 
     const paintTaskPanel = () => {
         const scanState = scanRunner.getState();
@@ -136,6 +166,7 @@ async function initWorkbench(): Promise<void> {
             onRetry: retryFailed,
             onDismiss: dismissFailures,
             onCopy: copyFailures,
+            onSelectConversation: locateConversation,
         });
     };
 
@@ -584,7 +615,7 @@ async function initWorkbench(): Promise<void> {
         unmountList();
         importedResources.release();
         stopSettings(); stopDomainChanges(); chrome.storage.onChanged.removeListener(onOpenedAccountChange);
-        clearTimeout(domainRefreshTimer); pendingDomainAccounts.clear();
+        clearTimeout(domainRefreshTimer); clearTimeout(locateFlashTimer); pendingDomainAccounts.clear();
         window.removeEventListener('focus', onFocus); TourGuide.destroy();
     }, { once: true });
 
