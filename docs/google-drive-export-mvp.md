@@ -23,4 +23,13 @@
 
 ## 从 PR 源码构建
 
-运行 `npm ci && npm run package`，在源码目录之外将生成的扩展 ZIP 解压到名为 `extension` 的子目录。从仓库复制 `scripts/configure_drive_test.py` 到其父目录，然后从上面第 3 步继续。正式 manifest 不含开发客户端或测试权限。
+运行 `npm ci && npm run package`，在源码目录之外将生成的扩展 ZIP 解压到名为 `extension` 的子目录。从仓库复制 `scripts/configure_drive_test.py` 到其父目录，然后从上面第 3 步继续。
+
+## Chrome 网上应用店发布
+
+1. 在启用了 Google Drive API 的应用项目中创建 **Chrome Extension** OAuth 客户端。Item ID 填商店扩展 ID `ldpbiafkgjlaooeplkiooljccpalpkgf`。
+2. 在同一个项目的 **Web application** OAuth 客户端中添加授权回调 `https://ldpbiafkgjlaooeplkiooljccpalpkgf.chromiumapp.org/drive-picker`，供「切换账号」使用。
+3. 在 Google Auth Platform 中将发布面向外部用户的应用设为 **In production**，并完成控制台提示的品牌验证要求。**Testing** 仅允许名单中的账号使用。
+4. 将两个公开客户端 ID 分别保存为 GitHub Actions 仓库变量 `DRIVE_CHROME_CLIENT_ID` 和 `DRIVE_WEB_CLIENT_ID`。标签发布流程将这些值、`identity` 权限和 `drive.file` scope 写入发布 ZIP 并检查成品。缺少配置时打包失败。
+
+客户端 ID 随商店包分发。用户安装后在「导出到」选择 Google Drive，首次使用时授权自己的账号。商店包依赖商店为它分配的扩展 ID，本地解压测试使用上述专用配置。
