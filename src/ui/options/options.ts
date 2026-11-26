@@ -56,6 +56,7 @@ async function initWorkbench(): Promise<void> {
     const taskPanel = mountTaskPanel();
     let cloudPanel: CloudVaultControllerHandle | undefined;
     let currentScanStatus: UiMessage | ConversationSourceSummary | null = null;
+    let latestStatusSource: 'task' | 'scan' | null = null;
     let presentationSaving = false;
     let lastRequest: UIExportRequest | null = null;
     let failed: UIExportRequest['keys'] = [];
@@ -106,15 +107,21 @@ async function initWorkbench(): Promise<void> {
 
     const paintTaskPanel = () => {
         const scanState = scanRunner.getState();
+        const scanning = scanRunner.isScanning();
+        const taskRunning = foreground.kind !== 'idle';
+        const rawScanMessage = currentScanStatus === null || (typeof currentScanStatus === 'object' && currentScanStatus.method !== 'sync')
+            ? null : resolveSourceMessage(currentScanStatus, state, scanState.evidence);
+        const showScan = rawScanMessage !== null && (scanning || latestStatusSource === 'scan' || feedback.kind === 'empty');
+        const showTask = feedback.kind !== 'empty' && (taskRunning || latestStatusSource === 'task' || !showScan);
         taskPanel.render({
             task: foreground,
             feedback,
+            showTask,
             percent,
-            scanning: scanRunner.isScanning(),
-            scanMessage: currentScanStatus === null || (typeof currentScanStatus === 'object' && currentScanStatus.method !== 'sync')
-                ? null : resolveSourceMessage(currentScanStatus, state, scanState.evidence),
+            scanning,
+            scanMessage: showScan ? rawScanMessage : null,
             scanEvidence: scanState.evidence,
-            scanSlow: scanState.slow,
+            scanSlow: scanning && scanState.slow,
             onTakeout: scanState.takeoutCount === undefined ? undefined : showTakeout.bind(undefined, scanState.takeoutCount),
             sourceSummary: currentScanStatus !== null && typeof currentScanStatus === 'object'
                 ? { ...currentScanStatus, accountId: state.accountId, total: state.indexes.length } : undefined,
@@ -133,6 +140,7 @@ async function initWorkbench(): Promise<void> {
     const status = (message: UiMessage, level: LogLevel = 'info', rawLogMessage?: string) => {
         scanRunner.clearConnectionError();
         feedback = { kind: 'status', message, level };
+        latestStatusSource = 'task';
         paintTaskPanel();
         logController.appendLog({ at: Date.now(), level, message: rawLogMessage ?? resolveUiMessage(message) });
     };
@@ -142,6 +150,7 @@ async function initWorkbench(): Promise<void> {
         if (level !== 'error') scanRunner.clearConnectionError();
         const scanState = scanRunner.getState();
         currentScanStatus = message;
+        latestStatusSource = 'scan';
         paintTaskPanel();
         logController.appendLog({
             at: Date.now(),
@@ -153,6 +162,7 @@ async function initWorkbench(): Promise<void> {
     const progress = (message: UiMessage, nextPercent?: number) => {
         if (foreground.kind === 'idle' || foreground.phase !== 'running' || foreground.controller.signal.aborted) return;
         feedback = { kind: 'progress', message };
+        latestStatusSource = 'task';
         if (nextPercent !== undefined && Number.isFinite(nextPercent)) percent = Math.max(0, Math.min(100, nextPercent));
         paintTaskPanel();
     };
@@ -185,6 +195,7 @@ async function initWorkbench(): Promise<void> {
         currentIssues = new ExportIssueCollector();
         dismissedFailures = false;
         currentScanStatus = null;
+        latestStatusSource = null;
         scanRunner.resetAccountState();
         feedback = { kind: 'empty' };
     };

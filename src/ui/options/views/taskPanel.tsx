@@ -8,6 +8,7 @@ import type { ConversationSourceSummary } from '../../shared/conversationSourceS
 export interface TaskPanelProps {
     task: ForegroundTaskStatus;
     feedback: TaskFeedback;
+    showTask?: boolean;
     percent: number;
     scanning: boolean;
     scanMessage: string | null;
@@ -65,15 +66,17 @@ function FailureCard({ groups, failedCount, dismissed, developerMode, task, read
 }
 
 export function TaskPanel({ failureHost, scanHost: _scanHost, ...props }: TaskPanelProps & { failureHost: HTMLElement; scanHost: HTMLElement }) {
-    const { task, feedback, percent, scanning, scanMessage, scanSlow, onCancel } = props;
+    const { task, feedback, showTask = true, percent, scanning, scanMessage, scanSlow, onCancel } = props;
     const exporting = task.kind === 'export';
+    const determinateTask = exporting || task.kind === 'takeout';
+    const indeterminate = scanning && !determinateTask;
     const message = feedback.kind === 'empty' ? '' : typeof feedback.message === 'function' ? feedback.message() : feedback.message;
     return <>
         <p id="exportOptionsLock" role="status" hidden={!exporting} style={{ margin: 0, textAlign: 'center', fontSize: 12, lineHeight: 1.5 }}>
             {text('Exporting — options are locked', '导出中，选项已锁定')}
         </p>
-        <div id="progWrap" className={`progress${scanning ? ' indeterminate' : ''}`} style={{ display: scanning || exporting || task.kind === 'takeout' ? 'block' : 'none' }}
-            role="progressbar" aria-label={text('Task progress', '任务进度')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={scanning ? undefined : percent}>
+        <div id="progWrap" className={`progress${indeterminate ? ' indeterminate' : ''}`} style={{ display: scanning || determinateTask ? 'block' : 'none' }}
+            role="progressbar" aria-label={text('Task progress', '任务进度')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={indeterminate ? undefined : percent}>
             <div id="bar" className="bar" style={{ width: `${percent}%` }} />
         </div>
         <div id="progText" className="stat" role="status" aria-live="polite"
@@ -97,7 +100,7 @@ export function TaskPanel({ failureHost, scanHost: _scanHost, ...props }: TaskPa
             {text('As conversation history grows, Gemini scans may take significantly longer.', '随着对话历史增加，Gemini 的扫描时间可能会显著变长。')}
         </div>
         <p id="status" role="status" aria-live="polite" className="stat" data-level={feedback.kind === 'status' ? feedback.level : undefined}
-            style={{ display: feedback.kind === 'progress' ? 'none' : 'block', margin: 0, textAlign: 'center', minHeight: 20, lineHeight: 1.5, overflowWrap: 'anywhere', padding: '2px 0' }}>{message}</p>
+            style={{ display: showTask && feedback.kind === 'status' ? 'block' : 'none', margin: 0, textAlign: 'center', minHeight: 20, lineHeight: 1.5, overflowWrap: 'anywhere', padding: '2px 0' }}>{message}</p>
         {createPortal(<FailureCard {...props} />, failureHost)}
     </>;
 }
