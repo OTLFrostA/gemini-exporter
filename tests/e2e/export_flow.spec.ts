@@ -263,7 +263,7 @@ test('physical archive bytes survive verified local deletion; missing bodies fai
     expect(await readFile((await file.path())!)).toEqual(bytes);
 });
 
-test('manual Drive export authorizes on selection and verifies the file in the chosen folder', async ({ context, extensionId }) => {
+test('manual Drive export authorizes on selection and verifies the file in the reused root export folder', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
     await expect(page.locator('#driveDeliveryCard')).toBeHidden();
     await seedConversations(page, [{ id: 'chosen' }, { id: 'other' }]);
@@ -272,20 +272,6 @@ test('manual Drive export authorizes on selection and verifies the file in the c
         const scopes = ['https://www.googleapis.com/auth/drive.file'];
         chrome.runtime.getManifest = () => ({ ...manifest, oauth2: { client_id: 'test', scopes } });
         Object.defineProperty(chrome, 'identity', { configurable: true, value: {
-            getRedirectURL: () => 'https://test.chromiumapp.org/drive-picker',
-            launchWebAuthFlow: async ({ url }: chrome.identity.WebAuthFlowDetails) => {
-                const request = new URL(url);
-                if (request.origin !== 'https://accounts.google.com' || request.searchParams.get('trigger_onepick') !== 'true'
-                    || request.searchParams.get('allow_folder_selection') !== 'true') throw new Error('Invalid Picker request');
-                const params = new URLSearchParams({ state: request.searchParams.get('state') ?? '' });
-                const selection = sessionStorage.getItem('pickerResult') ?? 'locked';
-                if (selection === 'cancel') params.set('error', 'access_denied');
-                else {
-                    params.set('picked_file_ids', selection);
-                    params.set('access_token', 'picker-fixture');
-                }
-                return request.searchParams.get('redirect_uri') + '#' + params.toString();
-            },
             getAuthToken: async (details: chrome.identity.TokenDetails) => {
                 sessionStorage.setItem('driveAuthMode', String(details.interactive));
                 return { token: 'fixture', grantedScopes: scopes };
@@ -296,7 +282,8 @@ test('manual Drive export authorizes on selection and verifies the file in the c
     const uploads: Buffer[] = [];
     let uploadSessions = 0;
     let metadataReads = 0;
-    const destination = 'existing';
+    const destination = 'export-folder';
+    let createdFolders = 0;
     let filename = '';
     let storedSize = 0;
     let mimeType = '';
@@ -305,12 +292,16 @@ test('manual Drive export authorizes on selection and verifies the file in the c
     await page.route('https://www.googleapis.com/**', async route => {
         const req = route.request();
         const url = new URL(req.url());
-        if (url.pathname.endsWith('/about')) expect(['Bearer fixture', 'Bearer picker-fixture']).toContain(req.headers().authorization);
-        else expect(req.headers().authorization).toBe('Bearer fixture');
+        expect(req.headers().authorization).toBe('Bearer fixture');
         if (url.pathname.endsWith('/about')) return route.fulfill({ json: { user: { emailAddress: 'drive@example.test' } } });
-        if (url.pathname === '/drive/v3/files/existing' || url.pathname === '/drive/v3/files/locked') {
-            return route.fulfill({ json: { id: url.pathname.split('/').pop(), name: 'Reports', trashed: false,
-                mimeType: 'application/vnd.google-apps.folder', capabilities: { canAddChildren: url.pathname.endsWith('existing') } } });
+        if (url.pathname === '/drive/v3/files') {
+            if (req.method() === 'GET') {
+                expect(url.searchParams.get('q')).toContain("'root' in parents and trashed = false and name = 'Gemini Exporter'");
+                return route.fulfill({ json: { files: createdFolders ? [{ id: destination, capabilities: { canAddChildren: true } }] : [] } });
+            }
+            expect(req.postDataJSON()).toEqual({ name: 'Gemini Exporter', parents: ['root'], mimeType: 'application/vnd.google-apps.folder' });
+            createdFolders++;
+            return route.fulfill({ json: { id: destination } });
         }
         if (url.pathname === '/drive/v3/files/confirmed-file') {
             metadataReads++;
@@ -343,32 +334,17 @@ test('manual Drive export authorizes on selection and verifies the file in the c
     expect(await page.evaluate(() => sessionStorage.getItem('driveAuthMode'))).toBe('false');
     await expect(page.locator('#skipExported')).toBeChecked();
     await expect(page.locator('#skipExported')).toBeEnabled();
-    await page.route('**/drive-picker.json', route => route.fulfill({ json: { clientId: '123-web.apps.googleusercontent.com' } }));
-    await page.locator('#driveChooseFolder').click();
-    await expect(page.locator('#driveConnectionStatus')).toContainText('writable');
-    await page.locator('#list .item').filter({ hasText: 'chosen' }).locator('input').check();
-    await page.locator('#btnExport').click();
-    await expect(page.locator('#status')).toContainText('Operation failed');
-    expect(uploadSessions).toBe(0);
-    await page.evaluate(() => sessionStorage.setItem('pickerResult', 'existing'));
-    await page.locator('#driveChooseFolder').click();
-    await expect(page.locator('#driveFolder')).toHaveText('Reports');
-    await page.reload();
-    await expect(page.locator('#driveFolder')).toHaveText('Reports');
+    expect(createdFolders).toBe(0);
     await page.locator('#list .item').filter({ hasText: 'chosen' }).locator('input').check();
     await page.locator('#btnExport').click();
     await expect(page.locator('#exportFailureCard')).toBeVisible();
     expect(metadataReads).toBe(1);
     await expect(page.locator('#openDriveExport')).toBeHidden();
-    await page.evaluate(() => sessionStorage.setItem('pickerResult', 'cancel'));
-    await page.locator('#driveChooseFolder').click();
-    await expect(page.locator('#driveChooseFolder')).toBeEnabled();
-    await expect(page.locator('#driveFolder')).toHaveText('Reports');
     expect(uploadSessions).toBe(1);
     returnEmpty = false;
     await page.locator('#btnExport').click();
     await expect(page.locator('#openDriveExport')).toHaveAttribute('href', 'https://drive.google.com/open?id=confirmed-file&authuser=drive%40example.test');
-    await expect(page.locator('#openDriveExport')).toContainText('Reports / ');
+    await expect(page.locator('#openDriveExport')).toContainText('Gemini Exporter / ');
     expect(uploads).toHaveLength(1);
     expect(uploads[0].toString()).toContain('Answer chosen');
     expect(uploads[0].toString()).not.toContain('Answer other');
@@ -380,6 +356,7 @@ test('manual Drive export authorizes on selection and verifies the file in the c
     await page.locator('#btnSelectAll').check();
     await page.locator('#btnExport').click();
     await expect(page.locator('#status')).toContainText('Uploaded to Drive: 2');
+    expect(createdFolders).toBe(1);
     expect(uploads).toHaveLength(2);
     const zip = await require(path.resolve(__dirname, '../../lib/jszip.min.js')).loadAsync(uploads[1]);
     expect(Object.keys(zip.files).filter(name => name.endsWith('.md'))).toHaveLength(2);

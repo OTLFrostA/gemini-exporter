@@ -1,13 +1,10 @@
-import { connectDriveDelivery, isDriveDeliveryConfigured } from '../../../runtime/capabilities/googleDriveDelivery.js';
+import { driveFolderName, connectDriveDelivery, isDriveDeliveryConfigured } from '../../../runtime/capabilities/googleDriveDelivery.js';
 import { elementById as el, requiredElement as control } from '../../shared/elements.js';
 import { text } from '../../shared/settings.js';
 
 export function mountDriveDeliveryPanel() {
     el('driveDeliveryCard').hidden = !isDriveDeliveryConfigured();
-    const choose = control('button', 'driveChooseFolder');
-    const folder = el('driveFolder');
     const reconnect = control('button', 'driveConnect');
-    let parent = 'root';
     const link = control('a', 'openDriveExport');
     const status = el('driveConnectionStatus');
     const lifetime = new AbortController();
@@ -17,32 +14,18 @@ export function mountDriveDeliveryPanel() {
 
     function updateControls() {
         reconnect.disabled = pending || exporting;
-        choose.disabled = !session || pending || exporting;
     }
     async function connect(interactive: boolean) {
         if (pending) return;
         pending = true;
         session = undefined;
         link.hidden = true;
-        parent = 'root';
-        folder.textContent = text('My Drive', '我的云端硬盘');
         status.textContent = text('Connecting to Google Drive…', '正在连接 Google Drive…');
         updateControls();
         try {
             const connected = await connectDriveDelivery(lifetime.signal, interactive);
             session = connected;
-            try {
-                const saved = await connected.restoreFolder();
-                if (saved) {
-                    parent = saved.id;
-                    folder.textContent = saved.name;
-                }
-                status.textContent = connected.email;
-            } catch {
-                parent = '';
-                folder.textContent = text('Choose a folder', '请选择文件夹');
-                status.textContent = connected.email + ' · ' + text('Saved folder unavailable', '无法访问上次选择的文件夹');
-            }
+            status.textContent = connected.email;
         } catch (error) {
             status.textContent = interactive ? (error instanceof Error ? error.message : String(error))
                 : text('Could not restore the connection. Click Connect to retry.', '未能恢复连接，点击「连接」重试。');
@@ -50,24 +33,7 @@ export function mountDriveDeliveryPanel() {
     }
     control('input', 'driveDeliveryRadio').addEventListener('click', () => { if (!session) void connect(true); });
     reconnect.addEventListener('click', () => { void connect(true); });
-    choose.addEventListener('click', async () => {
-        if (!session || pending) return;
-        pending = true;
-        updateControls();
-        try {
-            const item = await session.chooseFolder();
-            if (item) {
-                parent = item.id;
-                folder.textContent = item.name;
-            }
-            status.textContent = session.email;
-        } catch (error) {
-            parent = '';
-            folder.textContent = text('Choose a folder', '请选择文件夹');
-            status.textContent = error instanceof Error ? error.message : String(error);
-        } finally { pending = false; updateControls(); }
-    });
-    status.textContent = text('Connect to choose a Drive folder.', '连接后可选择 Drive 文件夹。');
+    status.textContent = text('Connect to Google Drive.', '连接 Google Drive。');
     updateControls();
     return {
         restoreConnection() { if (isDriveDeliveryConfigured()) void connect(false); },
@@ -75,13 +41,11 @@ export function mountDriveDeliveryPanel() {
         dispose: () => lifetime.abort(),
         writer(signal: AbortSignal) {
             const connected = session;
-            if (!connected || pending || !parent) throw new Error(text('Connect Google Drive and choose a folder first.', '请先连接 Google Drive 并选择目标文件夹。'));
-            const selectedParent = parent;
-            const destination = folder.textContent;
+            if (!connected || pending) throw new Error(text('Connect Google Drive first.', '请先连接 Google Drive。'));
             link.hidden = true;
             return async (fileName: string, data: Blob) => {
-                link.href = await connected.upload(selectedParent, fileName, data, signal);
-                link.textContent = text('Open in Drive', '在 Drive 中打开') + ' · ' + destination + ' / ' + fileName;
+                link.href = await connected.upload(fileName, data, signal);
+                link.textContent = text('Open in Drive', '在 Drive 中打开') + ' · ' + driveFolderName + ' / ' + fileName;
                 link.hidden = false;
             };
         },
