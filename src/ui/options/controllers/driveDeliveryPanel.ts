@@ -19,7 +19,7 @@ export function mountDriveDeliveryPanel() {
         reconnect.disabled = pending || exporting;
         choose.disabled = !session || pending || exporting;
     }
-    async function connect() {
+    async function connect(interactive: boolean) {
         if (pending) return;
         pending = true;
         session = undefined;
@@ -29,15 +29,16 @@ export function mountDriveDeliveryPanel() {
         status.textContent = text('Connecting to Google Drive…', '正在连接 Google Drive…');
         updateControls();
         try {
-            const connected = await connectDriveDelivery(lifetime.signal);
+            const connected = await connectDriveDelivery(lifetime.signal, interactive);
             session = connected;
             status.textContent = connected.email;
         } catch (error) {
-            status.textContent = error instanceof Error ? error.message : String(error);
+            status.textContent = interactive ? (error instanceof Error ? error.message : String(error))
+                : text('Could not restore the connection. Click Connect to retry.', '未能恢复连接，点击「连接」重试。');
         } finally { pending = false; updateControls(); }
     }
-    control('input', 'driveDeliveryRadio').addEventListener('click', () => { if (!session) void connect(); });
-    reconnect.addEventListener('click', () => { void connect(); });
+    control('input', 'driveDeliveryRadio').addEventListener('click', () => { if (!session) void connect(true); });
+    reconnect.addEventListener('click', () => { void connect(true); });
     choose.addEventListener('click', async () => {
         if (!session || pending) return;
         pending = true;
@@ -69,6 +70,7 @@ export function mountDriveDeliveryPanel() {
     status.textContent = text('Connect to choose a Drive folder.', '连接后可选择 Drive 文件夹。');
     updateControls();
     return {
+        restoreConnection() { if (isDriveDeliveryConfigured()) void connect(false); },
         setExporting(value: boolean) { exporting = value; updateControls(); },
         dispose: () => lifetime.abort(),
         writer(signal: AbortSignal) {

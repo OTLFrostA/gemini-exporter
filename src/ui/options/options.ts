@@ -571,6 +571,7 @@ async function initWorkbench(): Promise<void> {
     if (disposed) return;
     settings = await readSettings();
     if (disposed) return;
+    if (settings.exportDelivery === 'googleDrive') drivePanel.restoreConnection();
     cloudPanel = mountCloudVaultPanel({
         onStatus: (msg, level) => status(msg, level),
         onRestored: async () => { await refresh(); },

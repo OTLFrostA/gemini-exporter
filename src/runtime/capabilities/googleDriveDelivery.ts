@@ -13,9 +13,9 @@ export function isDriveDeliveryConfigured(): boolean {
         && typeof chrome.identity?.getAuthToken === 'function';
 }
 
-export async function connectDriveDelivery(signal: AbortSignal) {
+export async function connectDriveDelivery(signal: AbortSignal, interactive: boolean) {
     if (!isDriveDeliveryConfigured()) throw new Error('Google Drive OAuth is not configured');
-    const { token, grantedScopes } = await chrome.identity.getAuthToken({ interactive: true, scopes: [scope] });
+    const { token, grantedScopes } = await chrome.identity.getAuthToken({ interactive, scopes: [scope] });
     if (!token || (grantedScopes && !grantedScopes.includes(scope))) throw new Error('Google Drive authorization required');
     async function request(url: string, init: RequestInit = {}) {
         const headers = new Headers(init.headers);

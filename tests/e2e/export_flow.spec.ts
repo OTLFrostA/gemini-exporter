@@ -272,7 +272,10 @@ test('manual Drive export authorizes on selection and verifies the file in the c
         const scopes = ['https://www.googleapis.com/auth/drive.file'];
         chrome.runtime.getManifest = () => ({ ...manifest, oauth2: { client_id: 'test', scopes } });
         Object.defineProperty(chrome, 'identity', { configurable: true, value: {
-            getAuthToken: async () => ({ token: 'fixture', grantedScopes: scopes }),
+            getAuthToken: async (details: chrome.identity.TokenDetails) => {
+                sessionStorage.setItem('driveAuthMode', String(details.interactive));
+                return { token: 'fixture', grantedScopes: scopes };
+            },
         } });
     });
     await page.reload();
@@ -318,6 +321,11 @@ test('manual Drive export authorizes on selection and verifies the file in the c
     });
     await page.locator('#driveDeliveryRadio').check();
     await expect(page.locator('#driveConnectionStatus')).toHaveText('drive@example.test');
+    expect(await page.evaluate(() => sessionStorage.getItem('driveAuthMode'))).toBe('true');
+    await expect(page.locator('#skipExported')).toBeEnabled();
+    await page.reload();
+    await expect(page.locator('#driveConnectionStatus')).toHaveText('drive@example.test');
+    expect(await page.evaluate(() => sessionStorage.getItem('driveAuthMode'))).toBe('false');
     await expect(page.locator('#skipExported')).toBeChecked();
     await expect(page.locator('#skipExported')).toBeEnabled();
     await page.route('**/drive-picker.json', route => route.fulfill({ json: { proof: 'test-pair' } }));
