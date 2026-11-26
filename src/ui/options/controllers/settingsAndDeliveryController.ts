@@ -91,7 +91,7 @@ export function bindSettingsAndDeliveryControls(deps: {
         if (deps.isBusy() || settingsSaving || !settings || input.disabled) { deps.render(); return; }
         if (!input.checked) return;
         const exportDelivery: UIExportRequest['delivery'] =
-            input.value === 'folderWriter' ? 'folderWriter' : 'browserDownload';
+            input.value === 'googleDrive' ? 'googleDrive' : input.value === 'folderWriter' ? 'folderWriter' : 'browserDownload';
         if (settings.exportDelivery === exportDelivery) return;
         const permission = exportDelivery === 'folderWriter' && !deps.isDirectoryAvailable() && TourGuide.isLiveSaveStep()
             ? Directory.getPendingPermissionHandle() ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle()

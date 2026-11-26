@@ -6,6 +6,10 @@ import path from 'node:path';
 // Only the UI is under test. Domain/Application/Runtime ports are deliberate mocks.
 const mock = `
 const h = globalThis.harness;
+export class DriveAuthorizationExpired extends Error {}
+export const preloadDriveAccountClient = () => {};
+export const isDriveDeliveryConfigured = () => false;
+export const connectDriveDelivery = async () => { throw new Error('Drive is disabled in the UI fixture'); };
 export const installDomainStorage = () => {};
 export const OperationError = h.OperationError ??= class extends Error {
  constructor(code, message, httpStatus, options) {

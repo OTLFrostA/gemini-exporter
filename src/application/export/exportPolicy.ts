@@ -41,6 +41,8 @@ export interface ExportFormatRendererSession {
 }
 
 export interface ExportRunOptions {
+    /** Foreground, user-authorized destination for the packaged export. */
+    saveToDrive?: (fileName: string, data: Blob) => Promise<void>;
     onProgress?: (progress: ExportProgress) => void;
     /** A usable body is ready for resource preparation; skipped targets do not count. */
     onConversationPrepared?: (key: ConversationKey) => void;
@@ -128,7 +130,7 @@ export function buildExportRecord(
         format: request.format,
         includeAssets: request.includeAssets,
         status: partial ? 'partial' : 'ok',
-        ...(request.delivery === 'folderWriter'
+        ...(request.delivery !== 'browserDownload'
             ? { folderBaseName: plan.fileName.replace(/\.[^.]+$/, '') }
             : item.folderBaseName ? { folderBaseName: item.folderBaseName } : {}),
         ...(conversation.detail.quality.sourceTurn ? { sourceTurn: conversation.detail.quality.sourceTurn } : {}),

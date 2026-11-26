@@ -20,3 +20,15 @@ export async function patchStoredSettings(patch: Partial<GlobalSettings>): Promi
         await chrome.storage.local.set({ [SETTINGS_KEY]: { ...current, ...patch } });
     });
 }
+
+const driveAccountKey = 'driveExportAccountEmail';
+export async function readDriveExportAccount(): Promise<string | undefined> {
+    const email: unknown = (await chrome.storage.local.get(driveAccountKey))[driveAccountKey];
+    if (email === undefined) return;
+    if (typeof email !== 'string' || !email) throw new Error('Invalid saved Drive account');
+    return email;
+}
+
+export async function saveDriveExportAccount(email: string): Promise<void> {
+    await chrome.storage.local.set({ [driveAccountKey]: email });
+}

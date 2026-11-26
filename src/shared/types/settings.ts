@@ -35,7 +35,7 @@ export function normalizeGlobalSettings(rawInput: unknown, legacySuppressPrompt?
     const defaultFormat = raw.defaultFormat === 'markdown' || raw.defaultFormat === 'html'
         || raw.defaultFormat === 'pdf' || raw.defaultFormat === 'docx' || raw.defaultFormat === 'json'
         ? raw.defaultFormat : 'markdown';
-    const exportDelivery = raw.exportDelivery === 'browserDownload' || raw.exportDelivery === 'folderWriter'
+    const exportDelivery = raw.exportDelivery === 'browserDownload' || raw.exportDelivery === 'folderWriter' || raw.exportDelivery === 'googleDrive'
         ? raw.exportDelivery : (enabledDisk ? 'folderWriter' : 'browserDownload');
     const pos = raw.badgePosition;
     const badgePosition = isRecord(pos) && typeof pos.left === 'number' && Number.isFinite(pos.left)

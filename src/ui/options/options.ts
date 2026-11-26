@@ -1,3 +1,4 @@
+import { mountDriveDeliveryPanel } from './controllers/driveDeliveryPanel.js';
 import { installApplicationHost } from '../../runtime/api/applicationHost.js';
 import { installDomainStorage } from '../../runtime/api/domainStorage.js';
 import { installProviderHost } from '../../runtime/api/providerHost.js';
@@ -46,6 +47,7 @@ installGlobalErrorDiagnosticCapture('options');
 type Action = 'export' | 'takeout' | 'cleanup';
 
 async function initWorkbench(): Promise<void> {
+    const drivePanel = mountDriveDeliveryPanel();
     const installationTour = consumeTourIntent();
     const state = new ConversationViewState();
     const importedResources = createSourceResourceContext();
@@ -229,6 +231,7 @@ async function initWorkbench(): Promise<void> {
         if (isBusy()) return;
         const taskController = new AbortController();
         foreground = { kind, phase: 'running', controller: taskController };
+        if (kind === 'export') drivePanel.setExporting(true);
         feedback = { kind: 'empty' }; percent = 0;
         render();
         try { await task(taskController.signal); }
@@ -237,7 +240,9 @@ async function initWorkbench(): Promise<void> {
             foreground = { kind, phase: 'refreshing', controller: taskController };
             paintTaskPanel();
             try { await refresh(); } catch (error) { statusError(error); }
-            foreground = { kind: 'idle' }; render();
+            foreground = { kind: 'idle' };
+            if (kind === 'export') drivePanel.setExporting(false);
+            render();
         }
     };
 
@@ -262,6 +267,7 @@ async function initWorkbench(): Promise<void> {
         let tutorialExportSucceeded = false;
         let successfulExports = 0;
         await perform('export', async signal => {
+            const saveToDrive = request.delivery === 'googleDrive' ? drivePanel.writer(signal) : undefined;
             lastRequest = { ...request, keys: request.keys.map(key => ({ ...key })) };
             const run: ExportRunDiagnostic = {
                 startedAt: Date.now(), request: lastRequest,
@@ -276,6 +282,7 @@ async function initWorkbench(): Promise<void> {
             const { result, deliveredCount } = await runExportSession(run, {
                 signal,
                 importedResources,
+                saveToDrive,
                 titleFor,
                 prepare: async () => {
                     await fonts;
@@ -311,7 +318,7 @@ async function initWorkbench(): Promise<void> {
             preparedExportKeys.clear();
             percent = 100;
             failed = [...result.failed];
-            status(() => exportSummary(result) + (deliveredCount > result.exported
+            status(() => exportSummary(result, settings.developerMode, request.delivery) + (deliveredCount > result.exported
                 ? text(`; Documents already delivered: ${deliveredCount}`, `；已交付正文 ${deliveredCount} 条，文件已保留`)
                 : ''), failed.length || result.aborted || result.partial ? 'warn' : 'info');
         });
@@ -557,6 +564,7 @@ async function initWorkbench(): Promise<void> {
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', () => {
         disposed = true;
+        drivePanel.dispose();
         if (foreground.kind !== 'idle') foreground.controller.abort();
         scanRunner.stopScan();
         settingsControls?.dispose();
@@ -574,6 +582,7 @@ async function initWorkbench(): Promise<void> {
     if (disposed) return;
     settings = await readSettings();
     if (disposed) return;
+    if (settings.exportDelivery === 'googleDrive') drivePanel.restoreConnection();
     cloudPanel = mountCloudVaultPanel({
         onStatus: (msg, level) => status(msg, level),
         onRestored: async () => { await refresh(); },

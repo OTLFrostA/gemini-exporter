@@ -102,6 +102,11 @@
   .export-skip-row{display:flex;gap:8px;align-items:center;font-size:12px;min-height:24px;cursor:pointer}
   .export-destination{display:flex;flex-direction:column;gap:8px}
   .settings-heading{font-size:12px;font-weight:600;color:var(--text)}
+  #driveDeliveryCard:not(:has(input[type=radio]:checked)) .drive-controls{display:none}
+  .drive-controls{display:grid;gap:8px;margin-top:8px}
+  #driveDestination{justify-self:start;color:var(--muted);text-decoration:none}
+  #driveDestination[href]{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+  #driveDestination[href]:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
   .delivery-choices{display:flex;flex-direction:column;gap:8px}
   .delivery-card{min-width:0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card-inner);transition:border-color .15s ease,background .15s ease}
   .delivery-card:has(.delivery-choice input:checked){border-color:var(--accent);background:var(--card)}
@@ -381,6 +386,21 @@
               <span class="delivery-description" data-ui-en="Save using your browser" data-ui-zh="使用浏览器下载设置">使用浏览器下载设置</span>
             </span>
           </label>
+        </div>
+        <div class="delivery-card" id="driveDeliveryCard" hidden>
+          <label class="delivery-choice">
+            <input type="radio" id="driveDeliveryRadio" name="delivery" value="googleDrive">
+            <span class="delivery-copy">
+              <span class="delivery-title">Google Drive</span>
+              <span class="delivery-description" data-ui-en="Upload this export to My Drive" data-ui-zh="将本次导出上传到我的云端硬盘">将本次导出上传到我的云端硬盘</span>
+            </span>
+          </label>
+          <div class="drive-controls">
+            <span id="driveConnectionStatus" role="status"></span>
+            <button type="button" id="driveConnect" hidden class="ghost small" data-ui-en="Reconnect" data-ui-zh="重新连接">重新连接</button>
+            <button type="button" id="driveSwitch" hidden class="ghost small" data-ui-en="Switch account" data-ui-zh="切换账号">切换账号</button>
+            <a id="driveDestination" target="_blank" rel="noopener noreferrer" data-ui-en="Save to: My Drive / Gemini Exporter" data-ui-zh="保存到：我的云端硬盘 / Gemini Exporter">保存到：我的云端硬盘 / Gemini Exporter</a>
+          </div>
         </div>
         <div class="delivery-card">
           <label class="delivery-choice">

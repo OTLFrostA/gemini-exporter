@@ -1,3 +1,4 @@
+import type { ExportDelivery } from '../../shared/types/export.js';
 import type { ExportResult, ExportAttachmentIssue } from '../../application/export/types.js';
 import { resourceFailureText, resourceIssueKind, type ResourceFailure } from '../../shared/resources/resourceResult.js';
 import { englishCount, text, isDeveloperMode } from './i18n.js';
@@ -8,12 +9,15 @@ export function attachmentFailure(issue: ExportAttachmentIssue): ResourceFailure
 export function attachmentIssueText(issue: ExportAttachmentIssue): string {
     return issue.name + ': ' + resourceFailureText(attachmentFailure(issue), text('en', 'zh') === 'zh' ? 'zh' : 'en');
 }
-export function exportSummary(result: ExportResult, developerMode = isDeveloperMode()): string {
+export function exportSummary(result: ExportResult, developerMode = isDeveloperMode(), delivery?: ExportDelivery): string {
     const issues = developerMode ? result.attachmentIssues ?? [] : [];
     const count = (kind: ReturnType<typeof resourceIssueKind>) => issues.filter(issue => resourceIssueKind(attachmentFailure(issue)) === kind).length;
     const expired = count('expired'), unavailable = count('unavailable'), restricted = count('restricted'), download = count('download'), processing = count('processing'), unknown = count('unknown');
     const expiredConversations = result.expiredConversations ?? 0;
-    const summary = [text(`Successfully downloaded: ${result.exported}`, `成功下载 ${result.exported} 条会话`),
+    const summary = [delivery === 'googleDrive'
+        ? (result.exported ? text(`Uploaded to Drive: ${result.exported}`, `已上传到 Drive：${result.exported} 条会话`)
+            : text('No export confirmed in Drive', 'Drive 未确认导出文件'))
+        : text(`Successfully downloaded: ${result.exported}`, `成功下载 ${result.exported} 条会话`),
         ...(expired ? [text(
             `${englishCount(expiredConversations, 'conversation')} ${expiredConversations === 1 ? 'contains' : 'contain'} unavailable source attachments (${englishCount(expired, 'attachment')})`,
             `${expiredConversations} 条含无法获取的来源附件（${expired} 个附件）`)] : []),

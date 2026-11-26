@@ -138,3 +138,9 @@ PDF 在浏览器本地编译，提供内置字体，并可在获得授权时使�
 ### 7. 源码完全开源受监督
 本扩展源码在 GitHub 完全公开透明，欢迎任何人审计与监督：  
 👉 **<https://github.com/OTLFrostA/gemini-exporter>**
+
+### Experimental manual Google Drive delivery / 实验性手动 Google Drive 导出
+
+In the separately configured test build, selecting a Drive folder and clicking Export sends the selected export file (including chosen attachments) directly to the chosen folder in the connected account. Chrome manages OAuth authorization with the per-file drive.file scope. Gemini Exporter does not grant sharing permissions or schedule uploads. Existing Drive files remain subject to the user's Drive settings.
+
+在单独配置的测试版中，用户连接 Google Drive、选择目标文件夹并点击导出后，本次导出的文件（含选择的附件）会直接上传到该账号的目标文件夹。Chrome 管理使用 drive.file 范围的 OAuth 授权。扩展不会变更文件分享权限或安排定时上传。Drive 上的文件由用户自己的 Drive 设置管理。
