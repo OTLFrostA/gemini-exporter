@@ -7,7 +7,7 @@ const drivePermissionsRequest: chrome.permissions.Permissions = {
     origins: [...DRIVE_OPTIONAL_ORIGINS],
 };
 
-export type DriveAuthErrorCode =
+type DriveAuthErrorCode =
     | 'unconfigured'
     | 'permission_denied'
     | 'cancelled'
