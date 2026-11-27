@@ -1,6 +1,6 @@
 const driveScope = 'https://www.googleapis.com/auth/drive.file';
-export const DRIVE_OPTIONAL_PERMISSIONS = ['identity'] as const;
-export const DRIVE_OPTIONAL_ORIGINS = ['https://www.googleapis.com/*'] as const;
+const DRIVE_OPTIONAL_PERMISSIONS = ['identity'] as const;
+const DRIVE_OPTIONAL_ORIGINS = ['https://www.googleapis.com/*'] as const;
 
 const drivePermissionsRequest: chrome.permissions.Permissions = {
     permissions: [...DRIVE_OPTIONAL_PERMISSIONS],
