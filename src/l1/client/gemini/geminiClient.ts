@@ -255,14 +255,20 @@ const pagination = GeminiClientPagination;
                     }
                     throw new ConfirmedGeminiConversationNotFound(id);
                 }
+                const summary = response.envelope.summarizeDetailFailure(errMsg, {
+                    httpStatus: resp?.status,
+                    detailOnly,
+                    paged: Boolean(pageToken),
+                });
                 if (errCategory === 'confirmed_deleted') {
-                    throw new OperationError('SOURCE_RESPONSE_INVALID', `Unverified Gemini Detail not found (${id})`);
+                    throw new OperationError('SOURCE_RESPONSE_INVALID', `Unverified Gemini Detail not found (${id}) | ${summary}`, resp?.status, { cause: err });
                 }
                 if (errCategory === 'inaccessible') {
-                    throw new Error(`会话暂时不可访问或服务端异常 (${id}) [BardErrorInfo]`);
+                    console.warn(`[Gemini Exporter Client] Detail inaccessible for ${id}: ${summary}`);
+                    throw new OperationError('SOURCE_RESPONSE_INVALID', `会话暂时不可访问或服务端异常 (${id}) [BardErrorInfo] | ${summary}`, resp?.status, { cause: err });
                 }
-                console.error(`[Gemini Exporter Client] parseDetail failed for ${id}:`, errMsg, "raw text snippet:", text.slice(0, 400));
-                throw new OperationError('SOURCE_RESPONSE_INVALID', `解析详情失败 (${errMsg}): ${text.slice(0, 100)}`, undefined, { cause: err });
+                console.error(`[Gemini Exporter Client] parseDetail failed for ${id}:`, summary);
+                throw new OperationError('SOURCE_RESPONSE_INVALID', `解析详情失败 (${id}) | ${summary}`, resp?.status, { cause: err });
             }
         }
 
