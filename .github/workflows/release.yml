@@ -90,12 +90,13 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$LOCKED_SHA"
-          npm run package -- --chrome-web-store
+          npm run package
           ZIP_NAME="gemini-exporter-${TAG}.zip"
           test -s "$ZIP_NAME"
 
           unzip -t "$ZIP_NAME"
           unzip -p "$ZIP_NAME" manifest.json > /tmp/release-manifest.json
+          cmp manifest.json /tmp/release-manifest.json
           ZIP_VERSION=$(jq -er '.version' /tmp/release-manifest.json)
           test "$ZIP_VERSION" = "$VERSION"
           jq -e '
@@ -125,6 +126,29 @@ jobs:
             echo "- ZIP: \`$ZIP_NAME\`"
             echo "- SHA-256: \`$ZIP_SHA256\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Load the release ZIP in Chrome
+        env:
+          ZIP_NAME: ${{ steps.package.outputs.name }}
+        run: |
+          set -euo pipefail
+          ZIP_DIR=$(mktemp -d)
+          unzip -q "$ZIP_NAME" -d "$ZIP_DIR"
+          node --input-type=module - "$ZIP_DIR" <<'JS'
+          import assert from 'node:assert/strict';
+          import { launchChromeExtension } from './scripts/playwright-chrome.mjs';
+          const { context, extensionId } = await launchChromeExtension(process.argv[2]);
+          try {
+            assert.equal(extensionId, 'ldpbiafkgjlaooeplkiooljccpalpkgf');
+            const page = await context.newPage();
+            await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+            await page.locator('#driveDeliveryCard').waitFor({ state: 'visible' });
+            const redirect = await page.evaluate(() => chrome.identity.getRedirectURL('drive-auth'));
+            assert.equal(redirect, `https://${extensionId}.chromiumapp.org/drive-auth`);
+          } finally {
+            await context.close();
+          }
+          JS
 
       - name: Upload release artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
