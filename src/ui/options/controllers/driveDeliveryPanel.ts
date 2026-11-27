@@ -3,12 +3,11 @@ import {
     DriveAuthorizationExpired,
     connectDriveDelivery,
     isDriveDeliveryConfigured,
-    requestDrivePermissions,
 } from '../../../runtime/capabilities/googleDriveDelivery.js';
 import { elementById as el, requiredElement as control } from '../../shared/elements.js';
 import { text } from '../../shared/settings.js';
 
-export function mountDriveDeliveryPanel() {
+export function mountDriveDeliveryPanel(options?: { readonly onStateChange?: () => void }) {
     const reconnect = control('button', 'driveConnect');
     const switchAccount = control('button', 'driveSwitch');
     const destination = control('a', 'driveDestination');
@@ -25,7 +24,6 @@ export function mountDriveDeliveryPanel() {
         | 'switching'
         | 'connected'
         | 'switch_failed'
-        | 'permission_denied'
         | 'cancelled'
         | 'unavailable'
         | 'unconfigured'
@@ -35,6 +33,9 @@ export function mountDriveDeliveryPanel() {
         return text('Export account: ', '导出账号：') + email;
     }
     function renderStatus() {
+        reconnect.textContent = needsReconnect
+            ? text('Reconnect', '重新连接')
+            : text('Connect', '连接');
         switch (statusState) {
             case 'connecting':
                 status.textContent = text('Connecting to Google Drive…', '正在连接 Google Drive…');
@@ -49,12 +50,6 @@ export function mountDriveDeliveryPanel() {
                 status.textContent = session
                     ? accountLabel(session.email) + text(' · Account switch did not complete.', ' · 未完成账号切换。')
                     : text('Drive connection unavailable. Reconnect to continue.', 'Drive 连接不可用，请重新连接。');
-                return;
-            case 'permission_denied':
-                status.textContent = text(
-                    'Google Drive permission was not granted. Reconnect to authorize.',
-                    '未授予 Google Drive 权限，请点击重新连接并授权。',
-                );
                 return;
             case 'cancelled':
                 status.textContent = text(
@@ -76,29 +71,22 @@ export function mountDriveDeliveryPanel() {
         }
     }
     function updateControls() {
-        reconnect.hidden = !needsReconnect || pending;
+        reconnect.hidden = Boolean(session) || pending || statusState === 'unconfigured';
         switchAccount.hidden = !session && !needsReconnect;
         reconnect.disabled = switchAccount.disabled = pending || exporting;
+        options?.onStateChange?.();
     }
-    async function connect(mode: 'switch' | 'connect' | 'restore') {
-        if (pending || exporting) return;
+    async function connect(mode: 'switch' | 'connect' | 'restore'): Promise<boolean> {
+        if (pending || exporting) return false;
         pending = true;
-        // Request optional Drive permissions synchronously within the user gesture before any await.
-        const permissionPromise = mode === 'restore' ? Promise.resolve(true) : requestDrivePermissions();
         statusState = mode === 'switch' ? 'switching' : 'connecting';
         renderStatus();
         updateControls();
         try {
-            if (!await permissionPromise) {
-                needsReconnect = !session;
-                statusState = session ? 'switch_failed' : 'permission_denied';
-                renderStatus();
-                return;
-            }
             if (!await isDriveDeliveryConfigured()) {
                 statusState = 'unconfigured';
                 renderStatus();
-                return;
+                return false;
             }
             const connected = await connectDriveDelivery(lifetime.signal, mode);
             session = connected;
@@ -110,6 +98,7 @@ export function mountDriveDeliveryPanel() {
             void connected.findExportFolderUrl().then(href => {
                 if (session === connected && href && !destination.hasAttribute('href')) destination.href = href;
             }).catch(() => {});
+            return true;
         } catch (error) {
             if (mode !== 'restore') {
                 console.warn('[DriveDelivery] Authorization failed:', error);
@@ -117,8 +106,6 @@ export function mountDriveDeliveryPanel() {
             needsReconnect = !session;
             if (session) {
                 statusState = 'switch_failed';
-            } else if (error instanceof DriveAuthError && error.code === 'permission_denied') {
-                statusState = mode === 'restore' ? 'idle' : 'permission_denied';
             } else if (error instanceof DriveAuthError && error.code === 'cancelled') {
                 statusState = 'cancelled';
             } else if (error instanceof DriveAuthError && error.code === 'unconfigured') {
@@ -127,20 +114,9 @@ export function mountDriveDeliveryPanel() {
                 statusState = 'unavailable';
             }
             renderStatus();
+            return false;
         } finally { pending = false; updateControls(); }
     }
-    const radio = control('input', 'driveDeliveryRadio');
-    let suppressRadioChange = false;
-    const triggerConnect = () => { if (!session && !pending) void connect('connect'); };
-    radio.addEventListener('click', () => {
-        suppressRadioChange = true;
-        setTimeout(() => { suppressRadioChange = false; }, 0);
-        triggerConnect();
-    });
-    radio.addEventListener('change', () => {
-        if (suppressRadioChange) return;
-        if (radio.checked) triggerConnect();
-    });
     reconnect.addEventListener('click', () => { void connect('connect'); });
     switchAccount.addEventListener('click', () => { void connect('switch'); });
     renderStatus();
@@ -149,9 +125,13 @@ export function mountDriveDeliveryPanel() {
         if (!enabled && statusState === 'idle') {
             statusState = 'unconfigured';
             renderStatus();
+            updateControls();
         }
     });
     return {
+        isConnected: () => Boolean(session),
+        isConnecting: () => pending,
+        connectForExport: () => session ? Promise.resolve(true) : connect('connect'),
         restoreConnection() { void isDriveDeliveryConfigured().then(enabled => { if (enabled) return connect('restore'); }); },
         renderLanguage() { renderStatus(); },
         setExporting(value: boolean) { exporting = value; updateControls(); },

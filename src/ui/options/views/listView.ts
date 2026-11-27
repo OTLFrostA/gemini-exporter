@@ -23,6 +23,7 @@ export function renderList(
     failedKeys?: ReadonlySet<string>,
     guidedSelection = false,
     skipPreview?: { readonly skipExported: boolean; readonly format: string },
+    exportActionLabel?: string,
 ): void {
     const list = elementById('list');
     let root = roots.get(list);
@@ -61,7 +62,7 @@ export function renderList(
                 state.selected.delete(id);
             }
             state.selectionAnchor = id;
-            renderList(state, disabled, preparedKeys, failedKeys, guidedSelection, skipPreview);
+            renderList(state, disabled, preparedKeys, failedKeys, guidedSelection, skipPreview, exportActionLabel);
             // The legacy tour observes selection intent, including row-title clicks.
             list.dispatchEvent(new Event('conversation-selection-change'));
         },
@@ -76,16 +77,17 @@ export function renderList(
             if (searchInput) searchInput.value = '';
             const filterSelect = document.getElementById('chatFilterSelect') as HTMLSelectElement | null;
             if (filterSelect) filterSelect.value = 'all';
-            renderList(state, disabled, preparedKeys, failedKeys, guidedSelection, skipPreview);
+            renderList(state, disabled, preparedKeys, failedKeys, guidedSelection, skipPreview, exportActionLabel);
         },
     })));
-    updateStat(state, disabled, skipPreview);
+    updateStat(state, disabled, skipPreview, exportActionLabel);
 }
 
 function updateStat(
     state: ConversationViewState,
     disabled: boolean,
     skipPreview?: { readonly skipExported: boolean; readonly format: string },
+    exportActionLabel?: string,
 ): void {
     const clearSearchBtn = document.getElementById('btnClearSearch') as HTMLButtonElement | null;
     if (clearSearchBtn) clearSearchBtn.hidden = !state.search;
@@ -135,7 +137,7 @@ function updateStat(
     }
     const button = requiredElement('button', 'btnExport');
     button.disabled = !state.selected.size || disabled;
-    button.textContent = state.selected.size > 0
+    button.textContent = exportActionLabel ?? (state.selected.size > 0
         ? text(`Export selected (${state.selected.size})`, `导出选中 (${state.selected.size})`)
-        : text('Export selected', '导出选中');
+        : text('Export selected', '导出选中'));
 }

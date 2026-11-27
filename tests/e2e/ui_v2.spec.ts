@@ -238,9 +238,8 @@ test('UI v2: radio delivery gates aligned folder picker and Live Save without lo
     await expect(details).toBeVisible();
     await expect(details).not.toHaveClass(/is-disabled/);
     await expect(picker).toBeEnabled();
-    await expect(page.locator('#dirLabel')).toHaveText('Chosen folder');
-    await expect(page.locator('#dirPermissionLabel')).toHaveText('Authorized');
-    await expect(live).toBeEnabled(); // Switching to local folder prompts and authorizes immediately.
+    await expect(live).toBeDisabled(); // A folder must be authorized before enabling Live Save.
+    await expect(page.locator('#btnExport')).toHaveText('Choose folder');
     await expect.poll(async () => (await read(page, 'settings')).exportDelivery).toBe('folderWriter');
 
     // Both dependent settings use the same left indentation.
@@ -250,6 +249,10 @@ test('UI v2: radio delivery gates aligned folder picker and Live Save without lo
     });
     expect(Math.abs(offsets[0] - offsets[1])).toBeLessThan(2);
 
+    await picker.click();
+    await expect(page.locator('#dirLabel')).toHaveText('Chosen folder');
+    await expect(page.locator('#dirPermissionLabel')).toHaveText('Authorized');
+    await expect(live).toBeEnabled();
     await live.check();
     await expect(page.locator('#liveSaveStatus')).toHaveText('Live Save active');
 

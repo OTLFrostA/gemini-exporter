@@ -1,15 +1,7 @@
 const driveScope = 'https://www.googleapis.com/auth/drive.file';
-export const DRIVE_OPTIONAL_PERMISSIONS = ['identity'] as const;
-export const DRIVE_OPTIONAL_ORIGINS = ['https://www.googleapis.com/*'] as const;
-
-const drivePermissionsRequest: chrome.permissions.Permissions = {
-    permissions: [...DRIVE_OPTIONAL_PERMISSIONS],
-    origins: [...DRIVE_OPTIONAL_ORIGINS],
-};
 
 export type DriveAuthErrorCode =
     | 'unconfigured'
-    | 'permission_denied'
     | 'cancelled'
     | 'account_mismatch'
     | 'auth_failed';
@@ -38,28 +30,8 @@ function loadAccountClient(): Promise<string> {
 }
 
 export async function isDriveDeliveryConfigured(): Promise<boolean> {
-    const canRequest = typeof chrome.permissions?.request === 'function';
-    const hasIdentity = typeof chrome.identity?.launchWebAuthFlow === 'function';
-    if (!canRequest && !hasIdentity) return false;
+    if (typeof chrome.identity?.launchWebAuthFlow !== 'function') return false;
     return loadAccountClient().then(() => true, () => false);
-}
-
-export async function hasDrivePermissions(): Promise<boolean> {
-    if (typeof chrome.permissions?.contains === 'function') {
-        return chrome.permissions.contains(drivePermissionsRequest);
-    }
-    return typeof chrome.identity?.launchWebAuthFlow === 'function';
-}
-
-/**
- * Request optional Google Drive permissions (`identity` + `https://www.googleapis.com/*`).
- * Must be invoked synchronously inside a user click gesture.
- */
-export function requestDrivePermissions(): Promise<boolean> {
-    if (typeof chrome.permissions?.request === 'function') {
-        return chrome.permissions.request(drivePermissionsRequest);
-    }
-    return Promise.resolve(typeof chrome.identity?.launchWebAuthFlow === 'function');
 }
 
 function isUserCancelledAuthError(error: unknown): boolean {
@@ -68,11 +40,8 @@ function isUserCancelledAuthError(error: unknown): boolean {
 }
 
 export async function authorizeDriveAccount(mode: 'switch' | 'connect' | 'restore', email?: string) {
-    if (mode === 'restore' && !await hasDrivePermissions()) {
-        throw new DriveAuthError('permission_denied', 'Google Drive permission has not been granted');
-    }
     if (typeof chrome.identity?.launchWebAuthFlow !== 'function') {
-        throw new DriveAuthError('permission_denied', 'Google Drive identity permission is unavailable');
+        throw new DriveAuthError('unconfigured', 'Google Drive identity API is unavailable');
     }
     const client = await loadAccountClient();
     const redirect = chrome.identity.getRedirectURL('drive-auth');

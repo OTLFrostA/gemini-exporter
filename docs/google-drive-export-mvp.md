@@ -9,7 +9,7 @@
 
 ## 权限模型
 
-Google Drive 所需的 `identity` 与 `https://www.googleapis.com/*` 声明在 `optional_permissions` / `optional_host_permissions` 中，不会新增安装或更新权限警告，老用户自动升级不会被 Chrome 禁用。只有当用户在 Options 中选择导出到 **Google Drive** 或点击连接/切换账号时，才会按需弹窗请求授权。
+Google Drive 仅声明 `identity` 权限（经 Chrome 实测不产生任何安装/更新权限警告，老用户自动升级不会被禁用），并通过浏览器原生 CORS 直接访问 `https://www.googleapis.com`，无需声明 `host_permissions` 或 `optional_host_permissions`，用户使用时不再弹出额外的 Chrome 权限确认框。切换导出目标时不强制弹窗；点击卡片内「连接」按钮，或未连接时直接点击底部「连接 Google Drive」导出按钮即可拉起授权并在完成后自动导出。
 
 ## 从源码运行与打包发布
 

@@ -104,10 +104,9 @@ jobs:
           jq -e '
             (has("key") | not)
             and (has("oauth2") | not)
-            and (.permissions | index("identity") == null)
-            and (.optional_permissions | index("identity") != null)
+            and (.permissions | index("identity") != null)
             and ((.host_permissions // []) | length == 0)
-            and (.optional_host_permissions | index("https://www.googleapis.com/*") != null)
+            and ((.optional_host_permissions // []) | index("https://www.googleapis.com/*") == null)
           ' /tmp/release-manifest.json > /dev/null
           unzip -p "$ZIP_NAME" drive-account-client.json > /tmp/release-drive-client.json
           cmp drive-account-client.json /tmp/release-drive-client.json
@@ -149,7 +148,7 @@ jobs:
             await page.locator('#driveDeliveryCard').waitFor({ state: 'visible' });
             const perms = await page.evaluate(() => chrome.permissions.getAll());
             assert.deepEqual(perms.origins ?? [], []);
-            assert.ok(!(perms.permissions ?? []).includes('identity'));
+            assert.ok((perms.permissions ?? []).includes('identity'));
           } finally {
             await context.close();
           }

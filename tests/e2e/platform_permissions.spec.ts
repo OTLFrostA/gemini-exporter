@@ -7,7 +7,7 @@ test('shipping install has no platform access and leaves unconnected source page
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     const access = await options.evaluate(async () => ({ permissions: await chrome.permissions.getAll(), scripts: await chrome.scripting.getRegisteredContentScripts() }));
     expect(access.permissions.origins ?? []).toEqual([]);
-    expect(access.permissions.permissions ?? []).not.toContain('identity');
+    expect(access.permissions.permissions ?? []).toContain('identity');
     expect(access.scripts).toEqual([]);
     for (const url of ['https://gemini.google.com/app', 'https://chatgpt.com/', 'https://claude.ai/', 'https://grok.com/']) {
         const source = await context.newPage();
@@ -49,7 +49,7 @@ test('unconnected ChatGPT shows the tutorial authorization selector instead of e
     await expect(popup.locator('#btnAuthorizePlatforms')).toBeEnabled();
     const permissions = await popup.evaluate(() => chrome.permissions.getAll());
     expect(permissions.origins ?? []).toEqual([]);
-    expect(permissions.permissions ?? []).not.toContain('identity');
+    expect(permissions.permissions ?? []).toContain('identity');
     expect(await popup.evaluate(() => chrome.scripting.getRegisteredContentScripts())).toEqual([]);
     await popup.close();
 });

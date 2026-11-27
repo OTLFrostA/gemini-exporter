@@ -43,10 +43,9 @@ test('manifest.json enforces MV3 dynamic permission-gated scripts and hook expos
     assert.equal(derivedId, 'ldpbiafkgjlaooeplkiooljccpalpkgf');
     assert.ok(manifest.permissions?.includes('storage'));
     assert.equal(manifest.background?.service_worker, 'dist/background/background.js');
-    assert.ok(!manifest.permissions?.includes('identity'), 'Drive identity permission must stay optional to avoid upgrade warnings');
-    assert.ok(manifest.optional_permissions?.includes('identity'), 'Drive identity permission must be declared in optional_permissions');
+    assert.ok(manifest.permissions?.includes('identity'), 'Drive identity permission must be declared (0 permission warnings)');
     assert.deepEqual(manifest.host_permissions ?? [], [], 'All host permissions must remain optional to avoid disabling existing users on update');
-    assert.ok(manifest.optional_host_permissions?.includes('https://www.googleapis.com/*'), 'Drive API origin must be declared in optional_host_permissions');
+    assert.ok(!manifest.optional_host_permissions?.includes('https://www.googleapis.com/*'), 'Drive API uses native CORS and does not need a host permission');
     assert.ok(!manifest.content_scripts?.length, 'Source scripts must be permission-gated dynamic registrations');
     for (const origin of ['https://gemini.google.com/*', 'https://chatgpt.com/*', 'https://claude.ai/*', 'https://grok.com/*']) {
         assert.ok(manifest.optional_host_permissions?.includes(origin), `Missing optional host permission: ${origin}`);

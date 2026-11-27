@@ -47,7 +47,8 @@ installGlobalErrorDiagnosticCapture('options');
 type Action = 'export' | 'takeout' | 'cleanup';
 
 async function initWorkbench(): Promise<void> {
-    const drivePanel = mountDriveDeliveryPanel();
+    let render = () => {};
+    const drivePanel = mountDriveDeliveryPanel({ onStateChange: () => render() });
     const installationTour = consumeTourIntent();
     const state = new ConversationViewState();
     const importedResources = createSourceResourceContext();
@@ -199,6 +200,17 @@ async function initWorkbench(): Promise<void> {
         if (nextPercent !== undefined && Number.isFinite(nextPercent)) percent = Math.max(0, Math.min(100, nextPercent));
         paintTaskPanel();
     };
+    const exportActionLabel = (): string | undefined => {
+        if (settings?.exportDelivery === 'folderWriter' && !directoryAvailable) {
+            return Directory.getPendingPermissionHandle()
+                ? text('Authorize folder', '重新授权目录')
+                : text('Choose folder', '选择目录');
+        }
+        if (settings?.exportDelivery === 'googleDrive' && !drivePanel.isConnected()) {
+            return text('Connect Google Drive', '连接 Google Drive');
+        }
+        return undefined;
+    };
     const renderConversations = () => renderList(
         state,
         isBusy(),
@@ -206,8 +218,9 @@ async function initWorkbench(): Promise<void> {
         new Set(failed.filter(key => key.accountId === state.accountId).map(key => key.conversationId)),
         TourGuide.isGuidedSelection(),
         settings ? { skipExported: settings.skipExported, format: settings.defaultFormat } : undefined,
+        exportActionLabel(),
     );
-    const render = () => {
+    render = () => {
         renderWorkbench({
             state,
             settings,
@@ -218,6 +231,7 @@ async function initWorkbench(): Promise<void> {
             settingsSaving: settingsControls?.isSettingsSaving() ?? false,
             themeSaving: settingsControls?.isThemeSaving() ?? false,
             directoryAvailable,
+            driveConnecting: drivePanel.isConnecting(),
             folderSuggestionPending,
             onCloudBusy: busy => cloudPanel?.setBusy(busy),
             onRenderConversations: renderConversations,
@@ -379,6 +393,29 @@ async function initWorkbench(): Promise<void> {
             const fonts = request.format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
             void exportRequest({ ...request, delivery }, fonts);
         };
+        if (request.delivery === 'folderWriter' && !directoryAvailable) {
+            const permission = Directory.getPendingPermissionHandle()
+                ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle();
+            folderSuggestionPending = true; render();
+            void (async () => {
+                try {
+                    if (!await permission || !await Directory.verifyDirPermission(Directory.getDirHandle())) {
+                        throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
+                    }
+                    directoryAvailable = true;
+                    render();
+                    start('folderWriter');
+                } catch (error) { statusError(error, 'warn'); }
+                finally { folderSuggestionPending = false; render(); }
+            })();
+            return;
+        }
+        if (request.delivery === 'googleDrive' && !drivePanel.isConnected()) {
+            void drivePanel.connectForExport().then(connected => {
+                if (connected) start('googleDrive');
+            });
+            return;
+        }
         if (request.delivery === 'browserDownload' && keys.length > DIRECT_WRITE_THRESHOLD
             && !settings.directWritePromptCompleted && !TourGuide.isActive()) {
             const shown = showDirectWritePrompt(keys.length, () => {

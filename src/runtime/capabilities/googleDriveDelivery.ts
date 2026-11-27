@@ -2,7 +2,7 @@ import { readDriveExportAccount, saveDriveExportAccount } from '../../l3a/storag
 import { DriveAuthError, authorizeDriveAccount } from './driveAccountAuthorization.js';
 import { isRecord } from '../../shared/utils/typeGuards.js';
 
-export { DriveAuthError, hasDrivePermissions, isDriveDeliveryConfigured, requestDrivePermissions } from './driveAccountAuthorization.js';
+export { DriveAuthError, isDriveDeliveryConfigured } from './driveAccountAuthorization.js';
 
 const driveFolderName = 'Gemini Exporter';
 
