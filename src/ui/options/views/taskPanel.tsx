@@ -26,7 +26,7 @@ export interface TaskPanelProps {
     onRetry: () => void;
     onDismiss: () => void;
     onCopy: () => void;
-    onSelectConversation?: (key: ConversationKey) => void;
+    onSelectConversation: (key: ConversationKey) => void;
 }
 
 function FailureCard({ groups, failedCount, dismissed, developerMode, task, ready, onRetry, onDismiss, onCopy, onSelectConversation }: TaskPanelProps) {
@@ -73,7 +73,7 @@ function FailureCard({ groups, failedCount, dismissed, developerMode, task, read
                             const label = convTitle ? `${convTitle} (${key.conversationId})` : key.conversationId;
                             return <button key={`${key.accountId}/${key.conversationId}`} type="button" className="issue-conv-btn"
                                 title={text(`Locate in list: ${label}`, `在右侧列表中定位：${label}`)}
-                                onClick={() => onSelectConversation?.(key)}>
+                                onClick={() => onSelectConversation(key)}>
                                 <span className="issue-conv-label">{label}</span>
                                 <span className="issue-conv-jump" aria-hidden="true">→</span>
                             </button>;
