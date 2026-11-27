@@ -22,7 +22,6 @@ import { getCloudSyncSession } from "../src/l3a/cloudSyncStore.js";
 import { getSyncedCloudRecord } from "../src/l3a/cloudSyncStore.js";
 import { putSyncedCloudRecord } from "../src/l3a/cloudSyncStore.js";
 import { getInitializedVaultKeyring } from "../src/l3a/cloudKeyringStore.js";
-import { deleteStoredConversation } from "../src/l3a/storageService.js";
 import { getIndex } from "../src/l3a/storageService.js";
 import { deriveBlindRecordId } from "../src/shared/crypto/index.js";
 import { deriveVaultKeyring } from "../src/shared/crypto/index.js";
