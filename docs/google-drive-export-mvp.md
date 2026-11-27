@@ -7,13 +7,15 @@
 1. 启用 **Google Drive API**。在 Google Auth Platform 配置 Branding 和 Audience。公开发布前确认应用为 **In production**，并完成控制台提示的验证要求。若先在 **Testing** 状态下验收，将测试账号加入 Test users。
 2. 创建或复用一个 **Web application** OAuth 客户端。在 **Authorized redirect URIs** 添加 `https://ldpbiafkgjlaooeplkiooljccpalpkgf.chromiumapp.org/drive-auth`。
 
-## 从源码运行
+## 权限模型
 
-运行 `npm ci` 和 `npm run build`，然后在 `chrome://extensions` 加载仓库目录。源码和发布 ZIP 共用带商店公钥的 manifest 及 `drive-account-client.json` 中的公开 OAuth 客户端 ID，扩展 ID 和 Drive 回调与商店版一致。
+Google Drive 所需的 `identity` 与 `https://www.googleapis.com/*` 声明在 `optional_permissions` / `optional_host_permissions` 中，不会新增安装或更新权限警告，老用户自动升级不会被 Chrome 禁用。只有当用户在 Options 中选择导出到 **Google Drive** 或点击连接/切换账号时，才会按需弹窗请求授权。
 
-已安装同 ID 商店扩展时，在独立 Chrome 配置档中加载候选版本。旧的按路径生成的扩展 ID 下，原有会话和导出记录仍在该 ID 的本地存储中。
+## 从源码运行与打包发布
 
-验收使用 `npm run package` 生成的发布 ZIP。将同一个 ZIP 解压后加载，提交商店时使用原 ZIP。CI 校验 manifest、扩展 ID 和 OAuth 客户端 ID，并在发布前核对 ZIP 的 SHA-256。
+运行 `npm ci` 和 `npm run build`，然后在独立 Chrome 配置档的 `chrome://extensions` 加载仓库目录。源码 `manifest.json` 保留商店公钥 `"key"` 并附带 `drive-account-client.json` 中的公开 OAuth 客户端 ID，因此本地加载的扩展 ID 与 Drive 回调与商店版一致（如当前 Chrome 配置档已安装商店版，请使用独立测试配置档避免同 ID 冲突）。
+
+运行 `npm run package` 生成正式发布 ZIP 时，`build.js` 会自动在临时目录剥离 `manifest.json` 中的 `"key"` 字段（不修改源码树），保证上传 Chrome Web Store 的 ZIP 纯净且与商店签名流程完全兼容。CI 校验 ZIP 无 `"key"`、无必填 `host_permissions`、包含合法 `drive-account-client.json`，并在发布前核对 ZIP 的 SHA-256。
 
 ## 试跑
 

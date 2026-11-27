@@ -86,29 +86,34 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
           VERSION: ${{ steps.release.outputs.version }}
           LOCKED_SHA: ${{ steps.release.outputs.sha }}
-          DRIVE_WEB_CLIENT_ID: ${{ vars.DRIVE_WEB_CLIENT_ID }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$LOCKED_SHA"
+          SOURCE_EXTENSION_ID=$(jq -er '.key' manifest.json | base64 -d | sha256sum | cut -c1-32 | tr '0123456789abcdef' 'abcdefghijklmnop')
+          test "$SOURCE_EXTENSION_ID" = "ldpbiafkgjlaooeplkiooljccpalpkgf"
+
           npm run package
           ZIP_NAME="gemini-exporter-${TAG}.zip"
           test -s "$ZIP_NAME"
 
           unzip -t "$ZIP_NAME"
           unzip -p "$ZIP_NAME" manifest.json > /tmp/release-manifest.json
-          cmp manifest.json /tmp/release-manifest.json
+          diff -u <(jq -S 'del(.key)' manifest.json) <(jq -S '.' /tmp/release-manifest.json)
           ZIP_VERSION=$(jq -er '.version' /tmp/release-manifest.json)
           test "$ZIP_VERSION" = "$VERSION"
           jq -e '
-            (has("oauth2") | not)
-            and (.permissions | index("identity") != null)
-            and (.host_permissions | index("https://www.googleapis.com/*") != null)
+            (has("key") | not)
+            and (has("oauth2") | not)
+            and (.permissions | index("identity") == null)
+            and (.optional_permissions | index("identity") != null)
+            and ((.host_permissions // []) | length == 0)
+            and (.optional_host_permissions | index("https://www.googleapis.com/*") != null)
           ' /tmp/release-manifest.json > /dev/null
-          ZIP_EXTENSION_ID=$(jq -er '.key' /tmp/release-manifest.json | base64 -d | sha256sum | cut -c1-32 | tr '0123456789abcdef' 'abcdefghijklmnop')
-          test "$ZIP_EXTENSION_ID" = "ldpbiafkgjlaooeplkiooljccpalpkgf"
-          unzip -p "$ZIP_NAME" drive-account-client.json | jq -e --arg client "$DRIVE_WEB_CLIENT_ID" '. == $client' > /dev/null
+          unzip -p "$ZIP_NAME" drive-account-client.json > /tmp/release-drive-client.json
+          cmp drive-account-client.json /tmp/release-drive-client.json
+          jq -e 'type == "string" and test("^[0-9]+-[A-Za-z0-9-]+\\.apps\\.googleusercontent\\.com$")' /tmp/release-drive-client.json > /dev/null
           unzip -Z1 "$ZIP_NAME" > /tmp/release-zip-files.txt
-          for required in manifest.json dist/background/background.js dist/content/content.js dist/content/hook.js dist/ui/options.js dist/ui/popup.js dist/ui/sandbox/typst-compile.js; do
+          for required in manifest.json drive-account-client.json dist/background/background.js dist/content/content.js dist/content/hook.js dist/ui/options.js dist/ui/popup.js dist/ui/sandbox/typst-compile.js; do
             grep -Fxq "$required" /tmp/release-zip-files.txt || { echo "ZIP missing required file: $required" >&2; exit 1; }
           done
           if grep -Eq '\.(ts|map)$' /tmp/release-zip-files.txt; then
@@ -139,12 +144,12 @@ jobs:
           import { launchChromeExtension } from './scripts/playwright-chrome.mjs';
           const { context, extensionId } = await launchChromeExtension(process.argv[2]);
           try {
-            assert.equal(extensionId, 'ldpbiafkgjlaooeplkiooljccpalpkgf');
             const page = await context.newPage();
-            await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+            await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
             await page.locator('#driveDeliveryCard').waitFor({ state: 'visible' });
-            const redirect = await page.evaluate(() => chrome.identity.getRedirectURL('drive-auth'));
-            assert.equal(redirect, `https://${extensionId}.chromiumapp.org/drive-auth`);
+            const perms = await page.evaluate(() => chrome.permissions.getAll());
+            assert.deepEqual(perms.origins ?? [], []);
+            assert.ok(!(perms.permissions ?? []).includes('identity'));
           } finally {
             await context.close();
           }

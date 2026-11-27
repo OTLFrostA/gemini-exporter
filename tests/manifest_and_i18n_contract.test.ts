@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { UI_COPY } from '../src/ui/shared/legacyLabels.js';
@@ -22,7 +23,9 @@ test('tracked JSON configuration and locale files parse cleanly', () => {
 test('manifest.json enforces MV3 dynamic permission-gated scripts and hook exposure', () => {
     const manifest = JSON.parse(readFileSync(resolve(ROOT, 'manifest.json'), 'utf8')) as {
         manifest_version: number;
+        key?: string;
         permissions?: string[];
+        optional_permissions?: string[];
         host_permissions?: string[];
         content_scripts?: unknown[];
         optional_host_permissions?: string[];
@@ -31,10 +34,19 @@ test('manifest.json enforces MV3 dynamic permission-gated scripts and hook expos
     };
 
     assert.equal(manifest.manifest_version, 3);
+    assert.ok(manifest.key, 'Source manifest must keep the store public key for local Drive OAuth parity');
+    const derivedId = createHash('sha256')
+        .update(Buffer.from(manifest.key, 'base64'))
+        .digest('hex')
+        .slice(0, 32)
+        .replace(/[0-9a-f]/g, ch => String.fromCharCode('a'.charCodeAt(0) + parseInt(ch, 16)));
+    assert.equal(derivedId, 'ldpbiafkgjlaooeplkiooljccpalpkgf');
     assert.ok(manifest.permissions?.includes('storage'));
     assert.equal(manifest.background?.service_worker, 'dist/background/background.js');
-    assert.ok(manifest.permissions?.includes('identity'), 'Drive authorization must be available in the source build');
-    assert.deepEqual(manifest.host_permissions, ['https://www.googleapis.com/*'], 'Platform origins must remain optional');
+    assert.ok(!manifest.permissions?.includes('identity'), 'Drive identity permission must stay optional to avoid upgrade warnings');
+    assert.ok(manifest.optional_permissions?.includes('identity'), 'Drive identity permission must be declared in optional_permissions');
+    assert.deepEqual(manifest.host_permissions ?? [], [], 'All host permissions must remain optional to avoid disabling existing users on update');
+    assert.ok(manifest.optional_host_permissions?.includes('https://www.googleapis.com/*'), 'Drive API origin must be declared in optional_host_permissions');
     assert.ok(!manifest.content_scripts?.length, 'Source scripts must be permission-gated dynamic registrations');
     for (const origin of ['https://gemini.google.com/*', 'https://chatgpt.com/*', 'https://claude.ai/*', 'https://grok.com/*']) {
         assert.ok(manifest.optional_host_permissions?.includes(origin), `Missing optional host permission: ${origin}`);

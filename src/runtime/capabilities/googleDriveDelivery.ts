@@ -1,8 +1,8 @@
 import { readDriveExportAccount, saveDriveExportAccount } from '../../l3a/storageService.js';
-import { authorizeDriveAccount } from './driveAccountAuthorization.js';
+import { DriveAuthError, authorizeDriveAccount } from './driveAccountAuthorization.js';
 import { isRecord } from '../../shared/utils/typeGuards.js';
 
-export { isDriveDeliveryConfigured } from './driveAccountAuthorization.js';
+export { DriveAuthError, hasDrivePermissions, isDriveDeliveryConfigured, requestDrivePermissions } from './driveAccountAuthorization.js';
 
 const driveFolderName = 'Gemini Exporter';
 
@@ -30,9 +30,11 @@ export async function connectDriveDelivery(signal: AbortSignal, mode: 'switch' |
     if (!isRecord(account) || !isRecord(account.user) || typeof account.user.emailAddress !== 'string'
         || !account.user.emailAddress) throw new Error('Google Drive account unavailable');
     const email = account.user.emailAddress;
-    if (preferred && preferred.toLowerCase() !== email.toLowerCase()) throw new Error('Google returned a different Drive account');
+    if (mode === 'restore' && preferred && preferred.toLowerCase() !== email.toLowerCase()) {
+        throw new DriveAuthError('account_mismatch', 'Google returned a different Drive account');
+    }
     signal.throwIfAborted();
-    if (!preferred) await saveDriveExportAccount(email);
+    if (!preferred || preferred.toLowerCase() !== email.toLowerCase()) await saveDriveExportAccount(email);
     const lockPrefix = 'drive-export:' + email.toLowerCase() + ':';
     const quote = (value: string) => "'" + value.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
     async function findChild(parent: string, name: string, folder: boolean, uploadSignal: AbortSignal): Promise<string | undefined> {
