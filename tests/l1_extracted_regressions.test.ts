@@ -349,3 +349,24 @@ test('audit fix: isRealTitle fallback filters invalid titles properly', () => {
     assert.strictEqual(isRealTitle('搜索'), false);
     assert.strictEqual(isRealTitle('Valid Chat Title 2026', 'c_123'), true);
 });
+
+test('GeminiResponseEnvelope.summarizeDetailFailure surfaces hNvQHb BardErrorInfo and missing detail RPCs', () => {
+    const { geminiResponse } = require('../src/l1/parsers/gemini/rpc/responseEnvelope.js');
+    const bardSummary = geminiResponse(geminiDetailGen('G_L1_VERIFIED_DETAIL_1096_01')).summarizeDetailFailure('detail parse fail: invalid', {
+        httpStatus: 200,
+        detailOnly: false,
+        paged: false,
+    });
+    assert.ok(bardSummary.includes('http=200'));
+    assert.ok(bardSummary.includes('rpcs=[hNvQHb]'));
+    assert.ok(bardSummary.includes('hNvQHb(rows=1 payload=null err=["BardErrorInfo",1096])'));
+    assert.ok(bardSummary.includes('parse=detail parse fail: invalid'));
+
+    const missingSummary = geminiResponse(geminiListGen('G_REGRESSION_BRACKET_TITLE_LIST_01')).summarizeDetailFailure('detail parse fail: invalid', {
+        httpStatus: 200,
+        detailOnly: false,
+        paged: false,
+    });
+    assert.ok(missingSummary.includes('rpcs=[MaZiqc]'));
+    assert.ok(missingSummary.includes('hNvQHb=missing'));
+});
