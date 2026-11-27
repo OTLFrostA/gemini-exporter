@@ -4,7 +4,6 @@ import { text } from '../../shared/settings.js';
 
 export function mountDriveDeliveryPanel() {
     const configured = isDriveDeliveryConfigured();
-    void configured.then(enabled => { el('driveDeliveryCard').hidden = !enabled; });
     const reconnect = control('button', 'driveConnect');
     const switchAccount = control('button', 'driveSwitch');
     const destination = control('a', 'driveDestination');
@@ -15,7 +14,7 @@ export function mountDriveDeliveryPanel() {
     let exporting = false;
     let needsReconnect = false;
     let expiredEmail = '';
-    let statusState: 'idle' | 'connecting' | 'switching' | 'connected' | 'switch_failed' | 'unavailable' | 'expired' = 'idle';
+    let statusState: 'idle' | 'connecting' | 'switching' | 'connected' | 'switch_failed' | 'unavailable' | 'unconfigured' | 'expired' = 'idle';
 
     function accountLabel(email: string) {
         return text('Export account: ', '导出账号：') + email;
@@ -39,6 +38,9 @@ export function mountDriveDeliveryPanel() {
             case 'unavailable':
                 status.textContent = text('Drive connection unavailable. Reconnect to continue.', 'Drive 连接不可用，请重新连接。');
                 return;
+            case 'unconfigured':
+                status.textContent = text('Google Drive authorization is unavailable in this installation.', '当前安装无法使用 Google Drive 授权。');
+                return;
             case 'expired':
                 status.textContent = text('Reconnect to continue: ', '请重新连接：') + expiredEmail;
                 return;
@@ -58,6 +60,11 @@ export function mountDriveDeliveryPanel() {
         renderStatus();
         updateControls();
         try {
+            if (!await configured) {
+                statusState = 'unconfigured';
+                renderStatus();
+                return;
+            }
             const connected = await connectDriveDelivery(lifetime.signal, mode);
             session = connected;
             destination.removeAttribute('href');
@@ -82,6 +89,12 @@ export function mountDriveDeliveryPanel() {
     switchAccount.addEventListener('click', () => { void connect('switch'); });
     renderStatus();
     updateControls();
+    void configured.then(enabled => {
+        if (!enabled && statusState === 'idle') {
+            statusState = 'unconfigured';
+            renderStatus();
+        }
+    });
     return {
         restoreConnection() { void configured.then(enabled => { if (enabled) return connect('restore'); }); },
         renderLanguage() { renderStatus(); },

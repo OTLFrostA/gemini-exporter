@@ -33,7 +33,8 @@ test('manifest.json enforces MV3 dynamic permission-gated scripts and hook expos
     assert.equal(manifest.manifest_version, 3);
     assert.ok(manifest.permissions?.includes('storage'));
     assert.equal(manifest.background?.service_worker, 'dist/background/background.js');
-    assert.ok(!manifest.host_permissions?.length, 'Platform origins must remain optional');
+    assert.ok(manifest.permissions?.includes('identity'), 'Drive authorization must be available in the source build');
+    assert.deepEqual(manifest.host_permissions, ['https://www.googleapis.com/*'], 'Platform origins must remain optional');
     assert.ok(!manifest.content_scripts?.length, 'Source scripts must be permission-gated dynamic registrations');
     for (const origin of ['https://gemini.google.com/*', 'https://chatgpt.com/*', 'https://claude.ai/*', 'https://grok.com/*']) {
         assert.ok(manifest.optional_host_permissions?.includes(origin), `Missing optional host permission: ${origin}`);

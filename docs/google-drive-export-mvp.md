@@ -7,13 +7,13 @@
 1. 启用 **Google Drive API**。在 Google Auth Platform 配置 Branding 和 Audience。公开发布前确认应用为 **In production**，并完成控制台提示的验证要求。若先在 **Testing** 状态下验收，将测试账号加入 Test users。
 2. 创建或复用一个 **Web application** OAuth 客户端。在 **Authorized redirect URIs** 添加 `https://ldpbiafkgjlaooeplkiooljccpalpkgf.chromiumapp.org/drive-auth`。
 
-## 使用发布包验收
+## 从源码运行
 
-标签发布流程通过 GitHub Actions 仓库变量 `DRIVE_WEB_CLIENT_ID` 取得公开客户端 ID。构建将客户端 ID、Chrome 商店公钥、`identity` 权限和 Drive API 主机权限写入发布 ZIP，并检查成品使用正确的扩展 ID。
+运行 `npm ci` 和 `npm run build`，然后在 `chrome://extensions` 加载仓库目录或重新加载已有安装。源码和发布 ZIP 共用 `drive-account-client.json` 中的公开 OAuth 客户端 ID，以及 manifest 中的 `identity` 权限和 Drive API 主机权限。
 
-本地验收使用相同的发布 ZIP。在独立 Chrome 配置档中打开 `chrome://extensions`，开启开发者模式，将 ZIP 解压后作为扩展加载。核对扩展 ID 为 `ldpbiafkgjlaooeplkiooljccpalpkgf`。本地验收和商店安装使用同一个 OAuth 客户端及回调。商店签名与安装流程在上架后使用商店安装验证。
+首次授权前，在同一个 Web OAuth 客户端的 **Authorized redirect URIs** 添加 `https://<本地扩展 ID>.chromiumapp.org/drive-auth`。在 `chrome://extensions` 可以查看本地扩展 ID。沿用当前安装目录可保留扩展 ID 和本地数据。
 
-也可从候选提交运行 `npm ci`，设置环境变量 `DRIVE_WEB_CLIENT_ID` 后执行 `npm run package -- --chrome-web-store`，用相同的打包入口生成待验收的 ZIP。
+标签发布仍由 CI 写入商店公钥，校验扩展 ID，并验证公开客户端 ID 与仓库变量 `DRIVE_WEB_CLIENT_ID` 一致。
 
 ## 试跑
 

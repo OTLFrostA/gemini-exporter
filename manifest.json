@@ -8,10 +8,11 @@
     "scripting",
     "activeTab",
     "webRequest",
+    "identity",
     "storage",
     "unlimitedStorage"
   ],
-  "host_permissions": [],
+  "host_permissions": ["https://www.googleapis.com/*"],
   "optional_host_permissions": [
     "https://gemini.google.com/*",
     "https://*.googleusercontent.com/*",

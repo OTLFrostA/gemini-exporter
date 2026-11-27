@@ -265,7 +265,8 @@ test('physical archive bytes survive verified local deletion; missing bodies fai
 
 test('manual Drive export authorizes on selection and verifies the file in the reused root export folder', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
-    await expect(page.locator('#driveDeliveryCard')).toBeHidden();
+    await expect(page.locator('#driveDeliveryCard')).toBeVisible();
+    await expect(page.locator('#driveConnectionStatus')).toHaveText('Connect to Google Drive.');
     await seedConversations(page, [{ id: 'chosen' }, { id: 'other' }]);
     await page.evaluate(async id => {
         const api = Reflect.get(globalThis, 'uiFixture');
