@@ -178,6 +178,9 @@ test('cancelled directory selection has readable feedback which clears when a sc
         });
     });
     await page.locator('input[name="delivery"][value="folderWriter"]').check();
+    await expect(page.locator('#status')).toContainText('Folder selection cancelled');
+    await expect(page.locator('#status')).not.toContainText('showDirectoryPicker');
+    await expect(page.locator('#log')).toContainText('showDirectoryPicker');
     await page.locator('#btnSetDir').click();
     await expect(page.locator('#status')).toContainText('Operation cancelled');
     await expect(page.locator('#status')).not.toContainText('showDirectoryPicker');
@@ -219,14 +222,12 @@ test('scan connection guidance follows the workbench language', async ({ context
 
 test('cancelled folder picker unlocks the workbench and allows a later successful selection', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
-    await page.locator('input[name="delivery"][value="folderWriter"]').check();
-    await expect(page.locator('#btnSetDir')).toBeEnabled();
     await page.evaluate(() => {
         Reflect.set(window, 'showDirectoryPicker', () => new Promise((_resolve, reject) => {
             Reflect.set(window, 'cancelFolderPicker', () => reject(new DOMException('User cancelled', 'AbortError')));
         }));
     });
-    await page.locator('#btnSetDir').click();
+    await page.locator('input[name="delivery"][value="folderWriter"]').check();
     await expect(page.locator('#format')).toBeDisabled();
     await page.evaluate(() => Reflect.get(window, 'cancelFolderPicker')());
     await expect(page.locator('#format')).toBeEnabled();

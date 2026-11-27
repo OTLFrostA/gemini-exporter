@@ -93,7 +93,8 @@ export function bindSettingsAndDeliveryControls(deps: {
         const exportDelivery: UIExportRequest['delivery'] =
             input.value === 'googleDrive' ? 'googleDrive' : input.value === 'folderWriter' ? 'folderWriter' : 'browserDownload';
         if (settings.exportDelivery === exportDelivery) return;
-        const permission = exportDelivery === 'folderWriter' && !deps.isDirectoryAvailable() && TourGuide.isLiveSaveStep()
+        const isLiveSaveTour = TourGuide.isLiveSaveStep();
+        const permission = exportDelivery === 'folderWriter' && !deps.isDirectoryAvailable()
             ? Directory.getPendingPermissionHandle() ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle()
             : undefined;
         const priorDelivery = settings.exportDelivery;
@@ -106,10 +107,19 @@ export function bindSettingsAndDeliveryControls(deps: {
                         const available = await Directory.verifyDirPermission(Directory.getDirHandle());
                         deps.setDirectoryAvailable(available);
                         if (!available) throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
-                        deps.status(() => text('Folder authorized. Enable Live Save to continue.', '目录已授权，开启实时保存即可继续。'));
+                        deps.status(() => isLiveSaveTour
+                            ? text('Folder authorized. Enable Live Save to continue.', '目录已授权，开启实时保存即可继续。')
+                            : text('Folder authorized', '目录已授权'));
                     } catch (error) {
-                        if (!(error instanceof DOMException && error.name === 'AbortError')) throw error;
-                        deps.status(() => text('Folder selection cancelled. Choose a folder to continue.', '已取消选择目录，请点击「选择文件夹」重试。'));
+                        if (error instanceof DOMException && error.name === 'AbortError') {
+                            deps.status(
+                                () => text('Folder selection cancelled. Choose a folder to continue.', '已取消选择目录，请点击「选择文件夹」重试。'),
+                                'info',
+                                error.message,
+                            );
+                        } else {
+                            deps.statusError(error);
+                        }
                     }
                 }
                 await updateSettings({ exportDelivery });
