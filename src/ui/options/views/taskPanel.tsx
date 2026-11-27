@@ -9,7 +9,7 @@ import type { ConversationSourceSummary } from '../../shared/conversationSourceS
 export interface TaskPanelProps {
     task: ForegroundTaskStatus;
     feedback: TaskFeedback;
-    showTask?: boolean;
+    showTask: boolean;
     percent: number;
     scanning: boolean;
     scanMessage: string | null;
@@ -86,7 +86,7 @@ function FailureCard({ groups, failedCount, dismissed, developerMode, task, read
 }
 
 export function TaskPanel({ failureHost, ...props }: TaskPanelProps & { failureHost: HTMLElement }) {
-    const { task, feedback, showTask = true, percent, scanning, scanMessage, scanSlow, onCancel } = props;
+    const { task, feedback, showTask, percent, scanning, scanMessage, scanSlow, onCancel } = props;
     const exporting = task.kind === 'export';
     const determinateTask = exporting || task.kind === 'takeout';
     const indeterminate = scanning && !determinateTask;
