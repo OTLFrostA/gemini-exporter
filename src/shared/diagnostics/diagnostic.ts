@@ -37,7 +37,7 @@ export interface Diagnostic {
     details?: JsonValue;
 }
 
-export interface DiagnosticSnapshotOptions {
+interface DiagnosticSnapshotOptions {
     maxDepth?: number;
     maxKeys?: number;
     maxArray?: number;
