@@ -10,8 +10,6 @@ import { isJsonValue } from '../../shared/utils/jsonTypes.js';
 import { isDiagnosticSource, isDiagnosticSeverity, isRuntimeDiagnosticEvent } from '../../shared/diagnostics/runtimeDiagnosticSnapshot.js';
 import { assertExtensionSender, object } from './contentSender.js';
 
-export type { DiagnosticEventSource, RuntimeDiagnosticEvent, RuntimeDiagnosticSnapshot };
-
 const SESSION_KEY = 'gemini_exporter_diag_buffer_v1';
 const MAX_EVENTS = 500;
 
