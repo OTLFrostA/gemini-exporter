@@ -127,7 +127,7 @@ export function initBackgroundDiagnosticCapture(): void {
     }
 }
 
-export async function getDiagnosticBufferSnapshot(): Promise<RuntimeDiagnosticSnapshot> {
+async function getDiagnosticBufferSnapshot(): Promise<RuntimeDiagnosticSnapshot> {
     await ensureLoaded();
     return {
         swStartedAt,
