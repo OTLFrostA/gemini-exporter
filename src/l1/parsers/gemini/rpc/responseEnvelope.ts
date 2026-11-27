@@ -24,6 +24,10 @@ export class GeminiResponseEnvelope {
         return this.byRpc.get(rpcId) ?? [];
     }
 
+    private rpcIds(): string[] {
+        return [...this.byRpc.keys()];
+    }
+
     /**
      * Produce a concise, structured diagnostic summary of a failed Detail batchexecute response:
      * lists all observed RPC IDs, inspects `hNvQHb` payload/error slots (including BardErrorInfo codes),
@@ -38,7 +42,7 @@ export class GeminiResponseEnvelope {
         if (meta.detailOnly !== undefined) parts.push(`detailOnly=${meta.detailOnly}`);
         if (meta.paged !== undefined) parts.push(`paged=${meta.paged}`);
 
-        const rpcs = [...this.byRpc.keys()];
+        const rpcs = this.rpcIds();
         parts.push(`rpcs=[${rpcs.join(',')}]`);
 
         const formatErrorSlot = (slot: unknown, maxLen: number): string | null => {
