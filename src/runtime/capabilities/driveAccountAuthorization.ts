@@ -44,7 +44,7 @@ export async function isDriveDeliveryConfigured(): Promise<boolean> {
     return loadAccountClient().then(() => true, () => false);
 }
 
-export async function hasDrivePermissions(): Promise<boolean> {
+async function hasDrivePermissions(): Promise<boolean> {
     if (typeof chrome.permissions?.contains === 'function') {
         return chrome.permissions.contains(drivePermissionsRequest);
     }
