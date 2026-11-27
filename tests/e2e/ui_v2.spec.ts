@@ -223,8 +223,8 @@ test('UI v2: radio delivery gates aligned folder picker and Live Save without lo
     const picker = page.locator('#btnSetDir');
     const details = page.locator('#localFolderControls');
 
-    await expect(page.locator('.delivery-card:visible')).toHaveCount(2);
-    await expect(page.locator('.delivery-card:visible')).toContainText(['Browser download', 'Save to local folder']);
+    await expect(page.locator('.delivery-card:visible')).toHaveCount(3);
+    await expect(page.locator('.delivery-card:visible')).toContainText(['Browser download', 'Google Drive', 'Save to local folder']);
     await expect(browser).toBeChecked();
     await expect(folder).not.toBeChecked();
     await expect(details).toBeHidden();

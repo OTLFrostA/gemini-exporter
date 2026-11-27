@@ -16,11 +16,11 @@ export async function launchExtensionContext(grantGemini = true): Promise<Browse
     let extensionPath = pathToExtension;
     if (grantGemini && !authorizedExtensionPath) {
         const staged = fs.mkdtempSync(path.join(os.tmpdir(), 'exporter-authorized-'));
-        for (const name of ['src', 'dist', 'icons', 'lib', '_locales'])
+        for (const name of ['src', 'dist', 'icons', 'lib', '_locales', 'drive-account-client.json'])
             fs.cpSync(path.join(pathToExtension, name), path.join(staged, name), { recursive: true });
         const manifest = JSON.parse(fs.readFileSync(path.join(pathToExtension, 'manifest.json'), 'utf8'));
         const origins = platformOrigins('gemini');
-        manifest.host_permissions = origins;
+        manifest.host_permissions = [...new Set([...manifest.host_permissions, ...origins])];
         manifest.optional_host_permissions = manifest.optional_host_permissions.filter((origin: string) => !origins.includes(origin));
         fs.writeFileSync(path.join(staged, 'manifest.json'), JSON.stringify(manifest));
         authorizedExtensionPath = staged;

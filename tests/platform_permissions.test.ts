@@ -8,7 +8,7 @@ import { syncPlatformContentScripts, syncAllPlatformContentScripts } from '../sr
 const platforms = SOURCE_PLATFORMS;
 test('manifest declares exactly the independent optional platform groups and no static source scripts', () => {
     const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
-    assert.deepEqual(manifest.host_permissions ?? [], []);
+    assert.deepEqual(manifest.host_permissions ?? [], ['https://www.googleapis.com/*']);
     assert.deepEqual(manifest.content_scripts ?? [], []);
     const origins = platforms.flatMap(platformOrigins);
     assert.equal(new Set(origins).size, origins.length);
