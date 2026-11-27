@@ -1,7 +1,6 @@
 
 const esbuild = require('esbuild');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 
 const ROOT = __dirname;
@@ -149,38 +148,20 @@ async function build() {
     console.log(`[build] ${jsFiles.length} JS bundle(s) -> dist/ in ${Date.now() - t0}ms (${warnings} warning(s))`);
 
     if (process.argv.includes('--pack')) {
-        packageExtension(process.argv.includes('--chrome-web-store'));
+        packageExtension();
     }
 }
 
-function chromeWebStoreManifest() {
-    const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
-    // The store public key gives the unpacked release ZIP the same ID as the signed item.
-    manifest.key = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt9t4PhILloNsEkD3hvMrQd28FxqMPc4VezsatwqinAvsSHYWqFmceqqnXULzh39Iqw+UUCPiHl4zN6QXCz8i5kSsCJ+37ow/DA34clTMsqOjvVVfdqg2/FleAJFOVserxHpkccG1SdnFo/dCDNxvyKsKCfL1l3wG6ep/snDT3K7x3ZpWvH9STRWc0U0VOxLeN+OWA99pPP3rKlIwhpokF6iIVLc7IqlMfoOgulBCQg+UK7LLO1FzyBVN0xoN5lQNuHLnwgoJoS7Tq9yvZmvQ+TmgteESpuO2O/Wiee2nN286lkp87O3NriNpAYXVhSZ4Ikpuf8Yaidxoex3YvDTHvwIDAQAB';
-    return manifest;
-}
-
-function packageExtension(chromeWebStore) {
+function packageExtension() {
     const t0 = Date.now();
     const zipName = `gemini-exporter-v${EXT_VERSION}.zip`;
     const zipPath = path.join(ROOT, zipName);
-    const releaseManifest = chromeWebStore ? chromeWebStoreManifest() : undefined;
     if (fs.existsSync(zipPath)) {
         fs.unlinkSync(zipPath);
     }
 
     const { execFileSync, execSync } = require('child_process');
-    if (releaseManifest) {
-        const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-exporter-release-'));
-        try {
-            fs.writeFileSync(path.join(staging, 'manifest.json'), JSON.stringify(releaseManifest, null, 2) + '\n');
-            execFileSync('zip', ['-q', zipPath, 'manifest.json'], { cwd: staging });
-        } finally {
-            fs.rmSync(staging, { recursive: true, force: true });
-        }
-    }
-    const staticFiles = ['_locales', 'icons', 'lib', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'README_zh.md', 'drive-account-client.json'];
-    if (!releaseManifest) staticFiles.unshift('manifest.json');
+    const staticFiles = ['manifest.json', '_locales', 'icons', 'lib', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'README_zh.md', 'drive-account-client.json'];
     execFileSync('zip', ['-qr', zipPath, ...staticFiles], { cwd: ROOT });
     execSync(`zip -r "${zipName}" src -x 'src/*.ts' 'src/*/*.ts' 'src/*/*/*.ts' 'src/*/*/*/*.ts' 'src/*.tsx' 'src/*/*.tsx' 'src/*/*/*.tsx' 'src/*/*/*/*.tsx' 'src/README.md'`, { cwd: ROOT, stdio: 'ignore' });
     execSync(`zip -r "${zipName}" dist -i ${EXPECTED_BUNDLES.map(file => `'${file}'`).join(' ')}`, { cwd: ROOT, stdio: 'ignore' });

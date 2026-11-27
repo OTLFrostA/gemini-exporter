@@ -9,11 +9,11 @@
 
 ## 从源码运行
 
-运行 `npm ci` 和 `npm run build`，然后在 `chrome://extensions` 加载仓库目录或重新加载已有安装。源码和发布 ZIP 共用 `drive-account-client.json` 中的公开 OAuth 客户端 ID，以及 manifest 中的 `identity` 权限和 Drive API 主机权限。
+运行 `npm ci` 和 `npm run build`，然后在 `chrome://extensions` 加载仓库目录。源码和发布 ZIP 共用带商店公钥的 manifest 及 `drive-account-client.json` 中的公开 OAuth 客户端 ID，扩展 ID 和 Drive 回调与商店版一致。
 
-首次授权前，在同一个 Web OAuth 客户端的 **Authorized redirect URIs** 添加 `https://<本地扩展 ID>.chromiumapp.org/drive-auth`。在 `chrome://extensions` 可以查看本地扩展 ID。沿用当前安装目录可保留扩展 ID 和本地数据。
+已安装同 ID 商店扩展时，在独立 Chrome 配置档中加载候选版本。旧的按路径生成的扩展 ID 下，原有会话和导出记录仍在该 ID 的本地存储中。
 
-标签发布仍由 CI 写入商店公钥，校验扩展 ID，并验证公开客户端 ID 与仓库变量 `DRIVE_WEB_CLIENT_ID` 一致。
+验收使用 `npm run package` 生成的发布 ZIP。将同一个 ZIP 解压后加载，提交商店时使用原 ZIP。CI 校验 manifest、扩展 ID 和 OAuth 客户端 ID，并在发布前核对 ZIP 的 SHA-256。
 
 ## 试跑
 
