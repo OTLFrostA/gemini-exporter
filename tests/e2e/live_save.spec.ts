@@ -8,8 +8,7 @@ test('directory authorization is explicit; enabled intention and the real stored
     });
     await expect(page.locator('#btnSetDir')).toBeDisabled();await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();
     await page.locator('input[name="delivery"][value="folderWriter"]').check();
-    await expect(page.locator('#btnSetDir')).toBeEnabled();await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();
-    await page.locator('#btnSetDir').click();await expect(page.locator('#btnSetDir')).toBeEnabled();
+    await expect(page.locator('#btnSetDir')).toBeEnabled();
     await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled();await page.locator('#liveSaveDiskToggle').check();
     await expect(page.locator('#liveSaveStatus')).toHaveText('Live Save active');
     expect(await page.evaluate(()=>Reflect.get(window,'pickerCalls'))).toBe(1);await expect.poll(async()=>(await storedSettings(page)).enabledDisk).toBe(true);
@@ -41,7 +40,7 @@ test('non-Markdown formats pause effective saving across Options, Popup and relo
     const page=await openOptions(context,extensionId);
     await page.evaluate(()=>{Reflect.set(window,'showDirectoryPicker',async()=>navigator.storage.getDirectory());});
     await page.locator('input[name="delivery"][value="folderWriter"]').check();
-    await page.locator('#btnSetDir').click();await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled();
+    await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled();
     // Hold the next real storage write until the format control has been checked.
     await page.evaluate(() => {
         const storage = chrome.storage.local;
