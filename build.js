@@ -1,6 +1,7 @@
 
 const esbuild = require('esbuild');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const ROOT = __dirname;
@@ -161,7 +162,19 @@ function packageExtension() {
     }
 
     const { execFileSync, execSync } = require('child_process');
-    const staticFiles = ['manifest.json', '_locales', 'icons', 'lib', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'README_zh.md', 'drive-account-client.json'];
+    // Strip the local development public key from the packaged Chrome Web Store manifest
+    // without mutating the tracked source manifest.json.
+    const releaseManifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+    delete releaseManifest.key;
+    const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'gemini-exporter-release-'));
+    try {
+        fs.writeFileSync(path.join(staging, 'manifest.json'), JSON.stringify(releaseManifest, null, 2) + '\n');
+        execFileSync('zip', ['-q', zipPath, 'manifest.json'], { cwd: staging });
+    } finally {
+        fs.rmSync(staging, { recursive: true, force: true });
+    }
+
+    const staticFiles = ['_locales', 'icons', 'lib', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'README_zh.md', 'drive-account-client.json'];
     execFileSync('zip', ['-qr', zipPath, ...staticFiles], { cwd: ROOT });
     execSync(`zip -r "${zipName}" src -x 'src/*.ts' 'src/*/*.ts' 'src/*/*/*.ts' 'src/*/*/*/*.ts' 'src/*.tsx' 'src/*/*.tsx' 'src/*/*/*.tsx' 'src/*/*/*/*.tsx' 'src/README.md'`, { cwd: ROOT, stdio: 'ignore' });
     execSync(`zip -r "${zipName}" dist -i ${EXPECTED_BUNDLES.map(file => `'${file}'`).join(' ')}`, { cwd: ROOT, stdio: 'ignore' });

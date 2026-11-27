@@ -266,8 +266,9 @@ test('physical archive bytes survive verified local deletion; missing bodies fai
 test('manual Drive export authorizes on selection and verifies the file in the reused root export folder', async ({ context, extensionId }) => {
     const page = await openOptions(context, extensionId);
     expect(extensionId).toBe('ldpbiafkgjlaooeplkiooljccpalpkgf');
-    expect(await page.evaluate(() => chrome.identity.getRedirectURL('drive-auth')))
-        .toBe('https://ldpbiafkgjlaooeplkiooljccpalpkgf.chromiumapp.org/drive-auth');
+    const initialPermissions = await page.evaluate(() => chrome.permissions.getAll());
+    expect(initialPermissions.permissions ?? []).not.toContain('identity');
+    expect(initialPermissions.origins ?? []).not.toContain('https://www.googleapis.com/*');
     await expect(page.locator('#driveDeliveryCard')).toBeVisible();
     await expect(page.locator('#driveConnectionStatus')).toHaveText('Connect to Google Drive.');
     await seedConversations(page, [{ id: 'chosen' }, { id: 'other' }]);
@@ -284,14 +285,43 @@ test('manual Drive export authorizes on selection and verifies the file in the r
     }, accountId);
     await page.addInitScript(() => {
         const scope = 'https://www.googleapis.com/auth/drive.file';
+        const originalContains = chrome.permissions.contains.bind(chrome.permissions);
+        const originalRequest = chrome.permissions.request.bind(chrome.permissions);
+        Object.defineProperty(chrome.permissions, 'contains', {
+            configurable: true,
+            value: async (details: chrome.permissions.Permissions) => {
+                if (details.permissions?.includes('identity')) {
+                    return sessionStorage.getItem('drivePermGranted') === '1';
+                }
+                return originalContains(details);
+            },
+        });
+        Object.defineProperty(chrome.permissions, 'request', {
+            configurable: true,
+            value: async (details: chrome.permissions.Permissions) => {
+                if (details.permissions?.includes('identity')) {
+                    const requests = JSON.parse(sessionStorage.getItem('drivePermRequests') ?? '[]') as unknown[];
+                    requests.push({
+                        permissions: details.permissions ?? [],
+                        origins: details.origins ?? [],
+                        inGesture: navigator.userActivation.isActive,
+                    });
+                    sessionStorage.setItem('drivePermRequests', JSON.stringify(requests));
+                    if (sessionStorage.getItem('denyDrivePerm') === '1') return false;
+                    sessionStorage.setItem('drivePermGranted', '1');
+                    return true;
+                }
+                return originalRequest(details);
+            },
+        });
         Object.defineProperty(chrome, 'identity', { configurable: true, value: {
-            getRedirectURL: (path: string) => 'https://test.chromiumapp.org/' + path,
+            getRedirectURL: (path: string) => 'https://ldpbiafkgjlaooeplkiooljccpalpkgf.chromiumapp.org/' + path,
             launchWebAuthFlow: async (flow: chrome.identity.WebAuthFlowDetails) => {
                 const query = new URL(flow.url).searchParams;
                 const prompt = query.get('prompt');
                 const hint = query.get('login_hint');
                 if (query.get('client_id') !== '123-web.apps.googleusercontent.com' || query.get('scope') !== scope
-                    || query.get('redirect_uri') !== 'https://test.chromiumapp.org/drive-auth'
+                    || query.get('redirect_uri') !== 'https://ldpbiafkgjlaooeplkiooljccpalpkgf.chromiumapp.org/drive-auth'
                     || (prompt === 'none') === flow.interactive) throw new Error('Unexpected authorization request');
                 if (sessionStorage.getItem('cancelSwitch')) throw new Error('Cancelled');
                 const email = prompt === 'select_account'
@@ -387,7 +417,19 @@ test('manual Drive export authorizes on selection and verifies the file in the r
         if (!returnEmpty) uploads.push({ file, body });
         return route.fulfill({ json: { id: file.id } });
     });
+    // Denying optional Drive permissions blocks OAuth and shows a clear permission prompt.
+    await page.evaluate(() => sessionStorage.setItem('denyDrivePerm', '1'));
     await page.locator('#driveDeliveryRadio').check();
+    await expect(page.locator('#driveConnectionStatus')).toHaveText('Google Drive permission was not granted. Reconnect to authorize.');
+    await expect(page.locator('#driveConnect')).toBeVisible();
+    const deniedRequests = await page.evaluate(() => JSON.parse(sessionStorage.getItem('drivePermRequests') ?? '[]'));
+    expect(deniedRequests).toEqual([{
+        permissions: ['identity'],
+        origins: ['https://www.googleapis.com/*'],
+        inGesture: true,
+    }]);
+    await page.evaluate(() => sessionStorage.removeItem('denyDrivePerm'));
+    await page.locator('#driveConnect').click();
     await expect(page.locator('#driveConnectionStatus')).toHaveText('Export account: drive@example.test');
     expect(await page.evaluate(() => sessionStorage.getItem('driveAuthMode'))).toBe('true');
     await expect(page.locator('#skipExported')).toBeEnabled();

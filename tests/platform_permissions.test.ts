@@ -8,9 +8,10 @@ import { syncPlatformContentScripts, syncAllPlatformContentScripts } from '../sr
 const platforms = SOURCE_PLATFORMS;
 test('manifest declares exactly the independent optional platform groups and no static source scripts', () => {
     const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
-    assert.deepEqual(manifest.host_permissions ?? [], ['https://www.googleapis.com/*']);
+    assert.deepEqual(manifest.host_permissions ?? [], []);
+    assert.deepEqual(manifest.optional_permissions ?? [], ['identity']);
     assert.deepEqual(manifest.content_scripts ?? [], []);
-    const origins = platforms.flatMap(platformOrigins);
+    const origins = [...platforms.flatMap(platformOrigins), 'https://www.googleapis.com/*'];
     assert.equal(new Set(origins).size, origins.length);
     assert.deepEqual([...manifest.optional_host_permissions].sort(), origins.sort());
     assert.ok(platformOrigins('chatgpt').includes('https://images.openai.com/*'));

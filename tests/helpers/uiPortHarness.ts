@@ -7,7 +7,12 @@ import path from 'node:path';
 const mock = `
 const h = globalThis.harness;
 export class DriveAuthorizationExpired extends Error {}
+export class DriveAuthError extends Error {
+ constructor(code, message) { super(message); this.name = 'DriveAuthError'; this.code = code; }
+}
 export const isDriveDeliveryConfigured = async () => false;
+export const hasDrivePermissions = async () => false;
+export const requestDrivePermissions = async () => false;
 export const connectDriveDelivery = async () => { throw new Error('Drive is disabled in the UI fixture'); };
 export const installDomainStorage = () => {};
 export const OperationError = h.OperationError ??= class extends Error {
