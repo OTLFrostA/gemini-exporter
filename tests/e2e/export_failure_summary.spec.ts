@@ -199,6 +199,14 @@ for (const theme of ['light', 'dark'] as const) {
 test('preflight folder authorization is a status prompt, not a batch failure', async ({ page }) => {
     await mount(page, 'options', { settings: { exportDelivery: 'folderWriter' } });
     await page.locator('#btnSelectAll').click();
+    await expect(page.locator('#btnExport')).toHaveText('Choose folder');
+    await page.evaluate(() => {
+        Reflect.set(window, 'showDirectoryPicker', async () => ({
+            name: 'Denied',
+            queryPermission: async () => 'denied',
+            requestPermission: async () => 'denied',
+        }));
+    });
     await page.locator('#btnExport').click();
     await expect(page.locator('#status')).toHaveText('Authorize a folder first');
     await expect(page.locator('#exportFailureCard')).toBeHidden();

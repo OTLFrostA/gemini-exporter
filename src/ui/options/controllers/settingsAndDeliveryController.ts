@@ -94,7 +94,7 @@ export function bindSettingsAndDeliveryControls(deps: {
             input.value === 'googleDrive' ? 'googleDrive' : input.value === 'folderWriter' ? 'folderWriter' : 'browserDownload';
         if (settings.exportDelivery === exportDelivery) return;
         const isLiveSaveTour = TourGuide.isLiveSaveStep();
-        const permission = exportDelivery === 'folderWriter' && !deps.isDirectoryAvailable()
+        const permission = exportDelivery === 'folderWriter' && !deps.isDirectoryAvailable() && isLiveSaveTour
             ? Directory.getPendingPermissionHandle() ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle()
             : undefined;
         const priorDelivery = settings.exportDelivery;

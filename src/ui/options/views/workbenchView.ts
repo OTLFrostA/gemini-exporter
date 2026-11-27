@@ -44,6 +44,7 @@ interface WorkbenchRenderInput {
     readonly settingsSaving: boolean;
     readonly themeSaving: boolean;
     readonly directoryAvailable: boolean;
+    readonly driveConnecting: boolean;
     readonly folderSuggestionPending: boolean;
     readonly onCloudBusy: (busy: boolean) => void;
     readonly onRenderConversations: () => void;
@@ -61,6 +62,7 @@ export function renderWorkbench(input: WorkbenchRenderInput): void {
         settingsSaving,
         themeSaving,
         directoryAvailable,
+        driveConnecting,
         folderSuggestionPending,
         onCloudBusy,
         onRenderConversations,
@@ -203,6 +205,6 @@ export function renderWorkbench(input: WorkbenchRenderInput): void {
         : text('Scan and sync conversations for the current account', '扫描并同步当前账号的会话');
 
     onRenderConversations();
-    control('button', 'btnExport').disabled ||= !settings || folderSuggestionPending;
+    control('button', 'btnExport').disabled ||= !settings || folderSuggestionPending || driveConnecting;
     onPaintTaskPanel();
 }
