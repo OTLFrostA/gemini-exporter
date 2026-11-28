@@ -46,7 +46,7 @@ const LABELS: ReadonlyMap<string, readonly [string, string]> = new Map([
     ['UNKNOWN_ERROR', ['Unknown error', '未知错误']],
 ]);
 
-export type FailureGroupTier = 'error' | 'degraded' | 'note';
+type FailureGroupTier = 'error' | 'degraded' | 'note';
 
 const PARSER_NOTE_CATEGORIES = new Set([
     'GEMINI_DOCUMENT_BINDING_FALLBACK',
