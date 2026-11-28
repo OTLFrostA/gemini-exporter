@@ -10,8 +10,10 @@ test('directory authorization is explicit; enabled intention and the real stored
     await page.locator('input[name="delivery"][value="folderWriter"]').check();
     await expect(page.locator('#btnSetDir')).toBeEnabled();await expect(page.locator('#liveSaveDiskToggle')).toBeDisabled();
     await expect(page.locator('#btnExport')).toHaveText('Choose folder');
-    await page.locator('#btnSetDir').click();await expect(page.locator('#btnSetDir')).toBeEnabled();
+    await expect(page.locator('#btnExport')).toBeEnabled();
+    await page.locator('#btnExport').click();await expect(page.locator('#btnSetDir')).toBeEnabled();
     await expect(page.locator('#btnExport')).toHaveText('Export selected');
+    await expect(page.locator('#btnExport')).toBeDisabled();
     await expect(page.locator('#liveSaveDiskToggle')).toBeEnabled();await page.locator('#liveSaveDiskToggle').check();
     await expect(page.locator('#liveSaveStatus')).toHaveText('Live Save active');
     expect(await page.evaluate(()=>Reflect.get(window,'pickerCalls'))).toBe(1);await expect.poll(async()=>(await storedSettings(page)).enabledDisk).toBe(true);
