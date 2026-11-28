@@ -35,7 +35,7 @@ export class GeminiResponseEnvelope {
      */
     summarizeDetailFailure(
         errMsg: string,
-        meta: { httpStatus?: number; detailOnly?: boolean; paged?: boolean } = {},
+        meta: { httpStatus?: number; detailOnly?: boolean; paged?: boolean },
     ): string {
         const parts: string[] = [];
         if (meta.httpStatus !== undefined) parts.push(`http=${meta.httpStatus}`);
