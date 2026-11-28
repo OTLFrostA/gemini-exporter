@@ -24,7 +24,7 @@ export class GeminiResponseEnvelope {
         return this.byRpc.get(rpcId) ?? [];
     }
 
-    rpcIds(): string[] {
+    private rpcIds(): string[] {
         return [...this.byRpc.keys()];
     }
 
