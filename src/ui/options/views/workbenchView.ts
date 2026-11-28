@@ -102,7 +102,6 @@ export function renderWorkbench(input: WorkbenchRenderInput): void {
         const clearLabel = text('Clear search', '清空搜索');
         clearSearchBtn.setAttribute('aria-label', clearLabel);
         clearSearchBtn.title = clearLabel;
-        clearSearchBtn.hidden = !state.search;
         clearSearchBtn.disabled = !settings;
     }
     const exportSettingsDisabled = busy || !settings || settingsSaving;
