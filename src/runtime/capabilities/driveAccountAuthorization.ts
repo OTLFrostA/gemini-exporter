@@ -1,6 +1,6 @@
 const driveScope = 'https://www.googleapis.com/auth/drive.file';
 
-export type DriveAuthErrorCode =
+type DriveAuthErrorCode =
     | 'unconfigured'
     | 'cancelled'
     | 'account_mismatch'
