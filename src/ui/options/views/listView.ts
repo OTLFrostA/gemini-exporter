@@ -136,7 +136,7 @@ function updateStat(
             : '';
     }
     const button = requiredElement('button', 'btnExport');
-    button.disabled = !state.selected.size || disabled;
+    button.disabled = (!exportActionLabel && !state.selected.size) || disabled;
     button.textContent = exportActionLabel ?? (state.selected.size > 0
         ? text(`Export selected (${state.selected.size})`, `导出选中 (${state.selected.size})`)
         : text('Export selected', '导出选中'));

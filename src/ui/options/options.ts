@@ -383,17 +383,19 @@ async function initWorkbench(): Promise<void> {
     });
     el('btnForceFullScan').addEventListener('click', () => { if (settings?.developerMode) void scanRunner.scan(true); });
     el('btnExport').addEventListener('click', () => {
+        if (isBusy() || folderSuggestionPending || !settings) return;
+        const delivery: UIExportRequest['delivery'] = settings.exportDelivery ?? 'browserDownload';
         const keys = TourGuide.isGuidedSelection() ? state.keys().slice(0, 1) : state.keys();
-        if (isBusy() || folderSuggestionPending || !keys.length || !settings) return;
-        const request: UIExportRequest = {
-            keys, format: settings.defaultFormat, delivery: settings.exportDelivery ?? 'browserDownload',
-            includeAssets: settings.includeAssets, skipUnchanged: settings.skipExported,
-        };
-        const start = (delivery: UIExportRequest['delivery']) => {
+        const start = (targetDelivery: UIExportRequest['delivery']) => {
+            if (!keys.length) return;
+            const request: UIExportRequest = {
+                keys, format: settings.defaultFormat, delivery: targetDelivery,
+                includeAssets: settings.includeAssets, skipUnchanged: settings.skipExported,
+            };
             const fonts = request.format === 'pdf' ? warmLocalFontCache() : Promise.resolve();
-            void exportRequest({ ...request, delivery }, fonts);
+            void exportRequest(request, fonts);
         };
-        if (request.delivery === 'folderWriter' && !directoryAvailable) {
+        if (delivery === 'folderWriter' && !directoryAvailable) {
             const permission = Directory.getPendingPermissionHandle()
                 ? Directory.reauthorizeDirHandle() : Directory.requestDirHandle();
             folderSuggestionPending = true; render();
@@ -403,6 +405,7 @@ async function initWorkbench(): Promise<void> {
                         throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
                     }
                     directoryAvailable = true;
+                    status(() => text('Folder authorized', '目录已授权'));
                     render();
                     start('folderWriter');
                 } catch (error) { statusError(error, 'warn'); }
@@ -410,13 +413,14 @@ async function initWorkbench(): Promise<void> {
             })();
             return;
         }
-        if (request.delivery === 'googleDrive' && !drivePanel.isConnected()) {
+        if (delivery === 'googleDrive' && !drivePanel.isConnected()) {
             void drivePanel.connectForExport().then(connected => {
                 if (connected) start('googleDrive');
             });
             return;
         }
-        if (request.delivery === 'browserDownload' && keys.length > DIRECT_WRITE_THRESHOLD
+        if (!keys.length) return;
+        if (delivery === 'browserDownload' && keys.length > DIRECT_WRITE_THRESHOLD
             && !settings.directWritePromptCompleted && !TourGuide.isActive()) {
             const shown = showDirectWritePrompt(keys.length, () => {
                 const permission = Directory.getPendingPermissionHandle()
@@ -441,7 +445,7 @@ async function initWorkbench(): Promise<void> {
                 return;
             }
         }
-        start(request.delivery);
+        start(delivery);
     });
 
     const importFile = (file: File) => {

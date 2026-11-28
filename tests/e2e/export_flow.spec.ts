@@ -395,8 +395,9 @@ test('manual Drive export authorizes on connect/export and verifies the file in 
     await expect(page.locator('#driveConnectionStatus')).toHaveText('Connect to Google Drive.');
     await expect(page.locator('#driveConnect')).toBeVisible();
     await expect(page.locator('#btnExport')).toHaveText('Connect Google Drive');
+    await expect(page.locator('#btnExport')).toBeEnabled();
     expect(await page.evaluate(() => sessionStorage.getItem('driveAuthMode'))).toBeNull();
-    await page.locator('#driveConnect').click();
+    await page.locator('#btnExport').click();
     await expect(page.locator('#driveConnectionStatus')).toHaveText('Export account: drive@example.test');
     expect(await page.evaluate(() => sessionStorage.getItem('driveAuthMode'))).toBe('true');
     await expect(page.locator('#skipExported')).toBeEnabled();
