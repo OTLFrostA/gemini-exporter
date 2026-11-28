@@ -7,7 +7,7 @@ import {
 import { elementById as el, requiredElement as control } from '../../shared/elements.js';
 import { text } from '../../shared/settings.js';
 
-export function mountDriveDeliveryPanel(options?: { readonly onStateChange?: () => void }) {
+export function mountDriveDeliveryPanel(options: { readonly onStateChange: () => void }) {
     const reconnect = control('button', 'driveConnect');
     const switchAccount = control('button', 'driveSwitch');
     const destination = control('a', 'driveDestination');
@@ -74,7 +74,7 @@ export function mountDriveDeliveryPanel(options?: { readonly onStateChange?: () 
         reconnect.hidden = Boolean(session) || pending || statusState === 'unconfigured';
         switchAccount.hidden = !session && !needsReconnect;
         reconnect.disabled = switchAccount.disabled = pending || exporting;
-        options?.onStateChange?.();
+        options.onStateChange();
     }
     async function connect(mode: 'switch' | 'connect' | 'restore'): Promise<boolean> {
         if (pending || exporting) return false;
