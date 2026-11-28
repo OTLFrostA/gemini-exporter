@@ -131,7 +131,7 @@ export function mountDriveDeliveryPanel(options?: { readonly onStateChange?: () 
     return {
         isConnected: () => Boolean(session),
         isConnecting: () => pending,
-        connectForExport: () => session ? Promise.resolve(true) : connect('connect'),
+        connectForExport: () => connect('connect'),
         restoreConnection() { void isDriveDeliveryConfigured().then(enabled => { if (enabled) return connect('restore'); }); },
         renderLanguage() { renderStatus(); },
         setExporting(value: boolean) { exporting = value; updateControls(); },
