@@ -107,9 +107,7 @@ export function bindSettingsAndDeliveryControls(deps: {
                         const available = await Directory.verifyDirPermission(Directory.getDirHandle());
                         deps.setDirectoryAvailable(available);
                         if (!available) throw new OperationError('DIRECTORY_PERMISSION_DENIED', 'Folder permission denied');
-                        deps.status(() => isLiveSaveTour
-                            ? text('Folder authorized. Enable Live Save to continue.', '目录已授权，开启实时保存即可继续。')
-                            : text('Folder authorized', '目录已授权'));
+                        deps.status(() => text('Folder authorized. Enable Live Save to continue.', '目录已授权，开启实时保存即可继续。'));
                     } catch (error) {
                         if (error instanceof DOMException && error.name === 'AbortError') {
                             deps.status(
